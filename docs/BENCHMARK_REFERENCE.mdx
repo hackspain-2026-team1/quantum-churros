@@ -105,3 +105,20 @@ above. The API sends raw numbers; the frontend formats them per
 
 That sentence ties an observed driver → sector baseline → actionable risk, which is
 exactly the explainability layer the north star asks for.
+
+## Industry classification
+
+Company-to-sector assignment is **not** stored in the benchmark tables. It is computed
+by the signal-based classifier documented in
+[`INDUSTRY_CLASSIFICATION.md`](./INDUSTRY_CLASSIFICATION.md) and persisted in
+`entityindustry`, keyed by `dataset_hash`.
+
+Flow:
+
+1. `xray-db classify` reads the financial trail and assigns an `industry_slug`.
+2. API joins `entityindustry.industry_slug` with `benchmarkindustrymetric.industry_slug`
+   for peer comparison.
+3. Demo overrides (`COMP_0680` → `manufacturing`) are applied at read time only.
+
+When the dataset changes, re-run classification — benchmark rows stay the same, company
+assignments are recomputed.

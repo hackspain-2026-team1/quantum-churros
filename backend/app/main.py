@@ -9,7 +9,9 @@ from xray_engine.artifacts import read_entity_scores, read_entity_series, read_l
 from xray_engine.demo import demo_overview
 
 from .benchmarks import seed_benchmark_studies
+from .benchmarks.demo_overrides import apply_demo_override
 from .config import settings
+from .industry import get_classification, get_classifications, industry_distribution
 from .models import (
     ActionUpdate,
     BenchmarkIndustryMetric,
@@ -17,6 +19,7 @@ from .models import (
     BenchmarkStudy,
     BenchmarkStudyRead,
     Entity,
+    IndustryClassificationRead,
     RecommendedAction,
     ScenarioProjection,
     ScenarioRecord,
@@ -146,6 +149,21 @@ def get_demo() -> dict[str, object]:
         action["status"] = labels.get(
             stored.get(action["id"], "pending"), stored.get(action["id"], "Por iniciar")
         )
+    with Session(engine) as session:
+        company_ids = [company["id"] for company in overview["companies"]]
+        classifications = get_classifications(
+            session,
+            company_ids,
+            dataset_hash=settings.active_dataset_hash,
+        )
+        for company in overview["companies"]:
+            record = classifications.get(company["id"])
+            if record is None:
+                continue
+            company["industry"] = apply_demo_override(
+                company["id"],
+                record.model_dump(),
+            )
     return overview
 
 
@@ -201,6 +219,56 @@ def get_benchmark(study_id: str) -> BenchmarkStudyRead:
 
             raise HTTPException(status_code=404, detail="Benchmark study not found")
         return _build_benchmark_study(session, study)
+
+
+@app.get("/api/v1/companies/{entity_id}/industry", response_model=IndustryClassificationRead)
+def get_company_industry(
+    entity_id: str,
+    dataset_hash: str | None = None,
+) -> IndustryClassificationRead:
+    with Session(engine) as session:
+        record = get_classification(
+            session,
+            entity_id,
+            dataset_hash=dataset_hash or settings.active_dataset_hash,
+        )
+        if record is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Industry classification not found")
+        return IndustryClassificationRead.model_validate(
+            apply_demo_override(entity_id, record.model_dump())
+        )
+
+
+@app.get("/api/v1/companies/industry", response_model=list[IndustryClassificationRead])
+def list_companies_industry(
+    ids: str,
+    dataset_hash: str | None = None,
+) -> list[IndustryClassificationRead]:
+    entity_ids = [item.strip() for item in ids.split(",") if item.strip()]
+    with Session(engine) as session:
+        records = get_classifications(
+            session,
+            entity_ids,
+            dataset_hash=dataset_hash or settings.active_dataset_hash,
+        )
+    return [
+        IndustryClassificationRead.model_validate(
+            apply_demo_override(entity_id, records[entity_id].model_dump())
+        )
+        for entity_id in entity_ids
+        if entity_id.upper() in records
+    ]
+
+
+@app.get("/api/v1/industry/distribution")
+def get_industry_distribution(dataset_hash: str | None = None) -> dict[str, int]:
+    with Session(engine) as session:
+        return industry_distribution(
+            session,
+            dataset_hash=dataset_hash or settings.active_dataset_hash,
+        )
 
 
 @app.get("/api/v1/scores/{entity_id}")

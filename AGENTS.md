@@ -31,3 +31,11 @@
 - Validate the local dataset with `make db-seed-dry-run`, then load it with `make db-seed`. The ingestion command runs inside the API container, streams every CSV through PostgreSQL `COPY`, and records the content hash and row counts in `source.dataset_import`.
 - Dataset ingestion is explicit and idempotent. Never trigger it from API startup, tests, or a migration. Re-running the same hash changes no rows; a different hash is stored alongside prior datasets.
 - Never truncate source tables to refresh data. Add a new dataset version and select it by `dataset_hash` so experiments and score runs remain reproducible.
+
+## Industry classification
+
+- Company sector inference is documented in [`docs/INDUSTRY_CLASSIFICATION.md`](docs/INDUSTRY_CLASSIFICATION.md). Read it before changing rules, signals, thresholds, or `entityindustry` persistence.
+- Classification logic lives in `engine/src/xray_engine/industry_classifier.py` (signals + `ClassifierStrategy`). The backend only persists results and serves the API.
+- Run `uv run xray-db classify data/raw` after ingesting a new dataset. Use `--force` to re-run when `rules-v1` thresholds change. Never classify from API startup.
+- Demo overrides in `backend/app/benchmarks/demo_overrides.py` are API-only; stored classifications remain signal-pure.
+- Benchmark peer mapping is in [`docs/BENCHMARK_REFERENCE.mdx`](docs/BENCHMARK_REFERENCE.mdx).

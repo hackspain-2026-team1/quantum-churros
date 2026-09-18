@@ -12,7 +12,7 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Progress } from '$lib/components/ui/progress/index.js';
 	import type { DemoOverview } from './demo-data.js';
-	import { formatDays, formatEuroCompact } from '$lib/format.js';
+	import { formatDays, formatEuroCompact, formatPercent } from '$lib/format.js';
 	import CompanyAvatar from './company-avatar.svelte';
 	import ScoreGauge from './score-gauge.svelte';
 	import TrajectoryChart from './trajectory-chart.svelte';
@@ -76,7 +76,14 @@
 		<CompanyAvatar name={company?.name ?? snapshot.entity_id} id={snapshot.entity_id} />
 		<div>
 			<p class="eyebrow">{snapshot.entity_id} · {company?.name ?? 'Empresa'}</p>
-			<h1 id="diagnosis-heading">Diagnóstico explicable</h1>
+			<div class="flex flex-wrap items-center gap-2">
+				<h1 id="diagnosis-heading">Diagnóstico explicable</h1>
+				{#if company?.industry}
+					<Badge variant="outline" title={company.industry.reason}>
+						{company.industry.industry_label} · {formatPercent(company.industry.confidence)}
+					</Badge>
+				{/if}
+			</div>
 		</div>
 	</div>
 	<p class="page-lead">El score separa el estado observado de la salud prevista a tres meses.</p>

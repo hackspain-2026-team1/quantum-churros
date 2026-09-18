@@ -2,8 +2,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from sqlmodel import Session, create_engine
 
 from .config import settings
+from .industry import run_classification
 from .ingest import dataset_fingerprint, ingest_dataset, source_paths
 
 app = typer.Typer(no_args_is_help=True)
@@ -27,6 +29,34 @@ def ingest(input_dir: Annotated[Path, typer.Argument()] = Path("data/raw"), dry_
         typer.echo(f"Dataset {fingerprint} is already loaded; no rows changed")
         return
     typer.echo(f"Loaded dataset {fingerprint}: {row_counts}")
+
+
+@app.command()
+def classify(
+    input_dir: Annotated[Path, typer.Argument()] = Path("data/raw"),
+    dry_run: bool = False,
+    force: bool = False,
+) -> None:
+    """Classify companies into industry archetypes for a dataset version."""
+    db_engine = create_engine(settings.database_url, pool_pre_ping=True)
+    with Session(db_engine) as session:
+        dataset_hash, counts, skipped = run_classification(
+            session,
+            input_dir,
+            force=force,
+            dry_run=dry_run,
+        )
+    if skipped:
+        typer.echo(
+            f"Dataset {dataset_hash} already classified with rules-v1; use --force to re-run"
+        )
+        return
+    if dry_run:
+        typer.echo(f"Dry run for dataset {dataset_hash}:")
+    else:
+        typer.echo(f"Classified dataset {dataset_hash}:")
+    for slug, total in counts.items():
+        typer.echo(f"  {slug}: {total}")
 
 
 if __name__ == "__main__":

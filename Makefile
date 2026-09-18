@@ -57,6 +57,10 @@ db-seed-dry-run: ## Validate source files and print their immutable dataset hash
 db-seed: ## Idempotently ingest the challenge dataset into PostgreSQL
 	$(COMPOSE) exec api uv run --locked --package quantum-churros-api xray-db ingest /data/raw
 
+.PHONY: db-classify
+db-classify: ## Classify companies into industry archetypes for the mounted dataset
+	$(COMPOSE) exec api uv run --locked --package quantum-churros-api xray-db classify /data/raw
+
 .PHONY: data-extract
 data-extract: ## Extract the local challenge archive into the ignored data directory
 	unzip -j -n "$(archive)" 'output/*' -d data/raw

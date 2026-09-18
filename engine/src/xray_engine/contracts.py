@@ -15,6 +15,18 @@ class Driver(BaseModel):
     source: Literal["observable", "predictive"] = "predictive"
 
 
+class IndustryClassification(BaseModel):
+    entity_id: str
+    industry_slug: str
+    industry_label: str
+    confidence: float = Field(ge=0, le=1)
+    source: Literal["signal", "override", "insufficient_data"]
+    reason: str
+    classifier_version: str
+    dataset_hash: str
+    signals: dict[str, float] = Field(default_factory=dict)
+
+
 class ScoreSnapshot(BaseModel):
     entity_id: str
     month: date

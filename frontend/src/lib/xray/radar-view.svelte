@@ -10,6 +10,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
+	import { formatPercent } from '$lib/format.js';
 	import type { DemoOverview } from './demo-data.js';
 	import CompanyAvatar from './company-avatar.svelte';
 	import ScoreGauge from './score-gauge.svelte';
@@ -84,6 +85,14 @@
 							<div>
 								<div class="font-medium">{company.name}</div>
 								<div class="font-data mt-1 text-xs text-muted-foreground">{company.id}</div>
+								{#if company.industry}
+									<div class="mt-2 space-y-1">
+										<Badge variant="outline">{company.industry.industry_label}</Badge>
+										<p class="text-xs text-muted-foreground">
+											Confianza {formatPercent(company.industry.confidence)}
+										</p>
+									</div>
+								{/if}
 								<Badge
 									class="mt-3"
 									variant={company.intent === 'danger' ? 'destructive' : 'outline'}
@@ -110,10 +119,12 @@
 			<div class="hidden md:block">
 				<Table.Root
 					><Table.Header
-						><Table.Row
-							><Table.Head>Empresa</Table.Head><Table.Head>Score</Table.Head><Table.Head
-								>Trayectoria</Table.Head
-							><Table.Head>Señal</Table.Head><Table.Head>Confianza</Table.Head><Table.Head
+							><Table.Row
+							><Table.Head>Empresa</Table.Head><Table.Head>Sector</Table.Head><Table.Head
+								>Score</Table.Head
+							><Table.Head>Trayectoria</Table.Head><Table.Head>Señal</Table.Head><Table.Head
+								>Confianza</Table.Head
+							><Table.Head
 								><span class="sr-only">Abrir</span></Table.Head
 							></Table.Row
 						></Table.Header
@@ -129,6 +140,17 @@
 											</div>
 										</div>
 									</div></Table.Cell
+								><Table.Cell
+									>{#if company.industry}
+										<div class="space-y-1">
+											<Badge variant="outline">{company.industry.industry_label}</Badge>
+											<p class="text-xs text-muted-foreground">
+												{formatPercent(company.industry.confidence)}
+											</p>
+										</div>
+									{:else}
+										<span class="text-sm text-muted-foreground">—</span>
+									{/if}</Table.Cell
 								><Table.Cell
 									><span class="font-data text-xl font-semibold">{company.score}</span></Table.Cell
 								><Table.Cell

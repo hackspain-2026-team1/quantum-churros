@@ -12,6 +12,7 @@
 	import CompanyAvatar from '$lib/xray/company-avatar.svelte';
 	import ScoreGauge from '$lib/xray/score-gauge.svelte';
 	import TrajectoryChart from '$lib/xray/trajectory-chart.svelte';
+	import { formatPercent } from '$lib/format.js';
 	import type { DemoOverview, CompanySignal, RecommendedAction } from '$lib/xray/demo-data.js';
 
 	const companyId = $derived((page.params.id ?? '').toUpperCase());
@@ -105,7 +106,14 @@
 					<CompanyAvatar name={info.name} id={info.id} />
 					<div>
 						<p class="eyebrow">{info.id}</p>
-						<h1 id="company-heading" class="text-2xl font-semibold">{info.name}</h1>
+						<div class="flex flex-wrap items-center gap-2">
+							<h1 id="company-heading" class="text-2xl font-semibold">{info.name}</h1>
+							{#if info.industry}
+								<Badge variant="outline" title={info.industry.reason}>
+									{info.industry.industry_label} · {formatPercent(info.industry.confidence)}
+								</Badge>
+							{/if}
+						</div>
 					</div>
 				</div>
 				<div class="grid gap-4 md:grid-cols-2">

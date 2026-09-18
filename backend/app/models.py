@@ -187,3 +187,31 @@ class BenchmarkStudyRead(SQLModel):
     source_url: str
     description: str | None = None
     industries: list[BenchmarkIndustryMetricRead]
+
+
+class EntityIndustry(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    dataset_hash: str = Field(index=True, max_length=64)
+    entity_id: str = Field(index=True)
+    industry_slug: str = Field(index=True)
+    industry_label: str
+    confidence: float
+    source: str = Field(index=True)
+    reason: str
+    classifier_version: str = Field(index=True)
+    signals_json: str
+    classified_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class IndustryClassificationRead(SQLModel):
+    entity_id: str
+    industry_slug: str
+    industry_label: str
+    confidence: float
+    source: str
+    reason: str
+    classifier_version: str
+    dataset_hash: str

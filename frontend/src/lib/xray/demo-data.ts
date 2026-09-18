@@ -1,3 +1,12 @@
+export type CompanyIndustry = {
+	industry_slug: string;
+	industry_label: string;
+	confidence: number;
+	source: 'signal' | 'override' | 'insufficient_data';
+	classifier_version?: string;
+	reason?: string;
+};
+
 export type CompanySignal = {
 	id: string;
 	name: string;
@@ -6,6 +15,7 @@ export type CompanySignal = {
 	signal: string;
 	confidence: string;
 	intent: string;
+	industry?: CompanyIndustry;
 };
 
 export type ScoreDriver = {
