@@ -1,0 +1,15 @@
+experiment: baseline-v1
+feature_version: features-v1
+seed: 42
+pillars:
+  liquidity: 0.28
+  conversion: 0.24
+  debt: 0.20
+  stability: 0.18
+  concentration: 0.10
+evaluation:
+  temporal_holdout_months: 4
+  metrics:
+    - directional_accuracy
+    - rank_stability
+    - lead_time_months

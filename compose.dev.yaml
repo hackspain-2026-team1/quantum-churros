@@ -1,0 +1,29 @@
+services:
+  postgres:
+    restart: "no"
+    ports:
+      - "5432:5432"
+
+  api:
+    restart: "no"
+    user: root
+    volumes:
+      - ./backend:/app/backend
+      - ./engine:/app/engine
+      - ./data/raw:/data/raw:ro
+      - ./artifacts:/app/artifacts
+    command: ["sh", "-c", "uv run --package quantum-churros-api alembic -c backend/alembic.ini upgrade head && uv run --package quantum-churros-api uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"]
+    ports:
+      - "8000:8000"
+
+  web:
+    restart: "no"
+    user: root
+    working_dir: /workspace
+    volumes:
+      - ./frontend:/workspace
+      - frontend_node_modules:/workspace/node_modules
+    command: ["sh", "-c", "bun install --frozen-lockfile && bun run dev --host 0.0.0.0 --port 3000"]
+
+volumes:
+  frontend_node_modules:

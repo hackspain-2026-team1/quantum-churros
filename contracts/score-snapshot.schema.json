@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantum-churros.dev/contracts/score-snapshot.schema.json",
+  "title": "ScoreSnapshot",
+  "type": "object",
+  "required": ["entity_id", "month", "score", "delta", "trend", "persistence_months", "confidence", "drivers", "feature_version", "model_version", "dataset_hash"],
+  "properties": {
+    "entity_id": { "type": "string" },
+    "month": { "type": "string", "format": "date" },
+    "score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "delta": { "type": "number" },
+    "trend": { "enum": ["improving", "stable", "deteriorating"] },
+    "persistence_months": { "type": "integer", "minimum": 0 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "drivers": { "type": "array", "items": { "type": "object" } },
+    "detected_since": { "type": ["string", "null"], "format": "date" },
+    "feature_version": { "type": "string" },
+    "model_version": { "type": "string" },
+    "dataset_hash": { "type": "string" }
+  }
+}

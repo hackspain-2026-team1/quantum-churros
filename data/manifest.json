@@ -1,0 +1,30 @@
+{
+  "dataset": "HackSpain 2026 X-Ray synthetic dataset",
+  "archive": "output_hackspain_data.zip",
+  "archive_bytes": 196175496,
+  "sha256": "c468be1d1482b3c1a595fc63f2b835280c5908b52ca8d68e1d02aca58c93f686",
+  "period": {
+    "from": "2024-09-01",
+    "to": "2026-09-01"
+  },
+  "entities": {
+    "groups": 250,
+    "companies": 1286
+  },
+  "files": [
+    "groups.csv",
+    "companies.csv",
+    "banking_products.csv",
+    "debt_products.csv",
+    "debt_schedule_config.csv",
+    "transactions.csv",
+    "invoices.csv",
+    "balances.csv",
+    "data_dictionary.md"
+  ],
+  "generated": {
+    "score_snapshots": 22179,
+    "feature_version": "features-v1",
+    "model_version": "baseline-v1"
+  }
+}
