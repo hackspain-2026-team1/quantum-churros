@@ -12,6 +12,8 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Progress } from '$lib/components/ui/progress/index.js';
 	import type { DemoOverview } from './demo-data.js';
+	import { formatDays, formatEuroCompact } from '$lib/format.js';
+	import CompanyAvatar from './company-avatar.svelte';
 	import ScoreGauge from './score-gauge.svelte';
 	import TrajectoryChart from './trajectory-chart.svelte';
 
@@ -19,6 +21,40 @@
 	let snapshot = $derived(demo.snapshot);
 	let trajectory = $derived(demo.trajectory);
 	let company = $derived(demo.companies.find((item) => item.id === snapshot.entity_id));
+	let activeMetric = $state('health');
+	let seriesMonths = $derived(demo.series?.months ?? demo.trajectory_months ?? []);
+	let hasInvoices = $derived(
+		(demo.series?.invoice_amount.length ?? 0) > 0 &&
+			demo.series?.months.length === trajectory.length
+	);
+	let metrics = $derived.by(() => {
+		const available: {
+			value: string;
+			label: string;
+			unit?: string;
+			format?: (value: number) => string;
+		}[] = [{ value: 'health', label: 'Score de salud', unit: '' }];
+		if (hasInvoices) {
+			available.push(
+				{ value: 'invoices', label: 'Facturas', format: formatEuroCompact },
+				{ value: 'dso', label: 'DSO', unit: 'días', format: (value: number) => formatDays(value) }
+			);
+		}
+		return available;
+	});
+	let activeValues = $derived.by(() => {
+		if (!demo.series) return trajectory;
+		if (activeMetric === 'invoices') return demo.series.invoice_amount;
+		if (activeMetric === 'dso') return demo.series.collection_delay_days;
+		return trajectory;
+	});
+	let metricTitle = $derived(
+		activeMetric === 'invoices'
+			? 'Facturación mensual'
+			: activeMetric === 'dso'
+				? 'Días de cobro (DSO)'
+				: 'Estado actual y trayectoria anticipada'
+	);
 	let trendLabel = $derived(
 		snapshot.trend === 'improving'
 			? 'Mejora prevista'
@@ -36,11 +72,14 @@
 </script>
 
 <section class="space-y-5" aria-labelledby="diagnosis-heading">
-	<div>
-		<p class="eyebrow">{snapshot.entity_id} · {company?.name ?? 'Empresa'}</p>
-		<h1 id="diagnosis-heading">Diagnóstico explicable</h1>
-		<p class="page-lead">El score separa el estado observado de la salud prevista a tres meses.</p>
+	<div class="flex items-center gap-3">
+		<CompanyAvatar name={company?.name ?? snapshot.entity_id} id={snapshot.entity_id} />
+		<div>
+			<p class="eyebrow">{snapshot.entity_id} · {company?.name ?? 'Empresa'}</p>
+			<h1 id="diagnosis-heading">Diagnóstico explicable</h1>
+		</div>
 	</div>
+	<p class="page-lead">El score separa el estado observado de la salud prevista a tres meses.</p>
 	<Alert.Root class="border-[var(--warning)]/35 bg-[var(--warning-soft)]"
 		><CalendarClock class="size-4" /><Alert.Title>Señal detectada desde {detectedLabel}</Alert.Title
 		><Alert.Description
@@ -85,10 +124,17 @@
 		>
 		<Card.Root
 			><Card.Header
-				><Card.Description>Score híbrido · histórico completo</Card.Description><Card.Title
-					>Estado actual y trayectoria anticipada</Card.Title
+				><Card.Description>Histórico completo</Card.Description><Card.Title
+					>{metricTitle}</Card.Title
 				></Card.Header
-			><Card.Content><TrajectoryChart values={trajectory} months={demo.trajectory_months} /></Card.Content></Card.Root
+			><Card.Content
+				><TrajectoryChart
+					values={activeValues}
+					months={seriesMonths}
+					{metrics}
+					bind:activeMetric
+				/></Card.Content
+			></Card.Root
 		>
 	</div>
 	<div class="grid gap-3 lg:grid-cols-2">

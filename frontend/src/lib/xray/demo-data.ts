@@ -30,10 +30,18 @@ export type RecommendedAction = {
 	intent: string;
 };
 
+export type MetricSeries = {
+	months: string[];
+	invoice_amount: number[];
+	invoice_count: number[];
+	collection_delay_days: number[];
+};
+
 export type DemoOverview = {
 	group: { id: string; name: string; period: string; score: number; delta: number };
 	trajectory: number[];
 	trajectory_months?: string[];
+	series?: MetricSeries;
 	companies: CompanySignal[];
 	snapshot: {
 		entity_id: string;

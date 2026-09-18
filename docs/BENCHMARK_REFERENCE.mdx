@@ -1,0 +1,107 @@
+# Benchmark reference tables
+
+External market benchmarks sit alongside X-Ray's own scoring pipeline. They answer a
+different question: **how does this company's collections behaviour compare to its
+sector peers?** The north star of the product remains the **financial health score**
+(0–100, trajectory-aware, explainable). Benchmark rows do not replace that score — they
+give context for the AR drivers that move it.
+
+Source study loaded today: [Tesorio 2025 AR Benchmark Report](https://www.tesorio.com/documents/tesorio-ar-benchmark-report.pdf)
+(Q4 2024 data, study id `TESORIO_AR_2025`).
+
+## North star alignment
+
+| Product question | How benchmarks help |
+| ---------------- | ------------------- |
+| **Quién está sano / quién se tuerce** | Compare observed AR signals against sector medians to see if deterioration is company-specific or sector-wide. |
+| **Por qué ha cambiado** | Anchor driver explanations (`collection_delay_days`, `receivable_overdue_ratio`) to a named external baseline instead of an abstract number. |
+| **Trayectoria, no foto** | `data_period` pins the benchmark to a quarter; X-Ray compares the company's rolling features against that fixed reference window. |
+| **El score, el eje** | Benchmarks never write into `scoresnapshotrecord`. They contextualise the drivers that feed the score. |
+
+## Tables
+
+### `benchmarkstudy`
+
+One row per external report ingested into X-Ray. Think of it as the citation card for a
+published benchmark.
+
+| Column | Type | Real metric / meaning | North star link |
+| ------ | ---- | --------------------- | --------------- |
+| `id` | `str` PK | Stable study identifier, e.g. `TESORIO_AR_2025`. | Lets the API and UI fetch the right peer set without hard-coding vendor data. |
+| `source` | `str` | Publisher slug (`tesorio`). | Provenance for explainability: "comparado con Tesorio Q4 2024". |
+| `title` | `str` | Human report title. | Shown in UI as the benchmark source label. |
+| `data_period` | `str` | Observation window (`Q4 2024`). | Anchors peer numbers to a calendar quarter so comparisons stay honest when the company's own window moves month to month. |
+| `report_year` | `int` | Publication year (`2025`). | Sorting and freshness: newer studies surface first. |
+| `source_url` | `str` | Link to the original PDF. | Audit trail; jurado or CFO can open the primary source. |
+| `description` | `str?` | Short summary of what the study measures. | Copy for tooltips and empty-state context. |
+| `ingested_at` | `timestamptz` | When X-Ray loaded the study. | Operational metadata; not shown to end users. |
+
+### `benchmarkindustrymetric`
+
+One row per industry within a study. These are the peer baselines Tesorio publishes for
+accounts-receivable performance.
+
+| Column | Type | Tesorio name | X-Ray feature / UI label | Stored as | North star link |
+| ------ | ---- | ------------ | ------------------------ | --------- | --------------- |
+| `id` | `str` PK | — | — | `{study_id}_{industry_slug}` | Composite key for idempotent seeding. |
+| `study_id` | `str` FK → `benchmarkstudy.id` | — | — | — | Groups industries under one citable study. |
+| `industry` | `str` | Industry label | Sector name in Spanish UI | Plain text, e.g. `Financial Services` | The peer bucket the company is compared against. |
+| `industry_slug` | `str` | — | Machine key for lookups | `snake_case`, e.g. `financial_services` | Future join to `companies.industry` or manual sector mapping. |
+| `rank` | `int` | AR Health Index rank | Posición sectorial | `1` = best performer | Quick ordinal context: "top 3 del sector" vs absolute numbers. |
+| `avg_days_to_collect` | `float` | **Average Days to Collect (ADC)** | `collection_delay_days` · *Retraso de cobro* | Days (integer-like float), e.g. `39` | **Speed lever.** Median days from invoice to cash. Lower is better. Direct peer for the driver that most often moves the score when collections slip. |
+| `open_ar_overdue_ratio` | `float` | **Percent of Open AR Overdue** | `receivable_overdue_ratio` · *Cuentas por cobrar vencidas* | Ratio `0–1`, e.g. `0.11` = 11 % | **Discipline lever.** Share of open receivables past due. Answers "is our overdue pile normal for the sector?" |
+| `overdue_aging_120d_ratio` | `float` | **Severity of Open AR Aging** (% of overdue AR > 120 days) | No 1:1 feature yet; conceptually *cola de morosidad grave* | Ratio `0–1` of **overdue** AR, not total AR | **Risk lever.** Tesorio treats >120 days as the write-off danger zone (~20–30 % recovery). Flags structural collections risk before it shows up as a score cliff. |
+| `ar_health_index` | `float` | **AR Health Index** | Sector-level composite (not the X-Ray score) | `0–1`, higher = healthier | **Single-number peer summary.** Normalised blend of ADC + overdue % + aging severity. Useful headline: "sector health 0,84 vs tu empresa 0,62". |
+| `commentary` | `str?` | Analyst note from the report | Tooltip / insight copy | Plain text | Human-readable interpretation for the diagnosis view. |
+
+## Metric correspondence
+
+How Tesorio's three core metrics map to what X-Ray already computes from `invoices.csv`:
+
+```
+Tesorio ADC                    X-Ray collection_delay_days
+  weighted avg days to collect   median(payment_date − due_date) for paid invoices
+                                 per company, per month
+
+Tesorio % Open AR Overdue      X-Ray receivable_overdue_ratio
+  overdue open AR / total open   receivable_overdue_amount / receivable_open_amount
+  AR at period end
+
+Tesorio % Overdue AR >120d     (no direct feature yet)
+  overdue AR aged >120d          aging buckets on open overdue invoices
+  / total overdue AR             would be the natural extension
+```
+
+The X-Ray **score** (0–100) is broader than Tesorio's AR Health Index: it also folds in
+cash margin, credit utilisation, volatility and payment behaviour. Use benchmarks to
+explain the **collections slice** of the score, not to replace it.
+
+## API surface
+
+| Endpoint | Returns |
+| -------- | ------- |
+| `GET /api/v1/benchmarks` | All studies with nested `industries[]`. |
+| `GET /api/v1/benchmarks/{study_id}` | One study, industries ordered by `rank`. |
+
+Response DTOs (`BenchmarkStudyRead`, `BenchmarkIndustryMetricRead`) mirror the tables
+above. The API sends raw numbers; the frontend formats them per
+[`UI_FORMATTING.mdx`](./UI_FORMATTING.mdx) (`19 días`, `11 %`, `0,84`).
+
+## Formatting reminders
+
+| Benchmark field | UI kind | Example output |
+| --------------- | ------- | -------------- |
+| `avg_days_to_collect` | Days | `39 días` |
+| `open_ar_overdue_ratio` | Percent | `11 %` |
+| `overdue_aging_120d_ratio` | Percent | `49 %` |
+| `ar_health_index` | Ratio | `0,84` |
+| `rank` | Integer | `3` |
+
+## Example comparison sentence
+
+> Velasco Industrial cobra con **19 días** de retraso mediano frente a **50 días** del
+> sector *Professional Services* (Tesorio Q4 2024). Su ratio de vencidos (**34 %**) está
+> por debajo del peer (**45 %**), pero la cola >120 días merece vigilancia.
+
+That sentence ties an observed driver → sector baseline → actionable risk, which is
+exactly the explainability layer the north star asks for.

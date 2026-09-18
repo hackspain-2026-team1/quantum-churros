@@ -5,12 +5,17 @@ from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, create_engine, select
-from xray_engine.artifacts import read_entity_scores, read_latest_score
+from xray_engine.artifacts import read_entity_scores, read_entity_series, read_latest_score
 from xray_engine.demo import demo_overview
 
+from .benchmarks import seed_benchmark_studies
 from .config import settings
 from .models import (
     ActionUpdate,
+    BenchmarkIndustryMetric,
+    BenchmarkIndustryMetricRead,
+    BenchmarkStudy,
+    BenchmarkStudyRead,
     Entity,
     RecommendedAction,
     ScenarioProjection,
@@ -70,6 +75,7 @@ async def lifespan(_: FastAPI):
         for action in seeds:
             if session.get(RecommendedAction, action.id) is None:
                 session.add(action)
+        seed_benchmark_studies(session)
         session.commit()
     yield
 
@@ -98,6 +104,22 @@ def get_demo() -> dict[str, object]:
         overview["snapshot"] = latest
         overview["trajectory"] = [row["score"] for row in score_history]
         overview["trajectory_months"] = [str(row["month"]) for row in score_history]
+        months, invoice_amount = read_entity_series(
+            settings.scores_path, "COMP_0680", "invoice_amount"
+        )
+        _, invoice_count = read_entity_series(
+            settings.scores_path, "COMP_0680", "invoice_count"
+        )
+        _, collection_delay = read_entity_series(
+            settings.scores_path, "COMP_0680", "collection_delay_days"
+        )
+        if months:
+            overview["series"] = {
+                "months": months,
+                "invoice_amount": invoice_amount,
+                "invoice_count": invoice_count,
+                "collection_delay_days": collection_delay,
+            }
         overview["group"]["score"] = latest["score"]
         overview["group"]["delta"] = latest["delta"]
         for company in overview["companies"]:
@@ -131,6 +153,54 @@ def get_demo() -> dict[str, object]:
 def get_actions() -> list[RecommendedAction]:
     with Session(engine) as session:
         return list(session.exec(select(RecommendedAction)))
+
+
+def _build_benchmark_study(session: Session, study: BenchmarkStudy) -> BenchmarkStudyRead:
+    industries = session.exec(
+        select(BenchmarkIndustryMetric)
+        .where(BenchmarkIndustryMetric.study_id == study.id)
+        .order_by(BenchmarkIndustryMetric.rank)
+    ).all()
+    return BenchmarkStudyRead(
+        id=study.id,
+        source=study.source,
+        title=study.title,
+        data_period=study.data_period,
+        report_year=study.report_year,
+        source_url=study.source_url,
+        description=study.description,
+        industries=[
+            BenchmarkIndustryMetricRead(
+                industry=metric.industry,
+                industry_slug=metric.industry_slug,
+                rank=metric.rank,
+                avg_days_to_collect=metric.avg_days_to_collect,
+                open_ar_overdue_ratio=metric.open_ar_overdue_ratio,
+                overdue_aging_120d_ratio=metric.overdue_aging_120d_ratio,
+                ar_health_index=metric.ar_health_index,
+                commentary=metric.commentary,
+            )
+            for metric in industries
+        ],
+    )
+
+
+@app.get("/api/v1/benchmarks", response_model=list[BenchmarkStudyRead])
+def list_benchmarks() -> list[BenchmarkStudyRead]:
+    with Session(engine) as session:
+        studies = session.exec(select(BenchmarkStudy).order_by(BenchmarkStudy.report_year.desc())).all()
+        return [_build_benchmark_study(session, study) for study in studies]
+
+
+@app.get("/api/v1/benchmarks/{study_id}", response_model=BenchmarkStudyRead)
+def get_benchmark(study_id: str) -> BenchmarkStudyRead:
+    with Session(engine) as session:
+        study = session.get(BenchmarkStudy, study_id.upper())
+        if study is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Benchmark study not found")
+        return _build_benchmark_study(session, study)
 
 
 @app.get("/api/v1/scores/{entity_id}")

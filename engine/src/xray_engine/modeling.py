@@ -317,6 +317,26 @@ def _drivers(
     return selected, omitted
 
 
+SERIES_FIELDS = (
+    "invoice_count",
+    "invoice_amount",
+    "paid_invoice_amount",
+    "receivable_open_amount",
+    "receivable_overdue_amount",
+    "collection_delay_days",
+)
+
+
+def _series(row: dict[str, Any]) -> dict[str, float]:
+    series: dict[str, float] = {}
+    for field in SERIES_FIELDS:
+        value = row.get(field)
+        if value is None:
+            continue
+        series[field] = int(value) if field == "invoice_count" else round(float(value), 2)
+    return series
+
+
 def score_with_model(
     features: pl.DataFrame, model_dir: Path, source_hash: str
 ) -> pl.DataFrame:
@@ -357,6 +377,7 @@ def score_with_model(
                 else "stable",
                 "confidence": round(0.6 * model_quality + 0.4 * data_quality, 3),
                 "drivers": drivers,
+                "series": _series(row),
                 "shap_base_value": round(float(shap_values[index, -1]), 4),
                 "explanation_residual": round(float(residual), 4),
                 "feature_version": FEATURE_VERSION,

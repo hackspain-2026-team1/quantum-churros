@@ -1,21 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { RotateCw, TriangleAlert, ArrowLeft } from '@lucide/svelte';
+	import { RotateCw, TriangleAlert, ArrowLeft, BellRing } from '@lucide/svelte';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import DiagnosisView from '$lib/xray/diagnosis-view.svelte';
+	import ActionsView from '$lib/xray/actions-view.svelte';
+	import CompanyAvatar from '$lib/xray/company-avatar.svelte';
 	import ScoreGauge from '$lib/xray/score-gauge.svelte';
 	import TrajectoryChart from '$lib/xray/trajectory-chart.svelte';
-	import type { DemoOverview, CompanySignal } from '$lib/xray/demo-data.js';
+	import type { DemoOverview, CompanySignal, RecommendedAction } from '$lib/xray/demo-data.js';
 
 	const companyId = $derived((page.params.id ?? '').toUpperCase());
 	let demo = $state<DemoOverview | null>(null);
 	let error = $state<string | null>(null);
 	let loading = $state(true);
+	let companyActions = $state<RecommendedAction[]>([]);
 
 	const loadDemo = async () => {
 		loading = true;
@@ -24,11 +27,41 @@
 			const response = await fetch('/api/v1/demo');
 			if (!response.ok) throw new Error(`La API respondió ${response.status}`);
 			demo = (await response.json()) as DemoOverview;
+			await loadActions();
 		} catch (reason) {
 			error = reason instanceof Error ? reason.message : 'No se pudo cargar la empresa';
 		} finally {
 			loading = false;
 		}
+	};
+
+	const loadActions = async () => {
+		companyActions = [];
+		const response = await fetch('/api/v1/actions');
+		if (!response.ok) return;
+		const actions = (await response.json()) as {
+			id: string;
+			entity_id: string;
+			title: string;
+			owner: string;
+			status: string;
+			expected_impact: string;
+		}[];
+		companyActions = actions
+			.filter((action) => action.entity_id === companyId)
+			.map(
+				(action) =>
+					({
+						id: action.id,
+						priority: 'P2',
+						title: action.title,
+						rationale: 'Acción derivada de la señal de trayectoria de esta empresa.',
+						impact: action.expected_impact,
+						owner: action.owner,
+						status: action.status,
+						intent: 'neutral'
+					}) as RecommendedAction
+			);
 	};
 
 	const company = $derived(demo?.companies.find((item) => item.id === companyId));
@@ -62,17 +95,18 @@
 	</div>
 {:else if demo && company}
 	<div class="mx-auto max-w-[1540px] space-y-5 px-4 py-6 lg:px-8 lg:py-8">
-		<Button variant="ghost" size="sm" href="/"
-			><ArrowLeft class="size-4" /> Volver al radar</Button
-		>
+		<Button variant="ghost" size="sm" href="/"><ArrowLeft class="size-4" /> Volver al radar</Button>
 		{#if hasDiagnosis}
 			<DiagnosisView {demo} />
 		{:else}
 			{@const info: CompanySignal = company}
 			<section class="space-y-5" aria-labelledby="company-heading">
-				<div>
-					<p class="eyebrow">{info.id}</p>
-					<h1 id="company-heading" class="text-2xl font-semibold">{info.name}</h1>
+				<div class="flex items-center gap-3">
+					<CompanyAvatar name={info.name} id={info.id} />
+					<div>
+						<p class="eyebrow">{info.id}</p>
+						<h1 id="company-heading" class="text-2xl font-semibold">{info.name}</h1>
+					</div>
 				</div>
 				<div class="grid gap-4 md:grid-cols-2">
 					<Card.Root>
@@ -110,6 +144,17 @@
 					</Card.Root>
 				</div>
 			</section>
+		{/if}
+		{#if companyActions.length > 0}
+			<ActionsView actions={companyActions} />
+		{:else}
+			<Alert.Root class="border-[var(--signal)]/30 bg-[var(--signal-soft)]"
+				><BellRing class="size-4" /><Alert.Title>Sin acciones abiertas</Alert.Title
+				><Alert.Description
+					>No hay acciones recomendadas activas para {company.name} en este cierre. X-Ray puede abrir
+					nuevas recomendaciones cuando cambie su trayectoria.</Alert.Description
+				></Alert.Root
+			>
 		{/if}
 	</div>
 {:else}

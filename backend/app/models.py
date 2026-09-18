@@ -138,3 +138,52 @@ class ScenarioResponse(SQLModel):
 
 class ActionUpdate(SQLModel):
     status: str
+
+
+class BenchmarkStudy(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    source: str = Field(index=True)
+    title: str
+    data_period: str
+    report_year: int = Field(index=True)
+    source_url: str
+    description: str | None = None
+    ingested_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class BenchmarkIndustryMetric(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    study_id: str = Field(index=True, foreign_key="benchmarkstudy.id")
+    industry: str
+    industry_slug: str = Field(index=True)
+    rank: int = Field(index=True)
+    avg_days_to_collect: float
+    open_ar_overdue_ratio: float
+    overdue_aging_120d_ratio: float
+    ar_health_index: float
+    commentary: str | None = None
+
+
+class BenchmarkIndustryMetricRead(SQLModel):
+    industry: str
+    industry_slug: str
+    rank: int
+    avg_days_to_collect: float
+    open_ar_overdue_ratio: float
+    overdue_aging_120d_ratio: float
+    ar_health_index: float
+    commentary: str | None = None
+
+
+class BenchmarkStudyRead(SQLModel):
+    id: str
+    source: str
+    title: str
+    data_period: str
+    report_year: int
+    source_url: str
+    description: str | None = None
+    industries: list[BenchmarkIndustryMetricRead]

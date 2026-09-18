@@ -11,11 +11,13 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import type { DemoOverview } from './demo-data.js';
+	import CompanyAvatar from './company-avatar.svelte';
 	import ScoreGauge from './score-gauge.svelte';
 	import TrajectoryChart from './trajectory-chart.svelte';
 
 	let { demo, onInspect }: { demo: DemoOverview; onInspect: () => void } = $props();
-	let { group, companies, trajectory } = $derived(demo);</script>
+	let { group, companies, trajectory } = $derived(demo);
+</script>
 
 <section class="space-y-5" aria-labelledby="radar-heading">
 	<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -58,7 +60,13 @@
 					>
 				</div>
 				<Badge variant="outline">4,1 meses de anticipación</Badge></Card.Header
-			><Card.Content><TrajectoryChart values={trajectory} months={demo.trajectory_months} compact /></Card.Content></Card.Root
+			><Card.Content
+				><TrajectoryChart
+					values={trajectory}
+					months={demo.trajectory_months}
+					compact
+				/></Card.Content
+			></Card.Root
 		>
 	</div>
 	<Card.Root
@@ -71,12 +79,17 @@
 				{#each companies as company (company.id)}<button
 						class="grid w-full grid-cols-[1fr_auto] gap-3 px-6 py-4 text-left"
 						onclick={onInspect}
-						><div>
-							<div class="font-medium">{company.name}</div>
-							<div class="font-data mt-1 text-xs text-muted-foreground">{company.id}</div>
-							<Badge class="mt-3" variant={company.intent === 'danger' ? 'destructive' : 'outline'}
-								>{company.signal}</Badge
-							>
+						><div class="flex items-start gap-3">
+							<CompanyAvatar name={company.name} id={company.id} />
+							<div>
+								<div class="font-medium">{company.name}</div>
+								<div class="font-data mt-1 text-xs text-muted-foreground">{company.id}</div>
+								<Badge
+									class="mt-3"
+									variant={company.intent === 'danger' ? 'destructive' : 'outline'}
+									>{company.signal}</Badge
+								>
+							</div>
 						</div>
 						<div class="text-right">
 							<div class="font-data text-2xl font-semibold">{company.score}</div>
@@ -107,9 +120,14 @@
 					><Table.Body
 						>{#each companies as company (company.id)}<Table.Row class="group"
 								><Table.Cell
-									><div class="font-medium">{company.name}</div>
-									<div class="font-data text-xs text-muted-foreground">
-										{company.id}
+									><div class="flex items-center gap-3">
+										<CompanyAvatar name={company.name} id={company.id} class="size-8" />
+										<div>
+											<div class="font-medium">{company.name}</div>
+											<div class="font-data text-xs text-muted-foreground">
+												{company.id}
+											</div>
+										</div>
 									</div></Table.Cell
 								><Table.Cell
 									><span class="font-data text-xl font-semibold">{company.score}</span></Table.Cell
