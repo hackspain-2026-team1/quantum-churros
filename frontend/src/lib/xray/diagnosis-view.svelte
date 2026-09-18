@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { ArrowDownRight, CalendarClock, FileSearch, ShieldCheck } from '@lucide/svelte';
+	import {
+		ArrowDownRight,
+		ArrowUpRight,
+		CalendarClock,
+		FileSearch,
+		Minus,
+		ShieldCheck
+	} from '@lucide/svelte';
 	import * as Alert from '$lib/components/ui/alert/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -12,26 +19,43 @@
 	let snapshot = $derived(demo.snapshot);
 	let trajectory = $derived(demo.trajectory);
 	let company = $derived(demo.companies.find((item) => item.id === snapshot.entity_id));
+	let trendLabel = $derived(
+		snapshot.trend === 'improving'
+			? 'Mejora prevista'
+			: snapshot.trend === 'deteriorating'
+				? 'Deterioro previsto'
+				: 'Trayectoria estable'
+	);
+	let detectedLabel = $derived(
+		snapshot.detected_since
+			? new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(
+					new Date(snapshot.detected_since)
+				)
+			: 'este cierre'
+	);
 </script>
 
 <section class="space-y-5" aria-labelledby="diagnosis-heading">
 	<div>
 		<p class="eyebrow">{snapshot.entity_id} · {company?.name ?? 'Empresa'}</p>
 		<h1 id="diagnosis-heading">Diagnóstico explicable</h1>
-		<p class="page-lead">El nivel sigue siendo aceptable; la trayectoria ya no lo es.</p>
+		<p class="page-lead">El score separa el estado observado de la salud prevista a tres meses.</p>
 	</div>
 	<Alert.Root class="border-[var(--warning)]/35 bg-[var(--warning-soft)]"
-		><CalendarClock class="size-4" /><Alert.Title
-			>Detectado en mayo, cuatro cierres antes</Alert.Title
+		><CalendarClock class="size-4" /><Alert.Title>Señal detectada desde {detectedLabel}</Alert.Title
 		><Alert.Description
-			>El cambio aparece cuando el score todavía marcaba 78. La persistencia separa esta señal de un
-			bache puntual.</Alert.Description
+			>El modelo anticipa {snapshot.forecast_delta > 0 ? '+' : ''}{snapshot.forecast_delta} puntos a tres
+			meses y acumula {snapshot.persistence_months} cierres de persistencia.</Alert.Description
 		></Alert.Root
 	>
 	<div class="grid gap-4 lg:grid-cols-[17rem_1fr]">
 		<Card.Root
 			><Card.Header
-				><Badge variant="destructive"><ArrowDownRight /> Deterioro persistente</Badge></Card.Header
+				><Badge variant={snapshot.trend === 'deteriorating' ? 'destructive' : 'secondary'}>
+					{#if snapshot.trend === 'improving'}<ArrowUpRight
+						/>{:else if snapshot.trend === 'deteriorating'}<ArrowDownRight />{:else}<Minus />{/if}
+					{trendLabel}
+				</Badge></Card.Header
 			><Card.Content class="grid place-items-center gap-5"
 				><ScoreGauge score={snapshot.score} delta={snapshot.delta} />
 				<div class="grid w-full grid-cols-2 gap-3 border-t pt-4">
@@ -46,13 +70,23 @@
 							>{snapshot.persistence_months} meses</strong
 						>
 					</div>
+					<div>
+						<span class="metric-label">Observado</span><strong class="font-data"
+							>{snapshot.observed_score}</strong
+						>
+					</div>
+					<div>
+						<span class="metric-label">Previsto · 3 meses</span><strong class="font-data"
+							>{snapshot.predicted_future_score}</strong
+						>
+					</div>
 				</div></Card.Content
 			></Card.Root
 		>
 		<Card.Root
 			><Card.Header
-				><Card.Description>Score observado · 24 meses</Card.Description><Card.Title
-					>De 82 a 68 sin un desplome aislado</Card.Title
+				><Card.Description>Score híbrido · histórico completo</Card.Description><Card.Title
+					>Estado actual y trayectoria anticipada</Card.Title
 				></Card.Header
 			><Card.Content><TrajectoryChart values={trajectory} /></Card.Content></Card.Root
 		>
@@ -62,8 +96,8 @@
 				><Card.Header class="pb-3"
 					><div class="flex items-start justify-between gap-4">
 						<div>
-							<Card.Description>Driver observado</Card.Description><Card.Title class="text-base"
-								>{driver.label}</Card.Title
+							<Card.Description>Aportación SHAP · predicción a 3 meses</Card.Description><Card.Title
+								class="text-base">{driver.label}</Card.Title
 							>
 						</div>
 						<span

@@ -16,6 +16,7 @@ export type ScoreDriver = {
 	observed: number;
 	baseline: number;
 	evidence: string;
+	source: 'observable' | 'predictive';
 };
 
 export type RecommendedAction = {
@@ -37,11 +38,16 @@ export type DemoOverview = {
 		entity_id: string;
 		month: string;
 		score: number;
+		observed_score: number;
+		predicted_future_score: number;
+		forecast_delta: number;
 		delta: number;
 		trend: string;
 		persistence_months: number;
 		confidence: number;
 		drivers: ScoreDriver[];
+		shap_base_value: number;
+		explanation_residual: number;
 		detected_since: string | null;
 		feature_version: string;
 		model_version: string;

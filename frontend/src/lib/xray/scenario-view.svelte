@@ -17,6 +17,7 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let projectedScore = $derived(result?.projected_score ?? 68);
+	let baseScore = $derived(result?.base_score ?? 68);
 	let projectedCash = $derived(Math.round((result?.projected_cash ?? 0) / 1000));
 	let projection = $derived([70, 72, 74, projectedScore]);
 	let saved = $state(false);
@@ -126,9 +127,13 @@
 					></Card.Header
 				><Card.Content
 					><div class="mb-5 flex flex-wrap items-center justify-center gap-5">
-						<ScoreGauge score={68} label="Observado" /><ArrowRight
+						<ScoreGauge score={baseScore} label="Observado" /><ArrowRight
 							class="size-6 text-muted-foreground"
-						/><ScoreGauge score={projectedScore} label="Proyectado" delta={projectedScore - 68} />
+						/><ScoreGauge
+							score={projectedScore}
+							label="Proyectado"
+							delta={projectedScore - baseScore}
+						/>
 						<div class="min-w-36 border-l pl-5">
 							<span class="metric-label">Caja a 90 días</span><strong
 								class="font-data block text-3xl tracking-[-0.05em] text-[var(--success)]"

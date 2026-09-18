@@ -11,7 +11,10 @@ class RecommendedAction(SQLModel, table=True):
     owner: str
     status: str = Field(default="pending", index=True)
     expected_impact: str
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_column=Column(DateTime(timezone=True), nullable=False))
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class Workspace(SQLModel, table=True):
@@ -33,8 +36,13 @@ class ScoreRun(SQLModel, table=True):
     feature_version: str
     model_version: str
     status: str = Field(default="completed", index=True)
-    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_column=Column(DateTime(timezone=True), nullable=False))
-    completed_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    started_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    completed_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
 
 
 class ScoreSnapshotRecord(SQLModel, table=True):
@@ -68,8 +76,13 @@ class AlertRecord(SQLModel, table=True):
     kind: str
     severity: str = Field(index=True)
     status: str = Field(default="new", index=True)
-    detected_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_column=Column(DateTime(timezone=True), nullable=False))
-    resolved_at: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    detected_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    resolved_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
 
 
 class ScenarioRecord(SQLModel, table=True):
@@ -78,7 +91,10 @@ class ScenarioRecord(SQLModel, table=True):
     base_score: float
     assumptions_json: str
     status: str = Field(default="calculated", index=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_column=Column(DateTime(timezone=True), nullable=False))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class ScenarioProjection(SQLModel, table=True):
@@ -98,7 +114,9 @@ class MacroObservation(SQLModel, table=True):
     value: float
     source: str
     series: str
-    available_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False, index=True))
+    available_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True)
+    )
 
 
 class ScenarioRequest(SQLModel):

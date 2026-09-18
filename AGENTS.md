@@ -21,3 +21,13 @@
 - `frontend` may consume generated contracts but must not import Python code or research artifacts.
 - `backend` may import `engine`; `engine` must not import `backend`.
 - `research` may import `engine`; production code must never import `research`.
+
+## Database lifecycle and dataset ingestion
+
+- PostgreSQL is the shared application database. Use the container from `compose.yaml`; SQLite is only a lightweight fallback for isolated unit tests.
+- Alembic owns schema changes only. Never place the challenge CSV contents or other bulk seed data inside an Alembic revision.
+- `20260918_02_seed_baseline_dataset.py` is a frozen legacy demo seed already present in migration history. Do not regenerate it or use it as a pattern; all new dataset loads go through `xray-db ingest`.
+- Start the stack with `make up`; the API applies pending Alembic migrations before serving requests.
+- Validate the local dataset with `make db-seed-dry-run`, then load it with `make db-seed`. The ingestion command runs inside the API container, streams every CSV through PostgreSQL `COPY`, and records the content hash and row counts in `source.dataset_import`.
+- Dataset ingestion is explicit and idempotent. Never trigger it from API startup, tests, or a migration. Re-running the same hash changes no rows; a different hash is stored alongside prior datasets.
+- Never truncate source tables to refresh data. Add a new dataset version and select it by `dataset_hash` so experiments and score runs remain reproducible.

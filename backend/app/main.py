@@ -1,15 +1,24 @@
-from contextlib import asynccontextmanager
 import json
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, SQLModel, create_engine, select
-
+from sqlmodel import Session, create_engine, select
+from xray_engine.artifacts import read_entity_scores, read_latest_score
 from xray_engine.demo import demo_overview
 
 from .config import settings
-from .models import ActionUpdate, Entity, RecommendedAction, ScenarioProjection, ScenarioRecord, ScenarioRequest, ScenarioResponse, Workspace
+from .models import (
+    ActionUpdate,
+    Entity,
+    RecommendedAction,
+    ScenarioProjection,
+    ScenarioRecord,
+    ScenarioRequest,
+    ScenarioResponse,
+    Workspace,
+)
 
 engine = create_engine(settings.database_url, pool_pre_ping=True)
 
@@ -19,12 +28,48 @@ async def lifespan(_: FastAPI):
     with Session(engine) as session:
         if session.get(Workspace, "WORKSPACE_DEMO") is None:
             session.add(Workspace(id="WORKSPACE_DEMO", name="Embat X-Ray Demo"))
-            session.add(Entity(id="GROUP_0042", workspace_id="WORKSPACE_DEMO", name="Grupo Velasco", kind="group"))
-            session.add(Entity(id="COMP_0680", workspace_id="WORKSPACE_DEMO", parent_id="GROUP_0042", name="Velasco Industrial", kind="company"))
+            session.add(
+                Entity(
+                    id="GROUP_0042",
+                    workspace_id="WORKSPACE_DEMO",
+                    name="Grupo Velasco",
+                    kind="group",
+                )
+            )
+            session.add(
+                Entity(
+                    id="COMP_0680",
+                    workspace_id="WORKSPACE_DEMO",
+                    parent_id="GROUP_0042",
+                    name="Velasco Industrial",
+                    kind="company",
+                )
+            )
         seeds = [
-            RecommendedAction(id="collect-overdue", entity_id="COMP_0680", title="Priorizar el cobro de cinco facturas", owner="Tesorería", status="in_progress", expected_impact="+4–6 puntos"),
-            RecommendedAction(id="refinance-line", entity_id="COMP_0680", title="Renegociar la línea de circulante", owner="CFO", status="pending", expected_impact="+180 k€ de margen"),
-            RecommendedAction(id="monitor-volatility", entity_id="COMP_0680", title="Vigilar la volatilidad de caja", owner="Analista", status="in_progress", expected_impact="Revisar en el próximo cierre"),
+            RecommendedAction(
+                id="collect-overdue",
+                entity_id="COMP_0680",
+                title="Priorizar el cobro de cinco facturas",
+                owner="Tesorería",
+                status="in_progress",
+                expected_impact="+4–6 puntos",
+            ),
+            RecommendedAction(
+                id="refinance-line",
+                entity_id="COMP_0680",
+                title="Renegociar la línea de circulante",
+                owner="CFO",
+                status="pending",
+                expected_impact="+180 k€ de margen",
+            ),
+            RecommendedAction(
+                id="monitor-volatility",
+                entity_id="COMP_0680",
+                title="Vigilar la volatilidad de caja",
+                owner="Analista",
+                status="in_progress",
+                expected_impact="Revisar en el próximo cierre",
+            ),
         ]
         for action in seeds:
             if session.get(RecommendedAction, action.id) is None:
@@ -34,7 +79,13 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","), allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins.split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
@@ -45,11 +96,37 @@ def health() -> dict[str, str]:
 @app.get("/api/v1/demo")
 def get_demo() -> dict[str, object]:
     overview = demo_overview()
+    score_history = read_entity_scores(settings.scores_path, "COMP_0680")
+    if score_history:
+        latest = score_history[-1]
+        overview["snapshot"] = latest
+        overview["trajectory"] = [row["score"] for row in score_history]
+        overview["group"]["score"] = latest["score"]
+        overview["group"]["delta"] = latest["delta"]
+        for company in overview["companies"]:
+            if company["id"] == latest["entity_id"]:
+                company["score"] = latest["score"]
+                company["delta"] = latest["delta"]
+                company["signal"] = {
+                    "improving": "Mejora prevista",
+                    "deteriorating": "Deterioro previsto",
+                    "stable": "Trayectoria estable",
+                }[latest["trend"]]
     with Session(engine) as session:
-        stored = {action.id: action.status for action in session.exec(select(RecommendedAction))}
-    labels = {"pending": "Por iniciar", "in_progress": "En curso", "resolved": "Resuelta", "reopened": "Reabierta"}
+        stored = {
+            action.id: action.status
+            for action in session.exec(select(RecommendedAction))
+        }
+    labels = {
+        "pending": "Por iniciar",
+        "in_progress": "En curso",
+        "resolved": "Resuelta",
+        "reopened": "Reabierta",
+    }
     for action in overview["actions"]:
-        action["status"] = labels.get(stored.get(action["id"], "pending"), stored.get(action["id"], "Por iniciar"))
+        action["status"] = labels.get(
+            stored.get(action["id"], "pending"), stored.get(action["id"], "Por iniciar")
+        )
     return overview
 
 
@@ -57,6 +134,11 @@ def get_demo() -> dict[str, object]:
 def get_actions() -> list[RecommendedAction]:
     with Session(engine) as session:
         return list(session.exec(select(RecommendedAction)))
+
+
+@app.get("/api/v1/scores/{entity_id}")
+def get_scores(entity_id: str) -> list[dict[str, object]]:
+    return read_entity_scores(settings.scores_path, entity_id)
 
 
 @app.patch("/api/v1/actions/{action_id}", response_model=RecommendedAction)
@@ -76,15 +158,55 @@ def update_action(action_id: str, update: ActionUpdate) -> RecommendedAction:
 
 @app.post("/api/v1/scenarios", response_model=ScenarioResponse)
 def calculate_scenario(request: ScenarioRequest) -> ScenarioResponse:
-    improvement = min(18, request.collection_days * 0.22 + request.refinance_amount / 60_000 + request.payment_extension_days * 0.12)
-    projected = round(68 + improvement, 1)
+    latest = read_latest_score(settings.scores_path, "COMP_0680")
+    base_score = float(latest["score"]) if latest else 68.0
+    improvement = min(
+        18,
+        request.collection_days * 0.22
+        + request.refinance_amount / 60_000
+        + request.payment_extension_days * 0.12,
+    )
+    projected = round(base_score + improvement, 1)
     scenario_id = f"SCN_{uuid4().hex[:12]}" if request.persist else "preview"
     low = max(0, projected - 3.5)
     high = min(100, projected + 2.5)
     if request.persist:
         with Session(engine) as session:
-            session.add(ScenarioRecord(id=scenario_id, entity_id="COMP_0680", base_score=68, assumptions_json=json.dumps(request.model_dump()), status="calculated"))
-            for offset, score in enumerate((70.0, 72.0, 74.0, projected), start=1):
-                session.add(ScenarioProjection(id=f"{scenario_id}_{offset}", scenario_id=scenario_id, month_offset=offset, score=score, confidence_low=max(0, score - 3.5), confidence_high=min(100, score + 2.5)))
+            session.add(
+                ScenarioRecord(
+                    id=scenario_id,
+                    entity_id="COMP_0680",
+                    base_score=base_score,
+                    assumptions_json=json.dumps(request.model_dump()),
+                    status="calculated",
+                )
+            )
+            projection_path = [
+                round(base_score + (projected - base_score) * offset / 4, 2)
+                for offset in range(1, 5)
+            ]
+            for offset, score in enumerate(projection_path, start=1):
+                session.add(
+                    ScenarioProjection(
+                        id=f"{scenario_id}_{offset}",
+                        scenario_id=scenario_id,
+                        month_offset=offset,
+                        score=score,
+                        confidence_low=max(0, score - 3.5),
+                        confidence_high=min(100, score + 2.5),
+                    )
+                )
             session.commit()
-    return ScenarioResponse(scenario_id=scenario_id, status="calculated" if request.persist else "preview", base_score=68, projected_score=projected, projected_cash=int(request.refinance_amount + request.collection_days * 2_800 + request.payment_extension_days * 1_500), confidence_low=low, confidence_high=high)
+    return ScenarioResponse(
+        scenario_id=scenario_id,
+        status="calculated" if request.persist else "preview",
+        base_score=base_score,
+        projected_score=projected,
+        projected_cash=int(
+            request.refinance_amount
+            + request.collection_days * 2_800
+            + request.payment_extension_days * 1_500
+        ),
+        confidence_low=low,
+        confidence_high=high,
+    )

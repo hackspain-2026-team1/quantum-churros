@@ -23,8 +23,8 @@
     "data_dictionary.md"
   ],
   "generated": {
-    "score_snapshots": 22179,
-    "feature_version": "features-v1",
-    "model_version": "baseline-v1"
+    "score_snapshots": 23521,
+    "feature_version": "features-v2",
+    "model_version": "catboost-v1"
   }
 }
