@@ -21,3 +21,7 @@ data/processed/*
 artifacts/*
 !data/**/.gitkeep
 !artifacts/.gitkeep
+
+# opencode local infra
+.opencode/node_modules/
+.opencode/package-lock.json

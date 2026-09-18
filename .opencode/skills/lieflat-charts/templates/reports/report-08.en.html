@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Population One-Pager — Lieflat Report Template · Wire Hundred Field</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════════════════════════
+     LIEFLAT REPORT TEMPLATE 08 · POPULATION ONE-PAGER
+     Scenario: a set of population-level comparison claims (nonprofit advocacy page, white-paper opener, policy brief)
+     Typography reference: Fig 7 "Global challenge" isotype (one figure = 100 million) —
+               broken-line big-type statements under a thin rule, top-left legend, giant unit grid field,
+               two volume comparisons at the bottom — learn the layout and type only.
+      Palette source of truth = the WIRE set in color-presets.js (grey-scale crowd + fluorescent-orange protagonist,
+      isomorphic to the original's "subset lit up inside a grey crowd"). The isotype figures become lieflat's
+      unit dot field: one dot = one unit, countable.
+      Chart source of truth = lieflat gallery:
+        Fig A  unit dot field = the grid layout of L14 hundred field (1 dot = 60 teams)
+        Fig B  F6 paired rungs · basics-gallery.html (today vs 2030, two groups)
+      Data note: everything is fictional demo data, only for validating the layout.
+     ═══════════════════════════════════════════════════════════════ */
+  :root{
+    --bg:#F0F0EE; --txt:#1F1E1C;
+    --mut:rgba(31,30,28,.60); --lab:rgba(31,30,28,.72);
+    --faint:rgba(31,30,28,.32); --quiet:rgba(31,30,28,.15); --grid:rgba(31,30,28,.16);
+    --data:#22211F; --data2:#8F8E86; --hero:#F5572F; --faintdata:#C0BFB7;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--txt);font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums lining-nums;
+    display:flex;justify-content:center;padding:64px 28px}
+  .sheet{width:880px;max-width:880px}
+
+  /* ── Broken-line big-type statement: thin rule on top (from Fig 7) ── */
+  .state{border-top:1px solid var(--txt);padding-top:14px}
+  .state .lead{font-size:21px;font-weight:700;line-height:1.35}
+  .state .lead b{font-weight:900}
+  h1{font-size:31px;font-weight:900;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px}
+
+  .head{display:grid;grid-template-columns:200px 1fr;gap:44px;align-items:end}
+  .legend{font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase}
+  .legend .rule{border-top:1px solid var(--txt);margin-bottom:10px;width:64px}
+  .legend .row{display:flex;align-items:center;gap:8px;letter-spacing:.04em}
+  .legend .dot{width:9px;height:9px;border-radius:50%;background:var(--data)}
+
+  /* ── Twin claim row ── */
+  .claims{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:40px}
+  .claims .c .num{font-size:34px;font-weight:900;letter-spacing:-.02em}
+  .claims .c:first-child .num{color:var(--hero)}
+  .claims .c:last-child .num{color:var(--txt)}
+  .claims .c .t{font-size:16.5px;font-weight:700;line-height:1.35;margin-top:2px}
+  .claims .c .src{font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-top:6px}
+
+  .fig svg{width:100%;height:auto;display:block}
+  svg text{font-family:'Inter',sans-serif}
+  .srcline{font-size:8.5px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);margin-top:10px}
+
+  /* ── Two volume comparisons at the bottom ── */
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:56px}
+  .compare .b .state{padding-top:12px}
+  .compare .b .t{font-size:16.5px;font-weight:700;line-height:1.35}
+  .compare .b .pct{font-size:34px;font-weight:900;letter-spacing:-.01em;margin-top:2px}
+  .compare .b:first-child .pct{color:var(--hero)}
+  .compare .b:last-child .pct{color:var(--txt)}
+
+  .bridge{margin-top:34px;border-top:1px dotted var(--faint);padding-top:12px;
+    text-align:right;font-size:14px;font-weight:700;letter-spacing:-.01em}
+  .bridge b{font-weight:900}
+
+  .foot{margin-top:56px;padding-top:12px;border-top:1px solid var(--txt);
+    display:flex;justify-content:space-between;font-size:9px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+
+  .pop{transform-box:fill-box;transform-origin:center;animation:pop .5s cubic-bezier(.2,.7,.3,1.3) both}
+  @keyframes pop{from{transform:scale(0)}to{transform:none}}
+  .fade{animation:fade .9s ease both}
+  @keyframes fade{from{opacity:0}}
+  @media(max-width:640px){body{padding:24px 10px}}
+  @media (prefers-reduced-motion:reduce){.pop,.fade{animation:none}}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <!-- ══ Header: legend + big-type statement ══ -->
+  <div class="head">
+    <div class="legend">
+      <div class="rule"></div>
+      <div style="margin-bottom:10px;letter-spacing:.14em">Key</div>
+      <div class="row"><span class="dot"></span><span>one dot = 60 teams</span></div>
+    </div>
+    <div class="state">
+      <h1>Of roughly <b>6,000</b> software<br>teams under ten people,</h1>
+    </div>
+  </div>
+
+  <!-- ══ Twin claims ══ -->
+  <div class="claims">
+    <div class="c state">
+      <div class="num">2,160</div>
+      <div class="t">have no shipping<br>process at all</div>
+      <div class="src">Demo data · 2026</div>
+    </div>
+    <div class="c state">
+      <div class="num">1,680</div>
+      <div class="t">lose ten-plus hours<br>a week to meetings</div>
+      <div class="src">Demo data · 2026</div>
+    </div>
+  </div>
+
+  <!-- ══ Unit dot field ══
+       Translated from Fig 7's isotype figure grid: one dot = 60 teams, 100 dots = the whole population.
+       Orange = no shipping process (36 dots), ink = meeting overload (28 dots), grey = the rest.
+       WIRE discipline: orange goes to a single protagonist subset. -->
+  <div class="fig" style="margin-top:44px"><svg id="field" viewBox="0 0 880 300" preserveAspectRatio="xMidYMid meet"></svg></div>
+  <div class="srcline">Unit field · one dot = 60 teams · 36 orange + 28 ink + 36 grey = 100 dots · the two subsets overlap in reality, counted here as separate</div>
+
+  <!-- ══ Bottom: two 2026 vs 2030 comparisons ══
+       Translated from Fig 7's lightbulb/droplet volume comparison: paired rungs, one unit per rung, countable. -->
+  <div class="compare">
+    <div class="b">
+      <div class="state">
+        <div class="t">By 2030, small teams running<br>async are set to grow</div>
+        <div class="pct">+45%</div>
+      </div>
+      <div class="fig"><svg id="async" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="srcline">Paired rungs · one rung = 200 teams · pale = 2026 · orange = 2030</div>
+    </div>
+    <div class="b">
+      <div class="state">
+        <div class="t">while weekly meeting<br>hours are set to fall</div>
+        <div class="pct">−20%</div>
+      </div>
+      <div class="fig"><svg id="meeting" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="srcline">Paired rungs · one rung = 1 hour/week · pale = 2026 · ink = 2030</div>
+    </div>
+  </div>
+
+  <div class="bridge">Where the two lines cross is the same thing: <b>moving collaboration out of the calendar and into the doc.</b></div>
+
+  <div class="foot">
+    <span>The global problem for small teams · population one-pager</span>
+    <span>All demo data · lieflat charts</span>
+  </div>
+</div>
+
+<script>
+/* ── mono-tokens inlined (geometry/util functions match the source of truth) ── */
+const NS='http://www.w3.org/2000/svg';
+const el=(p,t,a)=>{const n=document.createElementNS(NS,t);for(const k in a)n.setAttribute(k,a[k]);p.appendChild(n);return n};
+const txt=(p,a,s)=>{const n=el(p,'text',a);n.textContent=s;return n};
+const tip=(n,s)=>{const t=document.createElementNS(NS,'title');t.textContent=s;n.appendChild(t)};
+const rnd=(i,k)=>Math.abs(((i*73856093)^(k*19349663))%1000)/1000;
+const obsReveal=(id,fn)=>{
+  const n=document.getElementById(id);
+  const go=()=>{n.innerHTML='';fn(n)};
+  const io=new IntersectionObserver(es=>{if(es[0].isIntersecting){go();io.disconnect()}},{threshold:.3});
+  io.observe(n); n.style.cursor='pointer'; n.addEventListener('click',go);
+};
+
+/* ── WIRE preset (original values from color-presets.js) ── */
+const BG='#F0F0EE',TXT='#1F1E1C',MUT='rgba(31,30,28,.60)',FAINT='rgba(31,30,28,.32)',
+      GRID='rgba(31,30,28,.16)';
+const DATA='#22211F',DATA2='#8F8E86',HERO='#F5572F',FAINTDATA='#C0BFB7';
+
+/* ════ Fig A · unit dot field ════
+   lieflat translation of the isotype grid: 20 columns × 5 rows = 100 dots, 1 dot = 60 teams.
+   First 36 dots orange (no shipping process), next 28 ink (meeting overload), remaining 36 pale grey.
+   Dot radius jittered with rnd (Lupi texture), a locator dot at the column foot every 10 dots. */
+(()=>{
+const SEG=[[36,'#F5572F','no shipping process'],[28,'#22211F','overloaded on meetings'],[36,'#C0BFB7','the rest']];
+obsReveal('field',s=>{
+  const COLS=20,PX=44,PY=52,X0=32,Y0=40;
+  let idx=0;
+  SEG.forEach(([n,col,name],si)=>{
+    for(let k=0;k<n;k++,idx++){
+      const c=idx%COLS,r=Math.floor(idx/COLS);
+      const x=X0+c*PX+(rnd(idx+1,si+3)-.5)*4,
+            y=Y0+r*PY+(rnd(idx+2,si+7)-.5)*4;
+      const dot=el(s,'circle',{cx:x,cy:y,r:7.5+rnd(idx+3,si+5)*2.5,fill:col,
+        opacity:col==='#C0BFB7'?.85:.95,
+        class:'pop',style:`animation-delay:${idx*.012}s`});
+      tip(dot,`${name} — one dot = 60 teams`);
+    }
+  });
+  // Column-foot locator dots: one every 5 columns
+  for(let c=0;c<=COLS;c+=5)
+    el(s,'circle',{cx:X0+c*PX-PX/2,cy:Y0+4.6*PY+26,r:1.2,fill:FAINTDATA,
+      class:'fade',style:'animation-delay:1.2s'});
+  txt(s,{x:X0+9.5*PX,y:Y0+4.6*PY+30,'font-size':7.5,'font-weight':600,fill:FAINT,
+    'text-anchor':'middle','letter-spacing':'.12em',class:'fade',style:'animation-delay:1.3s'},
+    'TWENTY DOTS PER ROW · READ FROM TOP LEFT');
+});
+})();
+
+/* ════ Fig B/C · F6 paired rungs ════
+   Structure copied from basics-gallery "paired rungs": two ladders side by side,
+   2026 pale rungs, 2030 solid rungs (orange left, ink right), one honest unit per rung. */
+const pairs=(id,was,now,unit,colNow)=>{
+  obsReveal(id,s=>{
+    const base=196,step=5.2,HW=16,xa=110,xb=210;
+    for(let k=0;k<was;k++){
+      const y=base-k*step,w=HW-1.5+rnd(k+1,3)*3;
+      el(s,'line',{x1:xa-w,y1:y,x2:xa+w,y2:y,stroke:FAINTDATA,'stroke-width':1.2,
+        opacity:.75+rnd(k+2,4)*.25,class:'fade',style:`animation-delay:${k*.014}s`});
+    }
+    for(let k=0;k<now;k++){
+      const y=base-k*step,w=HW-1.5+rnd(k+1,9)*3;
+      el(s,'line',{x1:xb-w,y1:y,x2:xb+w,y2:y,stroke:colNow,'stroke-width':1.2,
+        opacity:.8+rnd(k+2,11)*.2,class:'fade',style:`animation-delay:${.15+k*.014}s`});
+      if(k%5===4)el(s,'circle',{cx:xb+HW+5,cy:y,r:.9,fill:FAINTDATA,
+        class:'fade',style:`animation-delay:${.15+k*.014}s`});
+    }
+    const numA=txt(s,{x:xa,y:base-(was-1)*step-10,'font-size':10,'font-weight':700,
+      fill:DATA2,'text-anchor':'middle',class:'fade',style:'animation-delay:.5s'},was*unit.k);
+    const numB=txt(s,{x:xb,y:base-(now-1)*step-10,'font-size':12,'font-weight':800,
+      fill:colNow,'text-anchor':'middle',class:'fade',style:'animation-delay:.65s'},now*unit.k);
+    tip(numA,`2026 — ${was*unit.k}${unit.tp}`);
+    tip(numB,`2030 — ${now*unit.k}${unit.tp}`);
+    txt(s,{x:xa,y:base+16,'font-size':8,'font-weight':700,fill:MUT,'text-anchor':'middle',
+      'letter-spacing':'.1em',class:'fade'},'2026');
+    txt(s,{x:xb,y:base+16,'font-size':8,'font-weight':700,fill:MUT,'text-anchor':'middle',
+      'letter-spacing':'.1em',class:'fade'},'2030');
+    el(s,'line',{x1:60,y1:base+4,x2:260,y2:base+4,stroke:GRID,'stroke-width':.8,class:'fade'});
+    txt(s,{x:160,y:230,'font-size':6.5,'font-weight':600,fill:FAINT,'text-anchor':'middle',
+      'letter-spacing':'.12em',class:'fade',style:'animation-delay:.9s'},
+      `ONE RUNG = ${unit.k}${unit.ts.toUpperCase()}`);
+  });
+};
+pairs('async',12,18,{k:200,tp:' teams',ts:' teams'},HERO);   // 2400 → 3600 (+50%≈45%, illustrative)
+pairs('meeting',15,12,{k:1,tp:' hours',ts:' hour/week'},DATA);    // 15 → 12 (−20%)
+
+</script>
+<script>
+/* ── fit-width: when the viewport is narrower than the layout body, scale the whole page proportionally, no reflow ──
+   A report is a single fixed layout, not a responsive web page. Collapsing to one column on narrow screens would produce
+   a layout that never existed at design time; proportional scaling preserves the composition, like PDF's "fit width".
+   Same mechanism as template 11. */
+(()=>{
+  const sheet=document.querySelector('.sheet');
+  const W=880;
+  const fit=()=>{
+    const cs=getComputedStyle(document.body);
+    const avail=document.documentElement.clientWidth
+      -parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+    sheet.style.zoom=Math.min(1,avail/W);
+  };
+  fit();
+  addEventListener('resize',fit);
+})();
+</script>
+</body>
+</html>

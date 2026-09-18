@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Annual Milestones — Lieflat Report Template · Palm Kraft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,700;0,800;1,500&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════════════════════════
+     LIEFLAT REPORT TEMPLATE 02 · ANNUAL MILESTONES
+     Scenario: annual review / foundation-style annual report one-pager (investor update, community yearbook, retrospective)
+     Typography reference: the 9/11 VCF annual-report infographic (kraft-paper backing + sheet, top milestone
+               timeline row, all-caps letterspaced section titles + underline, serif italic quote,
+               closing big number at the bottom) — learn the layout and type only.
+     Palette source of truth = the PALM set in color-presets.js, no new colors.
+       Backing = PALM.TXT deep coffee #58402E (standing in for kraft paper); sheet = PALM.BG.
+       Accent block = HERO amber #D4A017; dark block = DATA deep green #43593B.
+     Chart source of truth = lieflat gallery:
+       Fig A  F5  tick rows       · basics-gallery.html "Six teams, shipped and counted"
+       Fig B  L11 trend lineage   · lupi-gallery.html "Features rise, fall, come back"
+       Fig C  F11 tick gauge      · basics-gallery.html "How far to the quarter's goal"
+     Ink-boost rule (INK_BOOST): hairline stroke width ×1.8, opacity floor .85.
+     ═══════════════════════════════════════════════════════════════ */
+  :root{
+    /* PALM preset roles */
+    --paper:#F0EFEB; --txt:#58402E;
+    --mut:rgba(88,64,46,.60); --lab:rgba(88,64,46,.72);
+    --faint:rgba(88,64,46,.32); --quiet:rgba(88,64,46,.15);
+    --grid:rgba(88,64,46,.16);
+    --data:#43593B; --data2:#58402E; --hero:#D4A017;
+    --faintdata:#ACAD79; --bead:#77835A;
+    --mat:#58402E;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--mat);font-family:'Inter',sans-serif;color:var(--txt);
+    -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums lining-nums;
+    display:flex;justify-content:center;padding:64px 32px}
+  .sheet{width:980px;max-width:980px;background:var(--paper);padding:64px 68px 72px}
+
+  /* ── Section title: all caps + letterspacing + underline (learned from reference fig 2) ── */
+  .sect{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    padding-bottom:10px;border-bottom:2px solid var(--txt);margin-bottom:26px}
+  .sect .yr{float:right;font-weight:600;color:var(--mut);letter-spacing:.1em}
+
+  /* ── Top milestone timeline (callout, does not count against chart quota) ── */
+  .miles{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  .miles .m{padding:18px 16px 16px;position:relative}
+  .miles .m.amber{background:var(--hero);color:var(--paper)}
+  .miles .m.frame{border:1px solid var(--faint)}
+  .miles .m.green{background:var(--data);color:var(--paper)}
+  .miles .m .v{font-size:24px;font-weight:800;letter-spacing:-.03em;line-height:1;margin-top:6px}
+  .miles .m .l{font-size:10px;line-height:1.45;margin-top:7px;opacity:.85}
+  .miles .m .tag{font-size:8.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
+  .timeline{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:0}
+  .timeline .yr{text-align:center;font-size:11px;font-weight:700;letter-spacing:.08em;
+    padding-top:14px;position:relative}
+  .timeline .yr::before{content:'';position:absolute;top:0;left:50%;width:1px;height:10px;
+    background:var(--faint)}
+
+  /* ── Middle two columns ── */
+  .duo{display:grid;grid-template-columns:1.15fr 1fr;gap:56px;margin-top:56px}
+
+  /* ── Serif quote (italic serif quote learned from reference fig 2) ── */
+  .quote{margin-top:40px}
+  .quote .mark{font-family:'Playfair Display',serif;font-size:40px;font-weight:800;
+    color:var(--hero);line-height:.4;display:block;margin-bottom:2px}
+  .quote .q{font-family:'Playfair Display',serif;font-style:italic;font-size:25px;
+    font-weight:500;line-height:1.35;letter-spacing:-.01em}
+  .quote .who{font-size:10.5px;color:var(--mut);margin-top:14px;line-height:1.6}
+  .quote .who b{color:var(--lab);font-weight:700}
+
+  /* ── Chart ── */
+  .fig svg{width:100%;height:auto;display:block}
+  svg text{font-family:'Inter',sans-serif}
+  .claim{font-size:13px;font-weight:700;margin-bottom:2px}
+  .srcline{font-size:9px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--faint);margin-top:8px}
+
+  /* ── Bottom finale: chart + big-number speech bubble ── */
+  .finale{display:grid;grid-template-columns:1.2fr 1fr;gap:48px;margin-top:56px;align-items:center}
+  .bignum{border:1px solid var(--faint);padding:34px 30px;position:relative}
+  .bignum::before{content:'';position:absolute;left:-8px;top:50%;width:14px;height:14px;
+    transform:translateY(-50%) rotate(45deg);background:var(--paper);
+    border-left:1px solid var(--faint);border-bottom:1px solid var(--faint)}
+  .bignum .v{font-family:'Playfair Display',serif;font-size:64px;font-weight:800;
+    letter-spacing:-.02em;line-height:1;color:var(--data)}
+  .bignum .v small{font-size:30px}
+  .bignum .l{font-size:12px;font-weight:700;line-height:1.5;margin-top:14px}
+  .bignum .d{font-size:10.5px;color:var(--mut);line-height:1.55;margin-top:6px}
+
+  .foot{margin-top:64px;padding-top:16px;border-top:2px solid var(--txt);
+    display:flex;justify-content:space-between;font-size:9px;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+
+  /* ── Animation (verbatim from mono-tokens MOTION.css) ── */
+  .pop{transform-box:fill-box;transform-origin:center;animation:pop .5s cubic-bezier(.2,.7,.3,1.3) both}
+  @keyframes pop{from{transform:scale(0)}to{transform:none}}
+  .fade{animation:fade .9s ease both}
+  @keyframes fade{from{opacity:0}}
+  .draw{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1s cubic-bezier(.4,0,.2,1) both}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  @media(max-width:640px){body{padding:24px 10px}}
+  @media (prefers-reduced-motion:reduce){
+    .pop,.fade{animation:none}
+    .draw{animation:none;stroke-dasharray:none;stroke-dashoffset:0}
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <!-- ══ Top: milestone timeline ══ -->
+  <div class="sect">Funding and product milestones <span class="yr">2022 – 2026</span></div>
+  <div class="miles">
+    <div class="m amber"><div class="tag">Pre-seed</div><div class="v">$480k</div>
+      <div class="l">First cheque, two founders, one prototype</div></div>
+    <div class="m frame"><div class="tag">Seed</div><div class="v">$3.2M</div>
+      <div class="l">Product out of beta, first 1,000 teams</div></div>
+    <div class="m frame"><div class="tag">Revenue</div><div class="v">$1.1M</div>
+      <div class="l">ARR crossed seven figures in year three</div></div>
+    <div class="m frame"><div class="tag">Series A</div><div class="v">$14M</div>
+      <div class="l">Doubled the team, opened EU region</div></div>
+    <div class="m green"><div class="tag">Today</div><div class="v">$4.6M</div>
+      <div class="l">ARR run-rate, default-alive since March</div></div>
+  </div>
+  <div class="timeline">
+    <div class="yr">2022</div><div class="yr">2023</div><div class="yr">2024</div>
+    <div class="yr">2025</div><div class="yr">2026</div>
+  </div>
+
+  <!-- ══ Middle: horizontal bars + quote | ring distribution ══ -->
+  <div class="duo">
+    <div>
+      <div class="sect" style="border-bottom-width:1px">Where the money went</div>
+      <!-- Fig A · F5 tick rows
+           Template: basics-gallery.html · "Six teams, shipped and counted" -->
+      <div class="claim">Payroll is four of every five dollars</div>
+      <div class="fig"><svg id="spendrows" viewBox="0 0 400 252" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="srcline">Tick rows · one tick = $20k spent in FY2026</div>
+
+      <div class="quote">
+        <span class="mark">“</span>
+        <div class="q">This was the year the machine started paying for itself.</div>
+        <div class="who">FY2026 letter to investors<br><b>Annual report, p.2</b></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sect" style="border-bottom-width:1px">Feature history</div>
+      <!-- Fig B · L11 trend lineage
+           Template: lupi-gallery.html · "Features rise, fall, come back" -->
+      <div class="claim">Two of ten features went dark. One clawed its way back.</div>
+      <div class="fig"><svg id="lineage" viewBox="0 0 400 365" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="srcline">Trend lineage · ● shipped · ○ reworked · dashed = dormant · line runs on if still alive</div>
+    </div>
+  </div>
+
+  <!-- ══ Bottom finale: progress gauge + big number ══ -->
+  <div class="sect" style="margin-top:56px">Progress against the 2027 plan</div>
+  <div class="finale">
+    <div>
+      <!-- Fig C · F11 tick gauge
+           Template: basics-gallery.html · "How far to the quarter's goal" -->
+      <div class="fig"><svg id="gauge" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="srcline">Tick gauge · one tick = 1% of the $7M ARR target</div>
+    </div>
+    <div class="bignum">
+      <div class="v">66<small>%</small></div>
+      <div class="l">of the road to $7M ARR is already behind us</div>
+      <div class="d">Plan set January 2026 · at current net revenue retention the target lands in Q3 2027, two quarters early.</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>FY2026 Annual One-Pager</span>
+    <span>Data · internal ledger + Stripe · audited Feb 2027</span>
+  </div>
+</div>
+
+<script>
+/* ── mono-tokens inline (geometry/helpers identical to the source of truth) ── */
+const NS='http://www.w3.org/2000/svg';
+const el=(p,t,a)=>{const n=document.createElementNS(NS,t);for(const k in a)n.setAttribute(k,a[k]);p.appendChild(n);return n};
+const txt=(p,a,s)=>{const n=el(p,'text',a);n.textContent=s;return n};
+const tip=(n,s)=>{const t=document.createElementNS(NS,'title');t.textContent=s;n.appendChild(t)};
+const rnd=(i,k)=>Math.abs(((i*73856093)^(k*19349663))%1000)/1000;
+const D2R=Math.PI/180;
+const pol=(cx,cy,r,deg)=>[cx+r*Math.cos(deg*D2R),cy+r*Math.sin(deg*D2R)];
+const obsReveal=(id,fn)=>{
+  const n=document.getElementById(id);
+  const go=()=>{n.innerHTML='';fn(n)};
+  const io=new IntersectionObserver(es=>{if(es[0].isIntersecting){go();io.disconnect()}},{threshold:.3});
+  io.observe(n); n.style.cursor='pointer'; n.addEventListener('click',go);
+};
+
+/* ── PALM preset (original values from color-presets.js) ── */
+const P={BG:'#F0EFEB',TXT:'#58402E',DATA:'#43593B',DATA2:'#58402E',HERO:'#D4A017',
+  FAINTDATA:'#ACAD79',BEAD:'#77835A',MUT:'rgba(88,64,46,.60)',
+  FAINT:'rgba(88,64,46,.32)',GRID:'rgba(88,64,46,.16)',
+  QUIET:'rgba(88,64,46,.15)',LAB:'rgba(88,64,46,.72)',
+  RAMP:['#F2D17E','#ACAD79','#929960','#77835A','#43593B'],
+  CAT4:['#43593B','#77835A','#ACAD79','#F2D17E'],CAT3:['#43593B','#929960','#F2D17E']};
+
+/* ════ Fig A · F5 tick rows ════
+   Structure copied from basics-gallery "tick rows": one row = one expense category,
+   1 tick = $20k. Tick stroke .9→1.6, opacity floor .85.
+   HERO amber goes to a single hero row (payroll). */
+(()=>{
+const D=[['PAYROLL',41],['INFRA & TOOLS',9],['MARKETING',7],['OFFICE & OPS',4],['LEGAL',2]];
+obsReveal('spendrows',s=>{
+  const y0=i=>40+i*42,X0=112,PX=5.4;
+  D.forEach(([name,v],i)=>{
+    const y=y0(i),hero=i===0;
+    txt(s,{x:102,y:y+3,'font-size':8,'font-weight':700,fill:P.MUT,'text-anchor':'end',
+      'letter-spacing':'.08em',class:'fade',style:`animation-delay:${i*.08}s`},name);
+    el(s,'line',{x1:X0,y1:y+9,x2:X0+43*PX,y2:y+9,stroke:P.GRID,'stroke-width':.8,
+      class:'fade',style:`animation-delay:${i*.08}s`});
+    for(let k=0;k<v;k++){
+      const x=X0+k*PX+PX/2,h=9+rnd(k+1,i+2)*6;
+      el(s,'line',{x1:x,y1:y+9,x2:x,y2:y+9-h,stroke:hero?P.HERO:P.DATA,'stroke-width':1.6,
+        opacity:.85+rnd(k+3,i+5)*.15,class:'fade',style:`animation-delay:${i*.08+k*.012}s`});
+      if(k%5===4)el(s,'circle',{cx:x,cy:y+13,r:.9,fill:P.FAINTDATA,
+        class:'fade',style:`animation-delay:${i*.08+k*.012}s`});
+    }
+    const amount = v*20>=1000 ? '$'+(v*20/1000).toFixed(2).replace(/0+$/,'').replace(/\.$/,'')+'M' : '$'+(v*20)+'k';
+    const lab=txt(s,{x:X0+v*PX+10,y:y+4,'font-size':11,'font-weight':800,
+      fill:hero?P.HERO:P.DATA,class:'fade',style:`animation-delay:${.4+i*.08}s`},amount);
+    tip(lab,`${name} — ${v} ticks × $20k`);
+  });
+  txt(s,{x:200,y:246,'font-size':7,'font-weight':600,fill:P.FAINT,'text-anchor':'middle',
+    'letter-spacing':'.12em',class:'fade',style:'animation-delay:.9s'},
+    'ONE TICK = $20K · DOT MARKS EVERY FIFTH · AMBER = LARGEST LINE');
+});
+})();
+
+/* ════ Fig B · L11 trend lineage ════
+   Structure copied from lupi-gallery "trend lineage": one column = one feature,
+   solid = shipped, hollow = reworked; a gap > 2 years between actions gets a dashed segment (dormant period);
+   features still alive run on to 2026; HERO amber goes only to the line that "came back after the longest dormancy".
+   Year axis runs from the report's 2022 to 2026, the same span as the top milestone timeline. */
+(()=>{
+const TR=[
+  ['DARK MODE',[[2022,'f'],[2024,'o']],true],
+  ['KANBAN',[[2022,'f']],true],
+  ['CMD PALETTE',[[2023,'f']],false],
+  ['LIVE CURSORS',[[2023,'f'],[2025,'o']],true],
+  ['TEMPLATES',[[2022,'f'],[2025,'o']],true],
+  ['INBOX',[[2023,'f']],false],
+  ['AI SUMMARIES',[[2024,'f'],[2025,'o']],true],
+  ['VOICE NOTES',[[2022,'f'],[2026,'o']],true],
+];
+const Y0=2022,yY=yr=>34+(yr-Y0)*60,colX=c=>84+c*36;
+// Hero: the feature line with the most recent activity — the "come back" in the headline
+const HC=TR.map((r,i)=>[r[1][r[1].length-1][0],i]).sort((a,b)=>b[0]-a[0])[0][1];
+obsReveal('lineage',s=>{
+  for(let yr=Y0;yr<=2026;yr++){
+    el(s,'line',{x1:60,y1:yY(yr),x2:372,y2:yY(yr),stroke:P.QUIET,'stroke-width':.8,
+      class:'fade',style:`animation-delay:${(yr-Y0)*.03}s`});
+    txt(s,{x:52,y:yY(yr)+3,'font-size':8,'font-weight':600,fill:P.MUT,'text-anchor':'end',
+      class:'fade',style:`animation-delay:${(yr-Y0)*.03}s`},yr);
+  }
+  TR.forEach(([name,ev,alive],c)=>{
+    const x=colX(c),hero=c===HC;
+    const lastYr=ev[ev.length-1][0];
+    // More recent activity = heavier; dormant ones take the lightest step (the dash itself already says dormant)
+    const col=hero?P.HERO:P.RAMP[alive?Math.min(4,Math.max(2,lastYr-Y0)):1];
+    for(let k=0;k<ev.length-1;k++){
+      const gap=ev[k+1][0]-ev[k][0];
+      el(s,'line',{x1:x,y1:yY(ev[k][0])+7,x2:x,y2:yY(ev[k+1][0])-7,
+        stroke:col,'stroke-width':hero?1.8:1.4,
+        'stroke-dasharray':gap>2?'2 4':'none',pathLength:1,
+        class:'draw',style:`animation-delay:${.3+c*.07}s;animation-duration:.6s`});
+    }
+    const last=ev[ev.length-1][0];
+    if(alive)
+      el(s,'line',{x1:x,y1:yY(last)+7,x2:x,y2:yY(2026)+16,stroke:col,'stroke-width':hero?1.8:1.4,
+        pathLength:1,class:'draw',style:`animation-delay:${.45+c*.07}s;animation-duration:.6s`});
+    ev.forEach(([yr,t])=>{
+      const node=el(s,'circle',t==='f'
+        ?{cx:x,cy:yY(yr),r:5.5,fill:col}
+        :{cx:x,cy:yY(yr),r:5.5,fill:P.BG,stroke:col,'stroke-width':1.6});
+      node.setAttribute('class','pop');
+      node.style.animationDelay=(.35+c*.07)+'s';
+      tip(node,`${name} — ${t==='f'?'shipped':'reworked'} ${yr}`);
+    });
+    // terminal dot: alive lands on today's baseline, dead stops where it stopped
+    el(s,'circle',{cx:x,cy:alive?yY(2026)+16:yY(last)+12,r:alive?3:1.6,
+      fill:col,class:'pop',style:`animation-delay:${.6+c*.07}s`});
+    const ly=yY(2026)+26;
+    txt(s,{x,y:ly,'font-size':8.5,'font-weight':hero?800:600,fill:hero?P.HERO:(alive?P.LAB:P.FAINT),
+      transform:`rotate(-52 ${x} ${ly})`,'text-anchor':'end',
+      class:'fade',style:`${hero?`paint-order:stroke;stroke:${P.BG};stroke-width:3px;`:''}animation-delay:${.7+c*.05}s`},name);
+  });
+});
+})();
+
+/* ════ Fig C · F11 tick gauge ════
+   Structure copied from basics-gallery "tick gauge": 210° dial, 1 tick = 1% of the goal.
+   Earned portion inked deep green, amber bead caps the tip. Tick stroke 1→1.8 / .6→1.1. */
+(()=>{
+const GOAL=66;
+obsReveal('gauge',s=>{
+  const cx=200,cy=186,R0=100,A0=-195,SW=210;
+  for(let k=0;k<100;k++){
+    const a=A0+k/100*SW,inked=k<GOAL;
+    const len=inked?13+rnd(k+1,3)*6:5+rnd(k+1,7)*2.5;
+    const [x1,y1]=pol(cx,cy,R0,a),[x2,y2]=pol(cx,cy,R0+len,a);
+    el(s,'line',{x1,y1,x2,y2,stroke:inked?P.DATA:P.FAINTDATA,'stroke-width':inked?1.8:1.1,
+      opacity:inked?1:.85,class:'fade',style:`animation-delay:${k*.012}s`});
+  }
+  [25,50,75,100].forEach(m=>{
+    const a=A0+m/100*SW,[dx,dy]=pol(cx,cy,R0-7,a),[tx2,ty2]=pol(cx,cy,R0-19,a);
+    el(s,'circle',{cx:dx,cy:dy,r:1,fill:P.BEAD,class:'fade',style:'animation-delay:.8s'});
+    txt(s,{x:tx2,y:ty2+3,'font-size':7,'font-weight':600,fill:P.FAINT,'text-anchor':'middle',
+      class:'fade',style:'animation-delay:.85s'},m);
+  });
+  const aT=A0+GOAL/100*SW,[ex,ey]=pol(cx,cy,R0+20,aT);
+  el(s,'circle',{cx:ex,cy:ey,r:2.8,fill:P.HERO,class:'pop',style:'animation-delay:1.1s'});
+  const num=txt(s,{x:cx,y:cy-4,'font-size':34,'font-weight':800,fill:P.DATA,'text-anchor':'middle',
+    class:'fade',style:'animation-delay:1s'},GOAL+'%');
+  tip(num,'$4.6M of the $7M ARR target');
+  txt(s,{x:cx,y:cy+16,'font-size':8,'font-weight':600,fill:P.MUT,'text-anchor':'middle',
+    'letter-spacing':'.1em',class:'fade',style:'animation-delay:1.05s'},'34 TICKS TO GO');
+  txt(s,{x:200,y:292,'font-size':7,'font-weight':600,fill:P.FAINT,'text-anchor':'middle',
+    'letter-spacing':'.12em',class:'fade',style:'animation-delay:1.2s'},
+    'ONE TICK = 1% OF TARGET · INKED = EARNED · AMBER BEAD = TODAY');
+});
+})();
+
+</script>
+<script>
+/* ── fit-width: when the viewport is narrower than the layout, scale the whole page down proportionally, no reflow ──
+   A report is a single printed spread, not a responsive web page. Collapsing to one column on narrow screens
+   would produce a layout that never existed at design time; proportional scaling preserves the composition,
+   matching PDF "fit to width". Same mechanism as template 11. */
+(()=>{
+  const sheet=document.querySelector('.sheet');
+  const W=980;
+  const fit=()=>{
+    const cs=getComputedStyle(document.body);
+    const avail=document.documentElement.clientWidth
+      -parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+    sheet.style.zoom=Math.min(1,avail/W);
+  };
+  fit();
+  addEventListener('resize',fit);
+})();
+</script>
+</body>
+</html>
