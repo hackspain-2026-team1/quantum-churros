@@ -28,23 +28,19 @@ async def lifespan(_: FastAPI):
     with Session(engine) as session:
         if session.get(Workspace, "WORKSPACE_DEMO") is None:
             session.add(Workspace(id="WORKSPACE_DEMO", name="Embat X-Ray Demo"))
-            session.add(
-                Entity(
-                    id="GROUP_0042",
-                    workspace_id="WORKSPACE_DEMO",
-                    name="Grupo Velasco",
-                    kind="group",
-                )
-            )
-            session.add(
-                Entity(
-                    id="COMP_0680",
-                    workspace_id="WORKSPACE_DEMO",
-                    parent_id="GROUP_0042",
-                    name="Velasco Industrial",
-                    kind="company",
-                )
-            )
+        demo_entities = [
+            Entity(id="GROUP_0042", workspace_id="WORKSPACE_DEMO", name="Grupo Velasco", kind="group"),
+            Entity(
+                id="COMP_0680",
+                workspace_id="WORKSPACE_DEMO",
+                parent_id="GROUP_0042",
+                name="Velasco Industrial",
+                kind="company",
+            ),
+        ]
+        for demo_entity in demo_entities:
+            if session.get(Entity, demo_entity.id) is None:
+                session.add(demo_entity)
         seeds = [
             RecommendedAction(
                 id="collect-overdue",

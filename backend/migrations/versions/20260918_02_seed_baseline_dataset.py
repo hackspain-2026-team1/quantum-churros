@@ -10,6 +10,7 @@ branch_labels = None
 depends_on = None
 
 import base64
+import datetime
 import json
 import zlib
 
@@ -33,7 +34,18 @@ def upgrade() -> None:
     conn = op.get_bind()
     if conn.execute(select(ScoreRun).where(ScoreRun.id == payload['run']['id'])).first():
         return
-    conn.execute(insert(ScoreRun).values(payload['run']))
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    conn.execute(
+        insert(ScoreRun).values(
+            id=payload["run"]["id"],
+            dataset_hash=payload["run"]["dataset_hash"],
+            feature_version=payload["run"]["feature_version"],
+            model_version=payload["run"]["model_version"],
+            status="completed",
+            started_at=now,
+            completed_at=now,
+        )
+    )
 
     entity_ids = set(conn.execute(select(Entity.id)).scalars())
     fresh = [row for row in payload['entities'] if row['id'] not in entity_ids]
@@ -51,7 +63,8 @@ def upgrade() -> None:
         conn.execute(insert(ScoreDriverRecord).values(fresh))
 
     alert_ids = set(conn.execute(select(AlertRecord.id)).scalars())
-    fresh = [row for row in payload['alerts'] if row['id'] not in alert_ids]
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    fresh = [dict(row, detected_at=now) for row in payload['alerts'] if row['id'] not in alert_ids]
     if fresh:
         conn.execute(insert(AlertRecord).values(fresh))
 
