@@ -9,6 +9,7 @@
 		Search,
 		Sparkles
 	} from '@lucide/svelte';
+	import { goto } from '$app/navigation';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -21,12 +22,29 @@
 
 	let { demo }: { demo: DemoOverview } = $props();
 	let active = $state('radar');
+	let query = $state('');
+	let searchFocused = $state(false);
 	const tabs = [
 		{ value: 'radar', label: 'Radar', icon: Radar },
 		{ value: 'diagnosis', label: 'Diagnóstico', icon: CircleGauge },
 		{ value: 'scenario', label: 'Escenarios', icon: FlaskConical },
 		{ value: 'actions', label: 'Acciones', icon: ListChecks }
 	];
+	const normalized = (value: string) => value.toLowerCase().trim();
+	const matches = $derived(
+		query
+			? demo.companies.filter(
+					(company) =>
+						normalized(company.name).includes(normalized(query)) ||
+						normalized(company.id).includes(normalized(query))
+				)
+			: demo.companies
+	);
+	const openCompany = (id: string) => {
+		query = '';
+		searchFocused = false;
+		goto(`/company/${id}`);
+	};
 </script>
 
 <div class="min-h-screen bg-background text-foreground">
@@ -52,7 +70,42 @@
 					class="pl-9"
 					placeholder="Buscar empresa o grupo"
 					aria-label="Buscar empresa o grupo"
+					bind:value={query}
+					autocomplete="off"
+					onfocus={() => (searchFocused = true)}
+					onblur={() => setTimeout(() => (searchFocused = false), 150)}
+					onkeydown={(event) => {
+						if (event.key === 'Enter' && matches[0]) openCompany(matches[0].id);
+						if (event.key === 'Escape') searchFocused = false;
+					}}
 				/>
+				{#if searchFocused && matches.length > 0}
+					<ul
+						class="absolute top-full left-0 z-40 mt-1 w-full rounded-md border bg-background py-1 shadow-md"
+						role="listbox"
+						aria-label="Resultados de empresa"
+					>
+						{#each matches as company (company.id)}
+							<li>
+								<button
+									type="button"
+									class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
+									onmousedown={() => openCompany(company.id)}
+								>
+									<span>
+										<span class="block font-medium">{company.name}</span>
+										<span class="font-data block text-xs text-muted-foreground">{company.id}</span>
+									</span>
+									<span
+										class="font-data text-lg font-semibold"
+										class:text-[var(--danger)]={company.intent === 'danger'}
+										>{company.score}</span
+									>
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			</div>
 			<Badge variant="outline" class="hidden sm:flex"><Sparkles /> API conectada</Badge><Button
 				variant="ghost"
