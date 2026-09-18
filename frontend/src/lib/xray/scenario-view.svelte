@@ -9,7 +9,13 @@
 	import ScoreGauge from './score-gauge.svelte';
 	import TrajectoryChart from './trajectory-chart.svelte';
 
-	let { trajectory }: { trajectory: number[] } = $props();
+	let {
+		trajectory,
+		months = []
+	}: {
+		trajectory: number[];
+		months?: string[];
+	} = $props();
 	let collection = $state(12);
 	let refinance = $state(180);
 	let extension = $state(7);
@@ -141,7 +147,7 @@
 							><span class="text-xs text-muted-foreground">Rango estimado ±26 k€</span>
 						</div>
 					</div>
-					<TrajectoryChart values={trajectory} projected={projection} compact /></Card.Content
+					<TrajectoryChart values={trajectory} months={months} projected={projection} compact /></Card.Content
 				></Card.Root
 			><Alert.Root
 				><Alert.Title>Sensibilidad, no promesa</Alert.Title><Alert.Description

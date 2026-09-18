@@ -151,7 +151,7 @@
 				><Tabs.Content value="radar"
 					><RadarView {demo} onInspect={() => (active = 'diagnosis')} /></Tabs.Content
 				><Tabs.Content value="diagnosis"><DiagnosisView {demo} /></Tabs.Content><Tabs.Content
-					value="scenario"><ScenarioView trajectory={demo.trajectory} /></Tabs.Content
+					value="scenario"><ScenarioView trajectory={demo.trajectory} months={demo.trajectory_months} /></Tabs.Content
 				><Tabs.Content value="actions"><ActionsView actions={demo.actions} /></Tabs.Content
 				></Tabs.Root
 			>

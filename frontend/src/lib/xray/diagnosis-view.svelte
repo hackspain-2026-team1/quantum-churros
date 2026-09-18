@@ -88,7 +88,7 @@
 				><Card.Description>Score híbrido · histórico completo</Card.Description><Card.Title
 					>Estado actual y trayectoria anticipada</Card.Title
 				></Card.Header
-			><Card.Content><TrajectoryChart values={trajectory} /></Card.Content></Card.Root
+			><Card.Content><TrajectoryChart values={trajectory} months={demo.trajectory_months} /></Card.Content></Card.Root
 		>
 	</div>
 	<div class="grid gap-3 lg:grid-cols-2">

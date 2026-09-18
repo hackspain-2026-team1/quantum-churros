@@ -101,7 +101,7 @@
 							<Card.Title>Sin análisis completo para esta empresa</Card.Title>
 						</Card.Header>
 						<Card.Content class="space-y-4">
-							<TrajectoryChart values={demo.trajectory} compact />
+							<TrajectoryChart values={demo.trajectory} months={demo.trajectory_months} compact />
 							<p class="text-sm leading-6 text-muted-foreground">
 								El diagnóstico explicable aún no está disponible para esta empresa. El análisis
 								detallado ahora mismo corresponde a {demo.snapshot.entity_id}.

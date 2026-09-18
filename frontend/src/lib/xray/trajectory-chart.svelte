@@ -2,9 +2,16 @@
 	let {
 		values,
 		projected = [],
+		months = [],
 		changeIndex = 8,
 		compact = false
-	}: { values: number[]; projected?: number[]; changeIndex?: number; compact?: boolean } = $props();
+	}: {
+		values: number[];
+		projected?: number[];
+		months?: string[];
+		changeIndex?: number;
+		compact?: boolean;
+	} = $props();
 	const width = 760;
 	let height = $derived(compact ? 150 : 230);
 	const pad = 22;
@@ -23,16 +30,50 @@
 				].join(' ')
 			: ''
 	);
+	const shortMonth = (month: string) => {
+		const [year, m] = month.split('-');
+		return `${m}/${year.slice(2)}`;
+	};
+	const pointLabel = (index: number) => {
+		if (index < months.length) return shortMonth(months[index]);
+		if (months.length) {
+			const last = months[months.length - 1];
+			const [y0, m0] = last.split('-').map(Number);
+			const offset = index - months.length;
+			const year = y0 + Math.floor((m0 - 1 + offset) / 12);
+			const month = (((m0 - 1 + offset) % 12) + 1).toString().padStart(2, '0');
+			return `${month}/${String(year).slice(2)}`;
+		}
+		return `M${index + 1}`;
+	};
+	let ticks = $derived.by(() => {
+		const step = Math.max(1, Math.ceil(all.length / 8));
+		return all.map((_, index) => index).filter((index) => index % step === 0 || index === all.length - 1);
+	});
+	let hoverIndex = $state<number | null>(null);
+	const valueAt = (index: number) => all[index];
+	const pointHint = (index: number) =>
+		index < values.length ? pointLabel(index) : `${pointLabel(index)} (proy.)`;
+
+	function onMove(event: PointerEvent) {
+		const target = event.currentTarget as SVGSVGElement;
+		const rect = target.getBoundingClientRect();
+		const relX = ((event.clientX - rect.left) / rect.width) * width;
+		const index = Math.round(((relX - pad) / (width - pad * 2)) * total);
+		hoverIndex = Math.min(Math.max(0, Math.min(index, all.length - 1)), all.length - 1);
+	}
 </script>
 
 <div
-	class="relative w-full overflow-hidden rounded-xl bg-[linear-gradient(to_bottom,transparent_24%,var(--border)_25%,transparent_26%,transparent_49%,var(--border)_50%,transparent_51%,transparent_74%,var(--border)_75%,transparent_76%)]"
+	class="chart relative w-full overflow-visible rounded-xl bg-[linear-gradient(to_bottom,transparent_24%,var(--border)_25%,transparent_26%,transparent_49%,var(--border)_50%,transparent_51%,transparent_74%,var(--border)_75%,transparent_76%)]"
 >
 	<svg
 		viewBox={`0 0 ${width} ${height}`}
 		role="img"
 		aria-label="Trayectoria financiera observada y proyectada"
 		class="block w-full"
+		onpointermove={onMove}
+		onpointerleave={() => (hoverIndex = null)}
 	>
 		<line x1={x(changeIndex)} x2={x(changeIndex)} y1="10" y2={height - 10} class="change-line" />
 		<polyline points={observedPoints} fill="none" class="observed-line" />
@@ -49,14 +90,37 @@
 				class="observed-dot"
 			/>
 		{/each}
+		{#if hoverIndex !== null}
+			<line x1={x(hoverIndex)} x2={x(hoverIndex)} y1="10" y2={height - pad + 4} class="hover-line" />
+			<circle cx={x(hoverIndex)} cy={y(valueAt(hoverIndex))} r="5" class="hover-dot" />
+		{/if}
 		<text x={x(changeIndex) + 8} y="22" class="change-label">Cambio detectado</text>
 		<text x={x(values.length - 1) - 5} y={y(values.at(-1) ?? 0) - 12} class="value-label"
 			>{values.at(-1)}</text
 		>
+		{#each ticks as index (index)}
+			<text x={x(index)} y={height - 8} class="axis-label" text-anchor="middle"
+				>{pointLabel(index)}</text
+			>
+		{/each}
 	</svg>
+	{#if hoverIndex !== null}
+		<div
+			class="hover-tooltip pointer-events-none absolute z-10 rounded-md border bg-background px-2 py-1 text-xs shadow-md"
+			style={`left: ${(x(hoverIndex) / width) * 100}%; top: ${(y(valueAt(hoverIndex)) / height) * 100}%; transform: translate(${
+				hoverIndex >= all.length / 2 ? 'calc(-100% - 8px)' : '8px'
+			}, -50%);`}
+		>
+			<span class="font-semibold">{pointHint(hoverIndex)}</span>
+			<span class="font-data ml-2 font-semibold">{valueAt(hoverIndex)}</span>
+		</div>
+	{/if}
 </div>
 
 <style>
+	.chart:hover .hover-line {
+		opacity: 1;
+	}
 	.observed-line {
 		stroke: var(--signal);
 		stroke-width: 3.5;
@@ -85,5 +149,20 @@
 		font-family: var(--font-data);
 		font-size: 12px;
 		font-weight: 650;
+	}
+	.axis-label {
+		fill: var(--muted-foreground);
+		font-family: var(--font-data);
+		font-size: 10px;
+	}
+	.hover-line {
+		stroke: var(--foreground);
+		stroke-width: 1;
+		opacity: 0.35;
+	}
+	.hover-dot {
+		fill: var(--signal);
+		stroke: var(--card);
+		stroke-width: 2;
 	}
 </style>

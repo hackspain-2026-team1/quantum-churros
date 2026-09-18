@@ -97,6 +97,7 @@ def get_demo() -> dict[str, object]:
         latest = score_history[-1]
         overview["snapshot"] = latest
         overview["trajectory"] = [row["score"] for row in score_history]
+        overview["trajectory_months"] = [str(row["month"]) for row in score_history]
         overview["group"]["score"] = latest["score"]
         overview["group"]["delta"] = latest["delta"]
         for company in overview["companies"]:

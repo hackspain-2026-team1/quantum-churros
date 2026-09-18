@@ -15,8 +15,7 @@
 	import TrajectoryChart from './trajectory-chart.svelte';
 
 	let { demo, onInspect }: { demo: DemoOverview; onInspect: () => void } = $props();
-	let { group, companies, trajectory } = $derived(demo);
-</script>
+	let { group, companies, trajectory } = $derived(demo);</script>
 
 <section class="space-y-5" aria-labelledby="radar-heading">
 	<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -59,7 +58,7 @@
 					>
 				</div>
 				<Badge variant="outline">4,1 meses de anticipación</Badge></Card.Header
-			><Card.Content><TrajectoryChart values={trajectory} compact /></Card.Content></Card.Root
+			><Card.Content><TrajectoryChart values={trajectory} months={demo.trajectory_months} compact /></Card.Content></Card.Root
 		>
 	</div>
 	<Card.Root

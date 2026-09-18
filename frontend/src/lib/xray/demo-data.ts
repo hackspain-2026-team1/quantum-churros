@@ -33,6 +33,7 @@ export type RecommendedAction = {
 export type DemoOverview = {
 	group: { id: string; name: string; period: string; score: number; delta: number };
 	trajectory: number[];
+	trajectory_months?: string[];
 	companies: CompanySignal[];
 	snapshot: {
 		entity_id: string;
