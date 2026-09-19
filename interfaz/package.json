@@ -1,0 +1,22 @@
+{
+	"name": "rumbo",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"scripts": {
+		"dev": "vite --host 127.0.0.1 --port 5317",
+		"build": "tsc --noEmit && vite build",
+		"build:despliegue": "VITE_DATOS=/data/v1/ VITE_RUMBO=/data/rumbo/ vite build --base /rumbo/ && bun scripts/comprobar-build.mjs /rumbo/",
+		"preview": "vite preview --host 127.0.0.1 --port 5318",
+		"check": "tsc --noEmit",
+		"prueba": "bun pruebas/recorrido.mjs",
+		"datos": "bash scripts/datos/preparar.sh"
+	},
+	"devDependencies": {
+		"@fontsource-variable/newsreader": "^5.3.0",
+		"@fontsource-variable/schibsted-grotesk": "^5.3.0",
+		"puppeteer-core": "^25.11.0",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.0"
+	}
+}
