@@ -23,7 +23,7 @@ import { iconoProducto } from './iconos';
 import { hilo, lineaEstado, llamadas, marcaBanco, seccion, sello, type Nudo } from './primitivos';
 import { placa } from './registro';
 import { abrirPropuesta } from './propuesta';
-import { seccionTecnica } from './tecnico';
+import { seccionConciliacion, seccionTecnica } from './tecnico';
 import { triaje } from './triaje';
 
 /** Filtro con el que se abre la evidencia desde un nudo del hilo. */
@@ -199,8 +199,8 @@ export interface OpcionesGrafico {
 
 type Escenario = OpcionesGrafico['escenario'];
 const ESCENARIOS: Escenario[] = ['base', 'drift', 'stress'];
-const NOMBRE_ESCENARIO = { base: 'Si todo sigue igual', drift: 'Si sigue la deriva', stress: 'Si se repite su peor trimestre' } as const;
-const CORTO_ESCENARIO = { base: 'todo igual', drift: 'deriva', stress: 'peor trimestre' } as const;
+const NOMBRE_ESCENARIO = { base: 'Si todo sigue igual', drift: 'Si sigue al mismo ritmo', stress: 'Si se repite su peor trimestre' } as const;
+const CORTO_ESCENARIO = { base: 'todo igual', drift: 'mismo ritmo', stress: 'peor trimestre' } as const;
 const TONO_ESCENARIO = { base: TONO.tinta, drift: TONO.tellme, stress: TONO.ocre } as const;
 
 /**
@@ -452,13 +452,13 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 export function seccionScoring(d: DatosFicha, acc: Acciones, flota: HTMLElement | null): HTMLElement {
 	const raiz = h('div', { class: 'sec-scoring' });
 	if (!d.mes) { raiz.append(h('p', { class: 'vacio' }, `${nombreEntidad(d.kind, d.id)} no tiene datos en ${f.mes(d.corte)}. Su primer mes es ${f.mes(d.ent.first_month)}.`)); return raiz; }
-	raiz.append(partitura(d, acc));
 	if (flota) raiz.append(flota);
 	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver el hilo entero en Técnico'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
 	return raiz;
 }
 
-function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
+/** La partitura de pilares: qué puntúa cada uno y qué aporta al score. Vive en el tab Desglose. */
+export function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
 	const m = d.mes!;
 	const filas = h('div', { class: 'partitura' });
 	// El eje de las barras: de 0 a 100, con la referencia del motor explicada una vez.
@@ -478,7 +478,7 @@ function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
 			barra,
 			h('div', { class: `pt-aporta ${p.contrib < 0 ? 'neg' : p.contrib > 0 ? 'pos' : ''}` }, p.score === null ? '' : f.delta(p.contrib)),
 			h('p', { class: 'pt-nota' }, p.note ?? ''));
-		const ir = () => acc.irSeccion('tecnico', undefined, { pilar: p.key });
+		const ir = () => acc.irSeccion('conciliacion', undefined, { pilar: p.key });
 		fila.addEventListener('click', ir);
 		fila.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
 		if (p.score !== null) {
@@ -512,7 +512,7 @@ export function nudosScore(d: DatosFicha, acc: Acciones): Nudo[] {
     valor: f.delta(peor.contrib),
     texto: `${nombrePilar(d.man, peor.key).toLowerCase()} ${peor.contrib < 0 ? "resta" : "aporta"}`,
     detalle: peor.note ?? undefined,
-    accion: () => acc.irSeccion("tecnico", undefined, { pilar: peor.key }),
+    accion: () => acc.irSeccion("conciliacion", undefined, { pilar: peor.key }),
   });
   const filas =
     d.evid?.months
@@ -524,7 +524,7 @@ export function nudosScore(d: DatosFicha, acc: Acciones): Nudo[] {
       texto: r.label.charAt(0).toLowerCase() + r.label.slice(1),
       detalle: f.periodo(r.period),
       accion: () =>
-        acc.irSeccion("tecnico", undefined, {
+        acc.irSeccion("conciliacion", undefined, {
           pilar: peor.key,
           texto: r.label,
         }),
@@ -538,7 +538,7 @@ export function nudosScore(d: DatosFicha, acc: Acciones): Nudo[] {
         ? `${f.numero(Math.max(...filas.map((r) => r.n_rows ?? 0)))} filas en la ventana`
         : "medidas derivadas",
       accion: () =>
-        acc.irSeccion("tecnico", undefined, {
+        acc.irSeccion("conciliacion", undefined, {
           pilar: peor.key,
           fichero: ficheros[0],
         }),
@@ -763,7 +763,8 @@ export function contenidoSeccion(d: DatosFicha, sec: Seccion, acc: Acciones, fil
 		case 'scoring': return seccionScoring(d, acc, flota);
 		case 'productos': return seccionProductos(d, acc);
 		case 'acciones': return seccionAcciones(d, acc);
-		case 'tecnico': return seccionTecnica(d, acc, filtro);
+		case 'tecnico': return seccionTecnica(d, acc);
+		case 'conciliacion': return seccionConciliacion(d, filtro);
 	}
 }
 

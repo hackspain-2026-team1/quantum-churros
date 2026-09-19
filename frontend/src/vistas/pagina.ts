@@ -37,7 +37,9 @@ export interface Paginas {
 	irAvisos(): void;
 }
 
-const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Desglose' };
+const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Desglose', conciliacion: 'Conciliación' };
+// En una organización, la sección de scoring es la lista de sus empresas.
+const nombreSeccion = (s: Seccion, vista: Estado['vista']) => s === 'scoring' && vista === 'organizacion' ? 'Empresas' : NOMBRE_SECCION[s];
 
 export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; imprimir(): void; hilo(hs: Hilo[]): void }): Paginas {
 	// La página: el escenario (el protagonista, fijo) y el cuerpo, que se desplaza debajo.
@@ -103,10 +105,10 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		controles.append(selM);
 		if (estadoUI.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte) {
 			const sup = h('div', { class: 'escenarios', role: 'radiogroup', 'aria-label': 'Escenario' });
-			const nombres = { base: 'Si todo sigue igual', drift: 'Si sigue la deriva', stress: 'Si se repite su peor trimestre' } as const;
+			const nombres = { base: 'Si todo sigue igual', drift: 'Si sigue al mismo ritmo', stress: 'Si se repite su peor trimestre' } as const;
 			for (const k of ['base', 'drift', 'stress'] as const) {
 				if (k !== 'base' && !d.hor.scenarios[k]) continue;
-				const b = h('button', { type: 'button', class: `esc esc-${k} ${estadoUI.escenario === k ? 'activo' : ''}`, 'data-escenario': k, role: 'radio', 'aria-checked': String(estadoUI.escenario === k), title: k === 'drift' ? 'Qué pasaría si: prolonga su pendiente de 12 meses. No es una predicción.' : k === 'stress' ? 'Los tres primeros meses repiten su peor trimestre observado. No es una predicción.' : undefined }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), nombres[k]);
+				const b = h('button', { type: 'button', class: `esc esc-${k} ${estadoUI.escenario === k ? 'activo' : ''}`, 'data-escenario': k, role: 'radio', 'aria-checked': String(estadoUI.escenario === k), title: k === 'drift' ? 'Qué pasaría si: prolonga la pendiente de los últimos doce meses. No es una predicción.' : k === 'stress' ? 'Los tres primeros meses repiten su peor trimestre observado. No es una predicción.' : undefined }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), nombres[k]);
 				b.addEventListener('click', () => { if (estadoUI.escenario !== k) { estadoUI.escenario = k; pintarHorizonte(); } });
 				sup.append(b);
 			}
@@ -152,7 +154,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	function marcas(e: Estado): HTMLElement {
 		const nav = h('nav', { class: 'sec-marcas', 'aria-label': 'Secciones' });
 		for (const s of SECCIONES) {
-			const b = h('button', { type: 'button', class: `sec-marca ${s === 'tecnico' ? 'reverso' : ''} ${e.sec === s ? 'activa' : ''}`, 'aria-current': e.sec === s ? 'true' : undefined, title: `${NOMBRE_SECCION[s]} (${SECCIONES.indexOf(s) + 1})` }, NOMBRE_SECCION[s]);
+			const b = h('button', { type: 'button', class: `sec-marca ${s === 'tecnico' ? 'reverso' : ''} ${e.sec === s ? 'activa' : ''}`, 'aria-current': e.sec === s ? 'true' : undefined, title: `${nombreSeccion(s, e.vista)} (${SECCIONES.indexOf(s) + 1})` }, nombreSeccion(s, e.vista));
 			b.addEventListener('click', () => { if (S.e.sec !== s) S.fijar({ sec: s }, true); });
 			nav.append(b);
 		}
@@ -234,7 +236,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		if (fijo) raiz.insertBefore(escenario, cuerpoP);
 		pintarHorizonte();
 		cuerpoP.scrollTop = e.sec === S.e.sec ? y : 0;
-		if (estadoUI.filtro && e.sec === 'tecnico') {
+		if (estadoUI.filtro && e.sec === 'conciliacion') {
 			const ev = cuerpoP.querySelector('.evidencia-filtrada') as HTMLElement | null;
 			if (ev) cuerpoP.scrollTop = ev.offsetTop - 70;
 			estadoUI.filtro = null;
@@ -315,7 +317,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		], pares, cuerpotabla, { col: 2, dir: 1 });
 		const tabla = h('table', { class: 'tabla-sutil empresas' }, thead, cuerpotabla);
 		const hereda = g.companies.filter((x) => x.inherits_liquidity).length;
-		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, plano, h('div', { class: 'tabla-caja' }, tabla), hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
+		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, h('div', { class: 'tabla-caja' }, tabla), plano, hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
 	}
 
 	// ─── Entrada: el monitor de la cartera ─────────────────
@@ -398,7 +400,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
 		hoja.append(cabecera(d, false), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, alto: 240 }, true)));
 		for (const sec of SECCIONES) {
-			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, NOMBRE_SECCION[sec]));
+			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, nombreSeccion(sec, e.vista)));
 			cuerpo.append(contenidoSeccion(d, sec, quieto, null, d.kind === 'group' && sec === 'scoring' ? flota(d) : null));
 			hoja.append(cuerpo);
 		}
@@ -452,6 +454,6 @@ function validacion(ix: NonNullable<Awaited<ReturnType<typeof carga.horizontesIn
 			caja.append(h('p', { class: 'aviso-datos' }, 'Este índice de horizontes no trae la validación en el formato que lee Rumbo.'));
 		}
 	}
-	caja.append(h('p', {}, `Las acciones no son predicciones: el motor da el score con el pilar en su objetivo y el modelo prevé desde ahí. «Si sigue la deriva» y «si se repite su peor trimestre» son supuestos, no previsiones.`));
+	caja.append(h('p', {}, `Las acciones no son predicciones: el motor da el score con el pilar en su objetivo y el modelo prevé desde ahí. «Si sigue al mismo ritmo» y «si se repite su peor trimestre» son supuestos, no previsiones.`));
 	return caja;
 }
