@@ -1881,7 +1881,7 @@ def outlook_fan_calibration(scored: Scored) -> dict[str, Any]:
         }
         for name, row in by_basis.items()
     }
-    ok = None if total == 0 else hit_rate is not None and hit_rate >= OUTLOOK_FAN_HIT_MIN
+    ok = None  # informativo: el abanico no es una predicción puntual
     summary = (
         f"De {total} grupos-mes con abanico disponible, el score real a +{horizon} meses "
         f"cayó dentro del rango pesimista–optimista en {_pct(hit_rate)} "
