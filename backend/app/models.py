@@ -119,27 +119,6 @@ class MacroObservation(SQLModel, table=True):
     )
 
 
-class ScenarioRequest(SQLModel):
-    collection_days: int = Field(default=12, ge=0, le=45)
-    refinance_amount: int = Field(default=180_000, ge=0, le=2_000_000)
-    payment_extension_days: int = Field(default=7, ge=0, le=30)
-    persist: bool = False
-
-
-class ScenarioResponse(SQLModel):
-    scenario_id: str
-    status: str
-    base_score: float
-    projected_score: float
-    projected_cash: int
-    confidence_low: float
-    confidence_high: float
-
-
-class ActionUpdate(SQLModel):
-    status: str
-
-
 class BenchmarkStudy(SQLModel, table=True):
     id: str = Field(primary_key=True)
     source: str = Field(index=True)

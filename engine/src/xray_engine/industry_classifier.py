@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import polars as pl
 
@@ -67,18 +67,74 @@ def dataset_fingerprint(input_dir: Path) -> str:
     return digest.hexdigest()
 
 
-def build_company_signals(input_dir: Path) -> pl.DataFrame:
-    transactions = pl.read_csv(input_dir / "transactions.csv").with_columns(
-        pl.col("category").fill_null("-").alias("category")
+# Columns the signals read, with the dtype forced on every reader: small folders
+# have all-null columns, so nothing is inferred.
+_CSV_COLUMNS: dict[str, dict[str, pl.DataType]] = {
+    "companies": {"company_id": pl.String},
+    "transactions": {"company_id": pl.String, "category": pl.String},
+    "invoices": {"company_id": pl.String, "amount": pl.Float64, "counterparty_id": pl.String},
+    "debt_products": {"company_id": pl.String, "type": pl.String},
+    "banking_products": {"company_id": pl.String, "type": pl.String},
+}
+
+
+def _read_frames(input_dir: Path) -> dict[str, pl.DataFrame]:
+    return {
+        name: pl.read_csv(input_dir / f"{name}.csv", columns=list(columns), schema_overrides=columns)
+        for name, columns in _CSV_COLUMNS.items()
+    }
+
+
+def _table_frames(tables: Any) -> dict[str, pl.DataFrame]:
+    """Frames of ``io.Tables`` (preferred: every document type) or ``cleaning.CleanTables``.
+
+    Booked rows only, money in cents. Clean invoices store magnitudes: the
+    side gives the sign back.
+    """
+    invoices = tables.invoices
+    if "amount" not in invoices.columns:
+        amount = pl.col("amount_cents") / 100.0
+        if "side" in invoices.columns:
+            amount = pl.when(pl.col("side") == "AP").then(-amount).otherwise(amount)
+        invoices = invoices.with_columns(amount.alias("amount"))
+    products = getattr(tables, "products", None)
+    if products is not None:  # union of both product files
+        kinds = products.select("company_id", pl.col("product_type").alias("type"), "product_family")
+        debt = kinds.filter(pl.col("product_family") == "debt")
+        banking = kinds.filter(pl.col("product_family") == "banking")
+    else:
+        debt, banking = tables.debt_products, tables.banking_products
+    return {
+        "companies": tables.companies, "transactions": tables.transactions, "invoices": invoices,
+        "debt_products": debt, "banking_products": banking,
+    }
+
+
+def build_company_signals(source: Path | str | Any) -> pl.DataFrame:
+    """Signals per company from a dataset folder or from tables already in memory.
+
+    A folder is read once, only the columns the signals need and with forced
+    dtypes. Tables (``io.Tables`` or ``cleaning.CleanTables``) are used as they
+    are, so the big files are not parsed again; they hold booked rows only.
+    """
+    frames = _read_frames(Path(source)) if isinstance(source, (str, Path)) else _table_frames(source)
+    return company_signals(**frames)
+
+
+def company_signals(
+    companies: pl.DataFrame,
+    transactions: pl.DataFrame,
+    invoices: pl.DataFrame,
+    debt_products: pl.DataFrame,
+    banking_products: pl.DataFrame,
+) -> pl.DataFrame:
+    transactions = transactions.select(
+        "company_id", pl.col("category").fill_null("-").alias("category")
     )
-    invoices = pl.read_csv(
-        input_dir / "invoices.csv",
-        schema_overrides={"pending_amount": pl.Float64, "amount": pl.Float64},
-        infer_schema_length=10_000,
-    )
-    debt = pl.read_csv(input_dir / "debt_products.csv")
-    banking = pl.read_csv(input_dir / "banking_products.csv")
-    companies = pl.read_csv(input_dir / "companies.csv").select("company_id")
+    invoices = invoices.select("company_id", "amount", "counterparty_id")
+    debt = debt_products.select("company_id", "type")
+    banking = banking_products.select("company_id", "type")
+    companies = companies.select("company_id")
 
     tx_totals = transactions.group_by("company_id").agg(pl.len().alias("tx_total"))
     tx_shares = transactions.group_by("company_id").agg(
@@ -292,6 +348,16 @@ def classify_dataset(
     classifier = strategy or RulesClassifierStrategy()
     signals = build_company_signals(input_dir)
     return fingerprint, classifier.classify(signals, fingerprint)
+
+
+def classify_tables(
+    tables: Any,
+    strategy: ClassifierStrategy | None = None,
+) -> dict[str, IndustryClassification]:
+    """Classification per company_id from tables already in memory (context only)."""
+    classifier = strategy or RulesClassifierStrategy()
+    results = classifier.classify(build_company_signals(tables), tables.dataset_hash)
+    return {item.entity_id: item for item in results}
 
 
 def distribution(classifications: list[IndustryClassification]) -> dict[str, int]:

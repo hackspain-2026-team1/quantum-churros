@@ -1,0 +1,627 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantum-churros.dev/contracts/xray-export-v1.schema.json",
+  "title": "X-Ray export bundle v1",
+  "description": "Static JSON bundle written by xray_engine.export and read by the web app. Files: manifest.json, portfolio.json, groups/<id>.json, companies/<id>.json, evidence/<id>.json, alerts.json, receipt.json; every file carries `schema` and `kind`, and validates against `#/$defs/<kind>`. Conventions: months are 'YYYY-MM'; every score-point quantity (shown, level, base, contrib, penalty, cap.amount, pillar score, baseline, delta3, sigma, band min) is an integer number of tenths; weights, shares and confidence are numbers in [0, 1]; money is EUR. Exact identity for every entity-month, in integers: base + sum(pillars[].contrib) - penalty - cap.amount == shown. `band` is derived from `shown` with manifest.bands. Columnar arrays align index by index with the `months` of their own file; null means the entity was not observed that month. Codes (gates, flags, caps, reasons) are open vocabularies explained in manifest.glossary; texts are Spanish. Evidence rows are aggregates, never raw descriptions or single transactions. The companies/ folder is either complete (one file per member listed in the group files) or absent.",
+  "oneOf": [
+    { "$ref": "#/$defs/manifest" },
+    { "$ref": "#/$defs/portfolio" },
+    { "$ref": "#/$defs/group" },
+    { "$ref": "#/$defs/company" },
+    { "$ref": "#/$defs/evidence" },
+    { "$ref": "#/$defs/alerts" },
+    { "$ref": "#/$defs/receipt" }
+  ],
+  "$defs": {
+    "manifest": {
+      "title": "manifest.json",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "bundle_id", "engine_version", "params_hash", "dataset_hash", "generated_at", "months", "counts", "pillars", "bands", "glossary"],
+      "properties": {
+        "schema": { "const": "xray-export-v1" },
+        "kind": { "const": "manifest" },
+        "bundle_id": {
+          "description": "sha256 over every other file of the bundle, sorted by POSIX relative path: for each file, the path bytes (UTF-8) followed by the file bytes.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "engine_version": { "type": "string", "minLength": 1 },
+        "params_hash": { "type": "string", "minLength": 1 },
+        "dataset_hash": { "type": "string", "minLength": 1 },
+        "generated_at": {
+          "description": "Defaults to the extraction date of the dataset, so identical inputs give identical bytes.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}:[0-9]{2})?)?$"
+        },
+        "months": {
+          "description": "Scored window: complete months, ascending and contiguous.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/month" }
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["groups", "companies", "alerts"],
+          "properties": {
+            "groups": { "type": "integer", "minimum": 0 },
+            "companies": { "type": "integer", "minimum": 0 },
+            "alerts": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "pillars": {
+          "description": "Pillar dictionary in contract order: nominal weight and frozen reference median (baseline, tenths).",
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "label", "weight", "baseline"],
+            "properties": {
+              "key": { "$ref": "#/$defs/pillarKey" },
+              "label": { "$ref": "#/$defs/text" },
+              "weight": { "$ref": "#/$defs/share" },
+              "baseline": { "$ref": "#/$defs/scoreTenths" }
+            }
+          }
+        },
+        "bands": {
+          "description": "Score bands, ascending by `min` (tenths, inclusive); the first one starts at 0.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "label", "min"],
+            "properties": {
+              "key": { "$ref": "#/$defs/band" },
+              "label": { "$ref": "#/$defs/text" },
+              "min": { "$ref": "#/$defs/scoreTenths" }
+            }
+          }
+        },
+        "glossary": {
+          "description": "Spanish text for every code the bundle uses. A code without entry is shown as is.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gates", "flags", "caps", "reasons"],
+          "properties": {
+            "gates": { "$ref": "#/$defs/codeTexts" },
+            "flags": { "$ref": "#/$defs/codeTexts" },
+            "caps": { "$ref": "#/$defs/codeTexts" },
+            "reasons": {
+              "description": "abstain.reason, verdict.reason and suppressed_by.reason.",
+              "$ref": "#/$defs/codeTexts"
+            }
+          }
+        }
+      }
+    },
+    "portfolio": {
+      "title": "portfolio.json",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "months", "groups"],
+      "properties": {
+        "schema": { "const": "xray-export-v1" },
+        "kind": { "const": "portfolio" },
+        "months": {
+          "description": "Equal to manifest.months.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/month" }
+        },
+        "groups": {
+          "description": "Sorted by id. Every array has one entry per month; each one is the projection of groups/<id>.json months.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "n_companies", "first_month", "country", "size_band", "industry", "shown", "band", "direction", "nature", "conf", "abstained", "perimeter_changed", "alerts_fired", "alerts_muted"],
+            "properties": {
+              "id": { "$ref": "#/$defs/entityId" },
+              "n_companies": { "type": "integer", "minimum": 1 },
+              "first_month": { "$ref": "#/$defs/month" },
+              "country": { "type": ["string", "null"], "maxLength": 80 },
+              "size_band": { "type": ["string", "null"], "maxLength": 80 },
+              "industry": { "description": "Context only; never a score input.", "type": ["string", "null"], "maxLength": 120 },
+              "shown": { "type": "array", "items": { "anyOf": [{ "$ref": "#/$defs/scoreTenths" }, { "type": "null" }] } },
+              "band": { "type": "array", "items": { "anyOf": [{ "$ref": "#/$defs/band" }, { "type": "null" }] } },
+              "direction": { "type": "array", "items": { "anyOf": [{ "$ref": "#/$defs/direction" }, { "type": "null" }] } },
+              "nature": { "type": "array", "items": { "anyOf": [{ "$ref": "#/$defs/nature" }, { "type": "null" }] } },
+              "conf": { "type": "array", "items": { "anyOf": [{ "$ref": "#/$defs/confLabel" }, { "type": "null" }] } },
+              "abstained": { "type": "array", "items": { "type": ["boolean", "null"] } },
+              "perimeter_changed": { "type": "array", "items": { "type": ["boolean", "null"] } },
+              "alerts_fired": {
+                "description": "Alerts of the group and its companies dated that month with state fired.",
+                "type": "array",
+                "items": { "type": "integer", "minimum": 0 }
+              },
+              "alerts_muted": {
+                "description": "Same, with state suppressed or abstained.",
+                "type": "array",
+                "items": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "group": {
+      "title": "groups/<id>.json",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "id", "first_month", "profile", "context", "months", "companies", "series", "alerts"],
+      "properties": {
+        "schema": { "const": "xray-export-v1" },
+        "kind": { "const": "group" },
+        "id": { "$ref": "#/$defs/entityId" },
+        "first_month": { "$ref": "#/$defs/month" },
+        "profile": { "$ref": "#/$defs/profile" },
+        "context": { "$ref": "#/$defs/context" },
+        "months": { "$ref": "#/$defs/entityMonths" },
+        "companies": {
+          "description": "Members, sorted by id. `shown` and `band` align with `months` of this file.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "role", "treasury_class", "truth", "inherits_liquidity", "first_month", "shown", "band"],
+            "properties": {
+              "id": { "$ref": "#/$defs/entityId" },
+              "role": { "$ref": "#/$defs/nullableLabel" },
+              "treasury_class": { "$ref": "#/$defs/nullableLabel" },
+              "truth": { "$ref": "#/$defs/nullableText" },
+              "inherits_liquidity": { "type": "boolean" },
+              "first_month": { "$ref": "#/$defs/month" },
+              "shown": { "type": "array", "items": { "anyOf": [{ "$ref": "#/$defs/scoreTenths" }, { "type": "null" }] } },
+              "band": { "type": "array", "items": { "anyOf": [{ "$ref": "#/$defs/band" }, { "type": "null" }] } }
+            }
+          }
+        },
+        "series": { "$ref": "#/$defs/seriesList" },
+        "alerts": { "$ref": "#/$defs/alertList" }
+      }
+    },
+    "company": {
+      "title": "companies/<id>.json",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "id", "group_id", "role", "treasury_class", "truth", "inherits_liquidity", "first_month", "profile", "context", "months", "series", "alerts"],
+      "properties": {
+        "schema": { "const": "xray-export-v1" },
+        "kind": { "const": "company" },
+        "id": { "$ref": "#/$defs/entityId" },
+        "group_id": { "$ref": "#/$defs/entityId" },
+        "role": { "$ref": "#/$defs/nullableLabel" },
+        "treasury_class": { "$ref": "#/$defs/nullableLabel" },
+        "truth": {
+          "description": "Treasury reading of the company inside its group, e.g. a swept subsidiary that inherits the group liquidity.",
+          "$ref": "#/$defs/nullableText"
+        },
+        "inherits_liquidity": {
+          "description": "True when the liquidity pillar of the last month carries the gate inherited_from_group.",
+          "type": "boolean"
+        },
+        "first_month": { "$ref": "#/$defs/month" },
+        "profile": { "$ref": "#/$defs/profile" },
+        "context": { "$ref": "#/$defs/context" },
+        "months": { "$ref": "#/$defs/entityMonths" },
+        "series": { "$ref": "#/$defs/seriesList" },
+        "alerts": { "$ref": "#/$defs/alertList" }
+      }
+    },
+    "evidence": {
+      "title": "evidence/<id>.json",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "entity_kind", "entity_id", "group_id", "months"],
+      "properties": {
+        "schema": { "const": "xray-export-v1" },
+        "kind": { "const": "evidence" },
+        "entity_kind": { "$ref": "#/$defs/entityKind" },
+        "entity_id": { "$ref": "#/$defs/entityId" },
+        "group_id": { "$ref": "#/$defs/entityId" },
+        "months": {
+          "description": "Ascending; limited to the last months of the entity.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["month", "rows"],
+            "properties": {
+              "month": { "$ref": "#/$defs/month" },
+              "rows": { "type": "array", "items": { "$ref": "#/$defs/evidenceRow" } }
+            }
+          }
+        }
+      }
+    },
+    "alerts": {
+      "title": "alerts.json",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "alerts"],
+      "properties": {
+        "schema": { "const": "xray-export-v1" },
+        "kind": { "const": "alerts" },
+        "alerts": { "description": "Sorted by (month, id).", "$ref": "#/$defs/alertList" }
+      }
+    },
+    "receipt": {
+      "title": "receipt.json",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "engine_version", "params_hash", "dataset_hash", "signals", "abstentions", "checks"],
+      "properties": {
+        "schema": { "const": "xray-export-v1" },
+        "kind": { "const": "receipt" },
+        "engine_version": { "type": "string", "minLength": 1 },
+        "params_hash": { "type": "string", "minLength": 1 },
+        "dataset_hash": { "type": "string", "minLength": 1 },
+        "signals": {
+          "description": "What enters the number and with which nominal weight, plus the signals deliberately kept at weight 0 and why.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "label", "weight", "why"],
+            "properties": {
+              "name": { "$ref": "#/$defs/code" },
+              "label": { "$ref": "#/$defs/text" },
+              "weight": { "$ref": "#/$defs/share" },
+              "why": { "$ref": "#/$defs/text" }
+            }
+          }
+        },
+        "abstentions": {
+          "description": "Entities abstained on the last month of the window.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["entity_kind", "entity_id", "group_id", "month", "reason", "unlock"],
+            "properties": {
+              "entity_kind": { "$ref": "#/$defs/entityKind" },
+              "entity_id": { "$ref": "#/$defs/entityId" },
+              "group_id": { "$ref": "#/$defs/entityId" },
+              "month": { "$ref": "#/$defs/month" },
+              "reason": { "$ref": "#/$defs/code" },
+              "unlock": { "$ref": "#/$defs/text" }
+            }
+          }
+        },
+        "checks": {
+          "description": "Label-free validation results. Known keys: isolation, truncation, additivity, scale, determinism, branch_parity, neutrality, persistence, netting_placebo, injection, ablation, rank_stability, history_truncation. Empty when the bundle was exported without a validation run.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "title", "status", "summary", "metrics"],
+            "properties": {
+              "key": { "$ref": "#/$defs/code" },
+              "title": { "$ref": "#/$defs/text" },
+              "status": { "enum": ["pass", "fail", "info", "not_run"] },
+              "summary": { "$ref": "#/$defs/text" },
+              "metrics": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["label", "value", "unit"],
+                  "properties": {
+                    "label": { "$ref": "#/$defs/text" },
+                    "value": { "type": ["number", "string", "boolean", "null"], "maxLength": 80 },
+                    "unit": { "type": "string", "maxLength": 24 }
+                  }
+                }
+              },
+              "bars": {
+                "description": "Optional distribution, e.g. detection delay in months.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["label", "value"],
+                  "properties": {
+                    "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+                    "value": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "entityMonths": {
+      "description": "One entry per scored month of the entity: ascending, inside manifest.months.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/entityMonth" }
+    },
+    "entityMonth": {
+      "description": "base + sum(pillars[].contrib) - penalty - cap.amount == shown, in integer tenths.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["month", "shown", "band", "level", "base", "pillars", "penalty", "cap", "conf", "branch", "flags", "feed_live", "months_observed", "perimeter_changed", "verdict", "abstain"],
+      "properties": {
+        "month": { "$ref": "#/$defs/month" },
+        "shown": { "description": "The score on screen.", "$ref": "#/$defs/scoreTenths" },
+        "band": { "$ref": "#/$defs/band" },
+        "level": {
+          "description": "Level of the month before display rules; differs from `shown` when the score is carried forward or shrunk.",
+          "$ref": "#/$defs/scoreTenths"
+        },
+        "base": { "description": "Reference score of the coverage branch.", "$ref": "#/$defs/tenths" },
+        "pillars": {
+          "description": "The five pillars in contract order. Unavailable: score null, w_eff 0, contrib 0 and at least one gate.",
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/pillar" }
+        },
+        "penalty": { "type": "integer", "minimum": 0 },
+        "cap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["amount", "rule", "fired"],
+          "properties": {
+            "amount": { "description": "Points removed by the binding cap.", "type": "integer", "minimum": 0 },
+            "rule": { "description": "Binding cap; null when amount is 0.", "anyOf": [{ "$ref": "#/$defs/code" }, { "type": "null" }] },
+            "fired": { "description": "Every cap rule that holds, strictest first.", "type": "array", "items": { "$ref": "#/$defs/code" } }
+          }
+        },
+        "conf": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "label", "history", "coverage", "quality"],
+          "properties": {
+            "value": { "$ref": "#/$defs/share" },
+            "label": { "$ref": "#/$defs/confLabel" },
+            "history": { "$ref": "#/$defs/share" },
+            "coverage": { "$ref": "#/$defs/share" },
+            "quality": { "$ref": "#/$defs/share" }
+          }
+        },
+        "branch": {
+          "description": "Available pillar keys joined by '+', contract order; 'none' when empty.",
+          "type": "string",
+          "pattern": "^(none|[a-z]+(\\+[a-z]+)*)$"
+        },
+        "flags": { "type": "array", "items": { "$ref": "#/$defs/code" } },
+        "feed_live": { "type": "boolean" },
+        "months_observed": { "type": "integer", "minimum": 0 },
+        "perimeter_changed": { "type": "boolean" },
+        "verdict": { "$ref": "#/$defs/verdict" },
+        "actions": {
+          "description": "Optional. Suggested actions, best uplift first, at most 4; empty on abstained or stale months.",
+          "type": "array",
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/action" }
+        },
+        "actions_combined": {
+          "description": "Optional. Score with every suggested action applied at once; uplift == new_score - shown.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["new_score", "uplift"],
+          "properties": {
+            "new_score": { "$ref": "#/$defs/scoreTenths" },
+            "uplift": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "abstain": {
+          "description": "Not null when the engine abstains: the number is still emitted, alerts are not fired.",
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reason", "unlock"],
+              "properties": {
+                "reason": { "$ref": "#/$defs/code" },
+                "unlock": { "description": "What data would lift the abstention.", "$ref": "#/$defs/text" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "pillar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "score", "w_eff", "contrib", "gates", "note"],
+      "properties": {
+        "key": { "$ref": "#/$defs/pillarKey" },
+        "score": { "anyOf": [{ "$ref": "#/$defs/scoreTenths" }, { "type": "null" }] },
+        "w_eff": { "description": "Nominal weight renormalised over the available pillars.", "$ref": "#/$defs/share" },
+        "contrib": { "description": "w_eff * (score - baseline), largest-remainder rounded.", "$ref": "#/$defs/tenths" },
+        "gates": { "type": "array", "items": { "$ref": "#/$defs/code" } },
+        "note": { "description": "Sentence built from the aggregate inputs of the pillar.", "$ref": "#/$defs/nullableText" }
+      }
+    },
+    "action": {
+      "description": "One deterministic action; the uplift is the engine aggregate recomputed with the pillar at its target.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "pillar", "title", "detail", "current", "target", "unit", "uplift_tenths", "new_score_tenths", "effort"],
+      "properties": {
+        "id": { "description": "'<pillar>-<kind>', stable across months.", "type": "string", "pattern": "^[a-z]+-[a-z_]+$" },
+        "pillar": { "$ref": "#/$defs/pillarKey" },
+        "title": { "$ref": "#/$defs/text" },
+        "detail": { "$ref": "#/$defs/text" },
+        "current": { "type": "number" },
+        "target": { "type": "number" },
+        "unit": { "enum": ["días", "ratio", "%"] },
+        "uplift_tenths": { "type": "integer", "minimum": 0 },
+        "new_score_tenths": { "$ref": "#/$defs/scoreTenths" },
+        "effort": { "enum": ["bajo", "medio", "alto"] }
+      }
+    },
+    "verdict": {
+      "description": "Past-only trajectory. Not available: direction stable, nature null and a reason.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "reason", "direction", "nature", "shock_pending", "shock_month", "delta3", "sigma", "delta3_sigma", "compared_to", "pillars_moved", "persistence_months", "detected_since"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "reason": { "anyOf": [{ "$ref": "#/$defs/code" }, { "type": "null" }] },
+        "direction": { "$ref": "#/$defs/direction" },
+        "nature": { "anyOf": [{ "$ref": "#/$defs/nature" }, { "type": "null" }] },
+        "shock_pending": { "type": "boolean" },
+        "shock_month": { "anyOf": [{ "$ref": "#/$defs/month" }, { "type": "null" }] },
+        "delta3": { "anyOf": [{ "$ref": "#/$defs/tenths" }, { "type": "null" }] },
+        "sigma": { "type": ["integer", "null"], "minimum": 0 },
+        "delta3_sigma": { "type": ["number", "null"] },
+        "compared_to": { "anyOf": [{ "$ref": "#/$defs/month" }, { "type": "null" }] },
+        "pillars_moved": { "type": "array", "items": { "$ref": "#/$defs/pillarKey" } },
+        "persistence_months": { "type": "integer", "minimum": 0 },
+        "detected_since": { "anyOf": [{ "$ref": "#/$defs/month" }, { "type": "null" }] }
+      }
+    },
+    "profile": {
+      "description": "Core card, in the order of the engine profile keys.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label", "value", "evidence", "coverage"],
+        "properties": {
+          "key": { "$ref": "#/$defs/code" },
+          "label": { "$ref": "#/$defs/text" },
+          "value": { "type": ["string", "number", "boolean", "null"], "maxLength": 160 },
+          "evidence": { "description": "Sentence built from aggregates.", "type": "string", "maxLength": 400 },
+          "coverage": { "description": "0 when the attribute cannot be inferred.", "$ref": "#/$defs/share" }
+        }
+      }
+    },
+    "context": {
+      "description": "Context only: nothing here is an input of pillars or of the aggregate.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["industry", "benchmark"],
+      "properties": {
+        "industry": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["slug", "label", "confidence", "reason"],
+              "properties": {
+                "slug": { "type": "string", "minLength": 1, "maxLength": 80 },
+                "label": { "$ref": "#/$defs/text" },
+                "confidence": { "$ref": "#/$defs/share" },
+                "reason": { "type": "string", "maxLength": 400 }
+              }
+            }
+          ]
+        },
+        "benchmark": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["text", "source"],
+              "properties": {
+                "text": { "$ref": "#/$defs/text" },
+                "source": { "$ref": "#/$defs/text" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "seriesList": {
+      "description": "Monthly facts for charts; `values` align with `months` of the same file.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label", "unit", "values"],
+        "properties": {
+          "key": { "$ref": "#/$defs/code" },
+          "label": { "$ref": "#/$defs/text" },
+          "unit": { "type": "string", "maxLength": 24 },
+          "values": { "type": "array", "items": { "type": ["number", "null"] } }
+        }
+      }
+    },
+    "evidenceRow": {
+      "description": "Aggregate fact behind a number.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pillar", "label", "value", "unit", "period", "source_file", "n_rows"],
+      "properties": {
+        "pillar": { "description": "null for facts about the whole entity-month.", "anyOf": [{ "$ref": "#/$defs/pillarKey" }, { "type": "null" }] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "value": { "type": ["number", "string", "null"], "maxLength": 80 },
+        "unit": { "type": "string", "maxLength": 24 },
+        "period": {
+          "description": "'YYYY-MM', 'YYYY-MM-DD' or a closed range joined by '..'.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}(-[0-9]{2})?(\\.\\.[0-9]{4}-[0-9]{2}(-[0-9]{2})?)?$"
+        },
+        "source_file": { "type": "string", "pattern": "^[A-Za-z0-9_./-]{1,64}$" },
+        "n_rows": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "alertList": { "type": "array", "items": { "$ref": "#/$defs/alert" } },
+    "alert": {
+      "description": "id = '<entity_id>:<month>:<kind>'. A fired alert has no suppressed_by; any other state has one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "entity_kind", "entity_id", "group_id", "month", "kind", "state", "title", "detail", "shown", "suppressed_by"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}:[0-9]{4}-(0[1-9]|1[0-2]):[a-z_]+$" },
+        "entity_kind": { "$ref": "#/$defs/entityKind" },
+        "entity_id": { "$ref": "#/$defs/entityId" },
+        "group_id": { "$ref": "#/$defs/entityId" },
+        "month": { "$ref": "#/$defs/month" },
+        "kind": { "enum": ["deterioration_structural", "improvement_structural", "level_critical", "cap_fired", "stale_feed"] },
+        "state": { "enum": ["fired", "suppressed", "abstained"] },
+        "title": { "$ref": "#/$defs/text" },
+        "detail": { "$ref": "#/$defs/text" },
+        "shown": { "description": "Score of the entity on the alert month.", "$ref": "#/$defs/scoreTenths" },
+        "suppressed_by": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["reason", "since", "until"],
+              "properties": {
+                "reason": { "description": "perimeter_change | abstention.", "$ref": "#/$defs/code" },
+                "since": { "$ref": "#/$defs/month" },
+                "until": { "anyOf": [{ "$ref": "#/$defs/month" }, { "type": "null" }] }
+              }
+            }
+          ]
+        }
+      },
+      "if": { "properties": { "state": { "const": "fired" } } },
+      "then": { "properties": { "suppressed_by": { "type": "null" } } },
+      "else": { "properties": { "suppressed_by": { "type": "object" } } }
+    },
+    "month": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$" },
+    "entityId": { "description": "Safe as a file name and as a URL segment.", "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$" },
+    "entityKind": { "enum": ["group", "company"] },
+    "pillarKey": { "enum": ["liquidity", "payments", "collections", "activity", "debt"] },
+    "band": { "enum": ["critical", "watch", "stable", "solid"] },
+    "direction": { "enum": ["improving", "stable", "deteriorating", "perimeter_shift"] },
+    "nature": { "enum": ["structural", "shock_pending", "bump"] },
+    "confLabel": { "enum": ["high", "medium", "low"] },
+    "tenths": { "description": "Score points times ten.", "type": "integer" },
+    "scoreTenths": { "type": "integer", "minimum": 0, "maximum": 1000 },
+    "share": { "type": "number", "minimum": 0, "maximum": 1 },
+    "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 400 },
+    "nullableText": { "type": ["string", "null"], "minLength": 1, "maxLength": 400 },
+    "nullableLabel": { "type": ["string", "null"], "minLength": 1, "maxLength": 80 },
+    "codeTexts": { "type": "object", "additionalProperties": { "$ref": "#/$defs/text" } }
+  }
+}

@@ -1,4 +1,4 @@
-from .contracts import Driver, ScoreSnapshot
+from .contracts import Driver, EntitySnapshot, Params, ScoreSnapshot
 from .scoring import score_dataset
 
-__all__ = ["Driver", "ScoreSnapshot", "score_dataset"]
+__all__ = ["Driver", "EntitySnapshot", "Params", "ScoreSnapshot", "score_dataset"]

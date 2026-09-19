@@ -192,7 +192,8 @@ def _copy_table(
         (input_dir / spec.filename).open("rb") as source,
     ):
         while chunk := source.read(1024 * 1024):
-            copy.write(chunk)
+            # PostgreSQL text cannot hold NUL; the raw feed has a few inside descriptions.
+            copy.write(chunk.replace(b"\x00", b""))
     cursor.execute(
         sql.SQL("SELECT count(*) FROM {}").format(sql.Identifier(stage_name))
     )

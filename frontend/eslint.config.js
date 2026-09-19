@@ -37,5 +37,10 @@ export default defineConfig(
 				svelteConfig
 			}
 		}
+	},
+	{
+		// Product links go through monthStore.href(), which prefixes `base` and keeps ?m=.
+		files: ['src/lib/xray/**', 'src/routes/**'],
+		rules: { 'svelte/no-navigation-without-resolve': 'off' }
 	}
 );

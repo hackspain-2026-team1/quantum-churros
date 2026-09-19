@@ -5,6 +5,9 @@
 @import '@fontsource/fira-mono/700.css';
 
 @custom-variant dark (&:is(.dark *));
+/* Orientation shorthands used by the registry slider (bits-ui sets data-orientation). */
+@custom-variant data-horizontal (&[data-orientation='horizontal']);
+@custom-variant data-vertical (&[data-orientation='vertical']);
 
 :root {
 	--radius: 0.75rem;
@@ -44,10 +47,14 @@
 	--signal-strong: oklch(0.39 0.115 211);
 	--signal-soft: oklch(0.94 0.035 205);
 	--success: oklch(0.55 0.13 157);
+	--success-strong: oklch(0.4 0.1 157);
 	--success-soft: oklch(0.94 0.04 157);
 	--warning: oklch(0.68 0.14 73);
+	--warning-strong: oklch(0.45 0.1 68);
 	--warning-soft: oklch(0.96 0.04 80);
 	--danger: oklch(0.58 0.19 28);
+	--danger-strong: oklch(0.46 0.17 28);
+	--danger-soft: oklch(0.955 0.03 28);
 	--font-data: 'Fira Mono', ui-monospace, monospace;
 }
 

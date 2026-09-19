@@ -13,17 +13,26 @@
 		values,
 		projected = [],
 		months = [],
-		changeIndex = 8,
+		changeIndex = null,
+		changeLabel = 'Cambio detectado',
+		projectedLabel = 'Objetivo',
+		format,
 		compact = false,
 		metrics = [],
 		metricLabel = 'Score de salud',
 		unit = '',
 		activeMetric = $bindable<string | undefined>(undefined)
 	}: {
-		values: number[];
+		/** One value per month; null = not observed (the line breaks there). */
+		values: (number | null)[];
 		projected?: number[];
 		months?: string[];
-		changeIndex?: number;
+		/** Index of the month where the engine detected the change; no line when null. */
+		changeIndex?: number | null;
+		changeLabel?: string;
+		/** Label of the dashed target point drawn after the last observed month. */
+		projectedLabel?: string;
+		format?: (value: number) => string;
 		compact?: boolean;
 		metrics?: ChartMetric[];
 		metricLabel?: string;
@@ -38,20 +47,38 @@
 	let currentLabel = $derived(currentMetric?.label ?? metricLabel);
 	let currentUnit = $derived(currentMetric?.unit ?? unit);
 	const formatValue = (value: number) =>
-		currentMetric?.format
-			? currentMetric.format(value)
+		(currentMetric?.format ?? format)
+			? (currentMetric?.format ?? format)!(value)
 			: `${formatNumber(value, 2)}${currentUnit ? `\u00A0${currentUnit}` : ''}`;
-	let all = $derived([...values, ...projected]);
-	let min = $derived(Math.min(...all) - 4);
-	let max = $derived(Math.max(...all) + 4);
+	let all = $derived<(number | null)[]>([...values, ...projected]);
+	let known = $derived(all.filter((value): value is number => value !== null));
+	let spread = $derived(known.length ? Math.max(...known) - Math.min(...known) : 0);
+	let margin = $derived(Math.max(spread * 0.15, Math.abs(known[0] ?? 1) * 0.04, 0.5));
+	let min = $derived((known.length ? Math.min(...known) : 0) - margin);
+	let max = $derived((known.length ? Math.max(...known) : 1) + margin);
+	let lastIndex = $derived(values.findLastIndex((value) => value !== null));
+	let lastValue = $derived(lastIndex >= 0 ? (values[lastIndex] as number) : 0);
+	let hasChange = $derived(changeIndex !== null && changeIndex >= 0 && changeIndex < values.length);
 	let total = $derived(Math.max(2, all.length - 1));
 	const x = (index: number) => pad + (index / total) * (width - pad * 2);
 	const y = (value: number) => height - pad - ((value - min) / (max - min)) * (height - pad * 2);
-	let observedPoints = $derived(values.map((value, index) => `${x(index)},${y(value)}`).join(' '));
+	// Consecutive observed months form a segment; a month without data breaks the line.
+	let observedSegments = $derived.by(() => {
+		const result: string[] = [];
+		let current: string[] = [];
+		values.forEach((value, index) => {
+			if (value === null) {
+				if (current.length) result.push(current.join(' '));
+				current = [];
+			} else current.push(`${x(index)},${y(value)}`);
+		});
+		if (current.length) result.push(current.join(' '));
+		return result;
+	});
 	let projectedPoints = $derived(
-		projected.length
+		projected.length && lastIndex >= 0
 			? [
-					`${x(values.length - 1)},${y(values.at(-1) ?? 0)}`,
+					`${x(lastIndex)},${y(lastValue)}`,
 					...projected.map((value, index) => `${x(values.length + index)},${y(value)}`)
 				].join(' ')
 			: ''
@@ -95,7 +122,7 @@
 <div class="space-y-2">
 	<div class="flex items-center justify-between gap-3">
 		{#if metrics.length > 1}
-			<div class="flex items-center gap-2">
+			<div class="flex min-w-0 items-center gap-2 overflow-x-auto">
 				<span class="metric-label">Métrica</span>
 				<ToggleGroup.Root
 					type="single"
@@ -105,7 +132,9 @@
 					aria-label="Seleccionar métrica"
 				>
 					{#each metrics as metric (metric.value)}
-						<ToggleGroup.Item value={metric.value}>{metric.label}</ToggleGroup.Item>
+						<ToggleGroup.Item value={metric.value} class="flex-none px-3"
+							>{metric.label}</ToggleGroup.Item
+						>
 					{/each}
 				</ToggleGroup.Root>
 			</div>
@@ -127,21 +156,52 @@
 			onpointermove={onMove}
 			onpointerleave={() => (hoverIndex = null)}
 		>
-			<line x1={x(changeIndex)} x2={x(changeIndex)} y1="10" y2={height - 10} class="change-line" />
-			<polyline points={observedPoints} fill="none" class="observed-line" />
+			{#if hasChange && changeIndex !== null}
+				<line
+					x1={x(changeIndex)}
+					x2={x(changeIndex)}
+					y1="10"
+					y2={height - 10}
+					class="change-line"
+				/>
+			{/if}
+			{#each observedSegments as points, index (index)}
+				<polyline {points} fill="none" class="observed-line" />
+			{/each}
 			{#if projectedPoints}<polyline
 					points={projectedPoints}
 					fill="none"
 					class="projected-line"
 				/>{/if}
 			{#each values as value, index (index)}
-				<circle
-					cx={x(index)}
-					cy={y(value)}
-					r={index === values.length - 1 ? 5 : 2.5}
-					class="observed-dot"
-				/>
+				{#if value !== null}
+					<circle
+						cx={x(index)}
+						cy={y(value)}
+						r={index === lastIndex ? 5 : 2.5}
+						class="observed-dot"
+					/>
+				{/if}
 			{/each}
+			{#if projected.length}
+				{@const targetIndex = values.length + projected.length - 1}
+				{@const targetValue = projected[projected.length - 1]}
+				<line
+					x1={pad}
+					x2={width - pad}
+					y1={y(targetValue)}
+					y2={y(targetValue)}
+					class="target-line"
+				/>
+				<circle cx={x(targetIndex)} cy={y(targetValue)} r="6" class="target-dot" />
+				<text
+					x={x(targetIndex) - 10}
+					y={y(targetValue) - 12}
+					class="value-label target-label"
+					text-anchor="end"
+					data-testid="chart-target">{projectedLabel} {formatValue(targetValue)}</text
+				>
+			{/if}
 			{#if hoverIndex !== null}
 				<line
 					x1={x(hoverIndex)}
@@ -150,12 +210,27 @@
 					y2={height - pad + 4}
 					class="hover-line"
 				/>
-				<circle cx={x(hoverIndex)} cy={y(valueAt(hoverIndex))} r="5" class="hover-dot" />
+				{#if valueAt(hoverIndex) !== null}
+					<circle cx={x(hoverIndex)} cy={y(valueAt(hoverIndex) ?? 0)} r="5" class="hover-dot" />
+				{/if}
 			{/if}
-			<text x={x(changeIndex) + 8} y="22" class="change-label">Cambio detectado</text>
-			<text x={x(values.length - 1) - 5} y={y(values.at(-1) ?? 0) - 12} class="value-label"
-				>{formatValue(values.at(-1) ?? 0)}</text
-			>
+			{#if hasChange && changeIndex !== null}
+				<text
+					x={x(changeIndex) + (changeIndex > total * 0.7 ? -8 : 8)}
+					y="22"
+					text-anchor={changeIndex > total * 0.7 ? 'end' : 'start'}
+					class="change-label">{changeLabel}</text
+				>
+			{/if}
+			{#if lastIndex >= 0}
+				<text
+					x={x(lastIndex) - 5}
+					y={y(lastValue) +
+						(projected.length && projected[projected.length - 1] >= lastValue ? 20 : -12)}
+					text-anchor="end"
+					class="value-label">{formatValue(lastValue)}</text
+				>
+			{/if}
 			{#each ticks as index (index)}
 				<text x={x(index)} y={height - 8} class="axis-label" text-anchor="middle"
 					>{pointLabel(index)}</text
@@ -165,12 +240,14 @@
 		{#if hoverIndex !== null}
 			<div
 				class="hover-tooltip pointer-events-none absolute z-10 rounded-md border bg-background px-2 py-1 text-xs shadow-md"
-				style={`left: ${(x(hoverIndex) / width) * 100}%; top: ${(y(valueAt(hoverIndex)) / height) * 100}%; transform: translate(${
+				style={`left: ${(x(hoverIndex) / width) * 100}%; top: ${(y(valueAt(hoverIndex) ?? (min + max) / 2) / height) * 100}%; transform: translate(${
 					hoverIndex >= all.length / 2 ? 'calc(-100% - 8px)' : '8px'
 				}, -50%);`}
 			>
 				<span class="font-semibold">{pointHint(hoverIndex)}</span>
-				<span class="font-data ml-2 font-semibold">{formatValue(valueAt(hoverIndex))}</span>
+				<span class="font-data ml-2 font-semibold"
+					>{valueAt(hoverIndex) === null ? 'Sin dato' : formatValue(valueAt(hoverIndex) ?? 0)}</span
+				>
 			</div>
 		{/if}
 	</div>
@@ -191,6 +268,20 @@
 		stroke-width: 3;
 		stroke-dasharray: 8 7;
 		stroke-linecap: round;
+	}
+	.target-line {
+		stroke: var(--success);
+		stroke-width: 1;
+		stroke-dasharray: 3 6;
+		opacity: 0.6;
+	}
+	.target-dot {
+		fill: var(--success);
+		stroke: var(--card);
+		stroke-width: 2.5;
+	}
+	.target-label {
+		fill: var(--success-strong);
 	}
 	.observed-dot {
 		fill: var(--card);

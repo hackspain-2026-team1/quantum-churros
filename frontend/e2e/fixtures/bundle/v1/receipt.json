@@ -1,0 +1,62 @@
+{
+  "schema": "xray-export-v1",
+  "kind": "receipt",
+  "engine_version": "engine-v2",
+  "params_hash": "synthetic-fixture-params",
+  "dataset_hash": "synthetic-fixture-dataset",
+  "signals": [
+    {"name": "liquidity", "label": "Liquidez", "weight": 0.3, "why": "Días de salidas que cubren la caja y las líneas disponibles, a fin de mes y en el mínimo del mes."},
+    {"name": "payments", "label": "Pagos a proveedores", "weight": 0.2, "why": "Días sobre el vencimiento con que se paga a proveedores, vistos con lo que se sabía a cada cierre."},
+    {"name": "collections", "label": "Cobros de clientes", "weight": 0.15, "why": "Días sobre el vencimiento con que pagan los clientes, vistos con lo que se sabía a cada cierre."},
+    {"name": "activity", "label": "Actividad", "weight": 0.2, "why": "Cobertura de pagos con cobros operativos e impulso de los cobros en cuentas comparables."},
+    {"name": "debt", "label": "Deuda", "weight": 0.15, "why": "Parte de los cobros de 12 meses que consume el servicio de la deuda."},
+    {"name": "industry", "label": "Sector inferido", "weight": 0.0, "why": "Contexto de la ficha: no entra en el número porque la clasificación no es fiable para la mayoría de empresas."},
+    {"name": "customer_concentration", "label": "Concentración de clientes", "weight": 0.0, "why": "Se muestra en la ficha; como señal de riesgo no supera la validación sin etiquetas."},
+    {"name": "seasonality", "label": "Estacionalidad", "weight": 0.0, "why": "El patrón mensual no se distingue del ruido, así que no se desestacionaliza."},
+    {"name": "exchange_rate", "label": "Tipo de cambio del fichero", "weight": 0.0, "why": "La columna no es utilizable; las divisas se convierten con una tabla fija."}
+  ],
+  "abstentions": [
+    {"entity_kind": "company", "entity_id": "COMP_T005", "group_id": "GROUP_T003", "month": "2026-08", "reason": "short_history", "unlock": "Falta 1 mes de historia bancaria para emitir un veredicto."},
+    {"entity_kind": "group", "entity_id": "GROUP_T003", "group_id": "GROUP_T003", "month": "2026-08", "reason": "short_history", "unlock": "Falta 1 mes de historia bancaria para emitir un veredicto."}
+  ],
+  "checks": [
+    {
+      "key": "isolation",
+      "title": "Aislamiento de cohorte",
+      "status": "pass",
+      "summary": "Cada grupo puntuado en solitario obtiene el mismo score que dentro de la cartera completa.",
+      "metrics": [{"label": "Grupos puntuados en solitario", "value": 3, "unit": "grupos"}, {"label": "Diferencia máxima", "value": 0.0, "unit": "puntos"}, {"label": "Tolerancia", "value": 1e-09, "unit": "puntos"}]
+    },
+    {
+      "key": "truncation",
+      "title": "Sin mirar al futuro",
+      "status": "pass",
+      "summary": "Cortar los ficheros en un mes pasado no cambia ningún score anterior al corte.",
+      "metrics": [{"label": "Cortes probados", "value": "2025-08, 2026-02, 2026-05", "unit": ""}, {"label": "Diferencia máxima", "value": 0.0, "unit": "puntos"}]
+    },
+    {
+      "key": "additivity",
+      "title": "Explicación exacta",
+      "status": "pass",
+      "summary": "Base, pilares, penalización y tope suman el score en todas las filas.",
+      "metrics": [{"label": "Filas comprobadas", "value": 151, "unit": "entidad-mes"}, {"label": "Residuo máximo", "value": 0.0, "unit": "puntos"}]
+    },
+    {"key": "determinism", "title": "Determinismo", "status": "pass", "summary": "Dos ejecuciones, filas barajadas y un solo hilo dan los mismos bytes.", "metrics": [{"label": "Bundles idénticos", "value": true, "unit": ""}]},
+    {
+      "key": "netting_placebo",
+      "title": "Placebo del neteo de espejos",
+      "status": "info",
+      "summary": "Con las fechas desplazadas el neteo casi no encuentra pares: los espejos reales no son coincidencias.",
+      "metrics": [{"label": "Valor de salidas neteado", "value": 0.41, "unit": "cuota"}, {"label": "Valor neteado con placebo de fechas", "value": 0.02, "unit": "cuota"}]
+    },
+    {
+      "key": "injection",
+      "title": "Deterioros inyectados",
+      "status": "info",
+      "summary": "Meses hasta la alerta estructural tras inyectar una caída sostenida en grupos sanos.",
+      "metrics": [{"label": "Falsas alertas sin inyección", "value": 0.0, "unit": "cuota"}, {"label": "Picos de un mes marcados como estructurales", "value": 0.0, "unit": "cuota"}],
+      "bars": [{"label": "1 mes", "value": 0}, {"label": "2 meses", "value": 1}, {"label": "3 meses", "value": 2}, {"label": "4 o más", "value": 0}]
+    },
+    {"key": "rank_stability", "title": "Estabilidad ante cambios de pesos", "status": "not_run", "summary": "No se ejecutó en esta exportación.", "metrics": []}
+  ]
+}

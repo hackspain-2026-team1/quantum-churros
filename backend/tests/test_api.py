@@ -1,11 +1,9 @@
 import pytest
-from app.main import app
+from app.main import app, engine
+from app.models import BenchmarkStudy, Entity, RecommendedAction, Workspace
+from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
-
-
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
+from sqlmodel import Session, select
 
 
 @pytest.mark.anyio
@@ -16,19 +14,52 @@ async def test_health() -> None:
         assert (await client.get("/health")).json() == {"status": "ok"}
 
 
+def test_api_surface_is_bundle_plus_context() -> None:
+    assert set(app.openapi()["paths"]) == {
+        "/health",
+        "/api/v1/bundle/{path}",
+        "/api/v1/benchmarks",
+        "/api/v1/benchmarks/{study_id}",
+        "/api/v1/companies/{entity_id}/debt-products",
+        "/api/v1/companies/{entity_id}/industry",
+        "/api/v1/companies/industry",
+        "/api/v1/industry/distribution",
+        "/api/v1/scores/{entity_id}",
+    }
+
+
 @pytest.mark.anyio
-async def test_scenario_preserves_observed_score() -> None:
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/api/v1/demo"),
+        ("POST", "/api/v1/scenarios"),
+        ("GET", "/api/v1/actions"),
+    ],
+)
+async def test_retired_demo_endpoints_are_gone(method: str, path: str) -> None:
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
-        response = await client.post(
-            "/api/v1/scenarios",
-            json={
-                "collection_days": 12,
-                "refinance_amount": 180000,
-                "payment_extension_days": 7,
-            },
-        )
+        response = await client.request(method, path, json={} if method == "POST" else None)
+    assert response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_scores_of_an_unknown_entity_are_empty() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/api/v1/scores/COMP_DOES_NOT_EXIST")
     assert response.status_code == 200
-    assert 0 <= response.json()["base_score"] <= 100
-    assert response.json()["projected_score"] > response.json()["base_score"]
+    assert response.json() == []
+
+
+def test_startup_seeds_reference_studies_and_nothing_else() -> None:
+    with TestClient(app) as client:  # the context manager runs the lifespan
+        assert client.get("/health").status_code == 200
+
+    with Session(engine) as session:
+        assert session.exec(select(BenchmarkStudy)).first() is not None
+        for table in (Workspace, Entity, RecommendedAction):
+            assert session.exec(select(table)).all() == [], table.__name__

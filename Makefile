@@ -1,6 +1,10 @@
 .DEFAULT_GOAL := help
 
 COMPOSE := docker compose -f compose.yaml -f compose.dev.yaml
+XRAY_DATA ?= data/raw
+XRAY_BUNDLE ?= frontend/static/data/v1
+XRAY_OUT ?= artifacts
+EVIDENCE_MONTHS ?= 24
 
 .PHONY: dev
 dev: ## Build and start the complete development stack
@@ -37,13 +41,28 @@ test-backend: ## Run API tests
 test-frontend: ## Type-check and test the frontend
 	cd frontend && bun run check && bun run test
 
-.PHONY: train
-train: ## Train and validate the temporal scoring model
-	uv run --package xray-engine xray-score train data/raw --model-dir artifacts/model
+.PHONY: test-engine-data
+test-engine-data: ## Run the engine tests that need the real dataset (XRAY_DATA=<folder>)
+	XRAY_DATA=$(XRAY_DATA) uv run --package xray-engine pytest engine/tests -m dataset
+
+.PHONY: fit-reference
+fit-reference: ## Measure and freeze params/reference_v1.json from XRAY_DATA
+	uv run --package xray-engine xray-score fit-reference $(XRAY_DATA) --out params/reference_v1.json
+
+.PHONY: predict
+predict: ## Score every group and company of XRAY_DATA (any folder with the 8 CSVs) into XRAY_OUT
+	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out $(XRAY_OUT)
 
 .PHONY: score
-score: ## Score the dataset mounted under data/raw
-	uv run --package xray-engine xray-score score data/raw --model-dir artifacts/model --output artifacts/scores.parquet
+score: predict ## Alias of predict
+
+.PHONY: validate
+validate: ## Run the label-free validation suite and write XRAY_OUT/validation.json
+	uv run --package xray-engine xray-score validate $(XRAY_DATA) --out $(XRAY_OUT)/validation.json
+
+.PHONY: export
+export: ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE (EVIDENCE_MONTHS of evidence per entity)
+	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out $(XRAY_OUT) --export-dir $(XRAY_BUNDLE) --evidence-months $(EVIDENCE_MONTHS)
 
 .PHONY: db-migrate
 db-migrate: ## Apply pending Alembic migrations
@@ -57,6 +76,10 @@ db-seed-dry-run: ## Validate source files and print their immutable dataset hash
 db-seed: ## Idempotently ingest the challenge dataset into PostgreSQL
 	$(COMPOSE) exec api uv run --locked --package quantum-churros-api xray-db ingest /data/raw
 
+.PHONY: db-publish
+db-publish: ## Load the engine run in XRAY_OUT (panel, scores, alerts) into the xray schema, one attribute per column
+	$(COMPOSE) exec api uv run --locked --package quantum-churros-api xray-db publish $(XRAY_OUT)
+
 .PHONY: db-classify
 db-classify: ## Classify companies into industry archetypes for the mounted dataset
 	$(COMPOSE) exec api uv run --locked --package quantum-churros-api xray-db classify /data/raw
@@ -64,6 +87,16 @@ db-classify: ## Classify companies into industry archetypes for the mounted data
 .PHONY: data-extract
 data-extract: ## Extract the local challenge archive into the ignored data directory
 	unzip -j -n "$(archive)" 'output/*' -d data/raw
+
+NO_MOCKS_PATTERN := COMP_0680|Velasco|4,1 meses|74\.5|[Cc]at[Bb]oost|SHAP
+
+.PHONY: no-mocks
+no-mocks: ## Fail when demo literals or retired model copy remain in shipped code
+	@if grep -rnIE '$(NO_MOCKS_PATTERN)' frontend/src backend/app; then \
+		echo 'no-mocks: demo literals found in shipped code (listed above)'; exit 1; \
+	else \
+		echo 'no-mocks: clean'; \
+	fi
 
 .PHONY: help
 help: ## Show available targets

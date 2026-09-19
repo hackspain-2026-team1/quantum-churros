@@ -1,0 +1,13 @@
+# With this file present the Vercel CLI stops reading .gitignore, so the
+# git-ignored export bundle under static/data/ is uploaded with the deploy.
+# Do not list static/data here.
+node_modules
+.svelte-kit
+build
+.output
+test-results
+playwright-report
+e2e
+.env
+.env.*
+.DS_Store
