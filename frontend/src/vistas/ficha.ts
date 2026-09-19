@@ -699,14 +699,13 @@ type EstadoAccion = 'propuesta' | 'en curso' | 'hecha';
 function leerEstados(): Record<string, EstadoAccion> { try { return JSON.parse(localStorage.getItem(CLAVE_ESTADOS()) ?? '{}'); } catch { return {}; } }
 function guardarEstado(clave: string, e: EstadoAccion) { const t = leerEstados(); t[clave] = e; try { localStorage.setItem(CLAVE_ESTADOS(), JSON.stringify(t)); } catch { /* Sin almacenamiento, el estado dura solo esta sesión. */ } }
 
-/** El efecto de una acción: la cifra del motor y la mediana prevista a seis meses con y sin ella. */
+/** La mediana prevista a seis meses con y sin la acción; la cifra del motor va en su columna. */
 function efectoAccion(d: DatosFicha, a?: AccionM): string | null {
 	if (!a) return null;
-	const partes = [`${f.delta(a.uplift_tenths)} puntos según el motor`];
 	const ha = d.hor?.actions?.find((x) => x.id === a.id);
 	const hb = d.hor?.scenarios?.base;
-	if (ha && hb && hayFuturo(d)) partes.push(`a seis meses, ${f.score(ha.q.p50[5])} en vez de ${f.score(hb.q.p50[5])}`);
-	return partes.join(' · ');
+	if (ha && hb && hayFuturo(d)) return `a seis meses, ${f.score(ha.q.p50[5])} en vez de ${f.score(hb.q.p50[5])}`;
+	return null;
 }
 
 export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
@@ -746,7 +745,7 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 			h('div', { class: 'rec-cuerpo' },
 				h('div', { class: 'rec-titulo' }, ...conCifras(tituloAccion(a), origenPilar(d, acc, a.pillar, 'De cuánto a cuánto tiene que ir la palanca'))),
 				h('p', { class: 'rec-texto' }, ...conCifras(r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a), origenPilar(d, acc, a.pillar, 'Lo que hace falta para llegar al objetivo'))),
-				h('p', { class: 'rec-hechos' }, ...conCifras(efectoAccion(d, a) ?? '', { que: 'Lo que sube el score con esta acción, según el motor', mes: d.corte }), ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
+				h('p', { class: 'rec-hechos' }, ...conCifras([efectoAccion(d, a), ESFUERZO[a.effort], `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`].filter(Boolean).join(' · '), { que: 'Score a seis meses con la acción y sin ella, según el motor', mes: d.corte })),
 				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
 			h('div', { class: 'rec-estado' }, estadoSel.raiz),
 			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')));
@@ -766,7 +765,14 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		nada.addEventListener('pointerleave', () => acc.horizonte.previa(null));
 		lista.append(nada);
 	}
-	if (!recs.length) lista.prepend(h('li', { class: 'rec vacia' }, h('p', {}, m.abstain ? `El motor se abstiene este mes y no propone acciones: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}` : !m.feed_live ? 'Sin datos del banco al día, el motor no propone acciones.' : 'El motor no encuentra este mes ninguna palanca que suba el score al menos medio punto.')));
+	if (!recs.length) {
+		const razon = m.abstain
+			? `El motor se abstiene este mes y no propone acciones: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}. Qué la levantaría: ${m.abstain.unlock}`
+			: !m.feed_live
+				? 'Sin datos del banco al día, el motor no propone acciones. Las palancas salen de los movimientos recientes de cobros y pagos; cuando el feed vuelva a estar al día, la lista se recupera sola.'
+				: 'El motor no encuentra este mes ninguna palanca que suba el score al menos medio punto. Evalúa los movimientos del mes y los productos en cartera, y con lo que hay hoy ninguno mueve el número lo suficiente. No es un error ni una falta de datos: el score ya recoge el estado del mes y el horizonte sigue leyéndose en «si todo sigue igual».';
+		lista.prepend(h('li', { class: 'rec vacia' }, h('p', {}, razon)));
+	}
 	const cabeceraAcciones = h(
 		'div',
 		{ class: 'sec-acciones-cabecera' },

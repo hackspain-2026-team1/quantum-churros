@@ -2716,6 +2716,12 @@ button.filtro-opcion[aria-pressed="true"] {
 .rec.vacia {
   cursor: default;
 }
+.rec.vacia {
+  display: block;
+}
+.rec.vacia p {
+  max-width: 82ch;
+}
 @media (max-width: 900px) {
   .rec-cab {
     display: none;
