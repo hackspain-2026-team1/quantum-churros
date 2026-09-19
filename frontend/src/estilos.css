@@ -3535,3 +3535,17 @@ body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina
 @media (prefers-reduced-motion: reduce) {
 	.fin-esqueleto span { animation: none; }
 }
+
+/* ─── Desglose: leer la cascada y las curvas ─────────────── */
+.ct-fila.tocable { cursor: pointer; border-radius: 6px; transition: background 140ms; }
+.ct-fila.tocable:hover, .ct-fila.tocable:focus-visible { background: var(--fondo-3); }
+.ct-fila.tocable:hover .ct-b { opacity: 1; }
+.fig-curva.tocable { cursor: pointer; border-radius: 8px; transition: background 140ms; }
+.fig-curva.tocable:hover, .fig-curva.tocable:focus-visible { background: var(--fondo-3); }
+.cv-zona { fill: transparent; cursor: crosshair; }
+.cv-guia-lee, .cv-pto-lee, .cv-etq.lee { opacity: 0; pointer-events: none; transition: opacity 100ms; }
+.cv-guia-lee { stroke: var(--tinta); stroke-width: 1; stroke-dasharray: 2 2; }
+.cv-pto-lee { fill: #fff; stroke: var(--tinta); stroke-width: 1.5; }
+.cv-etq.lee { fill: var(--tinta); font-weight: 600; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+.curva.leyendo .cv-guia-lee, .curva.leyendo .cv-pto-lee, .curva.leyendo .cv-etq.lee { opacity: 1; }
+.curva.leyendo .cv-etq.aqui { opacity: 0.25; }
