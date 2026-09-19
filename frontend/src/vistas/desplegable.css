@@ -23,6 +23,10 @@
 }
 .desp-boton:hover {
 	border-color: var(--tenue);
+	box-shadow: var(--sombra-1);
+}
+.desp-boton:active {
+	background: var(--fondo-3);
 }
 .desp-boton:focus-visible {
 	outline: 2px solid var(--info);
@@ -35,6 +39,7 @@
 .desp-boton.sutil {
 	border-color: transparent;
 	background: transparent;
+	box-shadow: none;
 }
 .desp-boton.sutil:hover {
 	border-color: var(--borde);
