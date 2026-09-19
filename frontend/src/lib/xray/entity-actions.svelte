@@ -33,6 +33,25 @@
 				no siempre se suman íntegros.</Alert.Description
 			></Alert.Root
 		>
+		{#if entry.actions_plan && entry.actions_plan.stages.length > 1}
+			<div class="flex flex-wrap items-center gap-2" data-testid="actions-ladder">
+				{#each entry.actions_plan.stages as stage}
+					<span
+						class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs tabular-nums"
+					>
+						<span class="font-medium">Etapa {stage.number}</span>
+						<span>{formatScore(stage.score_tenths)}</span>
+						<span class="text-[var(--success)]">({formatScoreDelta(stage.uplift_tenths)})</span>
+					</span>
+				{/each}
+			</div>
+			<p class="text-xs text-muted-foreground">
+				Cada etapa se calcula sobre el mes que deja la anterior: el mejor score alcanzable con
+				estas palancas es {formatScore(entry.actions_plan.max_score_tenths)}, y las acciones de la
+				etapa 1 son las de arriba. Cuando ni así se llega a un score sano, el motor lo dice: hace
+				falta financiación, no gestión.
+			</p>
+		{/if}
 		<ActionList {items} />
 	{:else}
 		<EmptyState

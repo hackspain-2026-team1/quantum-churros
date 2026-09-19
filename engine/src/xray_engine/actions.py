@@ -253,6 +253,8 @@ def _coverage(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta,
     momentum = inputs.get("score_momentum")
     if coverage is None or sub is None or inflow is None:
         return None
+    if coverage <= _EPS or inflow <= _EPS:
+        return None  # no operating inflow to grow from: not something one action fixes
     table = p.anchors["activity_coverage"]
     target = step_target(result.score, table if momentum is None else Anchors(((0.0, 0.0), (1.0, 100.0))))
     if target is None:

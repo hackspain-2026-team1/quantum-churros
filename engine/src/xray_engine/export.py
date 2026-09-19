@@ -360,7 +360,44 @@ def _actions(month: EntityMonth, params: Any, group_row: Any, shown: int) -> dic
         for action in plan.actions
     ]
     combined = max(shown, plan.combined_score_tenths) if actions else shown
-    return {"actions": actions, "actions_combined": {"new_score": combined, "uplift": combined - shown}}
+    action_plan = None
+    if plan.stages and plan.max_score is not None:
+        action_plan = {
+            "stages": [
+                {
+                    "number": stage.number,
+                    "score_tenths": _score_tenths(stage.score),
+                    "uplift_tenths": max(0, (_score_tenths(stage.score) or 0) - shown),
+                    "actions": [
+                        {
+                            "id": action.id,
+                            "pillar": action.pillar,
+                            "title": _text(action.title, 200),
+                            "detail": _text(action.detail),
+                            "current": _number(action.current, 2),
+                            "target": _number(action.target, 2),
+                            "unit": action.unit,
+                            "uplift_tenths": max(
+                                0,
+                                (_score_tenths(action.new_score) or 0)
+                                - (_score_tenths(action.new_score - action.uplift) or 0),
+                            ),
+                            "new_score_tenths": _score_tenths(action.new_score),
+                            "effort": action.effort,
+                        }
+                        for action in stage.actions
+                    ],
+                }
+                for stage in plan.stages
+            ],
+            "max_score_tenths": _score_tenths(plan.max_score),
+            "max_uplift_tenths": max(0, (_score_tenths(plan.max_score) or 0) - shown),
+        }
+    return {
+        "actions": actions,
+        "actions_combined": {"new_score": combined, "uplift": combined - shown},
+        **({"actions_plan": action_plan} if action_plan is not None else {}),
+    }
 
 
 def _entity_month(

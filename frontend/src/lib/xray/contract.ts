@@ -95,6 +95,32 @@ export const actionSchema = z.object({
 });
 export const actionsCombinedSchema = z.object({ new_score: scoreTenths, uplift: tenths });
 
+// The stage ladder: each stage acts on the month the previous one produced,
+// up to the best score the bounded levers can reach.
+export const planActionSchema = z.object({
+	id: z.string().min(1).max(80),
+	pillar: pillarKey.nullable().optional(),
+	title: text,
+	detail: z.string().max(600).nullable().optional(),
+	current: z.number().nullable().optional(),
+	target: z.number().nullable().optional(),
+	unit: z.string().max(24).nullable().optional(),
+	uplift_tenths: tenths,
+	new_score_tenths: scoreTenths,
+	effort: z.string().max(40).nullable().optional()
+});
+export const actionStageSchema = z.object({
+	number: count,
+	score_tenths: scoreTenths,
+	uplift_tenths: tenths,
+	actions: z.array(planActionSchema)
+});
+export const actionsPlanSchema = z.object({
+	stages: z.array(actionStageSchema).min(1),
+	max_score_tenths: scoreTenths,
+	max_uplift_tenths: tenths
+});
+
 const entityMonthShape = z.object({
 	month,
 	shown: scoreTenths,
@@ -119,7 +145,8 @@ const entityMonthShape = z.object({
 	verdict: verdictSchema,
 	abstain: z.object({ reason: code, unlock: text }).nullable(),
 	actions: z.array(actionSchema).optional(),
-	actions_combined: actionsCombinedSchema.nullable().optional()
+	actions_combined: actionsCombinedSchema.nullable().optional(),
+	actions_plan: actionsPlanSchema.nullable().optional()
 });
 
 /** base + contributions - penalty - cap - shown, in tenths; 0 on a valid entity-month. */
