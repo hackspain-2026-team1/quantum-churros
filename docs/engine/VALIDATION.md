@@ -271,13 +271,15 @@ uv run --package xray-engine xray-score predict /path/to/output --params /tmp/fl
   in the real portfolio — without outcome labels. Complements R8 (controlled injection) with
   an operational target: first `deterioration_structural` alert or `(deteriorating, structural)`
   verdict within horizon *h* that was not already present at month *t*.
-- **How.** Read-only on `Scored`: predictor `-score` at *t*; labels from forward windows on
-  group-months with live feed and no abstention. Horizons *h* ∈ {1, 3, 6, 9, 12}. Lead-time
+- **How.** Read-only on `Scored`: predictor de trayectoria `max(0, -delta3, -drift_points)`
+  at *t*; labels from forward windows on group-months with live feed and no abstention.
+  Horizons *h* ∈ {1, 3, 6, 9, 12}, cada uno con todo su seguimiento disponible. Lead-time
   from first signal (verdict, alert or score drop) to structural onset. **Calibration** reuses
-  R8 windows (step / ramp, spike as negative control). **Audit** recomputes AUC(h = 6) at
-  `rolling_origin` cuts and reports |ΔAUC|.
-- **Reports.** `natural.by_horizon[h].auc`, `natural.lead_time.median_months`,
-  `calibration_on_injection.step.auc_h6`, `audit_rolling_origin.cuts`.
+  paired R8 windows and compares the injected score with its untouched control during the
+  first 3/6 months. **Audit** recomputes AUC(h = 6) at `rolling_origin` cuts and reports |ΔAUC|.
+- **Reports.** `natural.by_horizon[h].auc`, `natural.lead_time.median_months`, paired AUC,
+  detection/structural delay and coverage under `calibration_on_injection`, plus
+  `audit_rolling_origin.cuts`.
 - **Pass.** None — informational. Baseline and interpretation in [NATURAL_ANTICIPATION.md](./NATURAL_ANTICIPATION.md).
 - **Run.** `make validate` → `make eval-anticipation`.
 
@@ -433,21 +435,14 @@ gains per point of `long_threshold`, at which false-alert cost.
 
 ### R9 · Natural anticipation
 
-Baseline (dataset reto, 2024-09 → 2026-08). Full detail: [NATURAL_ANTICIPATION.md](./NATURAL_ANTICIPATION.md).
+The previous portfolio baseline used score level to rank a trajectory-change outcome and is superseded. Regenerate the challenge dataset before publishing R9. Full method and CI baseline: [NATURAL_ANTICIPATION.md](./NATURAL_ANTICIPATION.md).
 
-| Horizon | AUC | Positives | Observations |
-|---------|-----|-----------|--------------|
-| 3 months | 0,48 | 66 | 1001 |
-| 6 months | 0,44 | 127 | 946 |
+| Calibration CI | Paired AUC h = 6 | Detection median | Structural median | Coverage |
+|----------------|------------------|------------------|-------------------|----------|
+| Step | 0,944 | 1 month | 2 months | 100 % |
+| Ramp | 0,813 | 4 months | 5,5 months | 100 % |
 
-Lead-time median (portfolio): **1 month** (68 onsets) · events / 100 group-years: **25,2**
-
-| Calibration | AUC h = 6 | Lead median |
-|-------------|-----------|-------------|
-| Step | 0,51 | 1 month |
-| Ramp | 0,51 | 1 month |
-
-Rolling-origin audit (h = 6): full AUC 0,44 · |ΔAUC| at cuts ≤ 0,013 (2025-11, 2026-02, 2026-05).
+Portfolio AUC h = 3/h = 6, lead-time and rolling-origin audit are **pending regeneration** with the trajectory predictor. Publish every AUC with positives, negatives and observations; publish every delay with coverage and its distribution.
 
 Keys: `natural_anticipation.natural` · `natural_anticipation.calibration_on_injection` ·
 `natural_anticipation.audit_rolling_origin`

@@ -123,12 +123,12 @@
 					objective: 'pico ≤ 10\u00A0% · escalón ≤ 3 meses'
 				},
 				{
-					name: 'Anticipación natural (AUC y meses de antelación)',
+					name: 'Anticipación y retardo',
 					tests:
-						'Sin labels de quiebra: medimos si la nota ordena quién entrará en deterioro estructural en los próximos meses y cuánto antes avisa el monitor.',
+						'Separamos si la trayectoria de hoy ordena futuros onsets internos de cuánto tarda el score en reaccionar ante un cambio inyectado con fecha conocida.',
 					result:
-						'AUC a 3 meses 0,48 · AUC a 6 meses 0,44 · 1 mes de mediana de anticipación (68 onsets) · calibración por inyección AUC-6 0,51',
-					objective: 'publicar método reproducible (bonus anticipación medida)'
+						'En CI, AUC pareada a 6 meses: 0,944 en escalón y 0,813 en rampa · confirmación estructural del escalón: 2 meses',
+					objective: 'AUC ≥ 0,80 · confirmación del escalón ≤ 3 meses'
 				}
 			]
 		}
@@ -136,6 +136,7 @@
 
 	const notPromised = [
 		'No hay un porcentaje de acierto ni un modelo entrenado con impagos: los datos no traen la respuesta correcta.',
+		'La AUC de cartera usa futuros onsets internos, no quiebras; la inyección mide retardo desde el cambio, no predice un shock exógeno.',
 		'La pendiente mensual no persiste; la persistencia es de nivel (la nota de hoy sigue siendo informativa a tres meses).',
 		'No prometemos predecir el test oculto del organizador: lo aproximamos con el ensayo aislado y parámetros congelados.'
 	];

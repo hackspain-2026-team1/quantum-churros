@@ -103,25 +103,29 @@ Opcional: `/?tab=diagnostico&focus=GROUP_0083&m=2026-08` (abstención).
 | Si preguntan… | Respuesta |
 |---------------|-----------|
 | ¿Es inteligencia artificial? | «No entrenamos un modelo: medimos cinco pilares con reglas congeladas. Wiki → Cómo puntuamos.» |
-| ¿Predicís el futuro? | «Mostramos escenarios descriptivos. R8 mide capacidad con inyección; R9 publica AUC y meses de antelación en cartera real — ver wiki Cómo evaluamos.» |
-| ¿Y Velasco 82→68? | «Erosión lenta documentada en tests; el umbral de deriva larga es conservador a propósito.» |
+| ¿Predicís el futuro? | «Mostramos escenarios descriptivos. En cartera medimos señales de trayectoria antes de onsets internos; en inyección medimos cuánto tardamos desde un cambio conocido.» |
+| ¿Y Velasco 82→68? | «La erosión lenta es nuestro caso más difícil: medimos su cobertura y su retardo y no lo escondemos detrás de una media.» |
 
 ---
 
-## Evidencia numérica para el pitch (última validación)
+## Scoreboard de demo
 
-Ejecutar `make eval-injection` y citar (capacidad del motor):
+Abrir con tres cifras y una consecuencia de producto:
 
-- Pico confundido con caída estructural: **7,7 %** (objetivo ≤ 10 %)
-- Escalón detectado en mediana: **1 mes**
-- Rampa sin detectar en 9 meses: **22,4 %** (punto de mejora honesto)
-- Falsas alarmas en cartera: **24,4 / 100 grupo-años**
+1. **Bache:** 7,7 % de picos se confunden con caída estructural; objetivo ≤ 10 %.
+2. **Cambio real:** un escalón se detecta en 1 mes de mediana; objetivo de confirmación ≤ 3 meses.
+3. **Deriva lenta:** 22,4 % de rampas no se detectan en nueve meses; es la métrica que debe mejorar sin romper la primera.
+4. **Coste del monitor:** 24,4 alertas por 100 grupo-años; cada alerta lleva causa y acción para que no sea solo ruido.
 
-Ejecutar `make eval-anticipation` y citar (bonus anticipación medida — cartera real):
+No abrir con AUC. Usarla como respaldo técnico después de enseñar empresa → alerta → causa → acción.
 
-- AUC a 3 meses: **0,48** (66 eventos estructurales)
-- AUC a 6 meses: **0,44**
-- Anticipación mediana (señal → onset): **1 mes** (68 onsets)
-- Calibración escalón AUC-6: **0,51** (onset conocido, coherente con R8)
+Ejecutar `make eval-injection` para las cifras de cartera y `make eval-anticipation` para separar:
+
+- AUC h=3/h=6 de trayectoria frente a futuros onsets internos, siempre con positivos y observaciones.
+- AUC pareada de score inyectado frente a su control intacto.
+- Primera detección y confirmación estructural desde el onset conocido.
+- Cobertura y distribución de retardos; nunca solo la mediana.
+
+La calibración de CI — **no titular comercial** — exige AUC-6 ≥ 0,80 en escalón, ≥ 0,70 en rampa y confirmación mediana del escalón ≤ 3 meses. Antes de la demo hay que regenerar la cartera real y no reutilizar las antiguas AUC 0,48/0,44 calculadas con nivel de score para predecir un evento de trayectoria.
 
 Detalle: [`INJECTION_STUDY.md`](INJECTION_STUDY.md) · [`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md)

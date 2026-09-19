@@ -64,7 +64,9 @@ CHECK_KEYS: tuple[str, ...] = (
 )
 ROLLING_ORIGIN_CUTS: tuple[date, ...] = (date(2025, 11, 1), date(2026, 2, 1), date(2026, 5, 1))
 # expensive checks left out by ``quick``
-QUICK_SKIPPED: tuple[str, ...] = ("history_truncation", "netting_placebo", "injection")
+QUICK_SKIPPED: tuple[str, ...] = (
+    "history_truncation", "netting_placebo", "injection", "natural_anticipation",
+)
 INJECTION_KINDS: tuple[str, ...] = ("spike", "step", "ramp")
 P_STRUCTURAL_SPIKE_MAX = 0.10
 P_STRUCTURAL_STEP_MIN = 0.70
@@ -1972,6 +1974,13 @@ def build_kpis(
                 "natural_median_lead_months": lead.get("median_months"),
                 "natural_events_per_100_gy": natural.get("events_per_100_group_years"),
                 "injection_cal_auc_h6_step": cal_step.get("auc_h6"),
+                "injection_step_detection_delay": (
+                    cal_step.get("detection_delay") or {}
+                ).get("median_months"),
+                "injection_step_structural_delay": (
+                    cal_step.get("structural_delay") or {}
+                ).get("median_months"),
+                "injection_step_structural_rate": cal_step.get("structural_rate"),
             },
         },
         "window": {

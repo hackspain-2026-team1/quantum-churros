@@ -1,6 +1,6 @@
 """Natural anticipation: AUC(h) and lead-time on portfolio and injection calibration.
 
-Reads the published score only — no retuning. Target ``engine_outcome``: structural
+Reads the published score and trajectory only — no retuning. Target ``engine_outcome``: structural
 deterioration (verdict or alert) that was not already present at month *t*.
 """
 
@@ -12,15 +12,11 @@ from datetime import date
 from statistics import median
 from typing import Any
 
-import numpy as np
-
-from .alerts import build_alerts
-from .contracts import Alert, EntityMonth, Params
+from .contracts import Alert, EntityMonth
 from .scoring import score_entity
 
 DEFAULT_HORIZONS: tuple[int, ...] = (1, 3, 6, 9, 12)
 CALIBRATION_KINDS: tuple[str, ...] = ("step", "ramp")
-SIGNAL_ALERT_KINDS: frozenset[str] = frozenset({"deterioration_structural", "level_critical"})
 AUDIT_HORIZON = 6
 AUDIT_EPSILON = 0.01
 LOOKBACK_MONTHS = 6
@@ -28,10 +24,6 @@ LOOKBACK_MONTHS = 6
 
 def _metric(label: str, value: Any, unit: str = "") -> dict[str, Any]:
     return {"label": label, "value": value, "unit": unit}
-
-
-def _pct(value: float | None) -> str:
-    return "—" if value is None else f"{value * 100:.1f} %"
 
 
 def _num(value: float | None, unit: str = "") -> str:
@@ -69,10 +61,6 @@ def _structural_at(
         return True
     row = item.row
     return (row.entity_kind, row.entity_id, row.month) in alert_index
-
-
-def _months_between(first: date, second: date) -> int:
-    return (second.year - first.year) * 12 + second.month - first.month
 
 
 def _auc(scores: Sequence[float], labels: Sequence[int]) -> float | None:
@@ -140,6 +128,13 @@ def _risk_score(item: EntityMonth) -> float:
     return -float(item.parts.score)
 
 
+def _trajectory_risk(item: EntityMonth) -> float:
+    verdict = item.trajectory
+    short = -float(verdict.delta3) if verdict.delta3 is not None else 0.0
+    long = -float(verdict.drift_points) if verdict.drift_points is not None else 0.0
+    return max(0.0, short, long)
+
+
 def _build_horizon_metrics(
     observations: Sequence[Mapping[str, Any]],
     horizons: Sequence[int],
@@ -182,7 +177,7 @@ def _portfolio_observations(
                     "month": items[t_idx].row.month,
                     "horizon": horizon,
                     "label": int(label),
-                    "risk_score": _risk_score(items[t_idx]),
+                    "risk_score": _trajectory_risk(items[t_idx]),
                     "size_band": str(items[t_idx].parts.size_band),
                 })
         had = False
@@ -323,10 +318,9 @@ def injection_calibration_study(
                     for at in range(first, min(first + horizon, last + 1)):
                         if not _eligible(base[at]) or not _eligible(injected[at]):
                             continue
-                        uplift = float(base[at].parts.score - injected[at].parts.score)
                         observations[kind].extend((
-                            {"horizon": horizon, "label": 1, "risk_score": uplift},
-                            {"horizon": horizon, "label": 0, "risk_score": 0.0},
+                            {"horizon": horizon, "label": 1, "risk_score": _risk_score(injected[at])},
+                            {"horizon": horizon, "label": 0, "risk_score": _risk_score(base[at])},
                         ))
 
     by_kind: dict[str, Any] = {}
@@ -388,7 +382,7 @@ def audit_rolling_origin(
 
 
 def anticipation_study(scored: Any) -> dict[str, Any]:
-    """Full anticipation report: natural portfolio, injection calibration, audit."""
+    """Natural portfolio anticipation plus paired injection calibration."""
     natural = natural_portfolio_study(scored)
     calibration = injection_calibration_study(scored)
     audit = audit_rolling_origin(scored, natural)
@@ -396,26 +390,28 @@ def anticipation_study(scored: Any) -> dict[str, Any]:
     h6 = (natural.get("by_horizon") or {}).get("6", {})
     step_cal = calibration.get("step") or {}
     lead = natural.get("lead_time") or {}
+    step_structural = step_cal.get("structural_delay") or {}
     summary = (
-        f"Cartera real: AUC a 3 meses {_num(h3.get('auc'))} "
+        f"Cartera observada: AUC a 3 meses {_num(h3.get('auc'))} "
         f"({h3.get('n_pos', 0)} eventos / {h3.get('n_obs', 0)} observaciones); "
         f"AUC a 6 meses {_num(h6.get('auc'))}. "
-        f"Anticipación mediana {_num(lead.get('median_months'), 'meses')} "
+        f"Anticipación interna mediana {_num(lead.get('median_months'), 'meses')} "
         f"({lead.get('n_events', 0)} onsets). "
-        f"Calibración escalón AUC-6 {_num(step_cal.get('auc_h6'))}, "
-        f"lead mediano {_num((step_cal.get('lead_time') or {}).get('median_months'), 'meses')}."
+        f"Calibración pareada de escalón AUC-6 {_num(step_cal.get('auc_h6'))}; "
+        f"confirmación estructural en {_num(step_structural.get('median_months'), 'meses')} de mediana."
     )
     metrics = [
-        _metric("AUC cartera · 3 meses", h3.get("auc")),
-        _metric("AUC cartera · 6 meses", h6.get("auc")),
-        _metric("Anticipación mediana · cartera", lead.get("median_months"), "meses"),
+        _metric("AUC trayectoria · 3 meses", h3.get("auc")),
+        _metric("AUC trayectoria · 6 meses", h6.get("auc")),
+        _metric("Anticipación interna mediana · cartera", lead.get("median_months"), "meses"),
         _metric("Eventos por 100 grupo-años", natural.get("events_per_100_group_years")),
-        _metric("AUC calibración · escalón · 6 meses", step_cal.get("auc_h6")),
+        _metric("AUC pareada · escalón · 6 meses", step_cal.get("auc_h6")),
         _metric(
-            "Lead mediano · calibración · escalón",
-            (step_cal.get("lead_time") or {}).get("median_months"),
-            "meses",
+            "Confirmación estructural · escalón",
+            step_structural.get("median_months"),
+            "meses desde onset",
         ),
+        _metric("Cobertura estructural · escalón", step_cal.get("structural_rate"), "cuota"),
         _metric("Auditoría origen rodante", audit.get("pass")),
     ]
     return {

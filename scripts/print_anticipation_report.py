@@ -29,6 +29,13 @@ def _horizon_table(by_horizon: dict) -> None:
         )
 
 
+def _distribution(values: dict) -> str:
+    if not values:
+        return "—"
+    ordered = sorted(values.items(), key=lambda item: int(item[0]))
+    return " · ".join(f"{month}m: {count}" for month, count in ordered)
+
+
 def main() -> int:
     path = Path(sys.argv[1] if len(sys.argv) > 1 else "artifacts/validation.json")
     doc = json.loads(path.read_text(encoding="utf-8"))
@@ -39,7 +46,7 @@ def main() -> int:
     lead = natural.get("lead_time") or {}
 
     print("=" * 72)
-    print("ANTICIPACIÓN NATURAL — informe de evaluación")
+    print("ANTICIPACIÓN Y RETARDO — informe de evaluación")
     print("=" * 72)
     print(f"Dataset: {doc.get('dataset_hash', '—')[:16]}…")
     print(f"Params:  {doc.get('params_hash', '—')[:16]}…")
@@ -48,29 +55,44 @@ def main() -> int:
     print(block.get("summary", ""))
     print()
 
-    print("1 · Cartera real (target: deterioro estructural en los próximos h meses)")
+    print("1 · Cartera observada (onset estructural interno en los próximos h meses)")
     print("-" * 72)
-    print("Qué medimos: si la nota de hoy ordena quién empeorará de verdad, y cuántos")
+    print("Qué medimos: si la trayectoria de hoy ordena futuros onsets internos, y cuántos")
     print("meses antes aparece la señal respecto al onset estructural.")
     print()
     _horizon_table(natural.get("by_horizon") or {})
     print()
-    print(f"  Anticipación mediana: {_num(lead.get('median_months'), 'meses')}")
-    print(f"  Onsets observados:    {lead.get('n_events', 0)}")
-    print(f"  Eventos / 100 gy:     {_num(natural.get('events_per_100_group_years'))}")
+    print(f"  Anticipación interna mediana: {_num(lead.get('median_months'), 'meses')}")
+    print(f"  Onsets observados:            {lead.get('n_events', 0)}")
+    print(f"  Distribución:                 {_distribution(lead.get('distribution') or {})}")
+    print(f"  Eventos / 100 grupo-años:     {_num(natural.get('events_per_100_group_years'))}")
     print()
 
-    print("2 · Calibración con inyección (onset conocido — escalón y rampa)")
+    print("2 · Calibración pareada con inyección (onset conocido)")
     print("-" * 72)
     for kind, label in (("step", "Escalón brusco"), ("ramp", "Rampa lenta")):
         item = calibration.get(kind) or {}
-        item_lead = item.get("lead_time") or {}
+        detection = item.get("detection_delay") or {}
+        structural = item.get("structural_delay") or {}
         print(f"  {label}")
-        print(f"    AUC a 6 meses: {_num(item.get('auc_h6'))}")
-        print(f"    Lead mediano:  {_num(item_lead.get('median_months'), 'meses')}")
+        print(
+            f"    AUC pareada a 3 / 6 meses: {_num(item.get('auc_h3'))} / "
+            f"{_num(item.get('auc_h6'))}"
+        )
+        print(
+            "    Primera detección:          "
+            f"{_num(detection.get('median_months'), 'meses desde onset')}"
+        )
+        print(
+            "    Confirmación estructural:   "
+            f"{_num(structural.get('median_months'), 'meses desde onset')}"
+        )
+        print(f"    Cobertura estructural:      {_num(item.get('structural_rate'))}")
+        distribution = _distribution(structural.get("distribution") or {})
+        print(f"    Distribución confirmación:  {distribution}")
     print()
 
-    print("3 · Auditoría origen rodante (misma metodología sin mirar al futuro)")
+    print("3 · Auditoría de origen rodante")
     print("-" * 72)
     print(f"  AUC completo (h=6): {_num(audit.get('full_auc'))}")
     for cut, row in sorted((audit.get("cuts") or {}).items()):
@@ -81,8 +103,9 @@ def main() -> int:
             f"Δ {_num(row.get('delta_from_full'))} · {mark}"
         )
     print()
-    print("Interpretación: la inyección prueba capacidad del motor; la cartera real")
-    print("publica lo observado sin retocar la nota. No hay labels de quiebra.")
+    print("Interpretación: la inyección mide discriminación y retardo desde un shock")
+    print("conocido; no puede anticipar un shock exógeno. La cartera observada mide")
+    print("anticipación frente a futuros onsets internos, no impagos etiquetados.")
     print("=" * 72)
     return 0
 
