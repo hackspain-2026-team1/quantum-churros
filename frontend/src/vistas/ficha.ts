@@ -193,6 +193,8 @@ export interface OpcionesGrafico {
 	/** Un pilar señalado desde la sección de scoring. */
 	pilar: string | null;
 	alto: number;
+	/** Primer mes del intervalo de la regla: el gráfico empieza ahí. */
+	desde?: string;
 	alHilo?: (hs: Hilo[]) => void;
 	/** Tocar la arena del futuro o una etiqueta elige el escenario más cercano. */
 	alElegir?: (e: OpcionesGrafico['escenario']) => void;
@@ -225,7 +227,9 @@ const marcasEje = (lo: number, hi: number) => {
 /** El horizonte: un calendario fijo (todos los meses del bundle más doce) que cruza el mes de la regla. */
 export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo = false): HTMLElement {
 	const caja = h('div', { class: 'grafico', style: { height: `${o.alto}px` } });
-	const cal = [...d.man.months];
+	// El calendario empieza en el mes que dice la regla, así que elegir un intervalo acerca el gráfico.
+	const inicio = o.desde ? Math.max(0, d.man.months.indexOf(o.desde)) : 0;
+	const cal = d.man.months.slice(inicio);
 	const ultimoBundle = cal[cal.length - 1];
 	for (let k = 1; k <= 12; k++) { const [y, mm] = ultimoBundle.split('-').map(Number); const t = y * 12 + mm - 1 + k; cal.push(`${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`); }
 	const col = (iso: string) => cal.indexOf(iso);
@@ -258,6 +262,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		});
 	}
 	pasado = pasado.filter((q) => q[0] >= 0);
+	despues = despues.filter((q) => q[0] >= 0);
 
 	const futuros: Futuro[] = [];
 	const lineas: LineaSerie[] = [];

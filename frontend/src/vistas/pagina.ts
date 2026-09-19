@@ -43,7 +43,7 @@ const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos:
 // En una organización, la sección de scoring es la lista de sus empresas.
 const nombreSeccion = (s: Seccion, vista: Estado['vista']) => s === 'scoring' && vista === 'organizacion' ? 'Empresas' : NOMBRE_SECCION[s];
 
-export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; imprimir(): void; hilo(hs: Hilo[]): void }): Paginas {
+export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; desde(): string; imprimir(): void; hilo(hs: Hilo[]): void }): Paginas {
 	// La página: el escenario (el protagonista, fijo) y el cuerpo, que se desplaza debajo.
 	const raiz = h('main', { class: 'pagina', tabindex: '-1' });
 	const escenario = h('section', { class: 'escenario', 'aria-label': 'Dónde está y hacia dónde va' });
@@ -120,7 +120,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		temporizadorH = window.setTimeout(() => {
 			const d = datos!;
 			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
-			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
+			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, desde: cb.desde(), alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
 			pintarControles(d);
 			medirEscenario();
 			cb.alCambiarArena();

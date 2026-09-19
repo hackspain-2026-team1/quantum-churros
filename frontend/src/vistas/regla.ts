@@ -4,7 +4,7 @@
 
 import { ESCALAS, conEscala, type Consulta, type Contexto, type Filtro } from '../datos/consulta';
 import { esMejora, type Cartera } from '../datos/modelo';
-import { esPagina, type Almacen, type Estado } from '../estado';
+import { esPagina, type Almacen, type Estado, type Vista } from '../estado';
 import { avisosPorPeriodo, gruposDeLaRegla } from '../arena/escenas';
 import { tramo, type Marco } from '../geometria';
 import { h, vaciar } from './dom';
@@ -15,6 +15,9 @@ export interface Regla {
 	raiz: HTMLElement;
 	pintar(e: Estado, ctx: Contexto, M: Marco, visita: number | null): void;
 }
+
+/** Vistas donde la regla es un mes suelto, sin intervalo. */
+const soloMes = (v: Vista) => esPagina(v) && v !== 'organizacion' && v !== 'empresa';
 
 export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cambiarModo: () => void, modo: () => 'avanza' | 'acumula'): Regla {
 	const raiz = h('div', { class: 'regla', role: 'group', 'aria-label': 'Regla del tiempo' });
@@ -52,7 +55,9 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 		Object.assign(raiz.style, { left: `${R.x}px`, top: `${R.y}px`, width: `${R.w}px`, height: `${R.h}px` });
 		Object.assign(reproducir.style, { left: `${R.x - 6}px`, top: `${R.y + (M.movil ? 4 : 6)}px` });
 		Object.assign(modoBtn.style, { left: `${R.x + 30}px`, top: `${R.y + (M.movil ? 12 : 14)}px` });
-		const pagina = esPagina(e.vista);
+		// En una ficha la regla también elige intervalo: el «hasta» manda el mes que se lee y el «desde»
+		// recorta el gráfico. Solo la metodología y la financiación se quedan en un mes suelto.
+		const pagina = esPagina(e.vista) && e.vista !== 'organizacion' && e.vista !== 'empresa';
 		raiz.classList.toggle('en-pagina', pagina);
 		modoBtn.hidden = pagina || M.movil;
 		reproducir.classList.toggle('sonando', e.reproduciendo);
@@ -181,8 +186,8 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 			S.consulta({ ...q, desde: Math.min(q.desde, pi), hasta: Math.max(q.hasta, pi) });
 			return;
 		}
-		// En una ficha, la regla solo mueve el mes que se mira.
-		if (esPagina(actual.e.vista)) { S.consulta({ ...q, desde: Math.min(q.desde, pi), hasta: pi }); return; }
+		// Donde la regla es de un mes suelto, el clic solo mueve ese mes.
+		if (soloMes(actual.e.vista)) { S.consulta({ ...q, desde: Math.min(q.desde, pi), hasta: pi }); return; }
 		const n = lado === 'mejora' ? nMej : nDet;
 		const filtros: Filtro[] = q.filtros.filter((f) => f.tipo !== 'mov');
 		if (n) filtros.push({ tipo: 'mov', v: lado });
@@ -234,7 +239,7 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 	const ultimoP = () => (actual ? actual.ctx.periodos.length - 1 : 0);
 	// Cada asa empuja a la otra: con la ventana cerrada en un solo periodo, cualquiera de las dos la mueve.
 	arrastrar(asaDesde, (pi, q) => ({ ...q, desde: pi, hasta: Math.max(pi, q.hasta) }));
-	arrastrar(asaHasta, (pi, q) => (actual && esPagina(actual.e.vista) ? { ...q, desde: Math.min(q.desde, pi), hasta: pi } : { ...q, desde: Math.min(pi, q.desde), hasta: pi }));
+	arrastrar(asaHasta, (pi, q) => (actual && soloMes(actual.e.vista) ? { ...q, desde: Math.min(q.desde, pi), hasta: pi } : { ...q, desde: Math.min(pi, q.desde), hasta: pi }));
 	arrastrar(ventana, (_pi, q, d) => {
 		const largo = q.hasta - q.desde;
 		const hasta = Math.max(largo, Math.min(ultimoP(), q.hasta + d));

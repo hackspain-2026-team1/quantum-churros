@@ -178,6 +178,7 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 		irCartera: (v) => S.fijar({ vista: v ?? S.e.cartera }, true),
 		esMovil: () => M.movil,
 		corte: () => c.months[ctxDe(S.e.q).corte],
+		desde: () => c.months[ctxDe(S.e.q).primerMes],
 		imprimir: () => imprimir(),
 		hilo: (hs) => arena.hilos(hs),
 	}) : null;
