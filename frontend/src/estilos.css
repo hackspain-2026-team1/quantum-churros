@@ -4676,3 +4676,108 @@ body[data-modo='cfo'] .nota-datos { display: none; }
 /* Rótulos del horizonte que no caben en una fila: el de seis meses baja, como en el móvil. */
 .grafico.boyas-escalonadas .g-etq.boya.h6 { transform: translate(-50%, 54px); }
 .horizonte .grafico.boyas-escalonadas { margin-bottom: 88px; }
+
+/* ═══════════════════════════════════════════════════════════════
+ * Los márgenes de la página: una sola medida para todo
+ * ═══════════════════════════════════════════════════════════════
+ * El margen lateral lo fijaba cada regla por su cuenta (44, 28, 16) y la geometría de la arena lo
+ * repetía en TypeScript. Ahora es una variable: la barra, la regla, el escenario y las secciones
+ * respiran lo mismo y nada toca el borde. `geometria.ts` lleva los mismos números para que la
+ * regla del tiempo caiga a plomo sobre el texto.
+ */
+:root { --pad-lateral: 64px; --aire-escenario: 34px; }
+@media screen and (max-width: 1099px) { :root { --pad-lateral: 40px; --aire-escenario: 28px; } }
+@media screen and (max-width: 699px) { :root { --pad-lateral: 20px; --aire-escenario: 20px; } }
+
+.barra { padding-left: var(--pad-lateral); padding-right: var(--pad-lateral); }
+.barra::after { left: var(--pad-lateral); right: var(--pad-lateral); }
+.ayuda { right: var(--pad-lateral); }
+.hoja-ficha, .entrada, .metodologia, .financiacion { padding-left: var(--pad-lateral); padding-right: var(--pad-lateral); }
+
+/* El escenario arranca con aire: la línea del tiempo termina arriba y el nombre de la entidad
+ * no se le pega. Es el hueco que pedía la ficha (grupo y empresa). */
+.escenario { padding: var(--aire-escenario) var(--pad-lateral) 0; }
+
+@media screen and (max-width: 699px) {
+	.ayuda { left: 12px; right: 12px; }
+	.pagina:not(.escenario-fijo) .escenario { padding-left: 0; padding-right: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Scoring: qué está pasando y por qué
+ * ═══════════════════════════════════════════════════════════════
+ * La pestaña que se abre primero explica el número antes de desmontarlo. Nada de cajas: prosa en
+ * serif, una cuenta que se lee de izquierda a derecha y un balance de pilares con el cero en medio.
+ */
+.sc-lead { font: 400 18px/1.55 var(--serif); color: var(--tinta); max-width: 78ch; }
+.sc-que-es { font: 400 15.5px/1.6 var(--serif); color: var(--tinta-2); max-width: 78ch; margin-top: 10px; }
+.sec-scoring .nota { font-size: 13px; color: var(--apagado); max-width: 82ch; margin-top: 10px; }
+
+/* La cuenta: punto de partida + pilares − penalización − tope = score. */
+.sc-cuenta {
+	display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
+	margin-top: 20px; padding: 16px 0 14px; border-top: 1px solid var(--borde); border-bottom: 1px solid var(--borde);
+}
+.sc-term { display: grid; gap: 1px; }
+.sc-term b { font: 500 24px/1 var(--serif); font-variant-numeric: tabular-nums; }
+.sc-term span { font-size: 12px; color: var(--apagado); }
+.sc-term.pos b { color: var(--exito-t); }
+.sc-term.neg b { color: var(--peligro-t); }
+.sc-term.cero b { color: var(--tenue); }
+.sc-term.total b { font-size: 30px; }
+.sc-op { font: 400 19px var(--serif); color: var(--tenue); align-self: center; }
+
+/* El balance de pilares: el cero en el centro, lo que aporta a la derecha y lo que resta a la izquierda. */
+.sc-bal { margin-top: 6px; }
+.sc-bal-eje { display: grid; grid-template-columns: 210px minmax(160px, 1fr) 84px; gap: 4px 18px; font: italic 12px var(--serif); color: var(--tenue); padding-bottom: 6px; }
+.sc-bal-eje-c { display: grid; grid-template-columns: 1fr 1fr; }
+.sc-bal-eje-c i { font-style: italic; text-align: center; }
+.sc-bal-fila {
+	display: grid; grid-template-columns: 210px minmax(160px, 1fr) 84px; gap: 4px 18px; align-items: center;
+	padding: 12px 0; border-bottom: 1px solid var(--borde); cursor: pointer; border-radius: 0;
+}
+.sc-bal-fila:hover { background: linear-gradient(90deg, var(--info-s), rgba(255, 255, 255, 0) 70%); }
+.sc-bal-fila.nulo { opacity: 0.6; }
+.sc-bal-nombre { font: 600 16px var(--serif); }
+.sc-bal-peso { display: block; font: 400 12px var(--sans); color: var(--apagado); }
+.sc-bal-barra { position: relative; height: 10px; }
+.sc-bal-cero { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--borde-2); }
+.sc-bal-tramo { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.sc-bal-tramo.pos { background: var(--tinta); }
+.sc-bal-tramo.neg { background: var(--peligro); }
+.sc-bal-cifra { text-align: right; font: 500 19px var(--serif); font-variant-numeric: tabular-nums; }
+.sc-bal-cifra.pos { color: var(--exito-t); }
+.sc-bal-cifra.neg { color: var(--peligro-t); }
+.sc-bal-cifra.nulo { font: italic 13px var(--serif); color: var(--tenue); }
+.sc-bal-nota { grid-column: 1 / -1; font-size: 13.5px; line-height: 1.5; color: var(--tinta-2); max-width: 86ch; }
+
+/* Qué está pasando: el sello del movimiento delante de la explicación. */
+.sc-mov { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: baseline; }
+.sc-mov-sello {
+	font: 500 12.5px var(--sans); letter-spacing: 0.02em; text-transform: lowercase; white-space: nowrap;
+	padding: 4px 11px; border-radius: 999px; background: var(--fondo-2); color: var(--tinta-2);
+}
+.sc-mov-sello.improving { background: var(--exito-s); color: var(--exito-t); }
+.sc-mov-sello.deteriorating { background: var(--peligro-s); color: var(--peligro-t); }
+.sc-avisos, .sc-limites { list-style: none; padding: 0; margin-top: 14px; display: grid; gap: 8px; }
+.sc-avisos li, .sc-limites li {
+	font-size: 14px; line-height: 1.5; color: var(--tinta-2);
+	padding-left: 16px; border-left: 2px solid var(--borde-2);
+}
+.sc-avisos li { cursor: pointer; }
+.sc-avisos li:hover { border-left-color: var(--info); color: var(--tinta); }
+
+/* Productos: lo recomendado encabeza la estantería. */
+.est-familia.recomendado, .est-familia.estante { font: 600 15px var(--sans); color: var(--tinta); padding-top: 26px; }
+.est-familia.recomendado { padding-top: 6px; color: var(--info-t); }
+.est-familia.estante { border-top: 1px solid var(--borde); margin-top: 14px; padding-top: 20px; color: var(--apagado); }
+.est-fila.destacada .inv-nombre { font-size: 18px; }
+
+@media screen and (max-width: 699px) {
+	.sc-lead { font-size: 16px; }
+	.sc-bal-eje { display: none; }
+	.sc-bal-fila { grid-template-columns: minmax(0, 1fr) 72px; }
+	.sc-bal-barra { grid-column: 1 / -1; }
+	.sc-mov { grid-template-columns: 1fr; gap: 8px; }
+	.sc-mov-sello { justify-self: start; }
+}

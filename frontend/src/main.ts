@@ -217,7 +217,7 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 		const A = alturas(ancho);
 		const barraAlto = A.barra + A.regla;
 		frase.raiz.style.top = `${barraAlto + (ancho < 700 ? 2 : 6)}px`;
-		const pad = ancho < 700 ? 16 : ancho < 1100 ? 28 : 44;
+		const pad = ancho < 700 ? 20 : ancho < 1100 ? 40 : 64; // el mismo de geometria.ts y --pad-lateral
 		frase.raiz.style.left = `${pad}px`;
 		frase.raiz.style.right = `${pad}px`;
 		const abajo = frase.raiz.getBoundingClientRect().bottom || barraAlto + 80;
