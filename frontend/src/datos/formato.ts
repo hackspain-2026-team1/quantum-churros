@@ -2,6 +2,8 @@
 // coma decimal y punto de miles; «1.234,56 €» con espacio fino no separable; «1,2 M€» y «185 k€»;
 // «42,5 %»; «19 días»; meses con nombre («septiembre de 2026») y en el eje «09/26».
 
+import { nombreEmpresa, nombreGrupo } from './nombres';
+
 const NBSP = ' ';
 const nf = (min: number, max: number, signo = false) =>
 	new Intl.NumberFormat('es-ES', { minimumFractionDigits: min, maximumFractionDigits: max, signDisplay: signo ? 'exceptZero' : 'auto', useGrouping: true });
@@ -55,8 +57,8 @@ export const f = {
 		const nombre = (s: string) => MESES[Number(s.split('-')[1]) - 1];
 		return aa === ab ? `de ${nombre(ma)} a ${nombre(mb)} de ${ab}` : `de ${f.mes(ma)} a ${f.mes(mb)}`;
 	},
-	grupo: (id: string) => `Grupo ${Number(id.split('_')[1])}`,
-	empresa: (id: string) => `Empresa ${Number(id.split('_')[1])}`,
+	grupo: nombreGrupo,
+	empresa: nombreEmpresa,
 	plural: (n: number, uno: string, varios: string) => `${f.numero(n)} ${n === 1 ? uno : varios}`,
 	/** Valor de una fila de evidencia con su unidad del motor. */
 	valorUnidad: (v: number | string | null, unidad: string) => {

@@ -16,7 +16,7 @@ Implementa las propuestas `hackspain/06-propuesta-rumbo.md` y `07-propuesta-rumb
 | `public/rumbo/params.json` | Copia de `params/reference_v1.json`, solo si su huella coincide con la del bundle | `scripts/datos/parametros.py` |
 | `public/rumbo/products/` | Qué tiene contratado cada empresa y cada grupo, con su procedencia | `scripts/datos/productos.py` |
 | `public/rumbo/horizons/` | El futuro de cada entidad, simulado y puntuado con el motor | `scripts/datos/horizontes.py` |
-| `public/rumbo/indice-empresas.json` | Tamaño, grupo y score de cada empresa en el corte, para compararla con las de su tamaño | `scripts/datos/indice.py` |
+| `public/rumbo/entities.json` | Identidad ficticia y metadatos agregados de grupos y empresas; también conserva tamaño, grupo y score para comparativas | `scripts/datos/entidades.py` |
 
 `bun run datos` (o `scripts/datos/preparar.sh`) lo prepara todo y crea los enlaces. Si el servidor estaba arrancado, hay que reiniciarlo: Vite no ve los enlaces nuevos.
 

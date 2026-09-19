@@ -27,7 +27,7 @@
 ## Rumbo data and deployment
 
 - Read `frontend/README.md` and `frontend/DIARIO.md` before changing Rumbo.
-- Rumbo ships as the root application in the `web` image. It reads the bundle from `/data/v1/` and its derived data (`params.json`, `indice-empresas.json`, `products/`, `horizons/`) from `/data/rumbo/`, mounted from `/opt/quantum-churros/rumbo`. Never put Rumbo files inside the engine bundle: that changes its `bundle_id` and breaks the bundle integrity check.
+- Rumbo ships as the root application in the `web` image. It reads the bundle from `/data/v1/` and its derived data (`params.json`, `entities.json`, `products/`, `horizons/`) from `/data/rumbo/`, mounted from `/opt/quantum-churros/rumbo`. Never put Rumbo files inside the engine bundle: that changes its `bundle_id` and breaks the bundle integrity check.
 - Rumbo never falls back to invented data: a missing file is shown as missing. The synthetic portfolio exists only in development (`?datos=sinteticos`); `bun run build:despliegue` fails if it, any data file, a hard-coded entity id or a third-party request reaches the build.
 
 ## Pre-redesign UI catalog
@@ -51,6 +51,7 @@
 - Local PostgreSQL binds to host port `5433` by default. Set `POSTGRES_PORT` when that port belongs to another project; container-to-container commands such as `make db-sync` keep using the internal `postgres:5432` address.
 - Validate the local dataset with `make db-seed-dry-run`, then load it with `make db-seed`. The ingestion command runs inside the API container, streams every CSV through PostgreSQL `COPY`, and records the content hash and row counts in `source.dataset_import`.
 - Run `make db-sync` to start PostgreSQL and execute the complete reproducible data cycle: ingest the immutable source version, classify companies, calculate Parquet model artifacts, publish the relational score projection, and regenerate the JSON bundle consumed by the frontend.
+- `make db-sync` also regenerates `rumbo/entities.json` from that exact bundle. Entity aliases are deterministic presentation data keyed by the immutable IDs; never edit the generated JSON, derive names from scores, or put aliases in an Alembic revision.
 - Dataset ingestion is explicit and idempotent. Never trigger it from API startup, tests, or a migration. Re-running the same hash changes no rows; a different hash is stored alongside prior datasets.
 - Never truncate source tables to refresh data. Add a new dataset version and select it by `dataset_hash` so experiments and score runs remain reproducible.
 

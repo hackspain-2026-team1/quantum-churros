@@ -5,6 +5,7 @@ import type { Cartera } from './modelo';
 import { tendencia } from './derivados';
 import { encajaAGrupo } from './encaje';
 import { PRODUCTOS, type ProductoId } from './productos';
+import { nombreGrupo } from './nombres';
 import {
 	ESCALAS, escalaDe, mesDeCorte, periodoAnioAnterior, periodoDeMes, periodosDe, valorEnPeriodo,
 	type Agregado, type Escala, type Periodo,
@@ -177,7 +178,7 @@ export function textoQuien(ctx: Contexto): string {
 	const n = ctx.visibles.size;
 	const fs = ctx.q.filtros;
 	const grupo = fs.find((f) => f.tipo === 'grupo');
-	if (grupo && fs.length === 1) return `El Grupo ${Number((grupo.v as string).split('_')[1])}`;
+	if (grupo && fs.length === 1) return `El ${nombreGrupo(grupo.v as string)}`;
 	if (!fs.length) return `Los ${n} grupos de la cartera`;
 	const uno = n === 1;
 	const partes: string[] = [];
@@ -198,7 +199,7 @@ export function textoQuien(ctx: Contexto): string {
 			partes.push(uno || n === 0 ? m.singular : m.frase);
 		}
 		if (f.tipo === 'mano') partes.push(uno ? 'elegido a mano' : 'elegidos a mano');
-		if (f.tipo === 'grupo') partes.push(`(el Grupo ${Number((f.v as string).split('_')[1])})`);
+		if (f.tipo === 'grupo') partes.push(`(el ${nombreGrupo(f.v as string)})`);
 	}
 	const prod = fs.find((f) => f.tipo === 'producto');
 	if (prod && prod.tipo === 'producto') partes.push(prod.modo === 'tiene' ? `que ya ${uno ? 'tiene' : 'tienen'} ${ARTICULO_PRODUCTO[prod.v]}` : `${uno || n === 0 ? 'al que le' : 'a los que les'} encaja ${ARTICULO_PRODUCTO[prod.v]}`);
@@ -291,7 +292,7 @@ export function interpretar(c: Cartera, _q: Consulta, escrito: string): Propuest
 		const n = Number(num[2]);
 		if (n >= 1 && n <= c.groups.length) {
 			const id = `GROUP_${String(n).padStart(4, '0')}`;
-			props.push({ tipo: 'Quién', texto: `el Grupo ${n}`, peso: 10, aplicar: (x) => ({ ...x, filtros: [{ tipo: 'grupo', v: id }] }) });
+			props.push({ tipo: 'Quién', texto: `el ${nombreGrupo(id)}`, peso: 10, aplicar: (x) => ({ ...x, filtros: [{ tipo: 'grupo', v: id }] }) });
 		}
 		if (n >= 2024 && n <= 2026) {
 			props.push({
@@ -357,4 +358,3 @@ export function interpretar(c: Cartera, _q: Consulta, escrito: string): Propuest
 
 	return props.sort((a, b) => b.peso - a.peso).slice(0, 6);
 }
-

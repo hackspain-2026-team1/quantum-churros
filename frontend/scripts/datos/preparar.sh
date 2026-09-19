@@ -17,7 +17,7 @@ echo "1/5 · motor: validación y exportación"
 ( cd "$MOTOR" && uv run --package xray-engine xray-score predict "$DATOS/raw" --out "$ART" --export-dir "$BUNDLE" --evidence-months 24 )
 echo "2/5 · parámetros verificados"
 python3 "$AQUI/scripts/datos/parametros.py" --params "$MOTOR/params/reference_v1.json" --bundle "$BUNDLE" --out "$RUMBO/params.json"
-python3 "$AQUI/scripts/datos/indice.py" --bundle "$BUNDLE" --out "$RUMBO/indice-empresas.json"
+python3 "$AQUI/scripts/datos/entidades.py" --bundle "$BUNDLE" --out "$RUMBO/entities.json"
 echo "3/5 · productos contratados"
 uv run --no-project --with polars --with pyarrow python "$AQUI/scripts/datos/productos.py" --parquet "$DATOS/parquet" --raw "$DATOS/raw" --params "$MOTOR/params/reference_v1.json" --out "$RUMBO/products" --cut 2026-08
 echo "4/5 · horizontes"
