@@ -223,6 +223,7 @@ body[data-vista='expediente'] .frase-linea { font-size: 21px; line-height: 1.55;
 
 /* ─── La regla del tiempo ────────────────────────────────── */
 .regla { position: absolute; }
+.regla[hidden], .reproducir[hidden], .modo[hidden] { display: none; }
 .regla-zona { position: absolute; cursor: pointer; border-radius: 8px; transition: background 120ms; }
 .regla-zona:hover { background: rgba(5, 11, 44, 0.025); }
 .regla-zona.futuro { cursor: default; }
@@ -679,6 +680,11 @@ button.miga-paso:hover { color: var(--tinta); border-bottom-color: var(--borde-2
 .tabla-sutil th button { display: inline-flex; align-items: baseline; gap: 3px; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 .tabla-sutil th button:hover, .tabla-sutil th[aria-sort] button { color: var(--tinta); }
 .tabla-sutil .orden-flecha { min-width: 8px; font-size: 10px; line-height: 1; }
+.tabla-sutil .banco { display: inline-flex; align-items: center; gap: 6px; }
+.marca-banco { color: var(--tinta); }
+.marca-banco .mb-aro { fill: none; stroke: currentColor; stroke-width: 1; opacity: 0.7; }
+.marca-banco .mb-aro.fino { stroke-width: 0.5; opacity: 0.35; }
+.marca-banco .mb-iniciales { font-family: var(--sans); font-weight: 600; fill: currentColor; opacity: 0.85; }
 .mini-prods { display: flex; gap: 2px; }
 .matriz-caja { overflow-x: auto; }
 .matriz { border-collapse: collapse; font-size: 13px; }
