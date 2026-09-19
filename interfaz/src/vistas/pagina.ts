@@ -30,7 +30,7 @@ export interface Paginas {
 	informe(): HTMLElement | null;
 }
 
-const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Técnico' };
+const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Desglose' };
 const ROMANO: Record<Seccion, string> = { scoring: 'I', productos: 'II', acciones: 'III', tecnico: 'IV' };
 
 export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; imprimir(): void }): Paginas {
