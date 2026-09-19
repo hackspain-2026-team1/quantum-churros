@@ -20,7 +20,7 @@ import { ESFUERZO, ESTADO_AVISO, explicacionAccion, lineaAvisoM, nombreBanda, no
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
 import { iconoProducto } from './iconos';
-import { hilo, lineaEstado, llamadas, seccion, sello, type Nudo } from './primitivos';
+import { hilo, lineaEstado, llamadas, marcaBanco, seccion, sello, type Nudo } from './primitivos';
 import { placa } from './registro';
 import { seccionTecnica } from './tecnico';
 import { triaje } from './triaje';
@@ -523,9 +523,43 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 	}
 	raiz.append(estante);
 	const otras = d.prodE?.other_debt.filter((x) => !x.closed) ?? [];
-	if (otras.length) raiz.append(seccion('Otras deudas', h('div', { class: 'tabla-caja' }, h('table', { class: 'tabla-sutil' },
-		h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, 'Entidad'), h('th', { class: 'num' }, 'Concedido'), h('th', { class: 'num' }, 'Pendiente'), h('th', { class: 'num' }, 'Interés'), h('th', {}, 'Próxima cuota'))),
-		h('tbody', {}, ...otras.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, x.bank ?? '—'), h('td', { class: 'num' }, f.eurosCorto(x.granted)), h('td', { class: 'num' }, f.eurosCorto(x.outstanding)), h('td', { class: 'num' }, x.rate === null ? '—' : `${f.numero(x.rate, 2)} %`), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—'))))))));
+	// La unidad que se repite entre las filas sube a la cabecera y las celdas quedan limpias; el
+	// cero no lastra la unidad (0 € = 0 k€). Si se mezclan, cada fila lleva la suya (docs/DESIGN_UX.mdx).
+	const unidadDe = (v: number | null) => (v === null || v === 0 ? null : Math.abs(v) >= 1e6 ? 'M€' : Math.abs(v) >= 1e3 ? 'k€' : '€');
+	const unidadComun = (vs: (number | null)[]) => {
+		const us = new Set(vs.filter((v) => v !== null && v !== 0).map(unidadDe));
+		return us.size === 1 ? [...us][0]! : null;
+	};
+	const importe = (v: number | null, u: '€' | 'k€' | 'M€' | null) => (v === null ? '—' : u ? f.eurosEn(v, u) : f.eurosCorto(v));
+	// El símbolo que se repite en todas las filas de la columna sube a su cabecera y las celdas se
+	// quedan con el nombre; si las entidades difieren, cada celda abre con su marca (docs/DESIGN_UX.mdx).
+	const bancoComun = (vs: typeof otras) => {
+		const bancos = vs.map((x) => x.bank).filter((b): b is string => !!b);
+		return bancos.length && bancos.every((b) => b === bancos[0]) ? bancos[0] : null;
+	};
+	// La tabla se reconstruye por filtro y las unidades se vuelven a medir sobre las filas visibles:
+	// filtrar a un solo tipo puede cambiar la unidad común de la columna (docs/DESIGN_UX.mdx).
+	const tablaOtras = (visibles: typeof otras) => {
+		const uc = unidadComun(visibles.map((x) => x.granted));
+		const up = unidadComun(visibles.map((x) => x.outstanding));
+		const bc = bancoComun(visibles);
+		return h('table', { class: 'tabla-sutil' },
+			h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, bc ? h('span', { class: 'banco' }, marcaBanco(bc), 'Entidad') : 'Entidad'), h('th', { class: 'num' }, uc ? `Concedido (${uc})` : 'Concedido'), h('th', { class: 'num' }, up ? `Pendiente (${up})` : 'Pendiente'), h('th', { class: 'num' }, 'Interés (%)'), h('th', {}, 'Próxima cuota'))),
+			h('tbody', {}, ...visibles.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, !x.bank ? '—' : bc ? x.bank : h('span', { class: 'banco' }, marcaBanco(x.bank), x.bank)), h('td', { class: 'num' }, importe(x.granted, uc)), h('td', { class: 'num' }, importe(x.outstanding, up)), h('td', { class: 'num' }, x.rate === null ? '—' : f.numero(x.rate, 2)), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—')))));
+	};
+	const tipos = [...new Set(otras.map((x) => x.type_label))];
+	let filtro: string | null = null;
+	const tabla = h('div');
+	const pinta = () => { vaciar(tabla); tabla.append(tablaOtras(filtro === null ? otras : otras.filter((x) => x.type_label === filtro))); };
+	const botonesFiltro = tipos.length > 1
+		? [null, ...tipos].map((t) => h('button', { type: 'button', class: 'filtro-opcion', 'aria-pressed': String(filtro === t), 'data-tipo': String(t) }, t === null ? 'Todos' : t))
+		: null;
+	if (botonesFiltro) for (const b of botonesFiltro) b.addEventListener('click', () => { filtro = b.dataset.tipo === 'null' || b.dataset.tipo === undefined ? null : b.dataset.tipo; for (const x of botonesFiltro) x.setAttribute('aria-pressed', String(x === b)); pinta(); });
+	pinta();
+	if (otras.length) raiz.append(seccion('Otras deudas',
+		...(botonesFiltro ? [h('div', { class: 'filtro-tipo', role: 'group', 'aria-label': 'Filtrar otras deudas por tipo' }, ...botonesFiltro)] : []),
+		h('div', { class: 'tabla-caja' }, tabla),
+		h('p', { class: 'nota' }, 'No son de los siete productos, pero pesan en el pilar de deuda.')));
 	return raiz;
 }
 
@@ -535,7 +569,7 @@ function contratos(t: TenenciaM): HTMLElement {
 	for (const it of t.items.slice(0, 4)) {
 		const uso = !it.inconsistent && it.usage !== null ? Math.max(0, Math.min(1, it.usage)) : null;
 		lista.append(h('li', {},
-			h('span', { class: 'ct-banco' }, it.bank ?? 'Entidad sin nombre'),
+			h('span', { class: 'ct-banco' }, marcaBanco(it.bank), it.bank ?? 'Entidad sin nombre'),
 			uso !== null ? h('span', { class: 'ct-uso', title: `Dispuesto ${f.eurosCorto(it.outstanding ?? 0)} de ${f.eurosCorto(it.granted ?? 0)}` }, h('span', { class: 'ct-uso-barra' }, h('i', { style: { width: `${uso * 100}%` } })), h('span', { class: 'ct-uso-t' }, `${f.porcentaje(uso, 0)} de ${f.eurosCorto(it.granted ?? 0)}`))
 				: h('span', { class: 'ct-dato' }, it.inconsistent ? 'límite y dispuesto incoherentes en el origen' : it.balance ? `saldo ${f.eurosCorto(it.balance)}` : it.granted !== null ? `límite ${f.eurosCorto(it.granted)}` : ''),
 			h('span', { class: 'ct-dato' }, [it.rate !== null ? `${f.numero(it.rate, 2)} % ${it.rate_type ?? ''}`.trim() : '', it.since ? `desde ${f.mesCorto(it.since)}` : ''].filter(Boolean).join(' · '))));
