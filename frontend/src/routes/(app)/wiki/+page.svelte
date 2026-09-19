@@ -313,7 +313,7 @@
 </script>
 
 <svelte:head>
-	<title>Wiki · Embat X-Ray</title>
+	<title>Wiki · Rumbo</title>
 	<meta
 		name="description"
 		content="Cómo funciona X-Ray: cada problema de datos, la decisión que tomamos y por qué, explicado de forma sencilla."

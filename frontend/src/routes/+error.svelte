@@ -11,7 +11,7 @@
 </script>
 
 <svelte:head>
-	<title>{notFound ? 'Página no encontrada' : 'Sin datos'} · Embat X-Ray</title>
+	<title>{notFound ? 'Página no encontrada' : 'Sin datos'} · Rumbo</title>
 </svelte:head>
 
 <main class="grid min-h-screen place-items-center p-6">

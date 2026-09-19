@@ -11,7 +11,7 @@
 	const count = $derived(group.companies.length);
 </script>
 
-<svelte:head><title>{group.id} · Embat X-Ray</title></svelte:head>
+<svelte:head><title>{group.id} · Rumbo</title></svelte:head>
 
 <EntityView
 	id={group.id}

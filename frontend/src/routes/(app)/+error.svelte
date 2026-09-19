@@ -6,7 +6,7 @@
 	import { monthStore } from '$lib/xray/month-store.svelte.js';
 </script>
 
-<svelte:head><title>No disponible · Embat X-Ray</title></svelte:head>
+<svelte:head><title>No disponible · Rumbo</title></svelte:head>
 
 <div class="mx-auto max-w-[1540px] px-4 py-10 lg:px-8">
 	<EmptyState

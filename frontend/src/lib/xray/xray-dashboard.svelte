@@ -125,7 +125,7 @@
 					<Activity class="size-5" />
 				</div>
 				<div>
-					<div class="leading-none font-semibold tracking-[-0.02em]">Embat X-Ray</div>
+					<div class="leading-none font-semibold tracking-[-0.02em]">Rumbo</div>
 					<div
 						class="mt-1 text-[0.62rem] font-semibold tracking-[0.18em] text-muted-foreground uppercase"
 					>
