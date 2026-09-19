@@ -439,7 +439,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		tapiz: 'Una fila por entidad y una columna por mes: la tinta densa es score alto; los meses en crítico, en rojo.',
 		flujo: 'A la izquierda, la banda del mes pasado; a la derecha, la de este. El alto de cada bloque y el grosor de cada cinta son cuántas hay: en rojo, las que bajan de banda; en verde, las que suben; en gris, las que se quedan.',
 		avisos: 'Los avisos del motor de los últimos doce meses, por tipo. El tamaño de cada montón es cuántos hubo.',
-		horizonte: 'De hoy (izquierda) a la mediana dentro de seis meses (derecha), si nada cambia. En rojo, las que van hacia crítico o caen cinco puntos o más; en verde, las que suben cinco o más.',
+		horizonte: 'A la izquierda, la banda de hoy; a la derecha, la de dentro de seis meses si nada cambia (lo más probable). En rojo, las que bajan de banda; en verde, las que suben. Con nombre, las que tienen al menos un 50 % de probabilidad de acabar en crítico.',
 	};
 
 	// ─── En arena ─────────────────────────────────────────
@@ -590,17 +590,19 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			case 'horizonte': {
 				et(g.x0, 0, 'mr-cab izq', 'hoy');
 				et(g.x1, 0, 'mr-cab der', 'dentro de seis meses');
-				for (const [b, v] of [['watch', 400], ['stable', 600], ['solid', 800]] as [BandaA, number][]) {
-					const ln = h('span', { class: 'mr-linea h tenue' }); ln.style.left = `${g.x0}px`; ln.style.top = `${g[`b${v}`]}px`; ln.style.width = `${g.x1 - g.x0}px`; capa.append(ln);
-					if (!movil) et(g.x0 - 8, g[`b${v}`], 'mr-eje y', `${nombreBandaM(c, b)} · ${v / 10}`);
+				const ocupado: number[] = [];
+				for (const b of BANDAS) {
+					if (g[`in_${b}`]) et(g.x0 - 10, g[`i_${b}`], 'mr-nombre', `${nombreBandaM(c, b)} · ${f.numero(g[`in_${b}`])}`);
+					if (g[`dn_${b}`]) { et(g.x1 + 10, g[`d_${b}`], 'mr-dato', `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`); ocupado.push(g[`d_${b}`]); }
 				}
-				// Las que van hacia crítico, rotuladas a la derecha y sin pisarse.
-				const riesgo = vis.filter((e) => e.band !== 'critical' && (e.hz?.pCritico ?? 0) >= 0.5 && e.hz?.p50 != null).sort((a, b) => (b.hz!.pCritico ?? 0) - (a.hz!.pCritico ?? 0)).slice(0, 10);
+				// Las que van hacia crítico, con nombre donde acaba su cinta y sin pisar los rótulos de banda.
+				const riesgo = vis.filter((e) => e.band !== 'critical' && (e.hz?.pCritico ?? 0) >= 0.5 && g[`fin:${e.id}`] !== undefined).sort((a, b) => g[`fin:${a.id}`] - g[`fin:${b.id}`]).slice(0, 10);
 				let ultimo = -Infinity;
-				for (const e of [...riesgo].sort((a, b) => (d.anclas.get(a.id)?.y ?? 0) - (d.anclas.get(b.id)?.y ?? 0))) {
-					const a = d.anclas.get(e.id); if (!a) continue;
-					const y = Math.max(a.y, ultimo + 14); ultimo = y;
-					et(g.x1 + 8, y, 'mr-dato riesgo', movil ? e.nombre.replace(/^(Grupo|Empresa) /, '') : `${e.nombre} · ${f.porcentaje(e.hz!.pCritico!, 0)}`);
+				for (const e of riesgo) {
+					let y = Math.max(g[`fin:${e.id}`], ultimo + 14);
+					for (const yb of ocupado) if (Math.abs(y - yb) < 14) y = yb + 14;
+					ultimo = y;
+					et(g.x1 + 10, y, 'mr-dato riesgo', movil ? e.nombre.replace(/^(Grupo|Empresa) /, '') : `${e.nombre} · ${f.porcentaje(e.hz!.pCritico!, 0)}`);
 				}
 				const sinHz = vis.filter((e) => e.hz?.p50 == null).length;
 				if (sinHz) et(g.x0, alto - 2, 'mr-mas', `${f.numero(sinHz)} sin horizonte (se calcula desde ${c.horizontes ? f.mes(c.horizontes.cut) : '—'})`);

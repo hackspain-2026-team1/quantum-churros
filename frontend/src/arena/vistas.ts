@@ -70,7 +70,7 @@ export const MARGEN: Record<FormaArena, { i: number; d: number; a: number; b: nu
 	tapiz: { i: 128, d: 12, a: 4, b: 46 },
 	flujo: { i: 130, d: 130, a: 20, b: 24 },
 	avisos: { i: 150, d: 12, a: 8, b: 26 },
-	horizonte: { i: 70, d: 150, a: 16, b: 26 },
+	horizonte: { i: 130, d: 170, a: 20, b: 24 },
 };
 
 /** En el móvil los rótulos se reducen y los márgenes también. */
@@ -81,7 +81,7 @@ export const MARGEN_MOVIL: Record<FormaArena, { i: number; d: number; a: number;
 	tapiz: { i: 74, d: 6, a: 4, b: 42 },
 	flujo: { i: 78, d: 78, a: 18, b: 22 },
 	avisos: { i: 96, d: 6, a: 6, b: 22 },
-	horizonte: { i: 34, d: 96, a: 14, b: 24 },
+	horizonte: { i: 78, d: 96, a: 18, b: 22 },
 };
 export const margen = (forma: FormaArena, movil = false) => (movil ? MARGEN_MOVIL : MARGEN)[forma];
 
@@ -130,6 +130,7 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 			const cambia = de(e) !== a(e);
 			const baja = pos(a(e)) > pos(de(e));
 			const s = semilla(e.id);
+			guias[`fin:${e.id}`] = yb + u / 2;
 			anclas.set(e.id, cambia ? { x: (xa + xb) / 2, y: (ya + yb) / 2 + u / 2, r: Math.max(3, u / 2) } : { x: xb, y: yb + u / 2, r: Math.max(3, u / 2) });
 			pintores.set(e.id, (add) => {
 				for (let i = 0; i < k; i++) {
@@ -259,18 +260,10 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 			break;
 		}
 		case 'horizonte': {
-			const Y = (d: number) => Y1 - Math.max(0, Math.min(1, d / 1000)) * (Y1 - Y0);
-			for (const b of [400, 600, 800]) guias[`b${b}`] = Y(b);
-			for (const e of v.ents) {
-				if (!e.visible || e.shown === null || e.p50 === null) continue;
-				const ya = Y(e.shown), yb = Y(e.p50);
-				const riesgo = e.band !== 'critical' && (e.pCritico ?? 0) >= 0.5;
-				const sube = e.p50 - e.shown >= 50, cae = e.shown - e.p50 >= 50;
-				const tono = riesgo || cae ? TONO.peligro : sube ? TONO.exito : TONO.tinta;
-				const alfa = riesgo ? 0.95 : sube || cae ? 0.55 : 0.07;
-				anclas.set(e.id, { x: X1, y: yb, r: 5 });
-				pintores.set(e.id, (add) => { for (let i = 0; i < k; i++) { const u = Math.random(); add(X0 + u * (X1 - X0), ya + (yb - ya) * u + azar(1.6), tono, alfa, 1.4); } });
-			}
+			// De la banda de hoy (izquierda) a la de la mediana dentro de seis meses (derecha), si nada cambia.
+			const bandaDe = (d: number): BandaA => (d >= 800 ? 'solid' : d >= 600 ? 'stable' : d >= 400 ? 'watch' : 'critical');
+			const lista = v.ents.filter((e) => e.visible && e.band && e.shown !== null && e.p50 !== null);
+			aluvial(lista, (e) => e.band!, (e) => bandaDe(e.p50!), (e) => e.shown!, (e) => e.p50!);
 			break;
 		}
 	}
