@@ -60,6 +60,50 @@ score: predict ## Alias of predict
 validate: ## Run the label-free validation suite and write XRAY_OUT/validation.json
 	uv run --package xray-engine xray-score validate $(XRAY_DATA) --out $(XRAY_OUT)/validation.json
 
+# ---------------------------------------------------------------------------
+# Fase A — evaluación del motor (docs/engine/EVALUATION.md)
+# ---------------------------------------------------------------------------
+
+.PHONY: eval-reconcile-tests
+eval-reconcile-tests: ## 1a. Tests conciliación (io, cleaning, invoice as-of) sin Docker
+	uv run --package xray-engine pytest engine/tests/test_io.py engine/tests/test_cleaning.py engine/tests/test_invoices_as_of.py -q -m "not dataset"
+
+.PHONY: eval-reconcile-docker
+eval-reconcile-docker: up db-seed-dry-run db-seed eval-reconcile-tests ## 1b. Ingesta PostgreSQL + tests conciliación
+
+.PHONY: eval-validate
+eval-validate: validate ## 2–3. Validación completa → validation.json (P2,P4,R6,scoring,KPIs)
+
+.PHONY: eval-snapshot
+eval-snapshot: kpi-snapshot ## Append fila a docs/engine/KPI_HISTORY.md
+
+.PHONY: eval-report
+eval-report: ## Imprime resumen legible desde validation.json
+	@uv run --package xray-engine python scripts/print_eval_report.py $(XRAY_OUT)/validation.json
+
+.PHONY: eval-injection
+eval-injection: ## Tutorial del estudio de inyección con resultados y puntos de mejora
+	@uv run --package xray-engine python scripts/print_injection_report.py $(XRAY_OUT)/validation.json
+
+.PHONY: eval-phase-a
+eval-phase-a: eval-reconcile-tests eval-validate eval-snapshot eval-report ## Fase A local (CSV): conciliación→validación→KPIs→informe
+
+.PHONY: eval-phase-a-docker
+eval-phase-a-docker: eval-reconcile-docker eval-validate eval-snapshot eval-report ## Fase A con db-seed (Docker)
+
+.PHONY: kpi-snapshot
+kpi-snapshot: ## Append KPI row from validation.json to docs/engine/KPI_HISTORY.md
+	uv run --package xray-engine xray-score kpi-snapshot --validation $(XRAY_OUT)/validation.json
+
+.PHONY: daily-reconcile
+daily-reconcile: eval-reconcile-docker ## Alias: ingesta + tests conciliación
+
+.PHONY: daily-core
+daily-core: eval-phase-a ## Alias: Fase A local completa
+
+.PHONY: daily-core-docker
+daily-core-docker: eval-phase-a-docker ## Alias: Fase A con PostgreSQL
+
 .PHONY: export
 export: ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE (EVIDENCE_MONTHS of evidence per entity)
 	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out $(XRAY_OUT) --export-dir $(XRAY_BUNDLE) --evidence-months $(EVIDENCE_MONTHS)

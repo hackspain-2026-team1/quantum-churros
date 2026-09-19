@@ -148,6 +148,18 @@ CHECK_TEXTS: dict[str, tuple[str, str]] = {
     "verdict_persistence": ("Persistencia de veredictos", "Lo que se llama estructural sigue ahí tres y seis meses después; lo pendiente y los baches, menos."),
     "netting_placebo": ("Placebo de traspasos", "El emparejamiento de traspasos internos casi no encuentra nada con las fechas desplazadas."),
     "injection": ("Deterioros inyectados", "Retraso de detección y falsas alertas al inyectar picos, escalones y rampas."),
+    "level_vs_slope": (
+        "Nivel frente a pendiente",
+        "La persistencia del score es de nivel, no de pendiente; mide autocorrelación y co-movimiento con liquidez.",
+    ),
+    "rolling_origin": (
+        "Origen rodante",
+        "Re-puntúa en cortes históricos y comprueba que el ranking del mes del corte no cambia al ver el futuro.",
+    ),
+    "outlook_fan": (
+        "Abanico de escenarios",
+        "El score real a tres meses cae dentro del rango pesimista–optimista mostrado en el mes de origen.",
+    ),
 }  # fmt: skip
 CHECK_MISMATCH = "La validación disponible corresponde a otro dataset o a otros parámetros."
 CHECK_NOT_RUN = "Comprobación no ejecutada en esta validación."

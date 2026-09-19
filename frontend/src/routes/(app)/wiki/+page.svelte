@@ -241,6 +241,33 @@
 				'No. Cuando un pilar baja de 45 puntos, su desfase pesa el doble en la nota final, hasta 22,5 puntos; y hay techos que no se pueden comprar con otros pilares: con caja negativa sostenida, la nota no puede pasar de 40. Además todo queda a la vista: la nota final siempre es la suma de sus partes menos penalizaciones y topes, y puedes comprobarlo con las cifras que acompañan a cada dato.'
 		},
 		{
+			id: 'evaluacion',
+			question: '¿Cómo evaluamos el motor?',
+			keywords: [
+				'evaluacion',
+				'evaluar',
+				'prueba',
+				'pruebas',
+				'validacion',
+				'benchmark',
+				'regresion',
+				'fase a',
+				'conciliacion',
+				'normalizacion',
+				'scoring',
+				'persistencia',
+				'origen rodante',
+				'ensayo aislado',
+				'placebo',
+				'inyeccion',
+				'deterioro',
+				'fiabilidad'
+			],
+			answer:
+				'Sin impagos ni etiquetas de riesgo no hay porcentaje de acierto: comprobamos que el sistema hace lo que promete en tres etapas — conciliación, normalización y scoring. Cada prueba tiene nombre claro y una frase sobre qué se está probando: placebo de traspasos, sin mirar al futuro, ensayo aislado de 60 grupos, identidad aditiva, persistencia de nivel, origen rodante y deterioros simulados.',
+			readMore: '/wiki/como-evaluamos'
+		},
+		{
 			id: 'validacion',
 			question: '¿Cómo sabemos que las notas son fiables?',
 			keywords: [
@@ -256,7 +283,8 @@
 				'fiabilidad'
 			],
 			answer:
-				'Los datos no traen la respuesta correcta, así que no prometemos porcentajes de acierto. La fiabilidad descansa en cómo está construido el sistema: referencias fijas, comprobaciones de que las partes suman el total y pruebas de que el resultado no cambia al reordenar o recortar los datos. Cada decisión y cada valor elegido está documentado, con su evidencia y su análisis de sensibilidad.'
+				'Los datos no traen la respuesta correcta, así que no prometemos porcentajes de acierto. La fiabilidad descansa en cómo está construido el sistema: referencias fijas, comprobaciones de que las partes suman el total y pruebas de que el resultado no cambia al reordenar o recortar los datos. Cada decisión y cada valor elegido está documentado, con su evidencia y su análisis de sensibilidad.',
+			readMore: '/wiki/como-evaluamos'
 		}
 	];
 
@@ -326,7 +354,8 @@
 	<p class="mt-2 text-muted-foreground">
 		Cada problema que encontramos en los datos, la decisión que tomamos y por qué, explicado de
 		forma sencilla. Las cifras son las medidas reales sobre los datos analizados. Para el método
-		completo, <a class="underline" href="/wiki/como-puntuamos">aprende cómo puntuamos</a>.
+		completo, <a class="underline" href="/wiki/como-puntuamos">aprende cómo puntuamos</a> o
+		<a class="underline" href="/wiki/como-evaluamos">cómo evaluamos el motor</a>.
 	</p>
 
 	<div class="relative mt-8">
@@ -377,6 +406,11 @@
 				</Card.Header>
 				<Card.Content>
 					<p class="text-sm leading-relaxed text-muted-foreground">{s.answer}</p>
+					{#if 'readMore' in s && s.readMore}
+						<p class="mt-3 text-sm">
+							<a class="underline text-muted-foreground" href={s.readMore}>Leer el protocolo completo</a>
+						</p>
+					{/if}
 				</Card.Content>
 			</Card.Root>
 		{:else}

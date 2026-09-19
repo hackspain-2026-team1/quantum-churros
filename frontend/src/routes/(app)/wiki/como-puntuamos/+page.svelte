@@ -203,6 +203,11 @@
 			que los criterios responden a patrones reales y no a la casualidad. Cada decisión y cada valor
 			elegido está documentado, con su evidencia y su análisis de sensibilidad.
 		</p>
+		<p class="mt-3 text-sm">
+			<a class="underline text-muted-foreground" href="/wiki/como-evaluamos"
+				>Ver el protocolo de evaluación con resultados y objetivos</a
+			>
+		</p>
 	</section>
 
 	<footer class="mt-12 text-sm text-muted-foreground">

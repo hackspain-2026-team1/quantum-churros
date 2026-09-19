@@ -494,3 +494,52 @@ def test_a_broken_check_is_reported_not_raised(scored, monkeypatch) -> None:
     results = v.run_checks(scored, quick=True)
     assert results["penalty_by_branch"]["pass"] is False and "boom" in results["penalty_by_branch"]["error"]
     assert results["additivity"]["pass"] is True
+
+
+def test_coverage_summary_counts_last_month(scored) -> None:
+    found = v.coverage_summary(scored)
+    groups = found["groups"]
+    assert groups["total"] > 0
+    assert 0 <= groups["scored_pct"] <= 1
+    assert groups["scored"] + groups["abstained"] == groups["total"]
+    assert "payments" in groups["pillars"]
+
+
+def test_level_vs_slope_reports_autocorrelations(scored) -> None:
+    found = v.level_vs_slope(scored, lag=3)
+    assert found["n_level_pairs"] >= 0
+    assert "Persistencia de nivel" in found["summary"]
+    if found["n_level_pairs"] >= 3:
+        assert found["level_autocorr_lag3"] is not None
+
+
+def test_rolling_origin_matches_full_run_at_cuts(scored) -> None:
+    found = v.rolling_origin(scored)
+    assert found["pass"] is True
+    assert found["min_spearman"] == pytest.approx(1.0, abs=1e-9)
+    assert found["cuts"]
+
+
+def test_build_kpis_groups_by_stage(scored) -> None:
+    results = v.run_checks(scored, quick=True)
+    coverage = v.coverage_summary(scored)
+    kpis = v.build_kpis(
+        scored,
+        results,
+        coverage=coverage,
+        level_slope=results["level_vs_slope"],
+        rolling=results["rolling_origin"],
+    )
+    assert set(kpis["by_stage"]) == {"reconcile", "normalize", "score"}
+    assert kpis["by_stage"]["score"]["holdout_n_groups"] == results["isolation"]["n_groups"]
+
+
+def test_run_validation_writes_kpis_and_coverage(scored, synthetic, tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(v.io, "load_source", lambda *_args, **_kwargs: scored.tables)
+    monkeypatch.setattr(v, "score_core", lambda *_args, **_kwargs: scored)
+    out = tmp_path / "validation.json"
+    document = v.run_validation(synthetic.path, scored.params, out, quick=True)
+    assert "kpis" in document and "coverage" in document
+    assert document["kpis"]["by_stage"]["score"]["holdout_n_groups"] == document["isolation"]["n_groups"]
+    saved = json.loads(out.read_text(encoding="utf-8"))
+    assert saved["level_vs_slope"]["summary"]
