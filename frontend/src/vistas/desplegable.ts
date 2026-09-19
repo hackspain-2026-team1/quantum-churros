@@ -81,7 +81,8 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 		marcada = Math.max(0, Math.min(o.opciones.length - 1, i));
 		for (const [j, el] of [...lista.children].entries()) el.classList.toggle('marcada', j === marcada);
 		boton.setAttribute('aria-activedescendant', `${id}-o${marcada}`);
-		(lista.children[marcada] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
+		const opcion = lista.children[marcada] as HTMLElement | undefined;
+		if (opcion) lista.scrollTop = Math.max(0, opcion.offsetTop - lista.clientHeight + opcion.offsetHeight);
 	}
 
 	function abrir() {
@@ -95,7 +96,8 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 		// Si no cabe por abajo, se despliega hacia arriba.
 		const caja = boton.getBoundingClientRect();
 		lista.classList.toggle('arriba', caja.bottom + lista.offsetHeight + 12 > innerHeight && caja.top > lista.offsetHeight);
-		(lista.children[marcada] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
+		const opcion = lista.children[marcada] as HTMLElement | undefined;
+		if (opcion) lista.scrollTop = Math.max(0, opcion.offsetTop - lista.clientHeight + opcion.offsetHeight);
 		addEventListener('pointerdown', fuera, true);
 		addEventListener('resize', cerrarSuelto);
 		addEventListener('scroll', cerrarSuelto, true);
@@ -115,7 +117,10 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 	}
 
 	const fuera = (ev: Event) => { if (!raiz.contains(ev.target as Node)) cerrar(); };
-	const cerrarSuelto = () => cerrar();
+	const cerrarSuelto = (ev: Event) => {
+		if (ev.type === 'scroll' && ev.target instanceof Node && raiz.contains(ev.target)) return;
+		cerrar();
+	};
 
 	function elegir(i: number) {
 		const op = o.opciones[i];

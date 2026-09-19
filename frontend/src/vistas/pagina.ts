@@ -172,11 +172,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			if (e.vista === 'empresa' && e.emp) { sep(); paso(f.empresa(e.emp), null, true); }
 		}
 		miga.append(pasos, h('span', { class: 'hueco' }));
-		if (e.vista === 'organizacion' || e.vista === 'empresa') {
-			const pdf = h('button', { type: 'button', class: 'miga-accion', title: 'Las cuatro secciones, listas para imprimir o guardar en PDF (⌘P)' }, 'Informe en PDF');
-			pdf.addEventListener('click', () => cb.imprimir());
-			miga.append(pdf);
-		}
+
 		if (e.modo === 'cfo') {
 			const mias = h('button', { type: 'button', class: 'miga-accion' }, 'Mis empresas');
 			mias.addEventListener('click', () => S.fijar({ vista: 'entrada', emp: null }, true));

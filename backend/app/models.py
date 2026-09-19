@@ -463,3 +463,27 @@ class ProposalFinancing(SQLModel, table=True):
     rate: float | None = None
     rate_type: str | None = None
     rate_fuente: str | None = None
+
+
+class ActionExecution(SQLModel, table=True):
+    """Immutable engine baseline plus the team's current operational decision."""
+    __tablename__ = "action_execution"
+    id: str = Field(primary_key=True)
+    entity_id: str = Field(index=True)
+    group_id: str = Field(index=True)
+    kind: str
+    status: str = "en_curso"
+    version: int = 1
+    snapshot: dict[str, Any] = Field(sa_column=Column(JSON_DOCUMENT, nullable=False))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
+class ActionExecutionEvent(SQLModel, table=True):
+    """Append-only decisions and measurements, including source bundle revisions."""
+    __tablename__ = "action_execution_event"
+    id: str = Field(primary_key=True)
+    execution_id: str = Field(foreign_key="action_execution.id", index=True)
+    actor: str
+    kind: str
+    payload: dict[str, Any] = Field(sa_column=Column(JSON_DOCUMENT, nullable=False))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC), sa_column=Column(DateTime(timezone=True), nullable=False))
