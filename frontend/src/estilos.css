@@ -3734,3 +3734,10 @@ body[data-modo='cfo'] .nota-datos { display: none; }
 	transform: none; text-align: left; max-width: 100%; margin: 0; white-space: normal;
 	font: italic 14px/1.45 var(--serif); color: var(--apagado);
 }
+
+/* En el móvil, la fila de pilares vuelve a sus tres columnas: la regla de 1099 px la pisaba
+ * (150 + 50 + 120 + 60 más los huecos no caben en 390 px) y la ficha se salía del ancho. */
+@media screen and (max-width: 699px) {
+	.pt-fila, .pt-eje { grid-template-columns: 1fr 44px 60px; }
+	.pt-eje { display: none; }
+}
