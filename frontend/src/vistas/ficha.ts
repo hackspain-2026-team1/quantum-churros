@@ -20,6 +20,7 @@ import { ESFUERZO, ESTADO_AVISO, claveDeMirada, explicacionAccion, lineaAvisoM, 
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
 import { desplegable } from './desplegable';
+import { conCifras, type Origen } from './cifras';
 import { abrirPropuesta } from './propuesta';
 import { iconoProducto } from './iconos';
 import { hilo, lineaEstado, llamadas, marcaBanco, seccion, sello, type Nudo } from './primitivos';
@@ -135,9 +136,20 @@ export interface Acciones {
 	hilo(hs: Hilo[]): void;
 }
 
+/** De dónde sale lo que se dice de un pilar: fichero y filas de la evidencia de ese mes. */
+function origenPilar(d: DatosFicha, acc: Acciones, pilar: string | null, que?: string): Origen {
+	const filas = (d.evid?.months.find((x) => x.month === d.corte)?.rows ?? []).filter((r) => (pilar ? r.pillar === pilar : true));
+	const fichero = [...new Set(filas.map((r) => r.source_file))][0];
+	return {
+		que, mes: d.corte, pilar: pilar ? nombrePilar(d.man, pilar) : null, fichero,
+		filas: fichero ? filas.filter((r) => r.source_file === fichero).reduce((n, r) => n + (r.n_rows ?? 0), 0) || undefined : undefined,
+		ir: d.evid ? () => acc.irSeccion('conciliacion', undefined, { pilar }) : undefined,
+	};
+}
+
 // ─── 1. La cabecera: el número en su círculo ─────────────────
 
-export function cabecera(d: DatosFicha, movil: boolean): HTMLElement {
+export function cabecera(d: DatosFicha, movil: boolean, acc: Acciones): HTMLElement {
 	const nombre = nombreEntidad(d.kind, d.id);
 	const m = d.mes;
 	const grupo = d.kind === 'company' ? d.grupoMes : null;
@@ -153,7 +165,7 @@ export function cabecera(d: DatosFicha, movil: boolean): HTMLElement {
 			anillo: { cx: c.x + c.w / 2, cy: c.y + c.h / 2, r: Math.min(c.w, c.h) / 2 - 14, valor: m.shown / 10, bandas: d.man.bands.filter((b) => b.min > 0).map((b) => b.min / 10), tono: m.band === 'critical' ? TONO.peligro : TONO.tinta, marcas },
 		}));
 		circulo.append(h('span', { class: `cab-banda banda-${m.band}` }, nombreBanda(d.man, m.band).toLowerCase()));
-		if (grupo) circulo.append(h('span', { class: 'cab-grupo' }, `Grupo ${f.score(grupo.shown)}`));
+		if (grupo) circulo.append(h('span', { class: 'cab-grupo' }, ...conCifras(`Grupo ${f.score(grupo.shown)}`, { que: 'Score del grupo en este mes', mes: d.corte, ir: () => acc.abrirGrupo(d.grupoId) })));
 		circulo.title = d.man.bands.map((b) => `${b.label} desde ${f.score(b.min)}`).join(' · ');
 	}
 	const sub: string[] = [];
@@ -166,19 +178,19 @@ export function cabecera(d: DatosFicha, movil: boolean): HTMLElement {
 			h('h1', {}, nombre),
 			h('p', { class: 'cab-sub' }, sub.join(' · ')),
 			m ? lineaEstado(d.man, m, null, true) : h('p', { class: 'cab-vacio' }, `Sin datos en ${f.mes(d.corte)}.`),
-			m ? explicacion(d) : null));
+			m ? explicacion(d, acc) : null));
 	void movil;
 	return cab;
 }
 
 /** Lo que el número no dice solo: qué pesa más y con quién se compara (las marcas del círculo). */
-function explicacion(d: DatosFicha): HTMLElement {
+function explicacion(d: DatosFicha, acc: Acciones): HTMLElement {
 	const m = d.mes!;
 	const p = h('p', { class: 'cab-explica' });
 	const peor = [...m.pillars].filter((x) => x.score !== null).sort((a, b) => a.contrib - b.contrib)[0];
 	if (m.abstain) p.append(h('span', {}, `El motor se abstiene: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}`));
-	else if (peor && peor.contrib < 0) p.append(h('span', {}, `Lo que más resta: ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.numero(Math.abs(peor.contrib) / 10, 1)} puntos.`));
-	if (d.pares) p.append(h('span', { class: 'cab-marca pares' }, h('i', { 'aria-hidden': 'true' }), `las ${f.numero(d.pares.n)} de su tamaño: mediana ${f.score(d.pares.mediana)}`));
+	else if (peor && peor.contrib < 0) p.append(h('span', {}, ...conCifras(`Lo que más resta: ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.numero(Math.abs(peor.contrib) / 10, 1)} puntos.`, origenPilar(d, acc, peor.key, `Lo que resta el pilar de ${nombrePilar(d.man, peor.key).toLowerCase()} al score`))));
+	if (d.pares) p.append(h('span', { class: 'cab-marca pares' }, h('i', { 'aria-hidden': 'true' }), ...conCifras(`las ${f.numero(d.pares.n)} de su tamaño: mediana ${f.score(d.pares.mediana)}`, { que: `Mediana de las entidades del mismo tramo de tamaño (${d.pares.tamano})`, mes: d.corte })));
 	return p;
 }
 
@@ -391,6 +403,13 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		el.append(h('b', {}, b.h === 12 ? 'un año' : `${b.h} meses`), h('span', {}, b.texto));
 		el.title = [cal[hoy + b.h] ? f.mes(cal[hoy + b.h]) : '', b.titulo].filter(Boolean).join(' · ');
 	}
+	// Con una acción marcada los rótulos crecen («75 → 67 (−8)») y se pisan: entonces, y solo
+	// entonces, el de seis meses baja una fila.
+	if (boyas.length > 1) requestAnimationFrame(() => {
+		const els = [...caja.querySelectorAll<HTMLElement>('.g-etq.boya')].map((x) => x.getBoundingClientRect());
+		const chocan = els.some((r, i) => i > 0 && r.left < els[i - 1].right + 6);
+		caja.classList.toggle('boyas-escalonadas', chocan);
+	});
 	let ultimoY = -Infinity;
 	for (const a of alternativas.sort((x, y) => y.v - x.v)) {
 		const yPx = Math.max((1 - (a.v - lo) / (hi - lo)) * o.alto, ultimoY + 14);
@@ -483,7 +502,7 @@ export function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
 			h('div', { class: 'pt-score' }, p.score === null ? 'sin dato' : f.score(p.score)),
 			barra,
 			h('div', { class: `pt-aporta ${p.contrib < 0 ? 'neg' : p.contrib > 0 ? 'pos' : ''}` }, p.score === null ? '' : f.delta(p.contrib)),
-			h('p', { class: 'pt-nota' }, p.note ?? ''));
+			h('p', { class: 'pt-nota' }, ...conCifras(p.note ?? '', origenPilar(d, acc, p.key, `Lo que mide el pilar de ${nombrePilar(d.man, p.key).toLowerCase()}`))));
 		const ir = () => acc.irSeccion('conciliacion', undefined, { pilar: p.key });
 		fila.addEventListener('click', ir);
 		fila.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
@@ -572,7 +591,7 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 		const estadoT = e.estado === 'tiene' ? (t?.source === 'movimientos' ? voz('deducido de sus movimientos', 'deducido de tus movimientos') : 'contratado') : e.estado === 'encaja' ? voz('le encajaría', 'te conviene') : e.estado === 'bloqueado' ? 'hoy no' : 'no consta';
 		const cuerpo = h('div', { class: 'est-cuerpo' }, h('div', { class: 'est-cab' }, h('span', { class: 'inv-nombre' }, p.nombre), h('span', { class: 'est-estado' }, estadoT)));
 		if (t) cuerpo.append(contratos(t));
-		if (e.estado === 'encaja' || e.estado === 'bloqueado' || e.forma) cuerpo.append(h('p', { class: 'est-motivo' }, e.bloqueo ?? e.motivo));
+		if (e.estado === 'encaja' || e.estado === 'bloqueado' || e.forma) cuerpo.append(h('p', { class: 'est-motivo' }, ...conCifras(e.bloqueo ?? e.motivo, origenPilar(d, acc, e.accion?.pillar ?? null, 'Por qué el motor lo pide'))));
 		const efecto = h('div', { class: 'est-efecto' });
 		if (e.accion && e.estado !== 'bloqueado') {
 			const ha = d.hor?.actions?.find((a) => a.id === e.accion!.id);
@@ -710,9 +729,9 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id },
 			h('label', { class: 'rec-marca' }, marca, h('span', { class: 'rec-n' }, String(i + 1))),
 			h('div', { class: 'rec-cuerpo' },
-				h('div', { class: 'rec-titulo' }, tituloAccion(a)),
-				h('p', { class: 'rec-texto' }, r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a)),
-				h('p', { class: 'rec-hechos' }, efectoAccion(d, a) ?? '', ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
+				h('div', { class: 'rec-titulo' }, ...conCifras(tituloAccion(a), origenPilar(d, acc, a.pillar, 'De cuánto a cuánto tiene que ir la palanca'))),
+				h('p', { class: 'rec-texto' }, ...conCifras(r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a), origenPilar(d, acc, a.pillar, 'Lo que hace falta para llegar al objetivo'))),
+				h('p', { class: 'rec-hechos' }, ...conCifras(efectoAccion(d, a) ?? '', { que: 'Lo que sube el score con esta acción, según el motor', mes: d.corte }), ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
 				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
 			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
 			h('div', { class: 'rec-estado' }, estadoSel.raiz));
