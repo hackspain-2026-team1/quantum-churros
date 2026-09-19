@@ -173,11 +173,11 @@ if (recs) {
 await foto(p, '05-empresa-acciones');
 
 // El hilo lleva a la evidencia ya filtrada en su dato.
-await p.keyboard.press('1');
+await p.keyboard.press('4');
 await hasta(p, () => !!document.querySelector('.pt-fila.tocable'));
 const pilarFila = await p.evaluate(() => { const f = document.querySelector('.pt-fila.tocable'); f.click(); return f.querySelector('.pt-nombre').firstChild.textContent; });
-await hasta(p, () => !!document.querySelector('.evidencia select'));
-const filtroPilar = await p.evaluate(() => { const s = document.querySelectorAll('.evidencia select')[1]; return s.options[s.selectedIndex].textContent; });
+await hasta(p, () => !!document.querySelector('.evidencia .desp-boton'));
+const filtroPilar = await p.evaluate(() => document.querySelectorAll('.evidencia .desp-boton')[1].querySelector('.desp-texto').textContent);
 comprobar('un pilar lleva a su evidencia ya filtrada', filtroPilar === pilarFila, `${pilarFila} → ${filtroPilar}`);
 // Triaje de avisos: se guarda y cambia de bandeja.
 const hayAviso = await p.$('.bandeja .av-boton');
@@ -210,15 +210,9 @@ comprobar('la gráfica tiene sus ejes: score de 0 a 100 y los meses', await p.ev
 	comprobar('pasar por la gráfica deja caer el hilo de arena y lee el mes', /\d/.test(lectura) && await p.evaluate(() => !window.xray.arena.apartar), lectura);
 	await p.mouse.move(5, 5);
 }
-// Los tres escenarios a la vez; elegir otro reorganiza la arena.
-if (await p.$('.esc-drift')) {
-	await p.click('.esc-drift');
-	await esperar(600);
-	const pulsado = await p.$eval('.esc-drift', (x) => x.getAttribute('aria-pressed'));
-	comprobar('«qué pasaría si» se añade como línea, aparte de la previsión', pulsado === 'true' && (await p.$$('.grafico .g-etq.alternativa')).length === 1);
-	await p.click('.esc-drift');
-	await esperar(300);
-}
+// Los horizontes y los supuestos, siempre a la vista: nada se esconde tras un botón.
+comprobar('los tres horizontes se rotulan a la vez', (await p.$$('.escenario .g-etq.boya')).length === 3);
+if (await p.$('.esc-drift')) comprobar('«qué pasaría si» se dibuja siempre como línea, aparte de la previsión', (await p.$$('.escenario .g-etq.alternativa')).length === (await p.$$('.escenario .esc.leyenda')).length);
 // La regla en un mes pasado: toda la aplicación lo dice y el horizonte enseña lo que se preveía entonces.
 await p.evaluate(() => document.activeElement?.blur());
 await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft');
@@ -227,11 +221,11 @@ const viaje = await p.evaluate(() => [document.querySelector('.regla-viaje').tex
 comprobar('mover la regla hacia atrás cambia la ficha y lo dice', viaje[0].startsWith('Viendo') && viaje[1].startsWith('lo que se preveía'), viaje.join(' · '));
 await p.click('.regla-viaje');
 await hasta(p, () => document.body.dataset.viaje !== '1');
-// El informe para imprimir: las cuatro secciones, con la arena cocida en imágenes.
+// El informe para imprimir: todas las secciones de la ficha, con la arena cocida en imágenes.
 await p.evaluate(() => dispatchEvent(new Event('beforeprint')));
 const inf = await p.evaluate(() => ({ secciones: document.querySelectorAll('.capa-informe .informe-seccion').length, arena: document.querySelectorAll('.capa-informe .arena-impresa').length }));
 await p.evaluate(() => dispatchEvent(new Event('afterprint')));
-comprobar('el informe imprime las cuatro secciones con su arena', inf.secciones === 4 && inf.arena >= 2 && !(await p.$('.capa-informe')), `${inf.secciones} secciones · ${inf.arena} placas`);
+comprobar('el informe imprime todas las secciones con su arena', inf.secciones === 5 && inf.arena >= 2 && !(await p.$('.capa-informe')), `${inf.secciones} secciones · ${inf.arena} placas`);
 await foto(p, '07-empresa-scoring');
 await p.keyboard.press('Escape');
 await esperar(600);

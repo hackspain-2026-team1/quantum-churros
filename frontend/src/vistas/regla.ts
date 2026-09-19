@@ -105,7 +105,9 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 		// Zonas sensibles por periodo: arriba mejoras, abajo deterioros.
 		vaciar(zonas);
 		const giSel = (e.vista === 'organizacion' || e.vista === 'empresa') && e.sel ? c.groups.findIndex((g) => g.id === e.sel) : -1;
-		const grupos = giSel >= 0 ? [giSel] : gruposDeLaRegla(ctx);
+		// Desde la silla del CFO, la regla cuenta su historia, no la de la cartera.
+		const giCFO = e.modo === 'cfo' && e.cfo ? c.groups.findIndex((g) => g.id === e.cfo) : -1;
+		const grupos = giSel >= 0 ? [giSel] : giCFO >= 0 ? [giCFO] : gruposDeLaRegla(ctx);
 		const { mejoras, deterioros, lista } = avisosPorPeriodo(ctx, grupos);
 		for (const p of ctx.periodos) {
 			const t = tramo(M, p.meses);
@@ -230,8 +232,9 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 		el.addEventListener('pointercancel', soltar);
 	}
 	const ultimoP = () => (actual ? actual.ctx.periodos.length - 1 : 0);
-	arrastrar(asaDesde, (pi, q) => ({ ...q, desde: Math.min(pi, q.hasta) }));
-	arrastrar(asaHasta, (pi, q) => (actual && esPagina(actual.e.vista) ? { ...q, desde: Math.min(q.desde, pi), hasta: pi } : { ...q, hasta: Math.max(pi, q.desde) }));
+	// Cada asa empuja a la otra: con la ventana cerrada en un solo periodo, cualquiera de las dos la mueve.
+	arrastrar(asaDesde, (pi, q) => ({ ...q, desde: pi, hasta: Math.max(pi, q.hasta) }));
+	arrastrar(asaHasta, (pi, q) => (actual && esPagina(actual.e.vista) ? { ...q, desde: Math.min(q.desde, pi), hasta: pi } : { ...q, desde: Math.min(pi, q.desde), hasta: pi }));
 	arrastrar(ventana, (_pi, q, d) => {
 		const largo = q.hasta - q.desde;
 		const hasta = Math.max(largo, Math.min(ultimoP(), q.hasta + d));
@@ -245,8 +248,8 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 			ev.preventDefault(); ev.stopPropagation();
 			const q = S.confirmado.q;
 			const d = ev.key === 'ArrowRight' ? 1 : -1;
-			if (cual === 'desde') S.consulta({ ...q, desde: Math.max(0, Math.min(q.hasta, q.desde + d)) });
-			else S.consulta({ ...q, hasta: Math.max(q.desde, Math.min(ultimoP(), q.hasta + d)) });
+			if (cual === 'desde') { const desde = Math.max(0, Math.min(ultimoP(), q.desde + d)); S.consulta({ ...q, desde, hasta: Math.max(desde, q.hasta) }); }
+			else { const hasta = Math.max(0, Math.min(ultimoP(), q.hasta + d)); S.consulta({ ...q, desde: Math.min(q.desde, hasta), hasta }); }
 		});
 	}
 

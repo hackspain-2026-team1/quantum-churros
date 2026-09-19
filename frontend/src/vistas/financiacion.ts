@@ -67,9 +67,11 @@ export function crearFinanciacion(S: Almacen, alActualizar: () => void) {
 
 	function pintarBase(e: Estado) {
 		vaciar(raiz);
+		// El CFO es siempre la empresa: ni elige rol ni ve la mesa del banco.
+		const soloEmpresa = e.modo === 'cfo';
 		const navegacion = h('nav', { class: 'fin-roles', 'aria-label': 'Espacio de trabajo' });
-		for (const role of ROLES) navegacion.append(h('button', { type: 'button', 'aria-current': e.finRol === role.id ? 'page' : undefined, onclick: () => S.fijar({ finRol: role.id, finCaso: null }, true) }, h('strong', {}, role.label), h('span', {}, role.detail)));
-		raiz.append(h('header', { class: 'fin-cabecera' }, h('div', {}, h('span', { class: 'fin-modo' }, 'Espacio de financiación'), h('h1', {}, 'De una señal a una decisión'), h('p', {}, 'El score anticipa la necesidad. Las personas autorizan, comparan y deciden.')), h('div', { class: 'fin-directo', role: 'status' }, h('span', {}, ''), raiz.dataset.stream === 'conectado' ? 'En directo' : 'Conectando')), navegacion);
+		if (!soloEmpresa) for (const role of ROLES) navegacion.append(h('button', { type: 'button', 'aria-current': e.finRol === role.id ? 'page' : undefined, onclick: () => S.fijar({ finRol: role.id, finCaso: null }, true) }, h('strong', {}, role.label), h('span', {}, role.detail)));
+		raiz.append(h('header', { class: 'fin-cabecera' }, h('div', {}, h('span', { class: 'fin-modo' }, soloEmpresa ? 'Tu financiación' : 'Espacio de financiación'), h('h1', {}, soloEmpresa ? 'De una señal a una decisión tuya' : 'De una señal a una decisión'), h('p', {}, soloEmpresa ? 'El score anticipa la necesidad. Tú autorizas, comparas y decides.' : 'El score anticipa la necesidad. Las personas autorizan, comparan y deciden.')), h('div', { class: 'fin-directo', role: 'status' }, h('span', {}, ''), raiz.dataset.stream === 'conectado' ? 'En directo' : 'Conectando')), navegacion);
 		if (error) raiz.append(h('div', { class: 'fin-error', role: 'alert' }, h('strong', {}, 'No se puede abrir financiación'), h('span', {}, error), error.includes('disabled') ? h('span', {}, 'Activa FINANCING_DEMO_ENABLED en el servicio API.') : null));
 		if (cargando) {
 			raiz.append(h('div', { class: 'fin-esqueleto', 'aria-label': 'Cargando el espacio de financiación' }, h('span'), h('span'), h('span')));
@@ -77,10 +79,13 @@ export function crearFinanciacion(S: Almacen, alActualizar: () => void) {
 		}
 		if (!demo || !espacio) return;
 		if (e.finRol !== 'provider' && !espacio.cases.length && !espacio.opportunities.length) {
-			raiz.append(h('section', { class: 'fin-inicio' }, h('div', {}, h('h2', {}, 'El escenario todavía no ha comenzado'), h('p', {}, 'FIN-024 genera una señal persistida y abre un caso en revisión. Cada ejecución conserva la anterior para mantener la auditoría.')), h('button', { type: 'button', class: 'fin-boton primario', onclick: () => ejecutar(async () => { const started = await financiacionApi.iniciar(); demo = { scenario: 'FIN-024', identities: started.identities }; S.fijar({ finCaso: started.case_id }, false); }) }, 'Iniciar escenario FIN-024')));
+			raiz.append(h('section', { class: 'fin-inicio' },
+				h('div', {}, h('h2', {}, soloEmpresa ? 'No tienes ninguna solicitud abierta' : 'El escenario todavía no ha comenzado'),
+					h('p', {}, soloEmpresa ? 'Cuando el score anticipa una necesidad, Rumbo prepara el caso y tú decides si se abre la ronda.' : 'FIN-024 genera una señal persistida y abre un caso en revisión. Cada ejecución conserva la anterior para mantener la auditoría.')),
+				h('button', { type: 'button', class: 'fin-boton primario', onclick: () => ejecutar(async () => { const started = await financiacionApi.iniciar(); demo = { scenario: 'FIN-024', identities: started.identities }; S.fijar({ finCaso: started.case_id }, false); }) }, soloEmpresa ? 'Abrir una solicitud' : 'Iniciar escenario FIN-024')));
 			return;
 		}
-		if (e.finRol === 'provider') {
+		if (e.finRol === 'provider' && !soloEmpresa) {
 			pintarProveedor(e);
 		} else {
 			pintarExpediente(e);

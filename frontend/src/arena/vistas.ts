@@ -53,9 +53,13 @@ export interface Disposicion {
 }
 
 const ORDEN_BANDAS: BandaA[] = ['critical', 'watch', 'stable', 'solid'];
-const tonoBanda = (b: BandaA | null) => (b === 'critical' ? TONO.peligro : TONO.tinta);
 const rango = (b: BandaA | null) => (b ? ORDEN_BANDAS.indexOf(b) : -1);
 const azar = (a: number) => (Math.random() - 0.5) * a;
+/** Semilla estable por entidad, para que dos entidades no repitan el mismo dibujo de granos. */
+const semilla = (id: string) => { let s = 0; for (let i = 0; i < id.length; i++) s = (s * 31 + id.charCodeAt(i)) >>> 0; return (s % 997) / 997; };
+/** Punto i de la secuencia R2: reparte los granos por un hueco sin grumos ni calvas. */
+const r2 = (i: number, s: number): [number, number] => [(s + i * 0.7548776662466927) % 1, (0.5 + s * 0.37 + i * 0.5698402909980532) % 1];
+const suave = (u: number) => u * u * (3 - 2 * u);
 
 /** Márgenes de cada forma (los rótulos HTML van ahí). */
 export const MARGEN: Record<FormaArena, { i: number; d: number; a: number; b: number }> = {
@@ -63,9 +67,9 @@ export const MARGEN: Record<FormaArena, { i: number; d: number; a: number; b: nu
 	bandas: { i: 12, d: 12, a: 8, b: 46 },
 	plano: { i: 44, d: 16, a: 12, b: 30 },
 	tapiz: { i: 128, d: 12, a: 4, b: 46 },
-	flujo: { i: 130, d: 130, a: 10, b: 10 },
+	flujo: { i: 130, d: 130, a: 20, b: 24 },
 	avisos: { i: 150, d: 12, a: 8, b: 26 },
-	horizonte: { i: 70, d: 150, a: 16, b: 26 },
+	horizonte: { i: 130, d: 170, a: 20, b: 24 },
 };
 
 /** En el móvil los rótulos se reducen y los márgenes también. */
@@ -74,9 +78,9 @@ export const MARGEN_MOVIL: Record<FormaArena, { i: number; d: number; a: number;
 	bandas: { i: 6, d: 6, a: 6, b: 46 },
 	plano: { i: 30, d: 8, a: 10, b: 26 },
 	tapiz: { i: 74, d: 6, a: 4, b: 42 },
-	flujo: { i: 78, d: 78, a: 8, b: 8 },
+	flujo: { i: 78, d: 78, a: 18, b: 22 },
 	avisos: { i: 96, d: 6, a: 6, b: 22 },
-	horizonte: { i: 34, d: 96, a: 14, b: 24 },
+	horizonte: { i: 78, d: 96, a: 18, b: 22 },
 };
 export const margen = (forma: FormaArena, movil = false) => (movil ? MARGEN_MOVIL : MARGEN)[forma];
 
@@ -89,8 +93,61 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 	const pintores = new Map<string, (add: Add) => void>();
 	type Add = (x: number, y: number, tono: number, alfa: number, talla: number) => void;
 	const k = v.k;
+	// Con pocos granos por entidad (las empresas son muchas más), el grano engorda para que la masa se vea igual.
+	const gordo = (base: number) => (k < 80 ? base * 1.7 : base);
 	const disco = (cx: number, cy: number, r: number, tono: number, alfa: number, talla = 1.5) => (add: Add) => {
-		for (let i = 0; i < k; i++) { const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r; add(cx + Math.cos(a) * d, cy + Math.sin(a) * d, tono, alfa, talla); }
+		// Girasol: los granos cubren el disco de forma pareja, sin grumos ni calvas.
+		for (let i = 0; i < k; i++) { const a = i * 2.399963, d = Math.sqrt((i + 0.5) / k) * r; add(cx + Math.cos(a) * d, cy + Math.sin(a) * d, tono, alfa, talla); }
+	};
+
+	/**
+	 * Aluvial de dos columnas: a cada lado, un bloque por banda con alto proporcional a cuántas hay; entre
+	 * medias, una cinta por entidad del mismo grosor, de su hueco de la izquierda al de la derecha. Cada
+	 * entidad llena su hueco con sus K granos, así que el área de cada bloque y de cada cinta es el recuento.
+	 */
+	const aluvial = (lista: EntArena[], de: (e: EntArena) => BandaA, a: (e: EntArena) => BandaA, valorDe: (e: EntArena) => number, valorA: (e: EntArena) => number) => {
+		const arriba = [...ORDEN_BANDAS].reverse();
+		const pos = (b: BandaA) => arriba.indexOf(b);
+		const hueco = 12, bw = 16;
+		const u = (Y1 - Y0 - hueco * 3) / Math.max(1, lista.length);
+		const lugar = (banda: (e: EntArena) => BandaA, otra: (e: EntArena) => BandaA, valor: (e: EntArena) => number, pref: string) => {
+			const y = new Map<string, number>();
+			let y0 = Y0;
+			for (const b of arriba) {
+				const miembros = lista.filter((e) => banda(e) === b).sort((p, q) => pos(otra(p)) - pos(otra(q)) || valor(q) - valor(p));
+				miembros.forEach((e, i) => y.set(e.id, y0 + i * u));
+				guias[`${pref}_${b}`] = y0 + (miembros.length * u) / 2;
+				guias[`${pref}n_${b}`] = miembros.length;
+				y0 += miembros.length * u + hueco;
+			}
+			return y;
+		};
+		const yi = lugar(de, a, valorDe, 'i'), yd = lugar(a, de, valorA, 'd');
+		const xa = X0 + bw, xb = X1 - bw;
+		guias.xm = (xa + xb) / 2; guias.bw = bw;
+		// Los bloques se llevan una parte fija de los granos: son montones, más densos que las cintas.
+		const enBloque = Math.max(2, Math.round(k * 0.15));
+		for (const e of lista) {
+			const ya = yi.get(e.id)!, yb = yd.get(e.id)!;
+			const cambia = de(e) !== a(e);
+			const baja = pos(a(e)) > pos(de(e));
+			const s = semilla(e.id);
+			guias[`fin:${e.id}`] = yb + u / 2;
+			anclas.set(e.id, cambia ? { x: (xa + xb) / 2, y: (ya + yb) / 2 + u / 2, r: Math.max(3, u / 2) } : { x: xb, y: yb + u / 2, r: Math.max(3, u / 2) });
+			pintores.set(e.id, (add) => {
+				for (let i = 0; i < k; i++) {
+					const [p, q] = r2(i, s);
+					if (i < enBloque * 2) {
+						const izq = i < enBloque;
+						add((izq ? X0 : xb) + p * bw, (izq ? ya : yb) + q * u, TONO.tinta, 0.85, gordo(1.5));
+					} else {
+						// Un poco de azar para que la secuencia no dibuje un rayado.
+						const y = ya + (yb - ya) * suave(p) + q * u + azar(0.8);
+						add(xa + p * (xb - xa) + azar(3), y, cambia ? (baja ? TONO.peligro : TONO.exito) : TONO.apagado, cambia ? 0.9 : 0.22, gordo(cambia ? 1.6 : 1.4));
+					}
+				}
+			});
+		}
 	};
 
 	switch (v.forma) {
@@ -98,22 +155,22 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 			const alto = (Y1 - Y0) / Math.max(1, v.filas);
 			guias.fila = alto;
 			const X = (d: number) => X0 + Math.max(0, Math.min(1, d / 1000)) * (X1 - X0);
+			const rPunto = Math.max(2.5, Math.min(4.5, alto * 0.24));
 			for (const e of v.ents) {
 				if (!e.visible || e.puesto < 0 || e.puesto >= v.filas || e.shown === null) continue;
 				const y = Y0 + (e.puesto + 0.5) * alto;
 				anclas.set(e.id, { x: X(e.shown), y, r: alto / 2 });
 				const s = e.shown, p = e.prevShown ?? s;
+				// Un punto macizo en el score de hoy, un tallo tenue desde el cero y el cambio del mes como tramo
+				// aparte: en rojo hacia donde estaba si ha bajado, en verde desde donde estaba si ha subido.
+				const cambio = Math.abs(s - p) >= 10;
+				// El tramo del cambio lleva granos según su largo, para que se vea igual de denso sea corto o largo.
+				const nTallo = Math.round(k * (k < 80 ? 0.08 : 0.16)), nCambio = cambio ? Math.round(Math.min(k * (k < 80 ? 0.55 : 0.45), Math.max(10, Math.abs(X(s) - X(p)) / 2.5))) : 0, nPunto = k - nTallo - nCambio;
 				pintores.set(e.id, (add) => {
-					// La barra hasta lo que se conserva, en tinta; lo que se pierde este mes, suelto en rojo; lo que se gana, en verde.
-					const firme = Math.min(s, p), largoF = X(firme) - X0, largoC = Math.abs(X(s) - X(p));
-					const nC = Math.round((k * largoC) / Math.max(1, largoF + largoC));
-					const tono = tonoBanda(e.band);
-					for (let i = 0; i < k; i++) {
-						const enCambio = i < nC;
-						const x = enCambio ? X(firme) + Math.random() * largoC : X0 + Math.random() * largoF;
-						const t = enCambio ? (s < p ? TONO.peligro : TONO.exito) : tono;
-						add(x, y + azar(alto * 0.3), t, enCambio ? (s < p ? 0.6 : 0.95) : 0.9, 1.9);
-					}
+					const xs = X(s), xp = X(p), fin = cambio && p < s ? xp : xs;
+					for (let i = 0; i < nTallo; i++) add(X0 + ((i + 0.5) / nTallo) * (fin - X0), y, TONO.apagado, 0.45, gordo(1.2));
+					for (let i = 0; i < nCambio; i++) add(xs + ((i + 0.5) / nCambio) * (xp - xs), y + azar(1.2), s < p ? TONO.peligro : TONO.exito, 0.9, gordo(1.7));
+					for (let i = 0; i < nPunto; i++) { const a = i * 2.399963, d = Math.sqrt((i + 0.5) / nPunto) * rPunto; add(xs + Math.cos(a) * d, y + Math.sin(a) * d, TONO.tinta, 0.95, gordo(1.5)); }
 				});
 			}
 			break;
@@ -137,7 +194,8 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 					const cx = cx0 + (col + 0.5) * celda, cy = Y1 - (fila + 0.5) * celda;
 					const entra = !!e.prevBand && e.prevBand !== e.band;
 					anclas.set(e.id, { x: cx, y: cy, r: celda / 2 });
-					pintores.set(e.id, disco(cx, cy, celda * 0.42, entra ? (rango(e.band) < rango(e.prevBand) ? TONO.peligro : TONO.exito) : tonoBanda(e.band), entra ? 1 : 0.5, celda > 8 ? 1.5 : 1.3));
+					// La banda la dice el montón; el color solo marca a las que acaban de entrar: rojo si bajan, verde si suben.
+					pintores.set(e.id, disco(cx, cy, celda * 0.4, entra ? (rango(e.band) < rango(e.prevBand) ? TONO.peligro : TONO.exito) : TONO.tinta, entra ? 1 : 0.8, celda > 8 ? 1.5 : 1.3));
 				});
 			});
 			guias.colW = colW;
@@ -152,112 +210,92 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 				if (!e.visible || e.shown === null) continue;
 				const x = X(e.shown), y = Y(e.ritmo ?? 0);
 				anclas.set(e.id, { x, y, r: rr + 2 });
-				pintores.set(e.id, disco(x, y, rr, tonoBanda(e.band), 0.85));
+				// La banda la dice la posición; el color, solo el cambio de banda de este mes.
+				const cambia = !!e.prevBand && !!e.band && e.prevBand !== e.band;
+				const tono = cambia ? (rango(e.band) < rango(e.prevBand) ? TONO.peligro : TONO.exito) : TONO.tinta;
+				// Si el ritmo se sale de la escala, el punto va al borde y hueco: un anillo avisa de que está recortado.
+				if (Math.abs(e.ritmo ?? 0) > 5) pintores.set(e.id, (add) => { for (let i = 0; i < k; i++) { const a = (i / k) * Math.PI * 2; add(x + Math.cos(a) * rr, y + Math.sin(a) * rr, tono, 0.9, 1.3); } });
+				else pintores.set(e.id, disco(x, y, rr, tono, 0.85));
 			}
 			break;
 		}
 		case 'tapiz': {
 			const alto = (Y1 - Y0) / Math.max(1, v.filas), ancho = (X1 - X0) / Math.max(1, v.meses);
 			guias.fila = alto; guias.col = ancho;
+			// Cada fila es la trayectoria del score (0 a 100 dentro de la fila), una línea de arena. Como en el resto
+			// de vistas, el color solo marca el cambio de banda: rojo el tramo en que baja, verde el tramo en que sube.
+			// Los meses sin dato quedan en blanco.
+			const Ys = (base: number, d: number) => base - 1 - Math.max(0, Math.min(1, d / 1000)) * (alto - 3);
 			for (const e of v.ents) {
 				if (!e.visible || e.puesto < 0 || e.puesto >= v.filas) continue;
-				const y = Y0 + (e.puesto + 0.5) * alto;
-				const celdas = e.serie.map((s, i) => [i, s] as const).filter(([, s]) => s !== null);
-				if (!celdas.length) continue;
-				anclas.set(e.id, { x: X1 - ancho / 2, y, r: alto / 2 });
+				const base = Y0 + (e.puesto + 1) * alto;
+				const hay = e.serie.map((s) => s !== null);
+				// Tramos entre meses consecutivos con dato; un mes aislado, un punto.
+				const tramos: [number, number][] = [];
+				e.serie.forEach((s, c) => { if (s === null) return; if (hay[c + 1]) tramos.push([c, c + 1]); else if (!hay[c - 1]) tramos.push([c, c]); });
+				if (!tramos.length) continue;
+				anclas.set(e.id, { x: X1 - ancho / 2, y: base - alto / 2, r: alto / 2 });
 				pintores.set(e.id, (add) => {
 					for (let i = 0; i < k; i++) {
-						const [c, s] = celdas[i % celdas.length];
-						// Tinta densa, score alto; el mes en crítico, en rojo.
-						add(X0 + (c + Math.random()) * ancho, y + azar(alto * 0.8), e.bandas[c] === 'critical' ? TONO.peligro : TONO.tinta, 0.28 + 0.72 * Math.max(0, Math.min(1, (s! / 10 - 20) / 70)), 2);
+						const pos = ((i + 0.5) / k) * tramos.length, j = Math.min(tramos.length - 1, Math.floor(pos)), u = pos - j;
+						const [c0, c1] = tramos[j];
+						const d = e.serie[c0]! + (e.serie[c1]! - e.serie[c0]!) * u;
+						const r0 = rango(e.bandas[c0]), r1 = rango(e.bandas[c1]);
+						const tono = r1 < r0 ? TONO.peligro : r1 > r0 ? TONO.exito : TONO.tinta;
+						add(X0 + (c0 + 0.5 + (c1 - c0) * u) * ancho, Ys(base, d) + azar(0.6), tono, 0.9, gordo(1.6));
 					}
 				});
 			}
 			break;
 		}
 		case 'flujo': {
-			// Dos columnas: la banda del mes pasado (izquierda) y la de este (derecha). Lo mejor, arriba.
-			const arriba = [...ORDEN_BANDAS].reverse();
-			const vis = v.ents.filter((e) => e.visible && e.band && e.prevBand);
-			const hueco = 10, util = Y1 - Y0 - hueco * 3;
-			const bloques = (lado: 'prev' | 'now') => {
-				const cuenta = arriba.map((b) => vis.filter((e) => (lado === 'prev' ? e.prevBand : e.band) === b).length);
-				const total = Math.max(1, cuenta.reduce((a, b) => a + b, 0));
-				let y = Y0;
-				return arriba.map((b, i) => { const alto = (cuenta[i] / total) * util; const r = { b, y, alto, n: cuenta[i] }; y += alto + hueco; return r; });
-			};
-			const izq = bloques('prev'), der = bloques('now');
-			const xa = X0, xb = X1, xm = (xa + xb) / 2;
-			arriba.forEach((b, i) => { guias[`i_${b}`] = izq[i].y + izq[i].alto / 2; guias[`in_${b}`] = izq[i].n; guias[`d_${b}`] = der[i].y + der[i].alto / 2; guias[`dn_${b}`] = der[i].n; });
-			// Posición de cada entidad dentro de su bloque: por score.
-			const lugar = (lado: 'prev' | 'now') => {
-				const bl = lado === 'prev' ? izq : der;
-				const pos = new Map<string, number>();
-				for (const blq of bl) {
-					const l = vis.filter((e) => (lado === 'prev' ? e.prevBand : e.band) === blq.b).sort((a, b) => ((lado === 'prev' ? b.prevShown : b.shown) ?? 0) - ((lado === 'prev' ? a.prevShown : a.shown) ?? 0));
-					l.forEach((e, i) => pos.set(e.id, blq.y + ((i + 0.5) / Math.max(1, l.length)) * blq.alto));
-				}
-				return pos;
-			};
-			const pi = lugar('prev'), pd = lugar('now');
-			for (const e of vis) {
-				const ya = pi.get(e.id)!, yb = pd.get(e.id)!;
-				const cambia = e.band !== e.prevBand;
-				const baja = rango(e.band) < rango(e.prevBand);
-				anclas.set(e.id, { x: cambia ? xm : xb - 8, y: cambia ? (ya + yb) / 2 : yb, r: 5 });
-				pintores.set(e.id, (add) => {
-					for (let i = 0; i < k; i++) {
-						const u = Math.random();
-						if (!cambia) {
-							// Las que no cambian: un hilo tenue y recto dentro de su banda.
-							add(xa + u * (xb - xa), ya + (yb - ya) * u + azar(1.5), TONO.apagado, 0.16, 1.2);
-						} else {
-							// Curva en S del bloque de origen al de destino.
-							const s = u * u * (3 - 2 * u);
-							add(xa + u * (xb - xa), ya + (yb - ya) * s + azar(2.2), baja ? TONO.peligro : TONO.exito, 0.85, 1.5);
-						}
-					}
-				});
-			}
-			guias.xm = xm;
+			// De la banda del mes pasado (izquierda) a la de este (derecha). Lo mejor, arriba.
+			const lista = v.ents.filter((e) => e.visible && e.band && e.prevBand);
+			aluvial(lista, (e) => e.prevBand!, (e) => e.band!, (e) => e.prevShown ?? 0, (e) => e.shown ?? 0);
 			break;
 		}
 		case 'avisos': {
 			const filas = Math.max(1, v.tipos.length), cols = Math.max(1, v.meses);
 			const cw = (X1 - X0) / cols, ch = (Y1 - Y0) / filas;
 			guias.col = cw; guias.fila = ch;
-			const cuenta = new Map<string, number>();
-			for (const e of v.ents) if (e.visible) for (const [c, f] of e.avisos) cuenta.set(`${c}:${f}`, (cuenta.get(`${c}:${f}`) ?? 0) + 1);
+			// Cada celda es una pila: cada aviso ocupa un escalón del mismo alto con los mismos granos, así el alto
+			// de la pila es el recuento y la densidad no depende de cuántos avisos tenga cada entidad.
+			const cuenta = new Map<string, number>(), escalon = new Map<string, number>();
+			let maxEnt = 1;
+			for (const e of v.ents) {
+				if (!e.visible) continue;
+				maxEnt = Math.max(maxEnt, e.avisos.length);
+				e.avisos.forEach(([c, f], j) => { const cl = `${c}:${f}`, n = cuenta.get(cl) ?? 0; escalon.set(`${e.id}#${j}`, n); cuenta.set(cl, n + 1); });
+			}
 			const maxC = Math.max(1, ...cuenta.values());
-			const radio = (c: number, f: number) => (Math.min(cw, ch) / 2 - 2) * Math.sqrt((cuenta.get(`${c}:${f}`) ?? 0) / maxC);
+			const uh = Math.max(0.5, (ch - 16) / maxC), anchoPila = Math.min(cw * 0.6, 26);
+			guias.unidad = uh;
+			const porAviso = Math.max(1, Math.floor(k / maxEnt));
+			const pie = (f: number) => Y0 + (f + 1) * ch - 2;
 			for (const e of v.ents) {
 				if (!e.visible || !e.avisos.length) continue;
 				const [c0, f0] = e.avisos[e.avisos.length - 1];
-				anclas.set(e.id, { x: X0 + (c0 + 0.5) * cw, y: Y0 + (f0 + 0.5) * ch, r: 6 });
+				const j0 = escalon.get(`${e.id}#${e.avisos.length - 1}`)!;
+				anclas.set(e.id, { x: X0 + (c0 + 0.5) * cw, y: pie(f0) - (j0 + 0.5) * uh, r: Math.max(4, uh) });
+				const sm = semilla(e.id);
 				pintores.set(e.id, (add) => {
-					for (let i = 0; i < k; i++) {
-						const [c, f] = e.avisos[i % e.avisos.length];
-						const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * radio(c, f);
+					let i = 0;
+					e.avisos.forEach(([c, f], j) => {
 						const tono = v.tipos[f].tono === 'baja' ? TONO.peligro : v.tipos[f].tono === 'sube' ? TONO.exito : TONO.apagado;
-						add(X0 + (c + 0.5) * cw + Math.cos(a) * d, Y0 + (f + 0.5) * ch + Math.sin(a) * d, tono, 0.8, 1.4);
-					}
+						const x0 = X0 + (c + 0.5) * cw - anchoPila / 2, y0 = pie(f) - (escalon.get(`${e.id}#${j}`)! + 1) * uh;
+						for (let q = 0; q < porAviso && i < k; q++, i++) { const [a, b2] = r2(q, sm); add(x0 + a * anchoPila, y0 + b2 * uh, tono, 0.9, gordo(1.5)); }
+					});
+					// Los granos que sobran esperan, invisibles, en su último aviso.
+					for (; i < k; i++) add(X0 + (c0 + 0.5) * cw, pie(f0), TONO.apagado, 0, 1);
 				});
 			}
 			break;
 		}
 		case 'horizonte': {
-			const Y = (d: number) => Y1 - Math.max(0, Math.min(1, d / 1000)) * (Y1 - Y0);
-			for (const b of [400, 600, 800]) guias[`b${b}`] = Y(b);
-			for (const e of v.ents) {
-				if (!e.visible || e.shown === null || e.p50 === null) continue;
-				const ya = Y(e.shown), yb = Y(e.p50);
-				const riesgo = e.band !== 'critical' && (e.pCritico ?? 0) >= 0.5;
-				const sube = e.p50 - e.shown >= 50, cae = e.shown - e.p50 >= 50;
-				const tono = riesgo || cae ? TONO.peligro : sube ? TONO.exito : TONO.tinta;
-				const alfa = riesgo ? 0.95 : sube || cae ? 0.55 : 0.07;
-				anclas.set(e.id, { x: X1, y: yb, r: 5 });
-				pintores.set(e.id, (add) => { for (let i = 0; i < k; i++) { const u = Math.random(); add(X0 + u * (X1 - X0), ya + (yb - ya) * u + azar(1.6), tono, alfa, 1.4); } });
-			}
+			// De la banda de hoy (izquierda) a la de la mediana dentro de seis meses (derecha), si nada cambia.
+			const bandaDe = (d: number): BandaA => (d >= 800 ? 'solid' : d >= 600 ? 'stable' : d >= 400 ? 'watch' : 'critical');
+			const lista = v.ents.filter((e) => e.visible && e.band && e.shown !== null && e.p50 !== null);
+			aluvial(lista, (e) => e.band!, (e) => bandaDe(e.p50!), (e) => e.shown!, (e) => e.p50!);
 			break;
 		}
 	}

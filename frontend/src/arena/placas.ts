@@ -25,6 +25,12 @@ export interface Futuro {
 	alfa: number;
 	/** Mediana mes a mes (décimas), dibujada como hilo. */
 	mediana?: number[];
+	/** La franja de la previsión (décimas, mes a mes): el 50 % central punteado y los bordes del 80 %. */
+	franja?: { p10: number[]; p25: number[]; p75: number[]; p90: number[] };
+	/** Meses validados: más allá, la franja se aclara. */
+	validado?: number;
+	/** Horizontes señalados sobre la mediana (meses). */
+	hitos?: number[];
 	/** Columna desde la que empieza (por defecto, la de hoy). */
 	desde?: number;
 	/**
@@ -103,7 +109,24 @@ const enAnillo = (cx: number, cy: number, r: number, u: number): [number, number
 	return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
 };
 
+/**
+ * El numeral solo se vuelve a acuñar si cambia lo que dice (o dónde está): con los mismos granos en
+ * los mismos sitios, la arena no lo agita al recomponer el resto de la página.
+ */
+const numerales = new Map<string, Lote>();
 function numeral(l: Lote, p: PlacaNumeral, movil: boolean) {
+	const clave = JSON.stringify([p, movil]);
+	let hecho = numerales.get(clave);
+	if (!hecho) {
+		hecho = new Lote();
+		acunar(hecho, p, movil);
+		if (numerales.size > 16) numerales.clear();
+		numerales.set(clave, hecho);
+	}
+	for (let i = 0; i < hecho.n; i++) l.add([hecho.p[i * 2], hecho.p[i * 2 + 1]], hecho.tono[i], hecho.alfa[i], hecho.talla[i]);
+}
+
+function acunar(l: Lote, p: PlacaNumeral, movil: boolean) {
 	const an = p.anillo;
 	const alto = an ? an.r * (p.texto.length >= 3 ? 0.62 : 0.8) : p.h;
 	const t = texto(p.texto, alto, 600, movil ? 1.35 : 1.5, SERIF);
@@ -189,6 +212,27 @@ function serie(l: Lote, s: PlacaSerie) {
 	// Futuro: arena suelta, pero precisa: cada trayectoria cae en su mes, sin salirse de la columna.
 	for (const fu of s.futuros ?? []) {
 		const c0 = fu.desde ?? s.hoy;
+		const ini = s.pasado.filter((q) => q[1] !== null && q[0] === c0).at(-1)?.[1] ?? (fu.mediana ? fu.mediana[0] / 10 : 0);
+		// El valor de un cuantil en un mes fraccionario (0 = hoy, donde todas las franjas nacen del score).
+		const en = (arr: number[], m: number) => {
+			if (m <= 0) return ini;
+			const k = Math.min(arr.length, m), a = Math.floor(k), u = k - a;
+			const va = a === 0 ? ini : arr[a - 1] / 10, vb = arr[Math.min(arr.length, a + 1) - 1] / 10;
+			return va + (vb - va) * u;
+		};
+		if (fu.franja) {
+			// Una retícula regular, sin azar: el 50 % central, punteado; los bordes del 80 %, en fino.
+			const fr = fu.franja, paso = 3.2, xa = X(c0), meses = fr.p10.length;
+			for (let x = xa + paso; x <= X(c0 + meses) + 0.01; x += paso) {
+				const m = (x - xa) / cw;
+				const a = fu.alfa * (m > (fu.validado ?? meses) ? 0.4 : 1);
+				const y75 = Y(en(fr.p75, m)), y25 = Y(en(fr.p25, m));
+				for (let y = Math.ceil(y75 / paso) * paso; y <= y25; y += paso) l.add([x, y], fu.tono, a * 0.7, 1.35);
+				l.add([x, Y(en(fr.p10, m))], fu.tono, a * 0.9, 1.2);
+				l.add([x, Y(en(fr.p90, m))], fu.tono, a * 0.9, 1.2);
+			}
+		}
+		// Trayectorias sueltas (las alternativas): más dispersas y más finas cuanto mayor es «suelto».
 		const su = fu.suelto ?? 0;
 		const jx = cw * (0.9 + su * 1.4), jy = 3 + su * 11, talla = 1.55 - su * 0.25;
 		for (const [m, d] of fu.granos) {
@@ -196,9 +240,15 @@ function serie(l: Lote, s: PlacaSerie) {
 			for (let k = 0; k < 3; k++) l.add([x0 + (Math.random() - 0.5) * jx, y0 + (Math.random() - 0.5) * jy], fu.tono, fu.alfa, talla);
 		}
 		if (fu.mediana) {
-			const ini = s.pasado.filter((q) => q[1] !== null && q[0] === c0).at(-1)?.[1] ?? fu.mediana[0] / 10;
 			const pts = [X(c0), Y(ini), ...fu.mediana.flatMap((d, i) => [X(c0 + i + 1), Y(d / 10)])];
 			l.add(linea(pts, Math.round(s.w * 0.7), 0.9), fu.tono, Math.min(1, fu.alfa + 0.4), 1.45);
+			// Los horizontes: una raya fina de borde a borde de la franja y la mediana, marcada.
+			for (const hz of fu.hitos ?? []) {
+				if (hz > fu.mediana.length) continue;
+				const x = X(c0 + hz);
+				if (fu.franja) l.add(punteado(x, Y(fu.franja.p90[hz - 1] / 10), x, Y(fu.franja.p10[hz - 1] / 10), 2.6), TONO.tinta, 0.75, 1.2);
+				l.add(disco(x, Y(fu.mediana[hz - 1] / 10), 3.4, 22), fu.tono === TONO.info ? TONO.info : TONO.tinta, 1, 1.5);
+			}
 		}
 	}
 	for (const [c, v] of s.marcas ?? []) l.add(anillo(X(c), Y(v), 6.5, 42, 0.9), TONO.info, 1, 1.5);
@@ -260,15 +310,18 @@ export interface Extra { p: Puntos; tono: number[]; alfa: number[]; talla: numbe
 export function escenaPlacas(placas: Placa[], n: number, ancho: number, alto: number, movil: boolean, extra?: Extra): Escena {
 	const e = escenaVacia(n);
 	const l = new Lote();
-	if (extra) { l.actual = 1; for (let i = 0; i < extra.tono.length; i++) l.add([extra.p[i * 2], extra.p[i * 2 + 1]], extra.tono[i], extra.alfa[i], extra.talla[i]); }
-	for (const p of placas) {
+	const poner = (p: Placa) => {
 		l.actual = p.fijo ? 1 : 0;
 		if (p.tipo === 'numeral') numeral(l, p, movil);
 		else if (p.tipo === 'serie') serie(l, p);
 		else if (p.tipo === 'flota') flota(l, p);
 		else if (p.tipo === 'rosa') rosa(l, p);
 		else vista(l, p);
-	}
+	};
+	// Los numerales, delante de todo: así ocupan siempre los mismos granos aunque cambie lo demás.
+	placas.filter((p) => p.tipo === 'numeral').forEach(poner);
+	if (extra) { l.actual = 1; for (let i = 0; i < extra.tono.length; i++) l.add([extra.p[i * 2], extra.p[i * 2 + 1]], extra.tono[i], extra.alfa[i], extra.talla[i]); }
+	placas.filter((p) => p.tipo !== 'numeral').forEach(poner);
 	let pts = l.p, tonos = l.tono, alfas = l.alfa, tallas = l.talla, fijos = l.fijo;
 	if (l.n > n) { pts = ajustar(l.p, n); tonos = tonos.slice(0, n); alfas = alfas.slice(0, n); tallas = tallas.slice(0, n); fijos = fijos.slice(0, n); }
 	const usados = Math.min(n, l.n);

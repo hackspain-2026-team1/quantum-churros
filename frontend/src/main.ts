@@ -13,6 +13,8 @@ import { Almacen, SECCIONES, esPagina, type Estado } from './estado';
 import { DOMINIO_SCORE, ajustarDominios, alturas, marcasRitmo, marco, scoreEnX, xScore, yRitmo, type Marco } from './geometria';
 import { h, vaciar } from './vistas/dom';
 import { hayInforme, prepararInforme, quitarInforme } from './vistas/imprimir';
+import { fijarVoz } from './datos/redaccion';
+import { crearMirada } from './vistas/mirada';
 import { crearPaginas, type Paginas } from './vistas/pagina';
 import { escenaPlacas } from './arena/placas';
 import { crearFrase, guardarVisita, leerVisita } from './vistas/frase';
@@ -111,7 +113,9 @@ async function iniciar() {
 	barra.style.setProperty('--linea-granos', `url(${lineaGranos()})`);
 	// La marca: el monograma, hecho de arena, y el logotipo. En la portada no aparece: la portada es la marca.
 	const marca = h('button', { class: 'marca', type: 'button', title: 'Volver a la portada', 'aria-label': 'Rumbo, volver a la portada' }, monogramaArena(30), logotipo(21), h('span', { class: 'marca-de' }, 'para Embat'));
-	marca.addEventListener('click', () => S.fijar({ vista: 'entrada', sel: null, emp: null }, true));
+	marca.addEventListener('click', () => S.fijar({ vista: 'entrada', sel: S.e.cfo, emp: null }, true));
+	// Desde dónde se mira: Embat o el CFO de un grupo. Va junto a la marca, no dentro (la marca se oculta en la portada).
+	const mirada = crearMirada(S, c);
 	const lentes = h('div', { class: 'lentes', role: 'radiogroup', 'aria-label': 'Lente de la cartera' });
 	for (const [k, t, d] of [['score', 'Score', 'Nivel y ritmo de hoy'], ['productos', 'Productos', 'Qué tienen contratado y qué les encaja'], ['horizonte', 'Horizonte', 'Dónde estarán en seis meses si nada cambia']] as const) {
 		const b = h('button', { type: 'button', class: 'lente', 'data-lente': k, role: 'radio', title: d }, t);
@@ -122,7 +126,11 @@ async function iniciar() {
 	const campana = h('button', { class: 'campana', type: 'button', title: 'Avisos del mes sin revisar' }, h('span', { class: 'campana-grano', 'aria-hidden': 'true' }), h('span', { class: 'campana-n' }));
 	const pintarCampana = () => {
 		const t = ctxDe(S.e.q).corte;
-		const n = c.groups.reduce((s, g) => s + g.alerts.filter((a) => a.month === t && a.state === 'fired' && !triaje.de(a.id)).length, 0);
+		const sinRevisar = (a: { month: number; state: string; id: string }) => a.month === t && a.state === 'fired' && !triaje.de(a.id);
+		const grupos = S.e.modo === 'cfo' ? c.groups.filter((g) => g.id === S.e.cfo) : c.groups;
+		// El CFO cuenta también los avisos de sus empresas; Embat mira la cartera por organizaciones.
+		const propios = S.e.modo === 'cfo' ? (c.alertasEmpresas ?? []).filter((a) => a.group_id === S.e.cfo && sinRevisar(a)).length : 0;
+		const n = propios + grupos.reduce((s, g) => s + g.alerts.filter(sinRevisar).length, 0);
 		campana.querySelector('.campana-n')!.textContent = `${n} ${n === 1 ? 'aviso' : 'avisos'}`;
 		campana.classList.toggle('vacia', n === 0);
 		campana.setAttribute('aria-label', `${n} avisos del mes sin revisar`);
@@ -141,7 +149,7 @@ async function iniciar() {
 		: h('span', { class: 'nota-datos', title: 'Cartera sintética con la forma exacta del contrato del motor (xray-export-v1). Se usa cuando no hay bundle servido o con ?datos=sinteticos. Ver frontend/DIARIO.md.' }, 'datos sintéticos');
 	const botonAyuda = h('button', { class: 'boton-ayuda', type: 'button', 'aria-label': 'Cómo se usa (?)', title: 'Cómo se usa (?)' }, '?');
 const hueco = h('span', { class: 'hueco barra-hueco' });
-barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, botonMetodo, botonAyuda);
+barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFinanciacion, botonMetodo, botonAyuda);
 	const anot = h('div', { class: 'anot' });
 	const capaExp = h('div', { class: 'anot capa-exp' });
 	const lazo = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -327,6 +335,8 @@ barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, b
 	selTapiz.addEventListener('click', () => irA('tapiz'));
 
 	function pintarHtml(e: Estado) {
+		// Rumbo habla de tú cuando lo mira el CFO de la empresa que enseña.
+		fijarVoz(e.modo === 'cfo', e.cfo ?? '');
 		const ctx = ctxDe(e.q);
 		frase.pintar(e, ctx);
 		pintarAnotaciones(e, ctx);
@@ -335,14 +345,18 @@ barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, b
 		for (const b of lentes.querySelectorAll<HTMLElement>('.lente')) b.setAttribute('aria-checked', String(b.dataset.lente === e.lente));
 		pintarSelector(e, ctx);
 		pintarCampana();
+		mirada.pintar(e);
 		document.body.dataset.vista = e.vista;
+		document.body.dataset.modo = e.modo;
 		colocarDeshacer();
 	}
 
 	// ─── Reacción al estado ────────────────────────────────────
 	let temporizadorDeshacer = 0;
 	S.oir((e, a) => {
-		const vistaCambia = e.vista !== a.vista || (esPagina(e.vista) && (e.sel !== a.sel || e.emp !== a.emp || e.sec !== a.sec || e.finRol !== a.finRol || e.finCaso !== a.finCaso)) || e.lente !== a.lente;
+		// Al cambiar de mirada, la voz y lo guardado en el navegador cambian con ella.
+		if (e.modo !== a.modo || e.cfo !== a.cfo) { fijarVoz(e.modo === 'cfo', e.cfo ?? ''); triaje.releer(); }
+		const vistaCambia = e.modo !== a.modo || e.cfo !== a.cfo || e.vista !== a.vista || (esPagina(e.vista) && (e.sel !== a.sel || e.emp !== a.emp || e.sec !== a.sec || e.finRol !== a.finRol || e.finCaso !== a.finCaso)) || e.lente !== a.lente;
 		const qCambia = JSON.stringify(e.q) !== JSON.stringify(a.q);
 		const soloTiempo = qCambia && JSON.stringify({ ...e.q, desde: 0, hasta: 0 }) === JSON.stringify({ ...a.q, desde: 0, hasta: 0 });
 		const efimero = !vistaCambia && !qCambia;
@@ -395,7 +409,7 @@ barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, b
 	function volver() {
 		origen = { x: M.pad + 90, y: M.zona.y + 60 };
 		if (S.e.vista === 'empresa') S.fijar({ vista: 'organizacion', emp: null }, true);
-		else if (S.e.vista === 'organizacion' || S.e.vista === 'metodologia' || S.e.vista === 'financiacion') S.fijar({ vista: 'entrada', sel: null, emp: null }, true);
+		else if (S.e.vista === 'organizacion' || S.e.vista === 'metodologia' || S.e.vista === 'financiacion') S.fijar({ vista: 'entrada', sel: S.e.cfo, emp: null }, true);
 		else S.fijar({ vista: 'entrada', hover: null }, true);
 	}
 	function irA(v: 'plano' | 'tapiz') {
@@ -453,6 +467,15 @@ barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, b
 		if (i !== j) S.consulta(conEscala(c, S.confirmado.q, orden[j]));
 	}
 	function vecino(d: number) {
+		if (S.e.modo === 'cfo') {
+			// En su grupo, las flechas recorren sus empresas; nunca llevan a otra organización.
+			const suyas = c.groups.find((g) => g.id === S.e.cfo)?.companies.map((x) => x.id) ?? [];
+			if (!suyas.length) return;
+			const i = S.e.emp ? suyas.indexOf(S.e.emp) : -1;
+			const j = (i + d + suyas.length) % suyas.length;
+			S.fijar({ vista: 'empresa', emp: suyas[j], sec: S.e.sec }, true);
+			return;
+		}
 		const ctx = ctxDe(S.confirmado.q);
 		const orden = ordenarVisibles(ctx).map((gi) => c.groups[gi].id);
 		if (!orden.length) return;

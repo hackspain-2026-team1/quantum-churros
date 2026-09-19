@@ -12,12 +12,14 @@ import type { Cartera } from '../datos/modelo';
 import { nombreBanda, movimiento } from '../datos/redaccion';
 import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
 import { cola, h, vaciar } from './dom';
+import { desplegable } from './desplegable';
 import { cabecera, cargarFicha, contenidoSeccion, graficoHorizonte, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
 import { crearFinanciacion } from './financiacion';
 import { iconoProducto } from './iconos';
 import { logotipo, monograma } from './marca';
 import { crearMonitor, type Monitor } from './monitor';
-import { cabecerasOrdenables, granos3, seccion } from './primitivos';
+import { glifoExtender } from './piezas';
+import { cabecerasOrdenables, granos3, reglaBanda, seccion } from './primitivos';
 import { medirFijas, medirPlacas, placa } from './registro';
 
 export interface Paginas {
@@ -49,11 +51,37 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	raiz.append(escenario, cuerpoP);
 	const miga = h('nav', { class: 'miga', 'aria-label': 'Dónde estás' });
 	app.append(raiz);
-	cuerpoP.addEventListener('scroll', () => { cb.alDesplazar(); cb.hilo([]); }, { passive: true });
-	/** En pantallas bajas o móviles, el escenario va dentro del cuerpo y se desplaza con él. */
-	const escenarioFijo = () => !cb.esMovil() && innerHeight >= 620;
+	cuerpoP.addEventListener('scroll', () => { cb.alDesplazar(); cb.hilo([]); marcarHorizonte(); }, { passive: true });
+	// El horizonte se queda fijo arriba o se desplaza con las secciones, y entonces estas ocupan la
+	// pantalla entera. Lo decide quien mira, desde las pestañas, y se recuerda en este navegador.
+	// En pantallas bajas o móviles no hay elección: el escenario no cabe fijo y siempre se desplaza.
+	const CLAVE_EXTENDIDA = 'rumbo.ficha.extendida.v1';
+	let extendida = (() => { try { return localStorage.getItem(CLAVE_EXTENDIDA) !== 'no'; } catch { return true; } })();
+	const cabeFijo = () => !cb.esMovil() && innerHeight >= 620;
+	const escenarioFijo = () => cabeFijo() && !extendida;
+	/** Alto del escenario cuando se desplaza: dice cuándo el horizonte se ha ido de la pantalla. */
+	let altoEscenario = 0;
+	const marcarHorizonte = () => raiz.classList.toggle('horizonte-fuera', altoEscenario > 0 && cuerpoP.scrollTop > altoEscenario - 44);
+	const medirEscenario = () => { altoEscenario = escenarioFijo() || escenario.hidden ? 0 : escenario.offsetHeight; marcarHorizonte(); };
+	const comoSeMueve = (): ScrollBehavior => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+	const subirAlHorizonte = () => cuerpoP.scrollTo({ top: 0, behavior: comoSeMueve() });
+	/** Marcar una acción trae el horizonte a la vista: lo que cambia se ve. */
+	const traerHorizonte = () => { if (raiz.classList.contains('horizonte-fuera')) subirAlHorizonte(); };
+	/** Extender o recoger: el mismo sitio del documento, con el horizonte fuera o dentro del texto. */
+	function alternarExtendida() {
+		const alto = escenario.getBoundingClientRect().height;
+		extendida = !extendida;
+		try { localStorage.setItem(CLAVE_EXTENDIDA, extendida ? 'si' : 'no'); } catch { /* sin almacenamiento: vale para esta sesión */ }
+		const y = cuerpoP.scrollTop;
+		pintarFicha(S.e);
+		cuerpoP.scrollTop = Math.max(0, extendida ? y + alto : y - alto);
+		medirEscenario();
+		cb.alDesplazar();
+	}
 
 	let clave = '';
+	/** Qué ficha y qué sección están pintadas: cambiar de pestaña empieza arriba, en el horizonte. */
+	let pintada = '';
 	let datos: DatosFicha | null = null;
 	const financiacion = crearFinanciacion(S, () => cb.alCambiarArena());
 	const estadoUI = { metrica: 'score', escenario: 'base' as 'base' | 'drift' | 'stress', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, filtro: null as FiltroEvidencia | null, ancla: null as string | null };
@@ -74,7 +102,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		repintarArena: () => requestAnimationFrame(() => cb.alCambiarArena()),
 		horizonte: {
 			elegidas: () => estadoUI.acciones,
-			alternar: (id, si) => { if (si) estadoUI.acciones.add(id); else estadoUI.acciones.delete(id); estadoUI.previa = null; pintarHorizonte(); },
+			alternar: (id, si) => { if (si) estadoUI.acciones.add(id); else estadoUI.acciones.delete(id); estadoUI.previa = null; pintarHorizonte(); traerHorizonte(); },
 			previa: (ids) => { const k = JSON.stringify(ids); if (k === JSON.stringify(estadoUI.previa)) return; estadoUI.previa = ids; pintarHorizonte(); },
 			pilar: (k) => { if (k === estadoUI.pilar) return; estadoUI.pilar = k; pintarHorizonte(); },
 		},
@@ -94,15 +122,19 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
 			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
 			pintarControles(d);
+			medirEscenario();
 			cb.alCambiarArena();
 		}, estadoUI.previa || estadoUI.pilar ? 40 : 0);
 	}
 	function pintarControles(d: DatosFicha) {
 		vaciar(controles);
 		const metricas: [string, string][] = [['score', 'Score'], ...d.ent.series.filter((s) => ['buffer_days', 'cash_month_end', 'headroom', 'ar_days_beyond_terms', 'ap_days_beyond_terms', 'activity_coverage', 'debt_burden', 'op_inflow_1m', 'op_outflow_1m'].includes(s.key)).map((s) => [s.key, s.label] as [string, string])];
-		const selM = h('select', { class: 'sel-sutil', 'aria-label': 'Qué se dibuja' }, ...metricas.map(([k, n]) => h('option', { value: k, selected: k === estadoUI.metrica }, n)));
-		selM.addEventListener('change', () => { estadoUI.metrica = selM.value; pintarHorizonte(); });
-		controles.append(selM);
+		const selM = desplegable({
+			etiqueta: 'Qué se dibuja', valor: estadoUI.metrica,
+			opciones: metricas.map(([k, n]) => ({ valor: k, texto: n })),
+			alElegir: (v) => { estadoUI.metrica = v; pintarHorizonte(); },
+		});
+		controles.append(selM.raiz);
 		if (estadoUI.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte) {
 			const sup = h('div', { class: 'escenarios', role: 'radiogroup', 'aria-label': 'Escenario' });
 			const nombres = { base: 'Si todo sigue igual', drift: 'Si sigue al mismo ritmo', stress: 'Si se repite su peor trimestre' } as const;
@@ -121,7 +153,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		}
 	}
 
-	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; cb.hilo([]); }
+	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; cb.hilo([]); altoEscenario = 0; marcarHorizonte(); }
 
 	// ─── Miga de pan (en la cabecera, junto a la marca) ─────
 	function pintarMiga(e: Estado) {
@@ -145,9 +177,15 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			pdf.addEventListener('click', () => cb.imprimir());
 			miga.append(pdf);
 		}
-		const mapa = h('button', { type: 'button', class: 'miga-accion' }, 'Mapa de la cartera');
-		mapa.addEventListener('click', () => cb.irCartera());
-		miga.append(mapa);
+		if (e.modo === 'cfo') {
+			const mias = h('button', { type: 'button', class: 'miga-accion' }, 'Mis empresas');
+			mias.addEventListener('click', () => S.fijar({ vista: 'entrada', emp: null }, true));
+			miga.append(mias);
+		} else {
+			const mapa = h('button', { type: 'button', class: 'miga-accion' }, 'Mapa de la cartera');
+			mapa.addEventListener('click', () => cb.irCartera());
+			miga.append(mapa);
+		}
 	}
 
 	// ─── Secciones: tres que actúan sobre el horizonte y, aparte, el reverso técnico ───
@@ -157,6 +195,21 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			const b = h('button', { type: 'button', class: `sec-marca ${s === 'tecnico' ? 'reverso' : ''} ${e.sec === s ? 'activa' : ''}`, 'aria-current': e.sec === s ? 'true' : undefined, title: `${nombreSeccion(s, e.vista)} (${SECCIONES.indexOf(s) + 1})` }, nombreSeccion(s, e.vista));
 			b.addEventListener('click', () => { if (S.e.sec !== s) S.fijar({ sec: s }, true); });
 			nav.append(b);
+		}
+		// Con el horizonte desplazado fuera de la pantalla, el número sigue aquí y lleva de vuelta.
+		const m = datos?.mes;
+		if (m) {
+			const volver = h('button', { type: 'button', class: 'sec-volver', title: 'Volver arriba, al horizonte' },
+				h('span', { class: 'versalita' }, nombreBanda(man, m.band)), h('b', {}, f.score(m.shown)), reglaBanda(man, m.shown, m.band));
+			volver.addEventListener('click', subirAlHorizonte);
+			nav.insertBefore(volver, nav.querySelector('.reverso'));
+		}
+		if (cabeFijo()) {
+			const ext = h('button', { type: 'button', class: `sec-extender ${extendida ? 'activa' : ''}`,
+				title: extendida ? 'El horizonte vuelve a quedarse fijo arriba, siempre a la vista' : 'El horizonte se desplaza con las secciones, que ocupan la pantalla entera' },
+				glifoExtender(extendida), extendida ? 'Fijar el horizonte' : 'Extender');
+			ext.addEventListener('click', alternarExtendida);
+			nav.append(ext);
 		}
 		return nav;
 	}
@@ -169,12 +222,12 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		document.body.dataset.pagina = e.vista;
 		pintarMiga(e);
 		const corte = cb.corte();
-		const nueva = `${e.vista}|${e.sel}|${e.emp}|${e.finRol}|${e.finCaso}|${corte}`;
+		const nueva = `${e.modo}|${e.cfo}|${e.vista}|${e.sel}|${e.emp}|${e.finRol}|${e.finCaso}|${corte}`;
 		const soloSeccion = (e.vista === 'organizacion' || e.vista === 'empresa') && nueva === clave && datos;
 		const k = `${nueva}|${e.sec}`;
 		if (soloSeccion) { pintarFicha(e); return; }
 		clave = nueva;
-		if (!ficha) { vaciar(escenario); escenario.hidden = true; }
+		if (!ficha) { vaciar(escenario); escenario.hidden = true; altoEscenario = 0; marcarHorizonte(); }
 		if (e.vista === 'entrada') return pintarEntrada();
 		if (e.vista === 'metodologia') return pintarMetodologia();
 		if (e.vista === 'financiacion') {
@@ -190,7 +243,8 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const d = await cargarFicha(kind, id, e.sel!, corte, man);
 		if (`${clave}|${S.e.sec}` !== k && clave !== nueva) return;
 		// Las organizaciones de su tamaño, del portfolio: el mismo corte y el mismo tramo de tamaño.
-		if (d && kind === 'group') {
+		// Son datos de otros clientes de Embat: desde la silla del CFO no se enseñan.
+		if (d && kind === 'group' && e.modo !== 'cfo') {
 			const g = c.groups.find((x) => x.id === id);
 			const t = c.months.indexOf(corte);
 			if (g?.size_band && t >= 0) {
@@ -199,7 +253,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			}
 		}
 		// Las empresas de su tamaño, del índice de entidades derivado del mismo bundle: mismo corte, mismo tramo.
-		if (d && kind === 'company') {
+		if (d && kind === 'company' && e.modo !== 'cfo') {
 			const ix = await carga.entidades();
 			const yo = ix?.companies[id];
 			if (ix && ix.cut === corte && yo?.size) {
@@ -235,7 +289,9 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		cuerpoP.append(hoja);
 		if (fijo) raiz.insertBefore(escenario, cuerpoP);
 		pintarHorizonte();
-		cuerpoP.scrollTop = e.sec === S.e.sec ? y : 0;
+		const misma = pintada === `${e.vista}|${e.sel}|${e.emp}|${e.sec}`;
+		pintada = `${e.vista}|${e.sel}|${e.emp}|${e.sec}`;
+		cuerpoP.scrollTop = misma ? y : 0;
 		if (estadoUI.filtro && e.sec === 'conciliacion') {
 			const ev = cuerpoP.querySelector('.evidencia-filtrada') as HTMLElement | null;
 			if (ev) cuerpoP.scrollTop = ev.offsetTop - 70;
@@ -249,6 +305,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			}
 			estadoUI.ancla = null;
 		}
+		medirEscenario();
 		cb.alCambiarArena();
 	}
 
@@ -327,6 +384,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		vaciar(cuerpoP);
 		monitor = crearMonitor({
 			c, man, corte: cb.corte,
+			cfo: () => (S.e.modo === 'cfo' ? S.e.cfo : null),
 			abrirGrupo: (id) => acc.abrirGrupo(id),
 			abrirEmpresa: (grupo, id) => { cuerpoP.scrollTop = 0; S.fijar({ vista: 'empresa', sel: grupo, emp: id, sec: 'scoring' }, true); },
 			irMapa: (vista, est) => {
@@ -388,7 +446,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const e = S.e;
 		if (e.vista === 'entrada' && monitor) {
 			const hoja = monitor.informe();
-			hoja.prepend(h('header', { class: 'informe-cab' }, h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)), h('span', { class: 'informe-que' }, `Monitor de la cartera · ${f.mes(cb.corte())}`)));
+			hoja.prepend(h('header', { class: 'informe-cab' }, h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)), h('span', { class: 'informe-que' }, S.e.modo === 'cfo' && S.e.cfo ? `${f.grupo(S.e.cfo)} · ${f.mes(cb.corte())}` : `Monitor de la cartera · ${f.mes(cb.corte())}`)));
 			return hoja;
 		}
 		if (!datos || (e.vista !== 'organizacion' && e.vista !== 'empresa')) return null;

@@ -106,6 +106,8 @@ body.arrastrando * {
 body[data-vista='plano'] .barra::after, body[data-vista='tapiz'] .barra::after, body[data-vista='entrada'] .barra::after { display: none; }
 body[data-vista='organizacion'] .barra, body[data-vista='empresa'] .barra, body[data-vista='metodologia'] .barra { background: #fff; }
 .marca { display: flex; align-items: center; gap: 5px; color: var(--tinta); flex: none; border-radius: 10px; padding: 2px 4px 2px 0; }
+/* En la portada la marca no se repite: el logotipo grande del buscador ya es la marca. */
+body[data-vista='entrada'] .marca { visibility: hidden; }
 .marca .monograma-arena { color: var(--tinta); margin: -4px -2px -4px -4px; }
 .marca .logotipo { margin-top: 5px; transition: color 160ms; }
 .marca:hover .logotipo { color: var(--info-t); }
@@ -3187,7 +3189,6 @@ body[data-vista='entrada'] .regla, body[data-vista='entrada'] .reproducir, body[
 .pagina { display: flex; flex-direction: column; overflow: hidden; }
 .pagina-cuerpo { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; outline: none; }
 .escenario { flex: none; padding: 6px 44px 0; }
-.pagina:not(.escenario-fijo) .escenario { padding: 6px 0 0; }
 .escenario-hoja { display: grid; grid-template-columns: 410px minmax(0, 1fr); gap: 32px; align-items: start; }
 .escenario-hoja .ficha-cab { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 16px; align-items: start; }
 .cab-circulo { position: relative; width: 168px; height: 168px; margin: 0 0 0 -10px; }
@@ -3247,9 +3248,22 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 
 /* Las secciones: título encima, a todo el ancho. */
 .hoja-ficha { max-width: none; padding: 0 44px 80px; }
-.sec-marcas { margin: 4px 0 6px; padding: 10px 0 0; gap: 2px; border-bottom: 1px solid var(--borde); background: linear-gradient(var(--papel) 85%, rgba(255, 255, 255, 0)); }
+.sec-marcas { margin: 4px 0 6px; padding: 10px 0 0; gap: 2px; border-bottom: 1px solid var(--borde); background: var(--papel); }
 .sec-marca { padding: 6px 16px 9px; border-bottom: 2px solid transparent; margin-bottom: -1px; font: 500 15px var(--sans); }
-.sec-marca.reverso { margin-left: 12px; color: var(--apagado); }
+.sec-marca.reverso { margin-left: auto; font-size: 13.5px; color: var(--tenue); }
+/* Con el horizonte fuera de la pantalla, el número sigue en las pestañas y lleva de vuelta arriba. */
+.sec-volver {
+	margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px 8px;
+	font: 500 13px var(--sans); color: var(--tinta-2); opacity: 0; visibility: hidden; transition: opacity 160ms;
+}
+.pagina.horizonte-fuera .sec-volver { opacity: 1; visibility: visible; }
+.sec-volver:hover { color: var(--tinta); }
+.sec-volver .versalita { color: var(--apagado); }
+.sec-volver b { font: 600 15px var(--serif); }
+/* Extender: el horizonte se desplaza con las secciones y estas ocupan la pantalla entera. */
+.sec-extender { display: inline-flex; align-items: center; gap: 7px; margin-left: 16px; padding: 5px 10px 8px; font: 500 13px var(--sans); color: var(--tenue); }
+.sec-extender:hover, .sec-extender.activa { color: var(--tinta-2); }
+.sec-extender .glifo-extender .trazo { stroke: currentColor; }
 .seccion { grid-template-columns: 1fr; gap: 12px; padding: 20px 0 22px; }
 .sec-titulo { font: 600 20px/1.25 var(--serif); }
 .seccion .seccion { padding-top: 12px; }
@@ -3330,6 +3344,7 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 	.pt-fila, .pt-eje { grid-template-columns: 150px 50px minmax(120px, 1fr) 60px; }
 }
 @media screen and (max-width: 699px) {
+	.pagina:not(.escenario-fijo) .escenario { padding: 6px 0 0; }
 	.escenario-hoja { grid-template-columns: 1fr; gap: 8px; }
 	.escenario-hoja .ficha-cab { grid-template-columns: 130px 1fr; align-items: center; }
 	.cab-circulo { width: 130px; height: 130px; }
@@ -3344,6 +3359,7 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 	.horizonte, .escenario { overflow-x: hidden; }
 	.sec-marca { padding: 6px 10px 9px; }
 	.sec-marca.reverso { margin-left: 0; }
+	.sec-volver { display: none; }
 	.est-fila { grid-template-columns: 44px minmax(0, 1fr); }
 	.est-efecto { grid-column: 2; justify-items: start; }
 	.rec { grid-template-columns: 40px 1fr; }
@@ -4455,3 +4471,86 @@ body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina
 @keyframes bajar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
 
 .informe .mon-mas-abajo { display: none; }
+
+/* ─── Desglose: leer la cascada y las curvas ─────────────── */
+.ct-fila.tocable { cursor: pointer; border-radius: 6px; transition: background 140ms; }
+.ct-fila.tocable:hover, .ct-fila.tocable:focus-visible { background: var(--fondo-3); }
+.ct-fila.tocable:hover .ct-b { opacity: 1; }
+.fig-curva.tocable { cursor: pointer; border-radius: 8px; transition: background 140ms; }
+.fig-curva.tocable:hover, .fig-curva.tocable:focus-visible { background: var(--fondo-3); }
+.cv-zona { fill: transparent; cursor: crosshair; }
+.cv-guia-lee, .cv-pto-lee, .cv-etq.lee { opacity: 0; pointer-events: none; transition: opacity 100ms; }
+.cv-guia-lee { stroke: var(--tinta); stroke-width: 1; stroke-dasharray: 2 2; }
+.cv-pto-lee { fill: #fff; stroke: var(--tinta); stroke-width: 1.5; }
+.cv-etq.lee { fill: var(--tinta); font-weight: 600; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+.curva.leyendo .cv-guia-lee, .curva.leyendo .cv-pto-lee, .curva.leyendo .cv-etq.lee { opacity: 1; }
+.curva.leyendo .cv-etq.aqui { opacity: 0.25; }
+
+/* ─── Horizonte: los tres horizontes en una fila, siempre a la vista ─── */
+.g-etq.boya, .g-etq.boya.h3, .g-etq.boya.h6 {
+	transform: translate(-50%, 24px); display: grid; justify-items: center; gap: 1px; border: 0; padding: 0;
+	font: 400 11px/1.25 var(--sans); color: var(--tinta-2); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.g-etq.boya.fin { transform: translate(-100%, 24px); justify-items: end; border: 0; padding: 0; }
+.g-etq.boya b { font: italic 400 12px var(--serif); color: var(--apagado); }
+/* En pantallas estrechas no caben en una fila: tres meses a la izquierda de su raya, seis debajo. */
+@media screen and (max-width: 699px) {
+	.g-etq.boya.h3 { transform: translate(-100%, 24px); justify-items: end; }
+	.g-etq.boya.h6 { transform: translate(-50%, 54px); }
+	.horizonte .grafico { margin-bottom: 88px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * La mirada: quién está viendo Rumbo (Embat o el CFO de un grupo).
+ * ═══════════════════════════════════════════════════════════════ */
+.mirada { position: relative; flex: none; }
+.mirada-btn {
+	display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: 999px;
+	border: 1px solid var(--borde); color: var(--apagado); font-size: 12.5px; white-space: nowrap;
+	transition: border-color 160ms var(--salida), color 160ms var(--salida), background 160ms var(--salida);
+}
+.mirada-btn:hover { border-color: var(--borde-2); color: var(--tinta); background: var(--fondo-3); }
+.mirada-punto { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--apagado); flex: none; }
+.mirada-btn.es-cfo { color: var(--tinta); border-color: var(--borde-2); }
+.mirada-btn.es-cfo .mirada-punto { background: var(--info); border-color: var(--info); }
+.mirada-panel {
+	position: absolute; top: 38px; left: 0; z-index: 30; width: 300px; max-height: 60vh; overflow: auto;
+	display: grid; gap: 4px; padding: 10px; background: #fff; border: 1px solid var(--borde);
+	border-radius: 14px; box-shadow: var(--sombra-3);
+}
+.mirada-t { font: italic 400 13px var(--serif); color: var(--tenue); margin: 4px 2px 0; }
+.mirada-op {
+	display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%;
+	padding: 6px 8px; border-radius: 8px; text-align: left; font-size: 13.5px; color: var(--tinta-2);
+	transition: background 120ms var(--salida);
+}
+.mirada-op small { color: var(--tenue); font-size: 11.5px; white-space: nowrap; }
+.mirada-op:hover { background: var(--fondo-3); color: var(--tinta); }
+.mirada-op.actual { background: var(--info-s); color: var(--info-t); }
+.mirada-panel .buscar-sutil { width: 100%; }
+.mirada-lista { display: grid; gap: 2px; }
+
+/* Con la mirada del CFO no hay cartera: ni lentes, ni mapas, ni nota del bundle. */
+body[data-modo='cfo'] .lentes,
+body[data-modo='cfo'] .selector,
+body[data-modo='cfo'] .nota-datos { display: none; }
+@media screen and (max-width: 699px) {
+	.mirada-btn { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; }
+	.mirada-panel { width: 86vw; }
+}
+
+/* Lo que el panel de propuesta necesita y no traía: las listas marcables y las filas del historial. */
+.propuesta-acciones, .propuesta-ofertas, .propuesta-financiacion { display: grid; gap: 6px; }
+.propuesta-fila { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: #fff; border: 1px solid var(--borde); border-radius: 12px; }
+/* El «vacío» global va centrado con un translate; dentro del panel es un párrafo más. */
+.propuesta-col-editor .vacio, .propuesta-col-doc .vacio {
+	transform: none; text-align: left; max-width: 100%; margin: 0; white-space: normal;
+	font: italic 14px/1.45 var(--serif); color: var(--apagado);
+}
+
+/* En el móvil, la fila de pilares vuelve a sus tres columnas: la regla de 1099 px la pisaba
+ * (150 + 50 + 120 + 60 más los huecos no caben en 390 px) y la ficha se salía del ancho. */
+@media screen and (max-width: 699px) {
+	.pt-fila, .pt-eje { grid-template-columns: 1fr 44px 60px; }
+	.pt-eje { display: none; }
+}

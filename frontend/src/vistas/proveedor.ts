@@ -2,6 +2,7 @@ import type { ExpedienteFinanciacion, IdentidadFinanciacion, OportunidadProveedo
 import { f } from '../datos/formato';
 import { vistaCaso } from './casos';
 import { h } from './dom';
+import { desplegable } from './desplegable';
 
 export function vistaProveedor(expedientes: ExpedienteFinanciacion[], oportunidades: OportunidadProveedor[], proveedores: { key: string; label: string; identity: IdentidadFinanciacion }[], proveedorActivo: string, alProveedor: (key: string) => void, alOfertar: (identity: IdentidadFinanciacion, opportunityId: string, values: { amount: number; annual_rate: number; term_months: number; opening_fee: number; guarantee: string }) => void): HTMLElement {
 	const raiz = h('div', { class: 'fin-proveedor' },
@@ -24,11 +25,14 @@ export function vistaProveedor(expedientes: ExpedienteFinanciacion[], oportunida
 		const tipo = campoNumero('Tipo anual (%)', item.own_offer ? item.own_offer.annual_rate * 100 : proveedorActivo === 'provider' ? 5.4 : 5.9, 0.1);
 		const plazo = campoNumero('Plazo (meses)', item.own_offer?.term_months ?? 12, 1);
 		const comision = campoNumero('Comisión (%)', item.own_offer ? item.own_offer.opening_fee * 100 : 0.5, 0.1);
-		const garantia = h('select', { 'aria-label': 'Garantía' }, h('option', { value: 'Sin garantía personal' }, 'Sin garantía personal'), h('option', { value: 'Cesión de cobros' }, 'Cesión de cobros')) as HTMLSelectElement;
-		formulario.append(importe.label, tipo.label, plazo.label, comision.label, h('label', {}, h('span', {}, 'Garantía'), garantia), h('button', { type: 'submit', class: 'fin-boton primario' }, item.own_offer ? 'Actualizar oferta' : 'Presentar oferta'));
+		const garantia = desplegable({
+			etiqueta: 'Garantía', valor: 'Sin garantía personal', alElegir: () => {},
+			opciones: [{ valor: 'Sin garantía personal', texto: 'Sin garantía personal' }, { valor: 'Cesión de cobros', texto: 'Cesión de cobros' }],
+		});
+		formulario.append(importe.label, tipo.label, plazo.label, comision.label, h('label', {}, h('span', {}, 'Garantía'), garantia.raiz), h('button', { type: 'submit', class: 'fin-boton primario' }, item.own_offer ? 'Actualizar oferta' : 'Presentar oferta'));
 		formulario.addEventListener('submit', (event) => {
 			event.preventDefault();
-			alOfertar(identity, item.opportunity.id, { amount: importe.input.valueAsNumber, annual_rate: tipo.input.valueAsNumber / 100, term_months: plazo.input.valueAsNumber, opening_fee: comision.input.valueAsNumber / 100, guarantee: garantia.value });
+			alOfertar(identity, item.opportunity.id, { amount: importe.input.valueAsNumber, annual_rate: tipo.input.valueAsNumber / 100, term_months: plazo.input.valueAsNumber, opening_fee: comision.input.valueAsNumber / 100, guarantee: garantia.valor });
 		});
 		raiz.append(h('article', { class: 'fin-oportunidad' },
 			h('header', {}, h('div', {}, h('span', {}, item.opportunity.public_code), h('h2', {}, `${profile.industry ?? 'Empresa'} · ${profile.country ?? '—'}`), h('small', {}, profile.size ?? '')), h('span', { class: 'fin-estado published' }, item.own_offer ? 'Oferta presentada' : 'Abierta')),

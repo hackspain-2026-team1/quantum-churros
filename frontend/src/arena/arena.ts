@@ -208,13 +208,15 @@ export class Arena {
 		this.omega = e.rigidez ?? 7.5;
 		const turb = this.reducido ? 0 : e.turbulencia;
 		for (let i = 0; i < this.n; i++) {
+			// Un grano que ya iba a este mismo sitio no se agita: lo que no cambia no se reanima.
+			const igual = this.sx[i] === e.x[i] && this.sy[i] === e.y[i] && this.fijoPend[i] === e.fijo[i];
 			this.sx[i] = e.x[i]; this.sy[i] = e.y[i];
 			this.alfaPend[i] = e.alfa[i];
 			this.tallaPend[i] = e.talla[i];
 			this.tonoPend[i] = e.tono[i];
 			this.fijoPend[i] = e.fijo[i];
-			this.turbPend[i] = turb;
-			this.espera[i] = this.reducido ? 0 : e.espera[i];
+			this.turbPend[i] = igual ? 0 : turb;
+			this.espera[i] = this.reducido || igual ? 0 : e.espera[i];
 			if (this.espera[i] <= 0) this.partir(i);
 		}
 		if (this.reducido) {

@@ -9,6 +9,8 @@ import type { AlertaM, EmpresaM, FilaEvidenciaM, Tabla } from '../datos/contrato
 import { f } from '../datos/formato';
 import { importes, nombrePilar } from '../datos/redaccion';
 import { h, vaciar } from './dom';
+import { desplegable } from './desplegable';
+import { primeraMayuscula } from '../datos/formato';
 import { hilo, seccion } from './primitivos';
 import { triaje } from './triaje';
 import { lineaAviso, nudosScore, partitura, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
@@ -35,17 +37,21 @@ export function seccionTecnica(d: DatosFicha, acc: Acciones): HTMLElement {
 	const tabla = h('div', { class: 'cascada-t' });
 	pasos.forEach(([n, v, det], i) => {
 		acum += v;
-		tabla.append(h('div', { class: `ct-fila ${i === 0 ? 'base' : ''}` },
+		const fila = h('div', { class: `ct-fila ${i === 0 ? 'base' : ''}` },
 			h('span', { class: 'ct-nombre' }, n, det ? h('span', { class: 'ct-det' }, det) : null),
 			h('span', { class: 'ct-barra' }, i === 0 ? null : h('span', { class: `ct-b ${v < 0 ? 'neg' : 'pos'}`, style: { width: `${(Math.abs(v) / escala) * 50}%`, [v < 0 ? 'right' : 'left']: '50%' } })),
 			h('span', { class: `ct-v ${v < 0 ? 'neg' : ''}` }, i === 0 ? f.scoreDec(v) : f.delta(v)),
-			h('span', { class: 'ct-acum' }, f.scoreDec(acum))));
+			h('span', { class: 'ct-acum' }, f.scoreDec(acum)));
+		// Las filas de pilar se leen como en Scoring: al pasar, el pilar en el horizonte; con clic, su evidencia.
+		const pil = i > 0 && i <= m.pillars.length ? m.pillars[i - 1] : null;
+		if (pil && pil.score !== null) tocable(fila, pil.key, acc);
+		tabla.append(fila);
 	});
 	tabla.append(h('div', { class: 'ct-fila total' }, h('span', { class: 'ct-nombre' }, 'Score'), h('span', {}), h('span', { class: 'ct-v' }, f.scoreDec(m.shown)), h('span', { class: 'ct-acum' }, suma === m.shown ? 'cuadra al décimo' : `no cuadra: ${f.scoreDec(suma)}`)));
 	raiz.append(seccion('La cascada', tabla, h('p', { class: 'nota' }, 'score = base + Σ aportaciones − penalización − tope, en décimas enteras. La confianza no interviene.')));
 
 	// 3. Las curvas del motor con la entidad encima.
-	raiz.append(seccion('Dónde cae en cada curva', curvas(d)));
+	raiz.append(seccion('Dónde cae en cada curva', curvas(d, acc)));
 
 	// 4. El veredicto por dentro.
 	const v = m.verdict, t = d.params?.trajectory;
@@ -134,6 +140,20 @@ function bandejaAvisos(d: DatosFicha, todos: AlertaM[]): HTMLElement {
 	return caja;
 }
 
+/** Un elemento que señala un pilar: al pasar lo dibuja en el horizonte y con clic filtra su evidencia. */
+function tocable(el: HTMLElement, pilar: string, acc: Acciones) {
+	el.classList.add('tocable');
+	el.tabIndex = 0;
+	el.title = 'Pasa por encima para verlo en el horizonte; clic para su evidencia';
+	const ir = () => acc.irSeccion('conciliacion', undefined, { pilar });
+	el.addEventListener('click', ir);
+	el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
+	el.addEventListener('pointerenter', () => acc.horizonte.pilar(pilar));
+	el.addEventListener('pointerleave', () => acc.horizonte.pilar(null));
+	el.addEventListener('focus', () => acc.horizonte.pilar(pilar));
+	el.addEventListener('blur', () => acc.horizonte.pilar(null));
+}
+
 function dl(filas: [string, string][]): HTMLElement {
 	return h('dl', { class: 'dl-tecnica' }, ...filas.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]));
 }
@@ -142,7 +162,7 @@ function dl(filas: [string, string][]): HTMLElement {
 
 const TAMANO: Record<string, string> = { micro: 'micro', pequeña: 'small', mediana: 'medium', grande: 'large' };
 
-function curvas(d: DatosFicha): HTMLElement {
+function curvas(d: DatosFicha, acc: Acciones): HTMLElement {
 	const caja = h('div', { class: 'curvas' });
 	const P = d.params;
 	if (!P) { caja.append(h('p', { class: 'aviso-datos' }, 'Falta rumbo/params.json: ejecuta scripts/datos/parametros.py.')); return caja; }
@@ -168,7 +188,9 @@ function curvas(d: DatosFicha): HTMLElement {
 	for (const c of def) {
 		if (!c.tabla) continue;
 		const pil = m.pillars.find((p) => p.key === c.pilar);
-		caja.append(curva(c.titulo, c.tabla, c.x, c.unidad, pil?.score ?? null, c.nota));
+		const fig = curva(c.titulo, c.tabla, c.x, c.unidad, pil?.score ?? null, c.nota);
+		if (pil && pil.score !== null) tocable(fig, c.pilar, acc);
+		caja.append(fig);
 	}
 	const heredada = d.kind === 'company' && (d.ent as EmpresaM).inherits_liquidity;
 	caja.append(h('p', { class: 'nota' }, `Curvas de params/reference_v1.json (huella ${P.sha256.slice(0, 12)}, la misma del bundle). ${heredada ? 'Esta empresa hereda la liquidez del grupo: su pilar de liquidez es el del grupo.' : ''} Topes: liquidez negativa en ${f.numero(P.caps.negative_liquidity_min_months)} de ${f.numero(P.caps.negative_liquidity_window_months)} meses → como mucho ${f.numero(P.caps.negative_liquidity_ceiling)}; pagos por debajo de ${f.numero(P.caps.weak_payments_threshold)} → como mucho ${f.numero(P.caps.weak_payments_ceiling)}.`));
@@ -202,6 +224,27 @@ function curva(titulo: string, tabla: Tabla, x: number | null, unidad: string, p
 		s.append(sv('line', { x1: X(x), y1: Y(0), x2: X(x), y2: Y(sc), class: 'cv-guia' }), sv('circle', { cx: X(x), cy: Y(sc), r: 4, class: 'cv-aqui' }));
 		et(Math.min(W - 60, X(x) + 6), Math.max(12, Y(sc) - 6), `${f.numero(x, unidad === '%' ? 3 : 1)} → ${f.numero(sc, 0)}`, 'cv-etq aqui');
 	}
+	// Leer la curva: al pasar, una guía cae hasta ella y dice cuánto puntúa ese valor.
+	const guia = sv('line', { class: 'cv-guia-lee' }), pto = sv('circle', { r: 3.4, class: 'cv-pto-lee' }), lee = sv('text', { class: 'cv-etq lee' });
+	const zona = sv('rect', { x: pad, y: Y(100) - 6, width: W - pad - 8, height: Y(0) - Y(100) + 12, class: 'cv-zona' });
+	s.append(guia, pto, lee, zona);
+	const inversa = (px: number) => { const u = Math.max(0, Math.min(1, (px - pad) / (W - pad - 8))); return raiz ? x0 + u * u * (x1 - x0) : x0 + u * (x1 - x0); };
+	zona.addEventListener('pointermove', (ev) => {
+		const r = s.getBoundingClientRect();
+		const px = ((ev.clientX - r.left) / r.width) * W;
+		// Cerca de un ancla de la tabla, se engancha a ella: son los valores exactos del motor.
+		const ancla = tabla.find((p) => Math.abs(X(p[0]) - px) < 5);
+		const v = ancla ? ancla[0] : inversa(px);
+		const sc = interp(tabla, v);
+		for (const [k, val] of Object.entries({ x1: X(v), y1: Y(0), x2: X(v), y2: Y(sc) })) guia.setAttribute(k, String(val));
+		pto.setAttribute('cx', String(X(v))); pto.setAttribute('cy', String(Y(sc)));
+		const derecha = X(v) > W - 90;
+		lee.setAttribute('x', String(X(v) + (derecha ? -7 : 7))); lee.setAttribute('y', String(Math.max(10, Y(sc) - 7)));
+		lee.classList.toggle('der', derecha);
+		lee.textContent = `${f.numero(v, unidad === '%' ? 3 : Math.abs(v) < 10 ? 1 : 0)} ${unidad} → ${f.numero(sc, 0)}`;
+		s.classList.add('leyendo');
+	});
+	zona.addEventListener('pointerleave', () => s.classList.remove('leyendo'));
 	return h('figure', { class: 'fig-curva' }, s, h('figcaption', {}, h('b', {}, titulo), pilar !== null ? ` · pilar ${f.scoreDec(pilar)}` : ' · sin dato este mes', nota ? h('span', { class: 'cv-nota' }, nota) : null));
 }
 
@@ -217,11 +260,20 @@ function evidencia(d: DatosFicha, filtro: FiltroEvidencia | null): HTMLElement {
 	const caja = h('div', { class: 'evidencia' });
 	if (!d.evid) { caja.append(h('p', { class: 'nota' }, 'El bundle no trae evidencia de esta entidad.')); return caja; }
 	const meses = d.evid.months.map((x) => x.month).filter((x) => x <= d.corte);
-	const selMes = h('select', { class: 'sel-sutil', 'aria-label': 'Mes' }, h('option', { value: '*' }, 'Todos los meses'), ...[...meses].reverse().map((x) => h('option', { value: x, selected: x === d.corte }, f.mes(x))));
+	const selMes = desplegable({
+		etiqueta: 'Mes', valor: d.corte, alElegir: () => pintar(),
+		opciones: [{ valor: '*', texto: 'Todos los meses' }, ...[...meses].reverse().map((x) => ({ valor: x, texto: primeraMayuscula(f.mes(x)) }))],
+	});
 	const pilares = [...new Set(d.evid.months.flatMap((x) => x.rows.map((r) => r.pillar ?? '·')))];
-	const selPil = h('select', { class: 'sel-sutil', 'aria-label': 'Pilar' }, h('option', { value: '*' }, 'Todos los pilares'), ...pilares.map((p) => h('option', { value: p }, p === '·' ? 'Toda la entidad' : nombrePilar(d.man, p))));
+	const selPil = desplegable({
+		etiqueta: 'Pilar', valor: '*', alElegir: () => pintar(),
+		opciones: [{ valor: '*', texto: 'Todos los pilares' }, ...pilares.map((p) => ({ valor: p, texto: p === '·' ? 'Toda la entidad' : nombrePilar(d.man, p) }))],
+	});
 	const ficheros = [...new Set(d.evid.months.flatMap((x) => x.rows.map((r) => r.source_file)))];
-	const selFic = h('select', { class: 'sel-sutil', 'aria-label': 'Fichero' }, h('option', { value: '*' }, 'Todos los ficheros'), ...ficheros.map((x) => h('option', { value: x }, x)));
+	const selFic = desplegable({
+		etiqueta: 'Fichero', valor: '*', alElegir: () => pintar(),
+		opciones: [{ valor: '*', texto: 'Todos los ficheros' }, ...ficheros.map((x) => ({ valor: x, texto: x }))],
+	});
 	const buscar = h('input', { class: 'buscar-sutil', type: 'search', placeholder: 'Buscar en la evidencia', 'aria-label': 'Buscar en la evidencia' }) as HTMLInputElement;
 	const cuerpo = h('tbody');
 	const cuenta = h('p', { class: 'nota' });
@@ -230,10 +282,10 @@ function evidencia(d: DatosFicha, filtro: FiltroEvidencia | null): HTMLElement {
 		const q = buscar.value.trim().toLowerCase();
 		const filas: [string, FilaEvidenciaM][] = [];
 		for (const mm of d.evid!.months) {
-			if (mm.month > d.corte || (selMes.value !== '*' && mm.month !== selMes.value)) continue;
+			if (mm.month > d.corte || (selMes.valor !== '*' && mm.month !== selMes.valor)) continue;
 			for (const r of mm.rows) {
-				if (selPil.value !== '*' && (r.pillar ?? '·') !== selPil.value) continue;
-				if (selFic.value !== '*' && r.source_file !== selFic.value) continue;
+				if (selPil.valor !== '*' && (r.pillar ?? '·') !== selPil.valor) continue;
+				if (selFic.valor !== '*' && r.source_file !== selFic.valor) continue;
 				if (q && !`${r.label} ${r.source_file}`.toLowerCase().includes(q)) continue;
 				filas.push([mm.month, r]);
 			}
@@ -243,13 +295,12 @@ function evidencia(d: DatosFicha, filtro: FiltroEvidencia | null): HTMLElement {
 	};
 	// Desde un nudo del hilo, la evidencia llega ya filtrada en ese dato.
 	if (filtro) {
-		if (filtro.pilar !== undefined) selPil.value = filtro.pilar ?? '·';
-		if (filtro.fichero) selFic.value = filtro.fichero;
+		if (filtro.pilar !== undefined) selPil.fijar(filtro.pilar ?? '·');
+		if (filtro.fichero) selFic.fijar(filtro.fichero);
 		if (filtro.texto) buscar.value = filtro.texto;
 	}
-	for (const c of [selMes, selPil, selFic]) c.addEventListener('change', pintar);
 	buscar.addEventListener('input', pintar);
-	caja.append(h('div', { class: 'filtros' }, selMes, selPil, selFic, buscar),
+	caja.append(h('div', { class: 'filtros' }, selMes.raiz, selPil.raiz, selFic.raiz, buscar),
 		h('div', { class: 'tabla-caja' }, h('table', { class: 'tabla-sutil' }, h('thead', {}, h('tr', {}, h('th', {}, 'Mes'), h('th', {}, 'Pilar'), h('th', {}, 'Dato'), h('th', { class: 'num' }, 'Valor'), h('th', {}, 'Periodo'), h('th', {}, 'Fichero'), h('th', { class: 'num' }, 'Filas'))), cuerpo)), cuenta);
 	pintar();
 	return caja;

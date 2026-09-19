@@ -6,9 +6,10 @@
 
 import type { FinanciacionM } from "./contrato";
 import { f } from "./formato";
+import { claveDeMirada, voz } from "./redaccion";
 import { fuenteTexto } from "./tasas";
 
-const CLAVE = "rumbo.propuestas.v1";
+const CLAVE = () => claveDeMirada("rumbo.propuestas.v1");
 const API = "/api/v1/proposals";
 
 export interface FinanciacionElegida {
@@ -55,7 +56,7 @@ interface Almacen {
 
 function leer(): Almacen {
   try {
-    const crudo = localStorage.getItem(CLAVE);
+    const crudo = localStorage.getItem(CLAVE());
     if (!crudo) return { generadas: [] };
     const dato = JSON.parse(crudo) as Partial<Almacen>;
     return { generadas: Array.isArray(dato.generadas) ? dato.generadas : [] };
@@ -66,7 +67,7 @@ function leer(): Almacen {
 
 function escribir(almacen: Almacen): void {
   try {
-    localStorage.setItem(CLAVE, JSON.stringify(almacen));
+    localStorage.setItem(CLAVE(), JSON.stringify(almacen));
   } catch {
     // sin almacenamiento: la propuesta vive solo en la sesión
   }
@@ -201,14 +202,14 @@ export function correoPropuesta(p: PropuestaGuardada): {
   );
   lineas.push(`Score actual: ${f.score(p.score_actual_tenths)}.`);
   lineas.push("");
-  lineas.push("Acciones propuestas:");
+  lineas.push(voz("Acciones propuestas:", "Acciones que vamos a hacer:"));
   if (p.acciones.length)
     for (const a of p.acciones)
       lineas.push(`· ${a.title} (${f.delta(a.uplift_tenths)} puntos según el motor)`);
   else lineas.push("· Ninguna acción de gestión este mes.");
   if (p.financiacion.length) {
     lineas.push("");
-    lineas.push("Financiación propuesta:");
+    lineas.push(voz("Financiación propuesta:", "Financiación que solicitamos:"));
     for (const x of p.financiacion) {
       const monto = x.amount !== null ? ` por ${f.euros(x.amount)}` : "";
       const banco = x.bank ?? "banco a convenir";
@@ -221,10 +222,10 @@ export function correoPropuesta(p: PropuestaGuardada): {
   }
   lineas.push("");
   lineas.push(
-    `Preparado por Embat · bundle ${p.bundle_id.slice(0, 12)} · ${f.fecha(p.fecha)}.`,
+    `${voz("Preparado por Embat", "Preparado con Rumbo (Embat)")} · bundle ${p.bundle_id.slice(0, 12)} · ${f.fecha(p.fecha)}.`,
   );
   return {
-    asunto: `Embat · Plan para ${quien} (${f.mes(p.corte)})`,
+    asunto: voz(`Embat · Plan para ${quien} (${f.mes(p.corte)})`, `Plan de ${quien} · ${f.mes(p.corte)}`),
     cuerpo: lineas.join("\n"),
   };
 }

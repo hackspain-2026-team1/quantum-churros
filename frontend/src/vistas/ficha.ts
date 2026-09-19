@@ -16,13 +16,14 @@ import type {
 import { estadosProductos, recomendaciones, type EstadoProducto } from '../datos/encaje';
 import { f, primeraMayuscula } from '../datos/formato';
 import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
-import { ESFUERZO, ESTADO_AVISO, explicacionAccion, lineaAvisoM, nombreBanda, nombrePilar, tituloAccion } from '../datos/redaccion';
+import { ESFUERZO, ESTADO_AVISO, claveDeMirada, explicacionAccion, lineaAvisoM, nombreBanda, nombrePilar, tituloAccion, voz } from '../datos/redaccion';
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
+import { desplegable } from './desplegable';
+import { abrirPropuesta } from './propuesta';
 import { iconoProducto } from './iconos';
 import { hilo, lineaEstado, llamadas, marcaBanco, seccion, sello, type Nudo } from './primitivos';
 import { placa } from './registro';
-import { abrirPropuesta } from './propuesta';
 import { seccionConciliacion, seccionTecnica } from './tecnico';
 import { triaje } from './triaje';
 
@@ -176,7 +177,7 @@ function explicacion(d: DatosFicha): HTMLElement {
 	if (m.abstain) p.append(h('span', {}, `El motor se abstiene: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}`));
 	else if (peor && peor.contrib < 0) p.append(h('span', {}, `Lo que más resta: ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.delta(peor.contrib)}.`));
 	if (d.pares) p.append(h('span', { class: 'cab-marca pares' }, h('i', { 'aria-hidden': 'true' }), `las ${f.numero(d.pares.n)} de su tamaño: mediana ${f.score(d.pares.mediana)}`));
-	if (d.kind === 'company' && d.grupoMes) p.append(h('span', { class: 'cab-marca grupo' }, h('i', { 'aria-hidden': 'true' }), `su grupo: ${f.score(d.grupoMes.shown)}`));
+	if (d.kind === 'company' && d.grupoMes) p.append(h('span', { class: 'cab-marca grupo' }, h('i', { 'aria-hidden': 'true' }), `${voz('su grupo', 'tu grupo')}: ${f.score(d.grupoMes.shown)}`));
 	return p;
 }
 
@@ -263,6 +264,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const marcas: [number, number][] = [];
 	const etFuturo: { t: string; clase: string } = { t: '', clase: '' };
 	const boyas: { h: number; texto: string; titulo?: string }[] = [];
+	const HITOS = [3, 6, 12];
 	let referenciaTendencia: { col: number; value: number; texto: string } | null = null;
 	const alternativas: { texto: string; clase: string; v: number; k: Escenario }[] = [];
 	const validado = d.validado || 12;
@@ -272,13 +274,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	if (esScore && hayFuturo(d) && base) {
 		const vivas = new Set([...o.acciones, ...(o.previa ?? [])]);
 		const accs = (d.hor!.actions ?? []).filter((a) => vivas.has(a.id));
-		const conValidez = (e: EscenarioM, tono: number, alfa: number, suelto = 0): Futuro[] => {
-			// Más allá de lo validado, la arena se aclara: el modelo no se ha podido comprobar ahí.
-			const dentro = e.grains.filter(([m]) => m <= validado), fuera = e.grains.filter(([m]) => m > validado);
-			const r: Futuro[] = [{ granos: dentro, tono, alfa, mediana: e.q.p50, suelto }];
-			if (fuera.length) r.push({ granos: fuera, tono, alfa: alfa * 0.35, suelto });
-			return r;
-		};
+		// La franja de la previsión y su mediana: una retícula regular en vez de la nube de trayectorias.
+		const abanico = (e: EscenarioM, tono: number, alfa: number): Futuro => ({ granos: [], tono, alfa, mediana: e.q.p50, franja: e.q, validado, hitos: HITOS });
 		if (accs.length) {
 			const tendencia = d.hor!.scenarios?.drift ?? base;
 			const tonoTendencia = tendencia === base ? TONO.apagado : TONO.tellme;
@@ -288,7 +285,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			if (p90.length) lineas.push({ puntos: p90.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.45, punteada: true });
 			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...tendencia.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: tonoTendencia, alfa: 0.9, punteada: true });
 			const principal = accs.length === 1 ? accs[0] : accs.reduce((a, b) => (a.q.p50[5] > b.q.p50[5] ? a : b));
-			for (const a of accs) futuros.push(...conValidez(a, TONO.info, a === principal ? 0.72 : 0.3).map((x) => (a === principal ? x : { ...x, mediana: undefined })));
+			// La principal, con su franja; las demás marcadas, solo su mediana.
+			for (const a of accs) futuros.push(a === principal ? abanico(a, TONO.info, 0.72) : { granos: [], tono: TONO.info, alfa: 0.15, mediana: a.q.p50 });
 			const lag = Math.max(...accs.map((a) => a.lag_months));
 			const ids = accs.map((a) => a.id).sort().join();
 			const cifra = accs.length === 1 ? accs[0].engine_new_score : d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids)?.new_score;
@@ -296,10 +294,10 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			const nombreReferencia = tendencia === base ? 'la referencia base' : 'la tendencia actual';
 			const ultimo = tendencia.q.p50.length - 1;
 			if (ultimo >= 0) referenciaTendencia = { col: hoy + ultimo + 1, value: tendencia.q.p50[ultimo] / 10, texto: tendencia === base ? 'referencia base' : 'tendencia actual' };
-			for (const hz of [3, 6, 12]) {
+			for (const hz of HITOS) {
 				const k = hz - 1;
 				const dif = Math.round((principal.q.p50[k] - tendencia.q.p50[k]) / 10);
-				boyas.push({ h: hz, texto: `${hz === 12 ? 'un año' : `${hz} meses`}: ${f.score(tendencia.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana de ${nombreReferencia} → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
+				boyas.push({ h: hz, texto: `${f.score(tendencia.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana de ${nombreReferencia} → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
 			}
 			etFuturo.t = o.previa?.length && !o.previa.every((x) => o.acciones.has(x)) ? 'vista previa · con esta acción' : accs.length > 1 ? `con ${accs.length} acciones` : 'con la acción marcada';
 			etFuturo.clase = 'con-acciones';
@@ -311,7 +309,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 				const es = k === elegido;
 				const granos = 'grains' in raw && raw.grains?.length ? raw.grains : [];
 				if (granos.length) {
-					futuros.push(...conValidez(raw as EscenarioM, TONO_ESCENARIO[k], es ? 0.78 : 0.34, es ? 0 : 1).map((x) => (es ? x : { ...x, mediana: undefined })));
+					// El que se mira, en abanico; los otros, solo su mediana, para que no ensucien la gráfica.
+					futuros.push(es ? abanico(raw as EscenarioM, TONO_ESCENARIO[k], 0.55) : { granos: [], tono: TONO_ESCENARIO[k], alfa: 0.22, mediana: raw.q.p50 });
 				} else {
 					lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...raw.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: TONO_ESCENARIO[k], alfa: es ? 0.95 : 0.72, punteada: !es, grosor: es ? 1.1 : 0.8 });
 				}
@@ -322,16 +321,16 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 				const k = hz - 1;
 				if (k >= esc.q.p50.length) continue;
 				const b = 'bands' in esc ? esc.bands[`h${hz}` as 'h3' | 'h6' | 'h12'] : undefined;
-				boyas.push({ h: hz, texto: `${hz === 12 ? 'un año' : `${hz} meses`}: ${q6(esc, k)}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
+				boyas.push({ h: hz, texto: `${f.score(esc.q.p50[k])} · ${q6(esc, k)}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
 			}
 			etFuturo.t = `previsto · ${NOMBRE_ESCENARIO[elegido].toLowerCase()}`;
 		}
 	} else if (esScore && d.pasados?.cuts[d.corte]) {
 		// La regla está en un mes pasado: lo que el modelo preveía entonces (sin ver lo que vino después).
 		const pc = d.pasados.cuts[d.corte];
-		futuros.push({ granos: pc.grains, tono: TONO.tinta, alfa: 0.42, mediana: pc.q.p50 });
+		futuros.push({ granos: [], tono: TONO.tinta, alfa: 0.5, mediana: pc.q.p50, franja: pc.q, hitos: HITOS });
 		etFuturo.t = `lo que se preveía en ${f.mesCorto(d.corte)}`;
-		for (const hz of [3, 6]) if (hz <= pc.months.length) boyas.push({ h: hz, texto: `${hz} meses: ${q6(pc, hz - 1)}` });
+		for (const hz of HITOS) if (hz <= pc.months.length) boyas.push({ h: hz, texto: `${f.score(pc.q.p50[hz - 1])} · ${q6(pc, hz - 1)}` });
 	}
 
 	// Dominio: el score siempre de 0 a 100 (las formas se comparan entre páginas).
@@ -371,7 +370,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	for (const b of d.man.bands) if (esScore && b.min > 0) eti('eje-banda', b.label.toLowerCase(), '100%', Y((b.min + (d.man.bands[d.man.bands.indexOf(b) + 1]?.min ?? 1000)) / 20));
 	if (esScore) eti('eje-banda', d.man.bands[0].label.toLowerCase(), '100%', Y(d.man.bands[1].min / 20));
 	eti('eje-titulo-v', esScore ? 'score' : unidad === 'EUR' ? 'euros' : unidad || 'valor', '0', '0');
-	cal.forEach((m, i) => { if (Math.abs(i - hoy) > 3 && (i - hoy) % 3 === 0) eti(`eje-m ${i > hoy ? 'fut' : ''}`, f.mesCorto(m), X(i), '100%'); });
+	// Con horizontes, el futuro se rotula con ellos y no con los meses: así no se pisan.
+	cal.forEach((m, i) => { if (Math.abs(i - hoy) > 3 && (i - hoy) % 3 === 0 && !(i > hoy && boyas.length)) eti(`eje-m ${i > hoy ? 'fut' : ''}`, f.mesCorto(m), X(i), '100%'); });
 	const etHoy = h('span', { class: 'g-etq eje-hoy' }, h('i', { class: 'asa-mini', 'aria-hidden': 'true' }, h('b'), h('b'), h('b')), `hoy · ${f.mesCorto(d.corte)}`);
 	etHoy.style.left = X(hoy); caja.append(etHoy);
 	// Las dos zonas, rotuladas: lo que ha pasado y lo que puede pasar.
@@ -384,7 +384,12 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	}
 	if (despues.length && esScore) eti('zona-t despues', 'lo que pasó después', X(Math.min(columnas - 1, hoy + 1)), '14px');
 	if (esScore && hayFuturo(d) && validado < 12) { const ev = eti('sin-validar', 'sin validar', X(hoy + validado + 1), '0'); ev.title = `La previsión está validada fuera de muestra hasta ${validado} meses. Más allá, el modelo no se ha podido comprobar con lo que pasó.`; }
-	for (const b of boyas) { const el = eti(`boya h${b.h} ${b.h === 12 ? 'fin' : ''}`, b.texto, X(hoy + b.h), '100%'); if (b.titulo) el.title = b.titulo; }
+	// Los horizontes, todos a la vista y en una fila: cuándo y qué se espera (mediana · franja del 80 %).
+	for (const b of boyas) {
+		const el = eti(`boya h${b.h} ${b.h === 12 ? 'fin' : ''}`, '', X(hoy + b.h), '100%');
+		el.append(h('b', {}, b.h === 12 ? 'un año' : `${b.h} meses`), h('span', {}, b.texto));
+		el.title = [cal[hoy + b.h] ? f.mes(cal[hoy + b.h]) : '', b.titulo].filter(Boolean).join(' · ');
+	}
 	let ultimoY = -Infinity;
 	for (const a of alternativas.sort((x, y) => y.v - x.v)) {
 		const yPx = Math.max((1 - (a.v - lo) / (hi - lo)) * o.alto, ultimoY + 14);
@@ -563,7 +568,7 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 		if (p.familia !== familia) { familia = p.familia; estante.append(h('h3', { class: 'est-familia' }, FAMILIAS[p.familia].nombre)); }
 		const t = tenenciaDe(d).find((x) => x.product === e.id);
 		const fila = h('div', { class: `est-fila inv-item estado-${e.estado}` });
-		const estadoT = e.estado === 'tiene' ? (t?.source === 'movimientos' ? 'deducido de sus movimientos' : 'contratado') : e.estado === 'encaja' ? 'le encajaría' : e.estado === 'bloqueado' ? 'hoy no' : 'no consta';
+		const estadoT = e.estado === 'tiene' ? (t?.source === 'movimientos' ? voz('deducido de sus movimientos', 'deducido de tus movimientos') : 'contratado') : e.estado === 'encaja' ? voz('le encajaría', 'te conviene') : e.estado === 'bloqueado' ? 'hoy no' : 'no consta';
 		const cuerpo = h('div', { class: 'est-cuerpo' }, h('div', { class: 'est-cab' }, h('span', { class: 'inv-nombre' }, p.nombre), h('span', { class: 'est-estado' }, estadoT)));
 		if (t) cuerpo.append(contratos(t));
 		if (e.estado === 'encaja' || e.estado === 'bloqueado' || e.forma) cuerpo.append(h('p', { class: 'est-motivo' }, e.bloqueo ?? e.motivo));
@@ -572,7 +577,7 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 			const ha = d.hor?.actions?.find((a) => a.id === e.accion!.id);
 			efecto.append(h('b', {}, `${f.delta(e.accion.uplift_tenths)}`), h('span', {}, ha && hayFuturo(d) ? `a 6 meses, ${f.score(ha.q.p50[5])}` : 'puntos'));
 			fila.classList.add('tocable');
-			fila.title = 'Pasa por encima para verlo en el horizonte; clic para marcar su acción';
+			fila.title = voz('Pasa por encima para verlo en el horizonte; clic para marcar su acción', 'Pasa por encima para verlo en tu horizonte; clic para marcar la acción');
 			fila.addEventListener('pointerenter', () => acc.horizonte.previa([e.accion!.id]));
 			fila.addEventListener('pointerleave', () => acc.horizonte.previa(null));
 			fila.addEventListener('click', () => acc.irSeccion('acciones', e.accion!.id));
@@ -657,12 +662,17 @@ function productosGrupo(d: DatosFicha, acc: Acciones): HTMLElement {
 	}
 	tabla.append(cuerpo);
 	// La leyenda es la propia forma: los cuatro estados de un mismo grabado.
-	const leyenda = h('div', { class: 'mz-leyenda' }, ...(['tiene', 'encaja', 'bloqueado', 'no_consta'] as const).map((s) => h('span', {}, iconoProducto('linea_credito' as never, { tam: 22, estado: s, titulo: false, sinFilete: true }), { tiene: 'lo tiene', encaja: 'le encajaría', bloqueado: 'hoy no', no_consta: 'no consta' }[s])));
-	raiz.append(seccion('Qué tiene cada empresa y qué le encajaría', leyenda, h('div', { class: 'matriz-caja' }, tabla)));
+	const leyenda = h('div', { class: 'mz-leyenda' }, ...(['tiene', 'encaja', 'bloqueado', 'no_consta'] as const).map((s) => h('span', {}, iconoProducto('linea_credito' as never, { tam: 22, estado: s, titulo: false, sinFilete: true }), { tiene: voz('lo tiene', 'lo tiene'), encaja: voz('le encajaría', 'le conviene'), bloqueado: 'hoy no', no_consta: 'no consta' }[s])));
+	raiz.append(seccion(voz('Qué tiene cada empresa y qué le encajaría', 'Qué tiene cada una de tus empresas y qué le conviene'), leyenda, h('div', { class: 'matriz-caja' }, tabla)));
 	return raiz;
 }
 
 // ─── Sección · Acciones ───────────────────────────────────────
+
+const CLAVE_ESTADOS = () => claveDeMirada('rumbo.acciones.v1');
+type EstadoAccion = 'propuesta' | 'en curso' | 'hecha';
+function leerEstados(): Record<string, EstadoAccion> { try { return JSON.parse(localStorage.getItem(CLAVE_ESTADOS()) ?? '{}'); } catch { return {}; } }
+function guardarEstado(clave: string, e: EstadoAccion) { const t = leerEstados(); t[clave] = e; try { localStorage.setItem(CLAVE_ESTADOS(), JSON.stringify(t)); } catch { /* Sin almacenamiento, el estado dura solo esta sesión. */ } }
 
 /** El efecto de una acción: la cifra del motor y la mediana prevista a seis meses con y sin ella. */
 function efectoAccion(d: DatosFicha, a?: AccionM): string | null {
@@ -681,11 +691,20 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const recs = recomendaciones({ mes: m, man: d.man, tenencia: tenenciaDe(d), perfil: d.ent.profile, papel: d.kind === 'company' ? (d.ent as EmpresaM).role : null, heredaLiquidez: d.kind === 'company' ? (d.ent as EmpresaM).inherits_liquidity : false });
 	const sel = acc.horizonte.elegidas();
 	const lista = h('ol', { class: 'recomendaciones' });
+	const estadosG = leerEstados();
 	recs.forEach((r, i) => {
 		const a = r.accion;
+		const clave = `${d.id}:${d.corte}:${a.id}`;
 		const marca = h('input', { type: 'checkbox', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
 		const fijarMarca = (v: boolean) => { marca.checked = v; acc.horizonte.alternar(a.id, v); li.classList.toggle('elegida', v); };
 		marca.addEventListener('change', () => fijarMarca(marca.checked));
+		// «Propuesta» es la palabra del comercial; para quien la va a hacer, está pendiente.
+		const estadoSel = desplegable<EstadoAccion>({
+			etiqueta: 'Estado de la acción', clase: 'sutil', valor: estadosG[clave] ?? 'propuesta',
+			opciones: (['propuesta', 'en curso', 'hecha'] as EstadoAccion[]).map((x) => ({ valor: x, texto: x === 'propuesta' ? voz('propuesta', 'pendiente') : x })),
+			alElegir: (v) => { guardarEstado(clave, v); li.dataset.estado = v; },
+		});
+		estadoSel.raiz.addEventListener('click', (ev) => ev.stopPropagation());
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 24, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
 		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id },
 			h('label', { class: 'rec-marca' }, marca, h('span', { class: 'rec-n' }, String(i + 1))),
@@ -694,7 +713,8 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 				h('p', { class: 'rec-texto' }, r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a)),
 				h('p', { class: 'rec-hechos' }, efectoAccion(d, a) ?? '', ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
 				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
-			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')));
+			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
+			h('div', { class: 'rec-estado' }, estadoSel.raiz));
 		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija — también al pulsar la fila.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
@@ -715,12 +735,12 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const cabeceraAcciones = h(
 		'div',
 		{ class: 'sec-acciones-cabecera' },
-		h('p', { class: 'nota' }, 'Las acciones y su efecto las calcula el motor. Marca una o varias para verlas en el horizonte, o arma la propuesta al cliente.'),
-		h('button', { type: 'button', class: 'boton-propuesta' }, 'Armar propuesta al cliente'),
+		h('p', { class: 'nota' }, voz('Las acciones y su efecto las calcula el motor. Marca una o varias para verlas en el horizonte, o arma la propuesta al cliente.', 'Las acciones y su efecto los calcula el motor. Marca una o varias para verlas en tu horizonte, o arma tu plan para el banco.')),
+		h('button', { type: 'button', class: 'boton-propuesta' }, voz('Armar propuesta al cliente', 'Mi plan para el banco')),
 	);
 	cabeceraAcciones.querySelector('button')!.addEventListener('click', () => abrirPropuesta(d, acc.horizonte.elegidas(), acc));
-	raiz.append(seccion(d.kind === 'group' ? 'Qué puede hacer el grupo' : 'Qué puede cambiar su rumbo', cabeceraAcciones, lista));
-	if (d.kind === 'group') raiz.append(seccion('Lo que proponen sus empresas', accionesEmpresas(d, acc)));
+	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), cabeceraAcciones, lista));
+	if (d.kind === 'group') raiz.append(seccion(voz('Lo que proponen sus empresas', 'Lo que puede hacer cada una de tus empresas'), accionesEmpresas(d, acc)));
 	return raiz;
 }
 
