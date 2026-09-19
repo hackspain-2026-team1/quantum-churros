@@ -238,13 +238,12 @@ def _punctuality(
     if days - goal > MAX_DAYS_GAIN:
         goal = days - MAX_DAYS_GAIN
     gain = days - goal
-    # The as-of cohort covers the invoices due in the last 90 days, so a month of
-    # payments is about a third of it: paying (or collecting) G days earlier is a
-    # one-time cash move of cohort * G / 90.
-    cohort = getattr(row, f"{side}_amount") or 0.0
-    cash = cohort * gain / 90.0 if cohort > 0 else 0.0
-    if key == "collections":
-        cash = _usable_cash(row, p, pillars, cash)  # only what the liquidity curve can reward
+    # The cash effect uses the real bank flow, not the open cohort: a G-day
+    # timing shift of the actual monthly flow moves flow * G / 30 of money that
+    # demonstrably exists, immune to the dead invoices that accumulate in the
+    # cohort and never settle.
+    flow = row.op_inflow_1m if key == "collections" else row.op_outflow_1m
+    cash = (flow or 0.0) * gain / 30.0 if flow and flow > 0 else 0.0
     if key == "payments":
         delta: RowDelta = lambda row_: _cash_delta(_set_attr("ap_days_beyond_terms", goal)(row_), -cash)
         title = (
