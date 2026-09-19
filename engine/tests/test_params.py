@@ -233,6 +233,8 @@ def test_round_trip_and_strict_parsing(params) -> None:
         params_from_dict({**data, "trajectory": {**data["trajectory"], "own_level_min_months": 13}})
     with pytest.raises(ParamsError, match="structural_retention"):
         params_from_dict({**data, "trajectory": {**data["trajectory"], "structural_retention": 1.5}})
+    with pytest.raises(ParamsError, match="horizon_months"):
+        params_from_dict({**data, "outlook": {**data["outlook"], "horizon_months": 0}})
     flipped = dataclasses.replace(params, liquidity=dataclasses.replace(params.liquidity, segmented=False))
     assert params_from_dict(params_to_dict(flipped)).liquidity.segmented is False
 

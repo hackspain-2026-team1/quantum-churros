@@ -187,8 +187,10 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const pasado = meses.slice(-24);
 	const escenarios = d.hor?.scenarios;
 	const conFuturo = o.metrica === 'score' && !!escenarios && d.hor!.cut === d.corte;
+	// Los escenarios mejor/común/peor que calcula el motor (bundle del mes del corte): abanico a t+horizonte.
+	const abanico = o.metrica === 'score' && d.mes?.outlook ? d.mes.outlook : null;
 	const nF = conFuturo ? d.hor!.months.length : 0;
-	const columnas = pasado.length + nF;
+	const columnas = pasado.length + Math.max(nF, abanico ? abanico.horizon_months : 0);
 	const hoy = pasado.length - 1;
 	const col = (iso: string) => pasado.findIndex((m) => m.month === iso);
 
@@ -208,6 +210,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const marcas: [number, number][] = [];
 	let lo = Infinity, hi = -Infinity;
 	for (const v of valores) if (v[1] !== null) { lo = Math.min(lo, v[1]); hi = Math.max(hi, v[1]); }
+	if (abanico) for (const v of [abanico.best, abanico.common, abanico.worst]) { lo = Math.min(lo, v / 10); hi = Math.max(hi, v / 10); }
 	if (conFuturo) {
 		const esc: EscenarioM | undefined = escenarios![o.escenario] ?? escenarios!.base;
 		const accs = (d.hor!.actions ?? []).filter((a) => o.acciones.has(a.id));
@@ -238,7 +241,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		for (const hl of hilos) for (const [, v] of hl) if (v !== null) { lo = Math.min(lo, Math.max(0, v - 2)); hi = Math.max(hi, Math.min(100, v + 2)); }
 	}
 	const hueco = h('div', { class: 'grafico-arena' });
-	placa(hueco, (c): PlacaSerie => ({ tipo: 'serie', x: c.x, y: c.y, w: c.w, h: c.h, lo, hi, columnas: Math.max(columnas, 2), hoy, pasado: valores, hilos, futuros, bandas, marcas }));
+	placa(hueco, (c): PlacaSerie => ({ tipo: 'serie', x: c.x, y: c.y, w: c.w, h: c.h, lo, hi, columnas: Math.max(columnas, 2), hoy, pasado: valores, hilos, futuros, bandas, marcas, abanico: abanico ? { mejor: abanico.best, comun: abanico.common, peor: abanico.worst, mes: abanico.horizon_months } : undefined }));
 	caja.append(hueco);
 
 	// Etiquetas HTML con el mismo mapeo (porcentajes de la caja).
@@ -261,6 +264,13 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			if (b) boya.title = d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ');
 		}
 		eti('eje-m futuro', o.acciones.size ? 'previsto, con acciones' : 'previsto', X(hoy + Math.min(6, nF)), '0%');
+	}
+	if (abanico) {
+		const xa = X(hoy + abanico.horizon_months);
+		eti('g-etq abanico mejor', `Mejor ${f.score(abanico.best)}`, xa, Y(abanico.best / 10));
+		eti('g-etq abanico comun', `Común ${f.score(abanico.common)}`, xa, Y(abanico.common / 10));
+		eti('g-etq abanico peor', `Peor ${f.score(abanico.worst)}`, xa, Y(abanico.worst / 10));
+		if (!conFuturo) eti('g-etq abanico mes', `+${abanico.horizon_months} meses`, xa, '100%');
 	}
 	void empresasHilo;
 	void col;
@@ -301,12 +311,16 @@ export function seccionScoring(d: DatosFicha, estado: { escenario: OpcionesGrafi
 	const v = m.verdict;
 	const deriva = d.evid?.months.find((x) => x.month === d.corte)?.rows.find((r) => r.pillar === null && /deriva acumulada/i.test(r.label));
 	const esc6 = d.hor?.scenarios?.base;
+	const conSims = !!esc6 && d.hor!.cut === d.corte;
+	const ol = d.mes?.outlook ?? null;
 	const cifras = h('div', { class: 'cifras-c' },
 		cifraC(f.score(m.shown), 'score', v.compared_to && v.delta3 !== null ? `${f.delta(v.delta3)} frente a ${f.mesCorto(v.compared_to)}` : null, v.delta3 === null ? '' : v.delta3 < -5 ? 'baja' : v.delta3 > 5 ? 'sube' : ''),
 		cifraC(f.porcentaje(m.conf.value, 0), `confianza ${({ high: 'alta', medium: 'media', low: 'baja' } as Record<string, string>)[m.conf.label]}`, `historia ${f.porcentaje(m.conf.history, 0)} · cobertura ${f.porcentaje(m.conf.coverage, 0)} · calidad ${f.porcentaje(m.conf.quality, 0)}`),
 		cifraC(v.persistence_months ? f.plural(v.persistence_months, 'mes', 'meses') : '—', 'persistencia', v.detected_since ? `${movimiento(m)}` : 'sin movimiento confirmado'),
 		cifraC(deriva && typeof deriva.value === 'number' ? f.signo(deriva.value, 1) : '—', 'deriva de 12 meses', deriva ? `${f.periodo(deriva.period)}, según el motor` : 'el motor no la calcula este mes', deriva && typeof deriva.value === 'number' ? (deriva.value < -3 ? 'baja' : deriva.value > 3 ? 'sube' : '') : ''),
-		cifraC(esc6 && d.hor!.cut === d.corte ? `${f.score(esc6.q.p10[5])}–${f.score(esc6.q.p90[5])}` : '—', 'previsto a seis meses', esc6 && d.hor!.cut === d.corte ? `lo más probable, ${f.score(esc6.q.p50[5])}${esc6.cross ? ` · ${f.porcentaje(esc6.cross.prob, 0)} de pasar a ${nombreBanda(d.man, esc6.cross.to).toLowerCase()}` : ''}` : d.hor?.reason ?? 'sin horizonte en este mes'),
+		cifraC(conSims ? `${f.score(esc6!.q.p10[5])}–${f.score(esc6!.q.p90[5])}` : ol ? `${f.score(ol.worst)}–${f.score(ol.best)}` : '—', 'previsto a seis meses',
+			conSims ? `lo más probable, ${f.score(esc6!.q.p50[5])}${esc6!.cross ? ` · ${f.porcentaje(esc6!.cross.prob, 0)} de pasar a ${nombreBanda(d.man, esc6!.cross.to).toLowerCase()}` : ''}`
+				: ol ? `escenario común, ${f.score(ol.common)}: lo calcula el motor, sin simulación` : d.hor?.reason ?? 'sin horizonte en este mes'),
 	);
 	raiz.append(cifras);
 
@@ -319,10 +333,19 @@ export function seccionScoring(d: DatosFicha, estado: { escenario: OpcionesGrafi
 
 function pieGrafico(d: DatosFicha, esc: OpcionesGrafico['escenario'], metrica: string): string {
 	if (metrica !== 'score') return 'Serie mensual del motor. La previsión se dibuja solo para el score.';
-	if (!d.hor?.scenarios) return d.hor?.reason ? `Sin horizonte: ${d.hor.reason}` : 'Sin horizonte para esta entidad.';
-	if (d.hor.cut !== d.corte) return `Los horizontes se calculan desde ${f.mes(d.hor.cut)}: mueve la regla a ese mes para verlos.`;
+	const ol = d.mes?.outlook ?? null;
+	const abanicoTxt = ol ? ` Los escenarios mejor, común y peor a ${ol.horizon_months} meses los calcula el motor con la deriva y la volatilidad medidas: no son simulaciones.` : '';
+	if (!d.hor?.scenarios) {
+		if (ol) return `Sin simulación de horizonte para esta entidad.${abanicoTxt}`;
+		return d.hor?.reason ? `Sin horizonte: ${d.hor.reason}` : 'Sin horizonte para esta entidad.';
+	}
+	if (d.hor.cut !== d.corte) return `Los horizontes se calculan desde ${f.mes(d.hor.cut)}: mueve la regla a ese mes para verlos.${abanicoTxt}`;
 	const base = 'Cada grano del futuro es una de 400 simulaciones puntuadas con el propio motor; donde se amontonan, es más probable.';
-	return esc === 'drift' ? `${base} Este escenario prolonga la deriva de 12 meses: es un «qué pasaría si», no una predicción (en la prueba hacia atrás acierta menos que el básico).` : esc === 'stress' ? `${base} Los tres primeros meses repiten su peor trimestre observado.` : base;
+	return (esc === 'drift'
+		? `${base} Este escenario prolonga la deriva de 12 meses: es un «qué pasaría si», no una predicción (en la prueba hacia atrás acierta menos que el básico).`
+		: esc === 'stress'
+			? `${base} Los tres primeros meses repiten su peor trimestre observado.`
+			: base) + abanicoTxt;
 }
 
 function partitura(d: DatosFicha, acc: Acciones): HTMLElement {

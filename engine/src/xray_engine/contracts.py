@@ -447,6 +447,11 @@ class TrajectoryParams:
 
 
 @dataclass(frozen=True)
+class OutlookParams:
+    horizon_months: int  # months ahead of the score scenarios best / common / worst
+
+
+@dataclass(frozen=True)
 class AlertParams:
     critical_score: float
 
@@ -529,6 +534,7 @@ class Params:
     confidence: ConfidenceParams
     abstention: AbstentionParams
     trajectory: TrajectoryParams
+    outlook: OutlookParams
     alerts: AlertParams
     profile: ProfileParams
     fx: FxParams

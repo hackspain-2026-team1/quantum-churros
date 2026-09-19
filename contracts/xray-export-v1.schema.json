@@ -1041,7 +1041,7 @@
               "description": "drift: the common scenario projects the measured slope; flat: it holds the score of the month.",
               "enum": ["drift", "flat"]
             },
-            "horizon_months": { "description": "Months of the projection (three with the reference params).", "type": "integer", "minimum": 1 },
+            "horizon_months": { "description": "Months of the projection (six with the reference params).", "type": "integer", "minimum": 1 },
             "best": { "description": "Upper scenario, in tenths.", "$ref": "#/$defs/scoreTenths" },
             "common": { "description": "Central scenario, in tenths.", "$ref": "#/$defs/scoreTenths" },
             "worst": { "description": "Lower scenario, in tenths.", "$ref": "#/$defs/scoreTenths" },

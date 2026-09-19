@@ -162,7 +162,7 @@ CHECK_TEXTS: dict[str, tuple[str, str]] = {
     ),
     "outlook_fan": (
         "Abanico de escenarios",
-        "El score real a tres meses cae dentro del rango pesimista–optimista mostrado en el mes de origen.",
+        "El score real al horizonte del abanico cae dentro del rango pesimista–optimista mostrado en el mes de origen.",
     ),
 }  # fmt: skip
 CHECK_MISMATCH = "La validación disponible corresponde a otro dataset o a otros parámetros."

@@ -37,6 +37,16 @@ export interface PlacaSerie {
 	bandas: number[];
 	/** Marca en el futuro (cifra del motor al acabar la subida): [columna, puntos]. */
 	marcas?: [number, number][];
+	/** Abanico del motor en t+mes: los escenarios mejor/común/peor, en décimas. */
+	abanico?: AbanicoM;
+}
+
+export interface AbanicoM {
+	mejor: number;
+	comun: number;
+	peor: number;
+	/** Meses de horizonte desde «hoy» (1..12). */
+	mes: number;
 }
 export interface PlacaFlota { tipo: 'flota'; x: number; y: number; w: number; h: number; puntos: { x: number; y: number; r: number; tono: number; alfa?: number }[] }
 export interface PlacaRosa { tipo: 'rosa'; cx: number; cy: number; r: number }
@@ -91,6 +101,23 @@ function serie(l: Lote, s: PlacaSerie) {
 		}
 	}
 	for (const [c, v] of s.marcas ?? []) l.add(anillo(X(c), Y(v), 6, 40, 0.9), TONO.info, 1, 1.5);
+	// Abanico del motor: arena entre el rayo peor y el mejor, tres hilos y tres puntos en t+mes.
+	// Solo dibuja los tres números que calcula el motor: nada se interpola ni se simula aquí.
+	if (s.abanico) {
+		const a = s.abanico;
+		const x0 = X(s.hoy), x1 = X(s.hoy + a.mes);
+		const y0 = Y(obs.length ? obs[obs.length - 1][1]! : a.comun / 10);
+		const yv = (v: number) => Y(v / 10);
+		const arena = Math.round(Math.abs(x1 - x0) * 0.5);
+		for (let i = 0; i < arena; i++) {
+			const u = Math.random(), v = Math.random();
+			const x = x0 + (x1 - x0) * u;
+			const arriba = y0 + (yv(a.mejor) - y0) * u, abajo = y0 + (yv(a.peor) - y0) * u;
+			l.add([x, abajo + (arriba - abajo) * v], TONO.apagado, 0.22, 1.25);
+		}
+		for (const v of [a.mejor, a.comun, a.peor]) l.add(linea([x0, y0, x1, yv(v)], Math.round(Math.abs(x1 - x0) * 0.5), 0.8), TONO.apagado, 0.55, 1.25);
+		for (const [v, r] of [[a.mejor, 3.2], [a.comun, 4.2], [a.peor, 3.2]] as const) l.add(disco(x1, yv(v), r, 18), TONO.tinta, 0.9, 1.5);
+	}
 }
 
 function flota(l: Lote, f: PlacaFlota) {

@@ -32,7 +32,9 @@ def test_flat_without_a_measurable_drift(score_parts, params) -> None:
     assert young.available and young.reason is None
     assert (young.basis, young.gates) == ("flat", ("no_drift",))
     assert young.common == pytest.approx(60.0)
-    assert young.horizon_months == params.trajectory.horizon_months == 3
+    assert young.horizon_months == params.outlook.horizon_months == 6
+    # the projection horizon is the outlook's own param, not the trajectory's delta3 horizon
+    assert params.outlook.horizon_months != params.trajectory.horizon_months
     assert young.best == pytest.approx(66.0) and young.worst == pytest.approx(54.0)
 
     # a flat year does measure a fit: a zero slope projects the score, without gates
@@ -133,7 +135,7 @@ def test_forward_pass_equals_every_prefix_and_is_past_only(score_parts, params) 
                 continue
             seen.add((fan.basis, *fan.gates))
             assert 0.0 <= fan.worst <= fan.common <= fan.best <= 100.0
-            assert fan.horizon_months == params.trajectory.horizon_months
+            assert fan.horizon_months == params.outlook.horizon_months
             assert (fan.gates != ()) == (fan.basis == "flat")
         assert outlooks(history, params) == fans  # deterministic
     assert seen == {("drift",), ("flat", "no_drift"), ("flat", "perimeter_shift")}

@@ -1,4 +1,4 @@
-"""Scenarios best / common / worst of the score, three months ahead. Pure, past-only.
+"""Scenarios best / common / worst of the score, ``outlook.horizon_months`` ahead. Pure, past-only.
 
 The outlook of month t reads ``history[: t]`` (month t and earlier items only),
 so a scenario never changes when later months arrive; ``outlooks`` gives the
@@ -61,7 +61,7 @@ def _unavailable(reason: str, horizon: int) -> Outlook:
 
 def outlook(history: Sequence[ScoreParts], p: Params) -> Outlook:
     """Scenario fan for the last month of ``history`` (ascending, one entity)."""
-    horizon = p.trajectory.horizon_months
+    horizon = p.outlook.horizon_months
     if not history:
         return _unavailable("short_history", horizon)
     now = history[-1]

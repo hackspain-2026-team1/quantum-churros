@@ -1851,7 +1851,7 @@ def outlook_fan_calibration(scored: Scored) -> dict[str, Any]:
     from .outlook import outlooks
 
     params = scored.params
-    horizon = params.trajectory.horizon_months
+    horizon = params.outlook.horizon_months
     hits = misses_low = misses_high = 0
     total = 0
     by_basis: dict[str, dict[str, int]] = {"drift": {"n": 0, "hits": 0}, "flat": {"n": 0, "hits": 0}}
