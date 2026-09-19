@@ -228,7 +228,11 @@ barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, b
 			const ctx = ctxDe(e.q);
 			const propios = paginas.avisosPropios()?.map((a) => ({ month: c.months.indexOf(a.month), mejora: a.mejora })).filter((a) => a.month >= 0) ?? null;
 			const regla = e.vista === 'organizacion' || e.vista === 'empresa' ? reglaPagina(ctx, M, propios) : undefined;
-			arena.fijar(escenaPlacas(paginas.placas(), arena.n, M.W, M.H, M.movil, regla));
+			// Los granos que sobran reposan debajo de toda la página, no solo del viewport:
+			// si no, en la portada queda una franja blanca al final del monitor.
+			const cuerpo = paginas.raiz.querySelector('.pagina-cuerpo') as HTMLElement | null;
+			const altoPagina = Math.max(M.H, (cuerpo?.getBoundingClientRect().top ?? 0) + (cuerpo?.scrollHeight ?? paginas.raiz.scrollHeight));
+			arena.fijar(escenaPlacas(paginas.placas(), arena.n, M.W, altoPagina, M.movil, regla));
 			posiciones = []; filas = [];
 			return;
 		}

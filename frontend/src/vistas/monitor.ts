@@ -646,8 +646,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			}
 			case 'bandas': case 'plano': {
 				const grupos: [string, Entidad[], FiltrosM][] = (est.forma === 'bandas'
-					? BANDAS.map((b) => [nombreBandaM(c, b), vis.filter((e) => e.band === b), { banda: b }] as [string, Entidad[], FiltrosM])
-					: (['hunde', 'tuerce', 'mejora', 'solida'] as Zona[]).map((z) => [primeraMayuscula(NOMBRE_ZONA[z]), vis.filter((e) => e.zona === z), { zona: z }])
+					? BANDAS.map((b): [string, Entidad[], FiltrosM] => [nombreBandaM(c, b), vis.filter((e) => e.band === b), { banda: b }])
+					: (['hunde', 'tuerce', 'mejora', 'solida'] as Zona[]).map((z): [string, Entidad[], FiltrosM] => [primeraMayuscula(NOMBRE_ZONA[z]), vis.filter((e) => e.zona === z), { zona: z }])
 				).filter(([, lista, fl]) => {
 					if (est.forma === 'plano' && est.filtros.zona) return fl.zona === est.filtros.zona;
 					if (est.forma === 'bandas' && est.filtros.banda) return fl.banda === est.filtros.banda;

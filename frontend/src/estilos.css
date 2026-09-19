@@ -3223,7 +3223,7 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .g-etq.boya.h6 { transform: translate(-1px, 40px); }
 .g-etq.boya.fin { transform: translate(-100%, 26px); border-left: 0; border-right: 1px solid var(--borde-2); padding: 0 5px 0 0; }
 .horizonte .grafico { margin-bottom: 58px; }
-.g-etq.alternativa { transform: translate(6px, -50%); pointer-events: none; }
+.g-etq.alternativa { transform: translate(6px, -50%); pointer-events: auto; cursor: pointer; }
 .g-etq.alternativa.esc-drift { --c: #9d4bdd; }
 .g-etq.alternativa.esc-stress { --c: #b07016; }
 .g-lectura {

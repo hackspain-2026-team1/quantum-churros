@@ -187,15 +187,33 @@ export interface OpcionesGrafico {
 	/** Acciones fijadas y en vista previa. */
 	acciones: Set<string>;
 	previa: string[] | null;
-	/** Los «qué pasaría si» que se ven, como líneas. */
-	supuestos: Set<'drift' | 'stress'>;
+	/** Escenario definido; los otros se ven sueltos y en su color. */
+	escenario: 'base' | 'drift' | 'stress';
 	/** Un pilar señalado desde la sección de scoring. */
 	pilar: string | null;
 	alto: number;
 	alHilo?: (hs: Hilo[]) => void;
+	/** Tocar la arena del futuro o una etiqueta elige el escenario más cercano. */
+	alElegir?: (e: OpcionesGrafico['escenario']) => void;
 }
 
-const NOMBRE_SUPUESTO = { drift: 'si sigue la deriva', stress: 'si se repite su peor trimestre' } as const;
+type Escenario = OpcionesGrafico['escenario'];
+const ESCENARIOS: Escenario[] = ['base', 'drift', 'stress'];
+const NOMBRE_ESCENARIO = { base: 'Si todo sigue igual', drift: 'Si sigue la deriva', stress: 'Si se repite su peor trimestre' } as const;
+const CORTO_ESCENARIO = { base: 'todo igual', drift: 'deriva', stress: 'peor trimestre' } as const;
+const TONO_ESCENARIO = { base: TONO.tinta, drift: TONO.tellme, stress: TONO.ocre } as const;
+
+/**
+ * Percentil de un escenario en el mes m (0 = el primero previsto). Los supuestos solo
+ * traen la mediana: la franja sale entonces de sus propios granos de ese mes, o de la mediana.
+ */
+function cuantil(e: { q: { p50: number[] } & Partial<Record<'p10' | 'p90', number[]>>; grains?: [number, number][] }, k: 'p10' | 'p50' | 'p90', m: number): number {
+	const q = e.q[k];
+	if (q) return q[m];
+	const v = (e.grains ?? []).filter((g) => g[0] === m + 1).map((g) => g[1]).sort((a, b) => a - b);
+	if (!v.length) return e.q.p50[m];
+	return v[Math.min(v.length - 1, Math.max(0, Math.round((k === 'p10' ? 0.1 : k === 'p90' ? 0.9 : 0.5) * (v.length - 1))))];
+}
 const marcasEje = (lo: number, hi: number) => {
 	const paso = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1e6].find((p) => (hi - lo) / p <= 5) ?? 1e7;
 	const out: number[] = [];
@@ -245,18 +263,19 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const marcas: [number, number][] = [];
 	const etFuturo: { t: string; clase: string } = { t: '', clase: '' };
 	const boyas: { h: number; texto: string; titulo?: string }[] = [];
-	const alternativas: { texto: string; clase: string; v: number }[] = [];
+	const alternativas: { texto: string; clase: string; v: number; k: Escenario }[] = [];
 	const validado = d.validado || 12;
 	const base = d.hor?.scenarios?.base;
-	const q6 = (e: { q: { p10: number[]; p90: number[] } }, k: number) => `${f.score(e.q.p10[k])}–${f.score(e.q.p90[k])}`;
+	const q6 = (e: { q: { p50: number[] } & Partial<Record<'p10' | 'p90', number[]>>; grains?: [number, number][] }, k: number) => `${f.score(cuantil(e, 'p10', k))}–${f.score(cuantil(e, 'p90', k))}`;
+	const elegido: Escenario = hayFuturo(d) && d.hor!.scenarios?.[o.escenario] ? o.escenario : 'base';
 	if (esScore && hayFuturo(d) && base) {
 		const vivas = new Set([...o.acciones, ...(o.previa ?? [])]);
 		const accs = (d.hor!.actions ?? []).filter((a) => vivas.has(a.id));
-		const conValidez = (e: EscenarioM, tono: number, alfa: number): Futuro[] => {
+		const conValidez = (e: EscenarioM, tono: number, alfa: number, suelto = 0): Futuro[] => {
 			// Más allá de lo validado, la arena se aclara: el modelo no se ha podido comprobar ahí.
 			const dentro = e.grains.filter(([m]) => m <= validado), fuera = e.grains.filter(([m]) => m > validado);
-			const r: Futuro[] = [{ granos: dentro, tono, alfa, mediana: e.q.p50 }];
-			if (fuera.length) r.push({ granos: fuera, tono, alfa: alfa * 0.35 });
+			const r: Futuro[] = [{ granos: dentro, tono, alfa, mediana: e.q.p50, suelto }];
+			if (fuera.length) r.push({ granos: fuera, tono, alfa: alfa * 0.35, suelto });
 			return r;
 		};
 		if (accs.length) {
@@ -278,19 +297,27 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			etFuturo.t = o.previa?.length && !o.previa.every((x) => o.acciones.has(x)) ? 'vista previa · con esta acción' : accs.length > 1 ? `con ${accs.length} acciones` : 'con la acción marcada';
 			etFuturo.clase = 'con-acciones';
 		} else {
-			futuros.push(...conValidez(base, TONO.tinta, 0.5));
+			// Los tres a la vez: el elegido, definido y con su mediana; los otros, sueltos y en su color.
+			for (const k of ESCENARIOS) {
+				const raw = d.hor!.scenarios![k];
+				if (!raw) continue;
+				const es = k === elegido;
+				const granos = 'grains' in raw && raw.grains?.length ? raw.grains : [];
+				if (granos.length) {
+					futuros.push(...conValidez(raw as EscenarioM, TONO_ESCENARIO[k], es ? 0.78 : 0.34, es ? 0 : 1).map((x) => (es ? x : { ...x, mediana: undefined })));
+				} else {
+					lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...raw.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: TONO_ESCENARIO[k], alfa: es ? 0.95 : 0.72, punteada: !es, grosor: es ? 1.1 : 0.8 });
+				}
+				if (!es && raw.q.p50[11] != null) alternativas.push({ texto: `${CORTO_ESCENARIO[k]} · ${f.score(raw.q.p50[11])}`, clase: `esc-${k}`, v: raw.q.p50[11] / 10, k });
+			}
+			const esc = d.hor!.scenarios![elegido] ?? base;
 			for (const hz of [3, 6, 12]) {
 				const k = hz - 1;
-				const b = base.bands[`h${hz}` as 'h3' | 'h6' | 'h12'];
-				boyas.push({ h: hz, texto: `${hz === 12 ? 'un año' : `${hz} meses`}: ${q6(base, k)}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
+				if (k >= esc.q.p50.length) continue;
+				const b = 'bands' in esc ? esc.bands[`h${hz}` as 'h3' | 'h6' | 'h12'] : undefined;
+				boyas.push({ h: hz, texto: `${hz === 12 ? 'un año' : `${hz} meses`}: ${q6(esc, k)}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
 			}
-			etFuturo.t = 'lo que puede pasar';
-		}
-		for (const k of ['drift', 'stress'] as const) {
-			const e = d.hor!.scenarios![k];
-			if (!e || !o.supuestos.has(k)) continue;
-			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...e.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: k === 'drift' ? TONO.tellme : TONO.ocre, alfa: 0.9, punteada: true });
-			alternativas.push({ texto: `${NOMBRE_SUPUESTO[k]} · ${f.score(e.q.p50[11])}`, clase: `esc-${k}`, v: e.q.p50[11] / 10 });
+			etFuturo.t = `previsto · ${NOMBRE_ESCENARIO[elegido].toLowerCase()}`;
 		}
 	} else if (esScore && d.pasados?.cuts[d.corte]) {
 		// La regla está en un mes pasado: lo que el modelo preveía entonces (sin ver lo que vino después).
@@ -351,7 +378,27 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	for (const a of alternativas.sort((x, y) => y.v - x.v)) {
 		const yPx = Math.max((1 - (a.v - lo) / (hi - lo)) * o.alto, ultimoY + 14);
 		ultimoY = yPx;
-		eti(`alternativa ${a.clase}`, a.texto, X(hoy + 12), `${yPx}px`);
+		const et = eti(`alternativa ${a.clase}`, a.texto, X(hoy + 12), `${yPx}px`);
+		et.title = `${NOMBRE_ESCENARIO[a.k]}: a un año, entre ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p10', 11))} y ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p90', 11))}. Toca para verlo definido.`;
+		if (o.alElegir) et.addEventListener('click', (ev) => { ev.stopPropagation(); o.alElegir!(a.k); });
+	}
+	if (o.alElegir && alternativas.length) {
+		caja.classList.add('elegible');
+		caja.addEventListener('click', (ev) => {
+			const r = caja.getBoundingClientRect();
+			const cI = Math.floor(((ev.clientX - r.left) / r.width) * columnas);
+			const m = cI - hoy - 1;
+			if (m < 0 || !d.hor?.scenarios) return;
+			const v = hi - ((ev.clientY - r.top) / r.height) * (hi - lo);
+			let mejor: Escenario = elegido, dm = Infinity;
+			for (const k of ESCENARIOS) {
+				const e = d.hor.scenarios[k];
+				if (!e || e.q.p50[m] == null) continue;
+				const dd = Math.abs(e.q.p50[m] / 10 - v);
+				if (dd < dm) { dm = dd; mejor = k; }
+			}
+			if (mejor !== elegido) o.alElegir!(mejor);
+		});
 	}
 
 	// El hilo de arena: cae por el mes que se señala y se lee el valor exacto.
