@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://quantum-churros.dev/contracts/xray-export-v1.schema.json",
   "title": "X-Ray export bundle v1",
-  "description": "Static JSON bundle written by xray_engine.export and read by the web app. Files: manifest.json, portfolio.json, groups/<id>.json, companies/<id>.json, evidence/<id>.json, alerts.json, receipt.json; every file carries `schema` and `kind`, and validates against `#/$defs/<kind>`. Conventions: months are 'YYYY-MM'; every score-point quantity (shown, level, base, contrib, penalty, cap.amount, pillar score, baseline, delta3, sigma, band min) is an integer number of tenths; weights, shares and confidence are numbers in [0, 1]; money is EUR. Exact identity for every entity-month, in integers: base + sum(pillars[].contrib) - penalty - cap.amount == shown. `band` is derived from `shown` with manifest.bands. Columnar arrays align index by index with the `months` of their own file; null means the entity was not observed that month. Codes (gates, flags, caps, reasons) are open vocabularies explained in manifest.glossary; texts are Spanish. Evidence rows are aggregates, never raw descriptions or single transactions. The companies/ folder is either complete (one file per member listed in the group files) or absent.",
+  "description": "Static JSON bundle written by xray_engine.export and read by the web app. Files: manifest.json, portfolio.json, groups/<id>.json, companies/<id>.json, evidence/<id>.json, alerts.json, receipt.json; every file carries `schema` and `kind`, and validates against `#/$defs/<kind>`. Conventions: months are 'YYYY-MM'; every score-point quantity (shown, level, base, contrib, penalty, cap.amount, pillar score, baseline, delta3, sigma, band min, outlook best/common/worst) is an integer number of tenths; weights, shares and confidence are numbers in [0, 1]; money is EUR. Exact identity for every entity-month, in integers: base + sum(pillars[].contrib) - penalty - cap.amount == shown. `band` is derived from `shown` with manifest.bands. Columnar arrays align index by index with the `months` of their own file; null means the entity was not observed that month. Codes (gates, flags, caps, reasons) are open vocabularies explained in manifest.glossary; texts are Spanish. Evidence rows are aggregates, never raw descriptions or single transactions. The companies/ folder is either complete (one file per member listed in the group files) or absent.",
   "oneOf": [
     {
       "$ref": "#/$defs/manifest"
@@ -988,6 +988,7 @@
             }
           }
         },
+        "outlook": { "$ref": "#/$defs/outlook" },
         "abstain": {
           "description": "Not null when the engine abstains: the number is still emitted, alerts are not fired.",
           "anyOf": [
@@ -1026,6 +1027,32 @@
           }
         }
       }
+    },
+    "outlook": {
+      "description": "Optional. Scenarios best / common / worst of the score horizon_months ahead, computed by the engine from the past of the month alone (truncation-stable): common adds the Theil-Sen drift of the long window to the score when it is measurable (basis 'drift'), else it holds the score (basis 'flat') with a gate that says why; best and worst fan out from common by max(min_delta_points, long_sigma_mult * sigma) points, clamped to 0 and 100. Null on a carried or abstained month.",
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["basis", "horizon_months", "best", "common", "worst", "gates"],
+          "properties": {
+            "basis": {
+              "description": "drift: the common scenario projects the measured slope; flat: it holds the score of the month.",
+              "enum": ["drift", "flat"]
+            },
+            "horizon_months": { "description": "Months of the projection (three with the reference params).", "type": "integer", "minimum": 1 },
+            "best": { "description": "Upper scenario, in tenths.", "$ref": "#/$defs/scoreTenths" },
+            "common": { "description": "Central scenario, in tenths.", "$ref": "#/$defs/scoreTenths" },
+            "worst": { "description": "Lower scenario, in tenths.", "$ref": "#/$defs/scoreTenths" },
+            "gates": {
+              "description": "Why the outlook is flat (no_drift, perimeter_shift); open vocabulary, glossary.gates.",
+              "type": "array",
+              "items": { "$ref": "#/$defs/code" }
+            }
+          }
+        }
+      ]
     },
     "pillar": {
       "type": "object",

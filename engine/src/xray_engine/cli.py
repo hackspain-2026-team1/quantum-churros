@@ -165,5 +165,18 @@ def validate(
         raise typer.Exit(code=1)
 
 
+@app.command("kpi-snapshot")
+def kpi_snapshot(
+    validation: Path = typer.Option(Path("artifacts/validation.json"), help="Validation report"),
+    history: Path = typer.Option(Path("docs/engine/KPI_HISTORY.md"), help="Markdown history file"),
+) -> None:
+    """Append one KPI row from validation.json to KPI_HISTORY.md."""
+    from .kpi_snapshot import append_kpi_history
+
+    row = append_kpi_history(validation, history)
+    typer.echo(f"Appended KPI row to {history}")
+    typer.echo(row)
+
+
 if __name__ == "__main__":
     app()

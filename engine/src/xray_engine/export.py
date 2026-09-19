@@ -34,6 +34,7 @@ from .contracts import (
 )
 from .actions import plan_actions
 from . import financing as financing_module
+from .outlook import outlooks
 from .pillars import NOTE_TEMPLATES, pillar_note
 from .trajectory import trajectory_note
 
@@ -147,6 +148,18 @@ CHECK_TEXTS: dict[str, tuple[str, str]] = {
     "verdict_persistence": ("Persistencia de veredictos", "Lo que se llama estructural sigue ahí tres y seis meses después; lo pendiente y los baches, menos."),
     "netting_placebo": ("Placebo de traspasos", "El emparejamiento de traspasos internos casi no encuentra nada con las fechas desplazadas."),
     "injection": ("Deterioros inyectados", "Retraso de detección y falsas alertas al inyectar picos, escalones y rampas."),
+    "level_vs_slope": (
+        "Nivel frente a pendiente",
+        "La persistencia del score es de nivel, no de pendiente; mide autocorrelación y co-movimiento con liquidez.",
+    ),
+    "rolling_origin": (
+        "Origen rodante",
+        "Re-puntúa en cortes históricos y comprueba que el ranking del mes del corte no cambia al ver el futuro.",
+    ),
+    "outlook_fan": (
+        "Abanico de escenarios",
+        "El score real a tres meses cae dentro del rango pesimista–optimista mostrado en el mes de origen.",
+    ),
 }  # fmt: skip
 CHECK_MISMATCH = "La validación disponible corresponde a otro dataset o a otros parámetros."
 CHECK_NOT_RUN = "Comprobación no ejecutada en esta validación."
@@ -416,8 +429,25 @@ def _actions(month: EntityMonth, params: Any, group_row: Any, shown: int) -> dic
     }
 
 
+def _outlook_block(outlook: Any) -> dict[str, Any] | None:
+    """Optional scenarios best / common / worst of the score, ``horizon_months``
+    ahead, computed by the engine from the past of the month alone. Null on a
+    carried or abstained month; the points are tenths clamped to 0..1000."""
+    if outlook is None or not outlook.available:
+        return None
+    return {
+        "basis": outlook.basis,
+        "horizon_months": max(1, int(outlook.horizon_months)),
+        "best": _score_tenths(outlook.best),
+        "common": _score_tenths(outlook.common),
+        "worst": _score_tenths(outlook.worst),
+        "gates": _codes(outlook.gates),
+    }
+
+
 def _entity_month(
-    month: EntityMonth, params: Any, bands: Sequence[Mapping[str, Any]], group_row: Any = None
+    month: EntityMonth, params: Any, bands: Sequence[Mapping[str, Any]], group_row: Any = None,
+    outlook: Any = None,
 ) -> dict[str, Any]:
     row, parts = month.row, month.parts
     shown, base, contributions, penalty, cap = _waterfall(parts)
@@ -463,6 +493,7 @@ def _entity_month(
         "months_observed": max(0, int(parts.months_observed or 0)),
         "perimeter_changed": bool(row.perimeter_changed),
         "verdict": _verdict(month),
+        "outlook": _outlook_block(outlook),
         "abstain": (
             {"reason": parts.abstain_reason or "short_history", "unlock": _unlock(parts, params)}
             if parts.abstained
@@ -745,7 +776,7 @@ def _engine_texts(name: str) -> dict[str, str]:
     """``<name>`` tables of every pure module that declares one (contracts first)."""
     found: dict[str, str] = {}
     modules: list[Any] = [contracts]
-    for module_name in ("pillars", "aggregate", "alerts", "trajectory"):
+    for module_name in ("pillars", "aggregate", "alerts", "trajectory", "outlook"):
         try:
             modules.append(importlib.import_module(f"{__package__}.{module_name}"))
         except Exception:  # noqa: BLE001 - a missing module only loses its own texts
@@ -778,6 +809,8 @@ def _glossary(entities: Iterable[Mapping[str, Any]], alerts: Iterable[Mapping[st
                 used["reasons"].add(entry["abstain"]["reason"])
             if entry["verdict"]["reason"] is not None:
                 used["reasons"].add(entry["verdict"]["reason"])
+            if entry["outlook"]:
+                used["gates"].update(entry["outlook"]["gates"])
     for alert in alerts:
         if alert["suppressed_by"] is not None:
             used["reasons"].add(alert["suppressed_by"]["reason"])
@@ -970,7 +1003,10 @@ def export_bundle(
     copied), gates and notes from ``month.pillars``. Contributions are emitted
     in integer tenths through ``round_preserving_sum`` over ``[base,
     *contributions, -penalty, -cap_adjustment]``. An abstained month never
-    carries a verdict. The trajectory extras the frozen verdict block has no
+    carries a verdict. Every month carries the optional ``outlook`` block
+    (``_outlook_block``): the scenarios best / common / worst of the score that
+    ``outlooks`` projects from the past of the month alone, null on a carried
+    or abstained month. The trajectory extras the frozen verdict block has no
     field for (horizon, drift points) are evidence rows of the entity-month
     (``pillar`` null); the alert detail already names the drift.
     ``evidence_months`` limits ``evidence/<id>.json`` to the last months.
@@ -1001,16 +1037,17 @@ def export_bundle(
         (key[1], month.row.month): month.row
         for key, months in by_entity.items() if key[0] == "group" for month in months
     }
-    entries: dict[tuple[str, str], list[dict[str, Any]]] = {
-        key: [
+    entries: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for key, months in by_entity.items():
+        fan = outlooks([month.parts for month in months], params)
+        entries[key] = [
             _entity_month(
                 month, params, bands,
                 group_rows.get((month.row.group_id, month.row.month)) if key[0] == "company" else None,
+                outlook=fan[position],
             )
-            for month in months
+            for position, month in enumerate(months)
         ]
-        for key, months in by_entity.items()
-    }
     shown_at = {
         (kind, entity_id, entry["month"]): entry["shown"]
         for (kind, entity_id), months in entries.items()
