@@ -43,7 +43,9 @@
 - Alembic owns schema changes only. Never place the challenge CSV contents or other bulk seed data inside an Alembic revision.
 - `20260918_02_seed_baseline_dataset.py` is a frozen legacy demo seed already present in migration history. Do not regenerate it or use it as a pattern; all new dataset loads go through `xray-db ingest`.
 - Start the stack with `make up`; the API applies pending Alembic migrations before serving requests.
+- Local PostgreSQL binds to host port `5433` by default. Set `POSTGRES_PORT` when that port belongs to another project; container-to-container commands such as `make db-sync` keep using the internal `postgres:5432` address.
 - Validate the local dataset with `make db-seed-dry-run`, then load it with `make db-seed`. The ingestion command runs inside the API container, streams every CSV through PostgreSQL `COPY`, and records the content hash and row counts in `source.dataset_import`.
+- Run `make db-sync` to start PostgreSQL and execute the complete reproducible data cycle: ingest the immutable source version, classify companies, calculate Parquet model artifacts, publish the relational score projection, and regenerate the JSON bundle consumed by the frontend.
 - Dataset ingestion is explicit and idempotent. Never trigger it from API startup, tests, or a migration. Re-running the same hash changes no rows; a different hash is stored alongside prior datasets.
 - Never truncate source tables to refresh data. Add a new dataset version and select it by `dataset_hash` so experiments and score runs remain reproducible.
 

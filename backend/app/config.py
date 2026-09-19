@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Embat X-Ray API"
-    database_url: str = "sqlite:///./xray.db"
+    database_url: str | None = None
     cors_origins: str = "http://localhost:5173"
     scores_path: Path = Path("artifacts/scores.parquet")
     # Static export bundle written by `make export`; the API serves it as-is for local dev.
@@ -28,6 +28,13 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("XRAY_ACTIVE_DATASET_HASH", "ACTIVE_DATASET_HASH"),
     )
+
+    def require_database_url(self) -> str:
+        if self.database_url is None or not self.database_url.strip():
+            raise RuntimeError(
+                "DATABASE_URL is required; use PostgreSQL for the application or set an explicit SQLite URL in isolated tests"
+            )
+        return self.database_url
 
 
 settings = Settings()
