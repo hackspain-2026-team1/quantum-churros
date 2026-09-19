@@ -8,7 +8,7 @@ from datetime import date
 
 import polars as pl
 import pytest
-from typer.testing import CliRunner
+from typer.main import get_command
 from xray_engine import artifacts, panel, scoring
 from xray_engine.cli import app
 from xray_engine.contracts import (
@@ -225,11 +225,11 @@ def test_snapshots_reach_parquet_with_the_frozen_schema(tmp_path, monkeypatch, p
 
 
 def test_cli_exposes_the_frozen_commands() -> None:
-    runner = CliRunner()
-    listing = runner.invoke(app, ["--help"], terminal_width=120).output
+    commands = get_command(app).commands
     for command in ("ingest", "fit-reference", "predict", "validate"):
-        assert command in listing
-    assert "train" not in listing
+        assert command in commands and not commands[command].hidden
+    assert "train" not in commands
+    assert commands["score"].hidden
     for command in ("predict", "score"):
-        output = runner.invoke(app, [command, "--help"], terminal_width=120).output
-        assert "--export-dir" in output and "--out" in output
+        options = {option for parameter in commands[command].params for option in getattr(parameter, "opts", ())}
+        assert {"--export-dir", "--out"} <= options
