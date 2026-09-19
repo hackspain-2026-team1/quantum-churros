@@ -54,10 +54,9 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 3000
-      ORIGIN: ${ORIGIN:-http://localhost:3101}
-      API_URL: http://api:8000
     volumes:
-      - ./bundle:/app/build/client/data/v1:ro
+      - ./bundle:/app/dist/data/v1:ro
+      - ./rumbo:/app/dist/data/rumbo:ro
     ports:
       - "127.0.0.1:${WEB_PORT:-3101}:3000"
     depends_on:

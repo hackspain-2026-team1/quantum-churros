@@ -27,6 +27,8 @@ Related docs:
 - [../INDUSTRY_CLASSIFICATION.md](../INDUSTRY_CLASSIFICATION.md) and
   [../BENCHMARK_REFERENCE.mdx](../BENCHMARK_REFERENCE.mdx) — context attributes; never score
   inputs
+- [../MONITOR_NOTIFICATIONS.mdx](../MONITOR_NOTIFICATIONS.mdx) — routing de avisos y operación
+  de la demo con Mailpit
 - [../UI_FORMATTING.mdx](../UI_FORMATTING.mdx) — how the numbers below are rendered
 - `analysis/*.py` — stdlib-only scripts that regenerate every measured number quoted here
   (`python3 analysis/<name>.py --data <dir>`)
@@ -608,10 +610,10 @@ make test-engine-data XRAY_DATA=/path/to/output
 | Trayectoria, no foto | Obligatorio | 24 monthly scores per entity, `direction`, `nature`, `persistence_months`; pillars built on trailing windows, not on the last month alone |
 | Explicación | Obligatorio | exact additive and delta identities, gates, evidence rows, all in the bundle |
 | Producto encima del score | Obligatorio | static web app on the bundle: portfolio, group and company views, alert inbox, profile card, receipt |
-| Comprador identificado | Obligatorio | product-level answer, outside this document; the engine's contribution is a verdict that can be handed to a third party with its receipt |
+| Comprador identificado | Obligatorio | answered in [../COMPRADOR.md](../COMPRADOR.md); the engine's contribution is a verdict that can be handed to a third party with its receipt |
 | Demo navegable | Obligatorio | static bundle + static site: nothing to run server-side |
 | Anticipación medida *(bonus)* | Bonus | injection study: detection delay by shape (spike / step / ramp) and size band, false-alert rate |
-| Monitor que avisa *(bonus)* | Bonus | `alerts.json` with fired / suppressed / abstained states and reasons |
+| Monitor que avisa *(bonus)* | Bonus | `alerts.json` aporta eventos y motivos; la web añade el banner proactivo y el backend entrega por SMTP los avisos internos y de empresa a Mailpit. Ningún correo sale de la demo. |
 
 ## Known limitations
 

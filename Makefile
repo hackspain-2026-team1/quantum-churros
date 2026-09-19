@@ -2,7 +2,7 @@
 
 COMPOSE := docker compose -f compose.yaml -f compose.dev.yaml
 XRAY_DATA ?= data/raw
-XRAY_BUNDLE ?= frontend/static/data/v1
+XRAY_BUNDLE ?= bundle
 XRAY_OUT ?= artifacts
 EVIDENCE_MONTHS ?= 24
 
@@ -26,6 +26,10 @@ logs: ## Follow service logs
 status: ## Show service and health status
 	$(COMPOSE) ps
 
+.PHONY: mailpit-notify
+mailpit-notify: ## Reset Mailpit and capture demo emails from the latest fired close
+	$(COMPOSE) run --rm notifier
+
 .PHONY: test
 test: test-engine test-backend test-frontend ## Run every test suite
 
@@ -38,8 +42,8 @@ test-backend: ## Run API tests
 	uv run --package quantum-churros-api pytest backend/tests
 
 .PHONY: test-frontend
-test-frontend: ## Type-check and test the frontend
-	cd frontend && bun run check && bun run test
+test-frontend: ## Type-check and build the production frontend
+	cd frontend && bun run check && bun run build:despliegue
 
 .PHONY: test-engine-data
 test-engine-data: ## Run the engine tests that need the real dataset (XRAY_DATA=<folder>)
@@ -97,7 +101,7 @@ NO_MOCKS_PATTERN := COMP_0680|Velasco|4,1 meses|74\.5|[Cc]at[Bb]oost|SHAP
 
 .PHONY: no-mocks
 no-mocks: ## Fail when demo literals or retired model copy remain in shipped code
-	@if grep -rnIE '$(NO_MOCKS_PATTERN)' frontend/src backend/app; then \
+	@if rg -n '$(NO_MOCKS_PATTERN)' frontend/src backend/app; then \
 		echo 'no-mocks: demo literals found in shipped code (listed above)'; exit 1; \
 	else \
 		echo 'no-mocks: clean'; \

@@ -20,9 +20,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "contracts" / "xray-export-v1.schema.json"
-FIXTURE_DIR = (
-    Path(__file__).resolve().parents[2] / "frontend" / "e2e" / "fixtures" / "bundle" / "v1"
-)
+FIXTURE_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "bundle" / "v1"
 BUNDLE_SCHEMA = "xray-export-v1"
 PILLAR_KEYS = ("liquidity", "payments", "collections", "activity", "debt")
 BAND_KEYS = ("critical", "watch", "stable", "solid")

@@ -7,10 +7,12 @@ data/external/*
 data/interim/*
 data/processed/*
 frontend/node_modules
-frontend/.svelte-kit
-frontend/build
-frontend/test-results
-frontend/playwright-report
+frontend/dist
+frontend/public/datos
+frontend/public/rumbo
+frontend/pruebas/capturas
+bundle
+rumbo
 **/__pycache__
 **/.pytest_cache
 **/*.pyc
