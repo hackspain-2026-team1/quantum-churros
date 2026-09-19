@@ -2058,35 +2058,6 @@ body[data-vista="metodologia"] .regla {
   max-width: 80ch;
   line-height: 1.5;
 }
-/* Los desplegables llevan la misma ropa que los demás mandos: sin cromo del navegador. */
-.sel-sutil {
-  appearance: none;
-  -webkit-appearance: none;
-  width: auto;
-  max-width: 280px;
-  text-overflow: ellipsis;
-  font: 500 13px var(--sans);
-  color: var(--tinta);
-  border: 1px solid var(--borde);
-  border-radius: 9px;
-  padding: 5px 28px 5px 10px;
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236e707c' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-      no-repeat right 9px center,
-    #fff;
-  cursor: pointer;
-  transition:
-    border-color 160ms var(--salida),
-    background-color 160ms var(--salida),
-    box-shadow 200ms var(--salida);
-}
-.sel-sutil:hover {
-  border-color: var(--borde-2);
-  box-shadow: var(--sombra-1);
-}
-.sel-sutil:active {
-  background-color: var(--fondo-3);
-}
 .buscar-sutil {
   font: 13px var(--sans);
   border: 1px solid var(--borde);
@@ -3110,9 +3081,7 @@ button.filtro-opcion[aria-pressed="true"] {
 	.entrada-rosa { width: 120px; height: 120px; margin: 4px 0; }
 	.dl-tecnica { grid-template-columns: 1fr; }
 	.g-etq.eje-banda { display: none; }
-	.g-etq.boya { font-size: 11px; }
 	.buscar-sutil { min-width: 0; width: 100%; }
-	.sel-sutil { max-width: 100%; }
 	.ct-fila { grid-template-columns: 1fr 60px 60px; }
 	.ct-barra { display: none; }
 	.atencion li { grid-template-columns: 1fr auto; }
@@ -3172,8 +3141,8 @@ button.filtro-opcion[aria-pressed="true"] {
 .informe-pie { margin-top: 30px; padding-top: 10px; border-top: 1px solid var(--borde); font-size: 10.5px; color: var(--apagado); }
 .informe-vacio { font: 18px/1.5 var(--serif); padding: 40px 0; }
 /* En papel no se toca nada: fuera los controles. */
-.informe .controles-grafico .sel-sutil, .informe .av-triaje, .informe .rec-estado, .informe .rec-marca input, .informe .as-enlace,
-.informe .buscar-sutil, .informe .bandeja-pestanas, .informe .sec-marcas, .informe select, .informe input { display: none !important; }
+.informe .av-triaje, .informe .rec-estado, .informe .rec-marca input, .informe .as-enlace,
+.informe .buscar-sutil, .informe .bandeja-pestanas, .informe .sec-marcas, .informe input { display: none !important; }
 .informe .escenarios { pointer-events: none; }
 .informe .g-etq.boya.h3, .informe .solo-pantalla, .informe .mon-mapas { display: none; }
 .informe .esc:not(.activo) { display: none; }
@@ -3228,21 +3197,18 @@ body[data-vista='entrada'] .regla, body[data-vista='entrada'] .reproducir, body[
 .cab-circulo { position: relative; width: 168px; height: 168px; margin: 0 0 0 -10px; }
 .cab-circulo .cab-numeral { position: absolute; inset: 0; height: auto; }
 .cab-banda { position: absolute; left: 0; right: 0; bottom: 36px; text-align: center; font: italic 400 15px var(--serif); color: var(--banda-t, var(--tinta-2)); }
+.cab-grupo { position: absolute; top: calc(100% + 8px); left: 0; right: 0; text-align: center; font: 500 12.5px var(--sans); color: var(--apagado); }
 .cab-texto { padding-top: 14px; }
 .cab-texto h1 { font: 600 30px/1.1 var(--serif); letter-spacing: -0.01em; }
 .cab-sub { color: var(--apagado); margin: 4px 0 8px; font-size: 13px; }
 /* El nombre de la organización, dentro de la ficha de una empresa: un clic y se sube. */
 .volver-grupo { font: inherit; color: var(--tinta-2); border-bottom: 1px solid var(--borde-2); padding: 0 0 1px; transition: color 140ms, border-color 140ms; }
 .volver-grupo:hover { color: var(--info-t); border-bottom-color: var(--info); }
-.cab-marca.grupo.tocable { cursor: pointer; }
-.cab-marca.grupo.tocable:hover { color: var(--info-t); }
-.cab-marca.grupo.tocable:hover i { background: var(--info); }
 .cab-texto .linea-estado { font-size: 13px; }
 .cab-explica { display: grid; gap: 3px; font: 400 14.5px/1.4 var(--serif); color: var(--tinta-2); margin-top: 8px; }
 .cab-marca { display: inline-flex; align-items: center; gap: 7px; font-family: var(--sans); font-size: 12.5px; color: var(--apagado); }
 .cab-marca i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .cab-marca.pares i { border: 1.5px solid var(--apagado); }
-.cab-marca.grupo i { background: var(--apagado); width: 7px; height: 7px; }
 
 /* El horizonte. */
 .horizonte { min-width: 0; }
@@ -3268,11 +3234,6 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .g-etq.zona-t.despues { transform: translate(4px, 0); font-size: 12px; color: var(--tenue); }
 .g-etq.referencia-tendencia { transform: translate(6px, -50%); font: italic 11.5px var(--serif); color: var(--tellme, #9d4bdd); pointer-events: auto; cursor: help; }
 .g-etq.sin-validar { transform: translate(-50%, -20px); font: italic 11.5px var(--serif); color: var(--tenue); pointer-events: auto; cursor: help; border-bottom: 1px dotted var(--borde-2); }
-/* Las boyas del horizonte cuelgan de su mes: rótulos del gráfico, no una caja con bordes. */
-.g-etq.boya { transform: translate(-50%, 26px); font: italic 12.5px var(--serif); color: var(--apagado); white-space: nowrap; pointer-events: auto; cursor: help; }
-.g-etq.boya.h3 { transform: translate(-1px, 26px); }
-.g-etq.boya.h6 { transform: translate(-1px, 40px); }
-.g-etq.boya.fin { transform: translate(-100%, 26px); }
 .horizonte .grafico { margin-bottom: 58px; }
 .g-etq.alternativa { transform: translate(6px, -50%); pointer-events: auto; cursor: pointer; }
 .g-etq.alternativa.esc-drift { --c: #9d4bdd; }
@@ -4494,7 +4455,6 @@ body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina
 
 .mon-opciones .mon-conmutador { background: transparent; padding: 0; }
 
-.mon-opciones .sel-sutil { width: auto; }
 
 .mon-frase-fila { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 
@@ -4537,12 +4497,14 @@ body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina
 .curva.leyendo .cv-guia-lee, .curva.leyendo .cv-pto-lee, .curva.leyendo .cv-etq.lee { opacity: 1; }
 .curva.leyendo .cv-etq.aqui { opacity: 0.25; }
 
-/* ─── Horizonte: los tres horizontes en una fila, siempre a la vista ─── */
+/* ─── Horizonte: los tres horizontes en una fila, siempre a la vista.
+ * Cuelgan de su mes como rótulos del gráfico: el mes arriba, la mediana y su franja debajo. */
 .g-etq.boya, .g-etq.boya.h3, .g-etq.boya.h6 {
-	transform: translate(-50%, 24px); display: grid; justify-items: center; gap: 1px; border: 0; padding: 0;
+	transform: translate(-50%, 24px); display: grid; justify-items: center; gap: 1px;
 	font: 400 11px/1.25 var(--sans); color: var(--tinta-2); white-space: nowrap; font-variant-numeric: tabular-nums;
+	pointer-events: auto; cursor: help;
 }
-.g-etq.boya.fin { transform: translate(-100%, 24px); justify-items: end; border: 0; padding: 0; }
+.g-etq.boya.fin { transform: translate(-100%, 24px); justify-items: end; }
 .g-etq.boya b { font: italic 400 12px var(--serif); color: var(--apagado); }
 /* En pantallas estrechas no caben en una fila: tres meses a la izquierda de su raya, seis debajo. */
 @media screen and (max-width: 699px) {
