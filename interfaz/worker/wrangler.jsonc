@@ -1,0 +1,13 @@
+{
+	// rumbo-vista: la vista del monitor en lenguaje natural, con Jev (ver src/index.ts y ../README.md).
+	// Despliegue: bunx wrangler@4 deploy (desde esta carpeta). La clave: bunx wrangler@4 secret put TYPESAFE_API_KEY.
+	"$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+	"name": "rumbo-vista",
+	"main": "src/index.ts",
+	"account_id": "f22c7a728ddc8e41cefd2644f8fb7632",
+	"compatibility_date": "2026-09-01",
+	"workers_dev": true,
+	// Treinta peticiones por minuto y dirección: de sobra para escribir, poco para abusar.
+	"ratelimits": [{ "name": "LIMITE", "namespace_id": "1908", "simple": { "limit": 30, "period": 60 } }],
+	"observability": { "enabled": true, "head_sampling_rate": 1 }
+}

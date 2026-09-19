@@ -163,6 +163,18 @@ const CORTO_ESCENARIO = { base: 'todo igual', drift: 'deriva', stress: 'peor tri
 /** Cada escenario tiene su color de arena; el elegido se aprieta, los otros se sueltan. */
 const TONO_ESCENARIO = { base: TONO.apagado, drift: TONO.tellme, stress: TONO.ocre } as const;
 
+/**
+ * Percentil de un escenario en el mes m (0 = el primero previsto). Los escenarios alternativos solo
+ * traen la mediana: la franja sale entonces de sus propios granos simulados de ese mes.
+ */
+function cuantil(e: EscenarioM, k: 'p10' | 'p50' | 'p90', m: number): number {
+	const q = (e.q as Partial<Record<'p10' | 'p50' | 'p90', number[]>>)[k];
+	if (q) return q[m];
+	const v = (e.grains ?? []).filter((g) => g[0] === m + 1).map((g) => g[1]).sort((a, b) => a - b);
+	if (!v.length) return e.q.p50[m];
+	return v[Math.min(v.length - 1, Math.max(0, Math.round((k === 'p10' ? 0.1 : k === 'p90' ? 0.9 : 0.5) * (v.length - 1))))];
+}
+
 export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo = false): HTMLElement {
 	const caja = h('div', { class: `grafico ${o.grande ? 'grande' : ''}`, style: { height: `${o.alto}px` } });
 	const meses = d.ent.months.filter((m) => m.month <= d.corte);
@@ -206,12 +218,14 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 				const e = escenarios![k];
 				if (!e) continue;
 				const es = k === elegido;
-				futuros.push({ granos: e.grains, tono: TONO_ESCENARIO[k], alfa: es ? 0.78 : 0.34, mediana: es ? e.q.p50 : undefined, suelto: es ? 0 : 1 });
+				// Los escenarios que solo traen la mediana se dibujan como su hilo: definido si es el elegido, tenue si no.
+				const conGranos = !!e.grains?.length;
+				futuros.push({ granos: e.grains ?? [], tono: TONO_ESCENARIO[k], alfa: es ? 0.78 : conGranos ? 0.34 : 0.05, mediana: es || !conGranos ? e.q.p50 : undefined, suelto: es ? 0 : 1 });
 				if (!es) alternativos.push({ k, e });
 			}
 		}
 		const todas = [esc, ...accs, ...alternativos.map((x) => x.e)];
-		for (const e of todas) for (const k of ['p10', 'p90'] as const) for (const v of e.q[k]) { lo = Math.min(lo, v / 10); hi = Math.max(hi, v / 10); }
+		for (const e of todas) for (const k of ['p10', 'p90'] as const) for (let m = 0; m < nF; m++) { const v = cuantil(e, k, m); lo = Math.min(lo, v / 10); hi = Math.max(hi, v / 10); }
 		if (accs.length) {
 			const lag = Math.max(...accs.map((a) => a.lag_months));
 			const ids = accs.map((a) => a.id).sort();
@@ -251,9 +265,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		for (const hz of [3, 6, 12] as const) {
 			const k = hz - 1;
 			if (k >= nF) continue;
-			const b = esc.bands[`h${hz}` as 'h3' | 'h6' | 'h12'];
-			const q = esc.q;
-			const txt = `${hz === 12 ? 'un año' : `${hz} meses`}: ${f.score(q.p10[k])}–${f.score(q.p90[k])}`;
+			const b = esc.bands?.[`h${hz}` as 'h3' | 'h6' | 'h12'];
+			const txt = `${hz === 12 ? 'un año' : `${hz} meses`}: ${f.score(cuantil(esc, 'p10', k))}–${f.score(cuantil(esc, 'p90', k))}`;
 			const boya = eti(`boya h${hz} ${hz === 12 ? 'fin' : ''}`, txt, X(hoy + hz), '100%');
 			if (b) boya.title = d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ');
 		}
@@ -267,7 +280,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			ultimoY = y;
 			const et = eti('alternativa', `${CORTO_ESCENARIO[k]} · ${f.score(ult)}`, X(hoy + nF), `${y}px`);
 			et.classList.add(`esc-${k}`);
-			et.title = `${NOMBRE_ESCENARIO[k]}: a un año, entre ${f.score(e.q.p10[nF - 1])} y ${f.score(e.q.p90[nF - 1])}. Toca para verlo definido.`;
+			et.title = `${NOMBRE_ESCENARIO[k]}: a un año, entre ${f.score(cuantil(e, 'p10', nF - 1))} y ${f.score(cuantil(e, 'p90', nF - 1))}. Toca para verlo definido.`;
 			if (o.alElegir) et.addEventListener('click', (ev) => { ev.stopPropagation(); o.alElegir!(k); });
 		}
 		// Tocar la arena del futuro elige el escenario cuya mediana pasa más cerca.
@@ -345,7 +358,8 @@ function pieGrafico(d: DatosFicha, esc: OpcionesGrafico['escenario'], metrica: s
 	if (metrica !== 'score') return 'Serie mensual del motor. La previsión se dibuja solo para el score.';
 	if (!d.hor?.scenarios) return d.hor?.reason ? `Sin horizonte: ${d.hor.reason}` : 'Sin horizonte para esta entidad.';
 	if (d.hor.cut !== d.corte) return `Los horizontes se calculan desde ${f.mes(d.hor.cut)}: mueve la regla a ese mes para verlos.`;
-	const base = 'Cada grano del futuro es una de 400 simulaciones puntuadas con el propio motor; donde se amontonan, es más probable. Los tres escenarios se ven a la vez: el elegido, definido y con su mediana; los otros, sueltos y en su color.';
+	const modelo = (d.hor as unknown as { model?: unknown }).model;
+	const base = `${modelo ? 'Cada grano del futuro es un camino posible según el modelo de horizontes, calibrado con lo que pasó de verdad' : 'Cada grano del futuro es una de 400 simulaciones puntuadas con el propio motor'}; donde se amontonan, es más probable. Los tres escenarios se ven a la vez: el elegido, definido y con su mediana; los otros, sueltos y en su color (los que solo traen la mediana, como un hilo).`;
 	return esc === 'drift' ? `${base} Este escenario prolonga la deriva de 12 meses: es un «qué pasaría si», no una predicción (en la prueba hacia atrás acierta menos que el básico).` : esc === 'stress' ? `${base} Los tres primeros meses repiten su peor trimestre observado.` : base;
 }
 

@@ -1,0 +1,171 @@
+{
+ "modelo": "jev-1.13.0",
+ "respuestas": {
+  "relevante": {
+   "type": "noul",
+   "noul": 0.63
+  },
+  "forma": {
+   "type": "choice",
+   "choice": "no_dice",
+   "confidence": 0.34,
+   "probabilities": {
+    "tapiz": 0.01,
+    "bandas": 0.02,
+    "avisos": 0.01,
+    "plano": 0.16,
+    "horizonte": 0.01,
+    "no_dice": 0.41,
+    "ranking": 0.37,
+    "flujo": 0.01
+   }
+  },
+  "modo": {
+   "type": "choice",
+   "choice": "tabla",
+   "confidence": 0.99,
+   "probabilities": {
+    "tabla": 0.99,
+    "arena": 0.01,
+    "no_dice": 0
+   }
+  },
+  "unidad": {
+   "type": "choice",
+   "choice": "organizaciones",
+   "confidence": 1,
+   "probabilities": {
+    "organizaciones": 1,
+    "no_dice": 0,
+    "empresas": 0
+   }
+  },
+  "orden": {
+   "type": "choice",
+   "choice": "tamano",
+   "confidence": 0.51,
+   "probabilities": {
+    "tamano": 0.58,
+    "gravedad": 0.03,
+    "score": 0,
+    "cambio3": 0,
+    "horizonte": 0,
+    "no_dice": 0.34,
+    "avisos": 0,
+    "cambio": 0.05
+   }
+  },
+  "banda": {
+   "type": "choice",
+   "choice": "ninguna",
+   "confidence": 0.86,
+   "probabilities": {
+    "solid": 0,
+    "watch": 0.01,
+    "critical": 0.09,
+    "ninguna": 0.89,
+    "stable": 0.01
+   }
+  },
+  "movimiento": {
+   "type": "choice",
+   "choice": "ninguno",
+   "confidence": 0.76,
+   "probabilities": {
+    "ninguno": 0.79,
+    "deterioro": 0.08,
+    "cae": 0.11,
+    "por_confirmar": 0,
+    "entra_critico": 0,
+    "hacia_critico": 0,
+    "crece": 0,
+    "avisos": 0,
+    "baja_banda": 0.02,
+    "sin_datos": 0,
+    "mejora": 0,
+    "sube_banda": 0
+   }
+  },
+  "zona": {
+   "type": "choice",
+   "choice": "tuerce",
+   "confidence": 0.98,
+   "probabilities": {
+    "tuerce": 0.98,
+    "solida": 0,
+    "ninguna": 0.02,
+    "hunde": 0,
+    "mejora": 0
+   }
+  },
+  "sector": {
+   "type": "choice",
+   "choice": "ninguno",
+   "confidence": 0.94,
+   "probabilities": {
+    "Servicios tecnológicos": 0,
+    "ninguno": 0.94,
+    "Servicios empresariales": 0.01,
+    "Servicios financieros": 0.01,
+    "Marketing y publicidad": 0.01,
+    "Logística y cadena de suministro": 0.01,
+    "Software": 0.01,
+    "Energía y utilities": 0,
+    "Servicios profesionales": 0,
+    "Manufactura": 0.01
+   }
+  },
+  "pais": {
+   "type": "choice",
+   "choice": "ninguno",
+   "confidence": 0.97,
+   "probabilities": {
+    "DE": 0,
+    "ninguno": 0.98,
+    "ES": 0.02
+   }
+  },
+  "tamano": {
+   "type": "choice",
+   "choice": "Grande",
+   "confidence": 1,
+   "probabilities": {
+    "Micro": 0,
+    "Pequeña": 0,
+    "Mediana": 0,
+    "Grande": 1,
+    "ninguno": 0
+   }
+  },
+  "producto": {
+   "type": "choice",
+   "choice": "ninguno",
+   "confidence": 0.99,
+   "probabilities": {
+    "plan_pensiones": 0,
+    "ninguno": 0.99,
+    "depositos": 0,
+    "factoring": 0,
+    "confirming": 0.01,
+    "cuenta_remunerada": 0,
+    "linea_credito": 0,
+    "seguro_credito": 0
+   }
+  },
+  "producto_modo": {
+   "type": "choice",
+   "choice": "no_dice",
+   "confidence": 0.85,
+   "probabilities": {
+    "encaja": 0.1,
+    "no_dice": 0.9,
+    "tiene": 0
+   }
+  }
+ },
+ "uso": {
+  "input_tokens": 2253,
+  "output_tokens": 843
+ },
+ "ms": 290
+}

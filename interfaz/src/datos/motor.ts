@@ -76,10 +76,13 @@ export async function carteraMotor(progreso: (fraccion: number) => void): Promis
 	const porId = new Map(ficheros.map((g) => [g.id, g]));
 
 	const alertasPorGrupo = new Map<string, Alerta[]>();
+	// Los avisos de empresa se guardan aparte: los usa el monitor de la portada.
+	const alertasEmpresas: Alerta[] = [];
 	for (const a of alertas.alerts) {
-		if (a.entity_kind !== 'group') continue;
+		const al: Alerta = { id: a.id, entity_id: a.entity_id, group_id: a.group_id, month: idx.get(a.month) ?? 0, kind: a.kind, state: a.state, shown: a.shown };
+		if (a.entity_kind !== 'group') { alertasEmpresas.push(al); continue; }
 		const lista = alertasPorGrupo.get(a.group_id) ?? [];
-		lista.push({ id: a.id, entity_id: a.entity_id, group_id: a.group_id, month: idx.get(a.month) ?? 0, kind: a.kind, state: a.state, shown: a.shown });
+		lista.push(al);
 		alertasPorGrupo.set(a.group_id, lista);
 	}
 
@@ -140,6 +143,7 @@ export async function carteraMotor(progreso: (fraccion: number) => void): Promis
 		months,
 		pillars: manifest.pillars.map((p) => ({ key: p.key, label: p.label, weight: p.weight })),
 		groups,
+		alertasEmpresas,
 	};
 }
 

@@ -29,6 +29,7 @@
 
 - `interfaz/` is Rumbo, the redesigned interface. By team decision it is plain TypeScript + Vite + Bun (WebGL2 sand rendering, hand-drawn icons), not SvelteKit or shadcn-svelte; the SvelteKit and shadcn-svelte rules above apply to `frontend/`. Read `interfaz/README.md` and `interfaz/DIARIO.md` before changing it.
 - Rumbo ships inside the `web` image and is served at `/rumbo/`. It reads the bundle from `/data/v1/` and its derived data (`params.json`, `indice-empresas.json`, `products/`, `horizons/`) from `/data/rumbo/`, mounted from `/opt/quantum-churros/rumbo`. Never put Rumbo files inside the engine bundle: that changes its `bundle_id` and breaks the bundle integrity check.
+- Rumbo's home page is a portfolio monitor. Its natural-language view uses Jev (TypeSafe) through José Luis's own Cloudflare Worker (`interfaz/worker/`, `rumbo-vista`); the TypeSafe key lives only as a Worker secret. `VITE_VISTA_URL` in `interfaz/.env` is the only external URL the build guard allows.
 - Rumbo never falls back to invented data: a missing file is shown as missing. The synthetic portfolio exists only in development (`?datos=sinteticos`); `bun run build:despliegue` fails if it, any data file, a hard-coded entity id or a third-party request reaches the build.
 
 ## Pre-redesign UI catalog

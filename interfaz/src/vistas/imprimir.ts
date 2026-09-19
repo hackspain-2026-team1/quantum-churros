@@ -23,6 +23,8 @@ export function prepararInforme(informe: HTMLElement | null) {
 	capa.append(informe ?? h('div', { class: 'informe-vacio' }, h('p', {}, 'Rumbo imprime el informe de una organización o de una empresa. Abre una y vuelve a imprimir.')));
 	document.body.append(capa);
 	document.documentElement.classList.add('con-informe');
+	// Las vistas del monitor ponen sus rótulos al conocer el ancho de la hoja.
+	capa.querySelectorAll<HTMLElement & { rotular?: () => void }>('.mon-lienzo').forEach((el) => el.rotular?.());
 	cocerArena(capa);
 }
 

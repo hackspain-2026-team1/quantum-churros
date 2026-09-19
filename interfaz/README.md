@@ -22,6 +22,25 @@ En desarrollo, Rumbo lee dos carpetas enlazadas en `public/` (fuera de git):
 
 Con `?datos=sinteticos`, y solo en desarrollo, se usa una cartera sintética con la forma exacta del contrato. El build de producción no la incluye.
 
+## El monitor y «dile qué quieres ver»
+
+La portada es el monitor de la cartera (`src/vistas/monitor.ts`, con la lógica en `src/datos/monitor.ts` y las formas de arena en `src/arena/vistas.ts`).
+
+El campo «o dile qué quieres ver» entiende la frase en dos capas:
+- palabras clave, en el navegador;
+- Jev, a través del Worker `worker/` (`rumbo-vista`). Su dirección va en `.env` (`VITE_VISTA_URL`) y es pública; la clave de TypeSafe es un secreto del Worker.
+
+Para desplegar el Worker, desde `worker/`:
+
+```sh
+bunx wrangler@4 deploy
+bunx wrangler@4 secret put TYPESAFE_API_KEY
+```
+
+La clave se escribe en el aviso de wrangler; nunca va en la línea de órdenes.
+
+`bun pruebas/jev/evaluar.mjs` mide cuánto acierta, con el servidor de desarrollo arrancado. Sin `VITE_VISTA_URL`, el monitor entiende solo por palabras clave.
+
 ## Despliegue
 
 Rumbo viaja dentro de la imagen `web` y se sirve en **`/rumbo/`**, con el mismo servidor que la aplicación SvelteKit. No hace falta ni un contenedor ni un puerto nuevos.
