@@ -28,6 +28,8 @@ export interface CtxMonitor {
 	c: Cartera;
 	man: Manifiesto;
 	corte(): string;
+	/** El grupo del CFO cuando se mira desde su silla; null cuando lo mira Embat. */
+	cfo(): string | null;
 	abrirGrupo(id: string): void;
 	abrirEmpresa(grupo: string, id: string): void;
 	irMapa(v: 'plano' | 'tapiz', est: EstadoMonitor): void;
@@ -58,23 +60,32 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	let indice: EntidadesM | null = null;
 	const t = () => c.months.indexOf(ctx.corte());
 	const cache = new Map<string, Entidad[]>();
+	// El CFO mira sus empresas, y solo las suyas: el universo se recorta, no se filtra.
+	const cfo = () => ctx.cfo();
+	const grupoCFO = () => (cfo() ? c.groups.find((g) => g.id === cfo()) ?? null : null);
+	if (cfo()) est = { ...est, unidad: 'empresas', filtros: { ...est.filtros, producto: undefined, sector: undefined, pais: undefined, grupo: undefined } };
+	// Un grupo de una o dos empresas no es una cartera: ni rosa, ni buscador, ni siete formas.
+	const reducido = () => (grupoCFO()?.n_companies ?? 99) <= 2;
+	const FORMAS_POCAS = ['avisos', 'horizonte', 'tapiz'];
+	if (reducido() && est.forma === 'ranking') est = { ...est, forma: 'avisos', modo: 'tabla' };
 	const todas = (u: Unidad = est.unidad) => {
-		const k = `${u}|${t()}|${indice ? 1 : 0}`;
-		if (!cache.has(k)) cache.set(k, entidades(c, u, t(), indice));
+		const k = `${u}|${t()}|${indice ? 1 : 0}|${cfo() ?? ''}`;
+		if (!cache.has(k)) cache.set(k, entidades(c, u, t(), indice, cfo()));
 		return cache.get(k)!;
 	};
 	const visibles = () => ordenar(todas().filter((e) => pasa(c, e, est.filtros, t())), est.orden);
 	const vocab = vocabulario(c);
-	const nombreEnt = (e: Entidad) => (e.kind === 'company' ? `${e.nombre} · ${f.grupo(e.grupo)}` : e.nombre);
+	// En la cartera, una empresa se nombra con su grupo detrás; en su propio grupo, el grupo sobra.
+	const nombreEnt = (e: Entidad) => (e.kind === 'company' && !cfo() ? `${e.nombre} · ${f.grupo(e.grupo)}` : e.nombre);
 	const abrir = (e: Entidad) => (e.kind === 'group' ? ctx.abrirGrupo(e.id) : ctx.abrirEmpresa(e.grupo, e.id));
 
 	const raiz = h('article', { class: 'entrada portada-monitor' });
 	const cabeza = h('div', { class: 'mon-cabeza' });
 	const campo = h('div', { class: 'mon-campo' });
 	const columnas = h('div', { class: 'mon-columnas' });
-	const vistaSec = h('section', { class: 'mon-vista', 'aria-label': 'La cartera' });
+	const vistaSec = h('section', { class: 'mon-vista', 'aria-label': 'Las entidades' });
 	const pie = h('p', { class: 'entrada-lema' });
-	const masAbajo = h('button', { type: 'button', class: 'mon-mas-abajo' }, h('span', {}, 'Piden atención, avisos y la cartera'), h('span', { class: 'mon-flecha', 'aria-hidden': 'true' }, '↓'));
+	const masAbajo = h('button', { type: 'button', class: 'mon-mas-abajo' }, h('span', {}, ctx.cfo() ? 'Piden atención, avisos y tus empresas' : 'Piden atención, avisos y la cartera'), h('span', { class: 'mon-flecha', 'aria-hidden': 'true' }, '↓'));
 	masAbajo.addEventListener('click', () => columnas.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 	// Primero el monitor y luego lo que se busca; con un filtro puesto, la cartera sube por encima.
 	raiz.append(cabeza, columnas, campo, vistaSec, pie, masAbajo);
@@ -113,7 +124,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			return { tipo: 'rosa', cx: cj.x + cj.w / 2, cy: cj.y + cj.h / 2, r: Math.min(cj.w, cj.h) * 0.36, zonas: r.zonas, aguja: Math.atan2(x, y || 0.0001) };
 		});
 		rosaCaja.append(rosa);
-		for (const [z, clase] of [['solida', 'ne'], ['tuerce', 'se'], ['hunde', 'so'], ['mejora', 'no']] as [Zona, string][]) {
+		if (reducido()) rosaCaja.classList.add('sin-rosa');
+		for (const [z, clase] of (reducido() ? [] : [['solida', 'ne'], ['tuerce', 'se'], ['hunde', 'so'], ['mejora', 'no']]) as [Zona, string][]) {
 			const b = h('button', { type: 'button', class: `rosa-zona ${clase} ${est.filtros.zona === z ? 'activa' : ''}`, title: `Quedarse con las que ${NOMBRE_ZONA[z]}` }, h('b', {}, f.numero(r.zonas[z])), ` ${NOMBRE_ZONA[z]}`);
 			b.addEventListener('click', () => filtrar({ zona: est.filtros.zona === z ? undefined : z }));
 			rosaCaja.append(b);
@@ -143,29 +155,51 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			r.sinScore ? h('span', { class: 'mon-mov' }, ` · ${f.numero(r.sinScore)} sin score este mes`) : null);
 		// «cambian de banda» abre el flujo, no un filtro.
 		(lineaMes.firstChild as HTMLElement).addEventListener('click', (ev) => { ev.stopImmediatePropagation(); cambiar({ forma: 'flujo' }); }, true);
+		// Los mapas son de la cartera entera: no existen para el CFO.
 		const mapas = h('div', { class: 'mon-mapas' });
-		for (const [v, t2, d2] of [['plano', 'Abrir el plano', 'nivel y ritmo, a pantalla completa'], ['tapiz', 'Abrir el tapiz', 'cada organización, mes a mes']] as const) {
+		if (!cfo()) for (const [v, t2, d2] of [['plano', 'Abrir el plano', 'nivel y ritmo, a pantalla completa'], ['tapiz', 'Abrir el tapiz', 'cada organización, mes a mes']] as const) {
 			const b = h('button', { type: 'button', class: 'mapa-btn' }, h('b', {}, t2), h('span', {}, d2));
 			b.addEventListener('click', () => ctx.irMapa(v, { ...est, filtros: est.unidad === 'organizaciones' ? est.filtros : {} }));
 			mapas.append(b);
 		}
+		const gr = grupoCFO();
 		const estado = h('div', { class: 'mon-estado' },
-			h('h1', { class: 'mon-titulo' }, 'La cartera en ', h('span', { class: 'mon-mes' }, f.mes(ctx.corte()))),
-			h('p', { class: 'mon-cuantas' }, `${f.plural(r.total, uno, varias)}${est.unidad === 'empresas' ? ` de ${f.plural(c.groups.length, 'organización', 'organizaciones')}` : ''}`),
+			gr ? h('h1', { class: 'mon-titulo' }, `${f.grupo(gr.id)} en `, h('span', { class: 'mon-mes' }, f.mes(ctx.corte())))
+				: h('h1', { class: 'mon-titulo' }, 'La cartera en ', h('span', { class: 'mon-mes' }, f.mes(ctx.corte()))),
+			gr ? cabezaGrupo(gr) : h('p', { class: 'mon-cuantas' }, `${f.plural(r.total, uno, varias)}${est.unidad === 'empresas' ? ` de ${f.plural(c.groups.length, 'organización', 'organizaciones')}` : ''}`),
 			lineaBandas, lineaMes, mapas);
-		cabeza.append(rosaCaja, estado);
+		cabeza.append(...(reducido() ? [] : [rosaCaja]), estado);
+		cabeza.classList.toggle('mon-cabeza-sola', reducido());
+	}
+
+	/** El titular del CFO: dónde está su grupo, cómo se ha movido y dónde estará en seis meses. */
+	function cabezaGrupo(g: Cartera['groups'][number]): HTMLElement {
+		const tt = t();
+		const m = g.meses[tt], m3 = g.meses[tt - 3];
+		const d3 = m?.shown != null && m3?.shown != null ? m.shown - m3.shown : null;
+		const hz = c.horizontes && c.horizontes.cut === c.months[tt] ? c.horizontes.entities[g.id] : null;
+		const abrirFicha = h('button', { type: 'button', class: 'as-enlace' }, 'Ver la ficha del grupo');
+		abrirFicha.addEventListener('click', () => ctx.abrirGrupo(g.id));
+		return h('p', { class: 'mon-cuantas mon-grupo' },
+			h('b', { class: `mon-grupo-score ${m?.band === 'critical' ? 'critico' : ''}` }, m?.shown != null ? f.score(m.shown) : '—'),
+			m?.band ? h('span', {}, ` ${nombreBandaM(c, m.band).toLowerCase()}`) : null,
+			d3 !== null ? h('span', { class: 'mon-mov' }, ` · ${d3 >= 0 ? '+' : '−'}${f.numero(Math.abs(Math.round(d3 / 10)))} en tres meses`) : null,
+			hz?.p50_h6 != null ? h('span', { class: 'mon-mov' }, ` · a seis meses, ${f.score(hz.p50_h6)}`) : null,
+			h('span', { class: 'mon-mov' }, ` · ${f.plural(g.n_companies, 'empresa', 'empresas')} `), abrirFicha);
 	}
 
 	// ─── El campo: una organización o una vista ─────────────
-	const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: '¿qué organización?', 'aria-label': 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off' }) as HTMLInputElement;
+	const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: cfo() ? '¿qué empresa?' : '¿qué organización?', 'aria-label': cfo() ? 'Buscar una de tus empresas o pedir una vista' : 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off' }) as HTMLInputElement;
 	const resultados = h('ul', { class: 'entrada-resultados', role: 'listbox' });
 	const entendido = h('div', { class: 'mon-entendido', role: 'status' });
 	let peticion: AbortController | null = null;
 	// La segunda línea: «dile qué quieres ver», con su propio campo y ejemplos que se pueden tocar.
-	const pedirCampo = h('input', { class: 'mon-pedir-campo', type: 'search', placeholder: 'o dile qué quieres ver…', 'aria-label': 'Dile qué quieres ver de la cartera', autocomplete: 'off' }) as HTMLInputElement;
+	const pedirCampo = h('input', { class: 'mon-pedir-campo', type: 'search', placeholder: 'o dile qué quieres ver…', 'aria-label': cfo() ? 'Dile qué quieres ver de tus empresas' : 'Dile qué quieres ver de la cartera', autocomplete: 'off' }) as HTMLInputElement;
 	const pedirBoton = h('button', { type: 'button', class: 'mon-pedir-boton' }, 'Ver');
 	const ejemplos = h('p', { class: 'mon-ejemplos' });
-	for (const ej of ['las que se hunden en marketing', 'qué ha cambiado este mes', 'cómo estarán en seis meses', 'empresas sin datos del banco, en tabla']) {
+	for (const ej of cfo()
+		? ['las que se tuercen', 'qué ha cambiado este mes', 'cómo estarán en seis meses', 'las críticas, en tabla']
+		: ['las que se hunden en marketing', 'qué ha cambiado este mes', 'cómo estarán en seis meses', 'empresas sin datos del banco, en tabla']) {
 		const b = h('button', { type: 'button', class: 'ejemplo' }, ej);
 		b.addEventListener('click', () => { pedirCampo.value = ej; void pedir(ej); });
 		ejemplos.append(b, ' ');
@@ -179,11 +213,25 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		h('div', { class: 'mon-pedir' }, h('span', { class: 'mon-pedir-grano', 'aria-hidden': 'true' }), pedirCampo, pedirBoton),
 		ejemplos, entendido);
 
+	const normal = (x: string) => x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 	const buscar = () => {
 		vaciar(resultados);
 		const texto = entrada.value.trim();
 		if (!texto) return;
-		const q = texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+		const q = normal(texto);
+		const gr = grupoCFO();
+		if (gr) {
+			// En su grupo solo se buscan sus empresas: ni un nombre de fuera.
+			const numE = Number(q.replace(/^empresa\s*/, ''));
+			const suyas = todas('empresas').filter((e) => (Number.isFinite(numE) && numE > 0 && Number(e.id.split('_')[1]) === numE) || (q.length >= 3 && normal(`${e.nombre} empresa ${Number(e.id.split('_')[1])}`).includes(q))).slice(0, 6);
+			for (const e of suyas) {
+				const li = h('li', { role: 'option', tabindex: '0', class: 'tocable' }, h('b', {}, e.nombre), h('span', { class: 'sub' }, [e.tamano, e.band ? nombreBandaM(c, e.band) : null].filter(Boolean).join(' · ')), h('span', { class: 'res-score' }, f.score(e.shown)));
+				li.addEventListener('click', () => abrir(e));
+				li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') abrir(e); });
+				resultados.append(li);
+			}
+			return;
+		}
 		const num = Number(q.replace(/^(grupo|organizacion)\s*/, ''));
 		const hits = c.groups.filter((g) => (Number.isFinite(num) && num > 0 && Number(g.id.split('_')[1]) === num) || (q.length >= 3 && `${g.industry ?? ''} ${PAISES[g.country ?? ''] ?? ''} ${f.grupo(g.id)} grupo ${Number(g.id.split('_')[1])}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(q))).slice(0, 6);
 		const tt = t();
@@ -208,6 +256,14 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	});
 
 	function abrirNumero(a: NonNullable<Interpretacion['abrir']>) {
+		const gr = grupoCFO();
+		if (gr) {
+			const em = gr.companies.find((x) => Number(x.id.split('_')[1]) === a.numero);
+			if (em) return ctx.abrirEmpresa(gr.id, em.id);
+			vaciar(entendido);
+			entendido.append(h('p', {}, `Ninguna de tus empresas lleva el número ${a.numero}.`));
+			return;
+		}
 		if (a.kind === 'group') {
 			const g = c.groups.find((x) => Number(x.id.split('_')[1]) === a.numero);
 			if (g) return ctx.abrirGrupo(g.id);
@@ -236,7 +292,9 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 
 	function sinEntender(texto: string) {
 		vaciar(entendido);
-		entendido.append(h('p', {}, `No sé qué vista es «${texto}». Prueba con una banda («las críticas»), un movimiento («las que caen»), un sector, un país, un producto o una forma («el flujo», «en tabla»).`));
+		entendido.append(h('p', {}, cfo()
+			? `No sé qué vista es «${texto}». Prueba con una banda («las críticas»), un movimiento («las que caen») o una forma («el flujo», «en tabla»).`
+			: `No sé qué vista es «${texto}». Prueba con una banda («las críticas»), un movimiento («las que caen»), un sector, un país, un producto o una forma («el flujo», «en tabla»).`));
 	}
 
 	function aplicarInterpretacion(i: Interpretacion, texto: string, afinando: boolean, nota?: string) {
@@ -279,7 +337,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		const n = visibles().length;
 		const [uno, varias] = UNIDAD[est.unidad];
 		const piezas = piezasFiltro(c, est.filtros, (id) => producto(id).nombre);
-		const s = h('span', { class: 'mon-descripcion' }, `${n === 1 ? 'La' : 'Las'} ${f.numero(n)} ${n === 1 ? uno : varias}`);
+		const s = h('span', { class: 'mon-descripcion' }, n === 1 ? `La ${uno}` : `Las ${f.numero(n)} ${varias}`);
 		for (const p of piezas) {
 			s.append(' ');
 			const ficha = h('span', { class: 'mon-ficha' }, p.texto);
@@ -312,7 +370,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		};
 		piden.slice(0, movil ? 5 : 6).forEach((e, i) => lista.append(fila(e, i, e.motivo)));
 		if (!piden.length) lista.append(h('li', { class: 'nota' }, `Ninguna ${UNIDAD[est.unidad][0]} pide atención este mes.`));
-		const verTodas = h('button', { type: 'button', class: 'as-enlace' }, `Ver las ${f.numero(piden.length)} en el ranking`);
+		const verTodas = h('button', { type: 'button', class: 'as-enlace' }, piden.length === 1 ? 'Verla en el ranking' : `Ver las ${f.numero(piden.length)} en el ranking`);
 		verTodas.addEventListener('click', () => { cambiar({ forma: 'ranking', orden: 'gravedad', filtros: {} }); vistaSec.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 		const listaSuben = h('ol', { class: 'atencion mon-lista suben' });
 		suben.slice(0, 3).forEach((e) => listaSuben.append(fila(e, null, e.sube!)));
@@ -323,6 +381,13 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			suben.length ? listaSuben : null);
 		// Avisos del mes, con el triaje de siempre.
 		const avisosMes = todas().flatMap((e) => e.avisos.filter((a) => a.state === 'fired').map((a) => ({ e, a })));
+		// El CFO ve también los avisos de su grupo, que no son de ninguna empresa suya.
+		const gAv = grupoCFO();
+		if (gAv) {
+			const suyos = new Set(avisosMes.map((x) => `${x.a.kind}|${x.a.month}|${x.a.shown}`));
+			const eG = todas('organizaciones').find((x) => x.id === gAv.id);
+			if (eG) for (const a of eG.avisos.filter((x) => x.state === 'fired')) if (!suyos.has(`${a.kind}|${a.month}|${a.shown}`)) avisosMes.push({ e: eG, a });
+		}
 		const orden = TIPOS_AVISO.map((x) => x.id);
 		avisosMes.sort((x, y) => orden.indexOf(x.a.kind) - orden.indexOf(y.a.kind) || (x.e.shown ?? 0) - (y.e.shown ?? 0));
 		const sinRevisar = avisosMes.filter((x) => !triaje.de(x.a.id));
@@ -349,7 +414,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	function barra(): HTMLElement {
 		const b = h('div', { class: 'mon-barra' });
 		const formas = h('div', { class: 'mon-formas', role: 'radiogroup', 'aria-label': 'Forma' });
-		for (const fo of FORMAS) {
+		for (const fo of (reducido() ? FORMAS.filter((x) => FORMAS_POCAS.includes(x.id)) : FORMAS)) {
 			const x = h('button', { type: 'button', class: `mon-forma ${est.forma === fo.id ? 'activa' : ''}`, role: 'radio', 'aria-checked': String(est.forma === fo.id), title: fo.explica, 'data-forma': fo.id }, fo.nombre);
 			x.addEventListener('click', () => cambiar({ forma: fo.id }));
 			formas.append(x);
@@ -367,7 +432,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		orden.addEventListener('change', () => cambiar({ orden: orden.value as EstadoMonitor['orden'] }));
 		b.append(formas, h('span', { class: 'hueco' }), conmutador('mon-modo', 'Arena o tabla', [['arena', 'Arena'], ['tabla', 'Tabla']], est.modo, (v) => cambiar({ modo: v })));
 		const opciones = h('div', { class: 'mon-opciones' },
-			conmutador('mon-unidad', 'Unidad', [['organizaciones', 'Organizaciones'], ['empresas', 'Empresas']], est.unidad, (v) => cambiar({ unidad: v, filtros: { ...est.filtros, producto: v === 'empresas' ? undefined : est.filtros.producto, grupo: undefined } })),
+			cfo() ? null : conmutador('mon-unidad', 'Unidad', [['organizaciones', 'Organizaciones'], ['empresas', 'Empresas']], est.unidad, (v) => cambiar({ unidad: v, filtros: { ...est.filtros, producto: v === 'empresas' ? undefined : est.filtros.producto, grupo: undefined } })),
 			orden);
 		return h('div', {}, b, opciones);
 	}
@@ -418,7 +483,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		lienzoActual = null;
 		const vis = visibles();
 		vistaSec.append(
-			h('header', { class: 'mon-vista-cab' }, h('h2', {}, 'La cartera')),
+			h('header', { class: 'mon-vista-cab' }, h('h2', {}, cfo() ? 'Tus empresas' : 'La cartera')),
 			barra(),
 			h('div', { class: 'mon-frase-fila' }, h('p', { class: 'mon-frase' }, descripcion()), acciones()),
 			misVistas() ?? '',
@@ -726,13 +791,17 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 
 	function pintarTodo() {
 		tope = 60;
+		campo.hidden = reducido();
 		pintarCabeza();
 		pintarColumnas();
 		pintarVista();
 		vaciar(pie);
 		const met = h('button', { type: 'button', class: 'as-enlace' }, 'Cómo se calcula todo esto');
 		met.addEventListener('click', () => ctx.metodologia());
-		pie.append(`${f.numero(man.counts.groups)} organizaciones y ${f.numero(man.counts.companies)} empresas, de ${f.mes(man.months[0])} a ${f.mes(man.months[man.months.length - 1])}. Dónde está cada una, hacia dónde va y qué puede cambiar su rumbo. `, met);
+		const gp = grupoCFO();
+		pie.append(gp
+			? `${f.grupo(gp.id)} · ${f.plural(gp.n_companies, 'empresa', 'empresas')}, de ${f.mes(man.months[0])} a ${f.mes(man.months[man.months.length - 1])}. Dónde está cada una, hacia dónde va y qué puede cambiar su rumbo. `
+			: `${f.numero(man.counts.groups)} organizaciones y ${f.numero(man.counts.companies)} empresas, de ${f.mes(man.months[0])} a ${f.mes(man.months[man.months.length - 1])}. Dónde está cada una, hacia dónde va y qué puede cambiar su rumbo. `, met);
 	}
 	pintarTodo();
 	// El campo recibe el foco sin desplazar la página: lo primero que se ve es el monitor.
@@ -751,7 +820,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				h('tbody', {}, ...piden.map((e, i) => h('tr', {}, h('td', { class: 'num' }, String(i + 1)), h('td', {}, nombreEnt(e)), h('td', { class: 'num' }, f.score(e.shown)), h('td', { class: 'num' }, e.delta1 === null ? '—' : f.deltaEntero(e.delta1)), h('td', {}, e.motivo)))));
 			hoja.append(h('section', { class: 'informe-seccion primera' }, h('h2', { class: 'informe-titulo' }, `Piden atención · ${f.numero(piden.length)}`), tbA,
 				suben.length ? h('p', { class: 'nota' }, `Suben: ${suben.slice(0, 12).map((e) => `${nombreEnt(e)} (${e.sube})`).join('; ')}.`) : ''));
-			const vistaCopia = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, `La cartera, en ${FORMAS.find((x) => x.id === est.forma)!.nombre.toLowerCase()}`), h('p', { class: 'mon-frase' }, descripcion()));
+			const vistaCopia = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, `${cfo() ? 'Tus empresas' : 'La cartera'}, en ${FORMAS.find((x) => x.id === est.forma)!.nombre.toLowerCase()}`), h('p', { class: 'mon-frase' }, descripcion()));
 			const vis = visibles();
 			if (vis.length) {
 				if (est.modo === 'arena') {

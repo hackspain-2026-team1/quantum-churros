@@ -142,9 +142,15 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			pdf.addEventListener('click', () => cb.imprimir());
 			miga.append(pdf);
 		}
-		const mapa = h('button', { type: 'button', class: 'miga-accion' }, 'Mapa de la cartera');
-		mapa.addEventListener('click', () => cb.irCartera());
-		miga.append(mapa);
+		if (e.modo === 'cfo') {
+			const mias = h('button', { type: 'button', class: 'miga-accion' }, 'Mis empresas');
+			mias.addEventListener('click', () => S.fijar({ vista: 'entrada', emp: null }, true));
+			miga.append(mias);
+		} else {
+			const mapa = h('button', { type: 'button', class: 'miga-accion' }, 'Mapa de la cartera');
+			mapa.addEventListener('click', () => cb.irCartera());
+			miga.append(mapa);
+		}
 	}
 
 	// ─── Secciones: tres que actúan sobre el horizonte y, aparte, el reverso técnico ───
@@ -166,7 +172,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		document.body.dataset.pagina = e.vista;
 		pintarMiga(e);
 		const corte = cb.corte();
-		const nueva = `${e.vista}|${e.sel}|${e.emp}|${e.finRol}|${e.finCaso}|${corte}`;
+		const nueva = `${e.modo}|${e.cfo}|${e.vista}|${e.sel}|${e.emp}|${e.finRol}|${e.finCaso}|${corte}`;
 		const soloSeccion = (e.vista === 'organizacion' || e.vista === 'empresa') && nueva === clave && datos;
 		const k = `${nueva}|${e.sec}`;
 		if (soloSeccion) { pintarFicha(e); return; }
@@ -187,7 +193,8 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const d = await cargarFicha(kind, id, e.sel!, corte, man);
 		if (`${clave}|${S.e.sec}` !== k && clave !== nueva) return;
 		// Las organizaciones de su tamaño, del portfolio: el mismo corte y el mismo tramo de tamaño.
-		if (d && kind === 'group') {
+		// Son datos de otros clientes de Embat: desde la silla del CFO no se enseñan.
+		if (d && kind === 'group' && e.modo !== 'cfo') {
 			const g = c.groups.find((x) => x.id === id);
 			const t = c.months.indexOf(corte);
 			if (g?.size_band && t >= 0) {
@@ -196,7 +203,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			}
 		}
 		// Las empresas de su tamaño, del índice de entidades derivado del mismo bundle: mismo corte, mismo tramo.
-		if (d && kind === 'company') {
+		if (d && kind === 'company' && e.modo !== 'cfo') {
 			const ix = await carga.entidades();
 			const yo = ix?.companies[id];
 			if (ix && ix.cut === corte && yo?.size) {
@@ -324,6 +331,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		vaciar(cuerpoP);
 		monitor = crearMonitor({
 			c, man, corte: cb.corte,
+			cfo: () => (S.e.modo === 'cfo' ? S.e.cfo : null),
 			abrirGrupo: (id) => acc.abrirGrupo(id),
 			abrirEmpresa: (grupo, id) => { cuerpoP.scrollTop = 0; S.fijar({ vista: 'empresa', sel: grupo, emp: id, sec: 'scoring' }, true); },
 			irMapa: (vista, est) => {
@@ -385,7 +393,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const e = S.e;
 		if (e.vista === 'entrada' && monitor) {
 			const hoja = monitor.informe();
-			hoja.prepend(h('header', { class: 'informe-cab' }, h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)), h('span', { class: 'informe-que' }, `Monitor de la cartera · ${f.mes(cb.corte())}`)));
+			hoja.prepend(h('header', { class: 'informe-cab' }, h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)), h('span', { class: 'informe-que' }, S.e.modo === 'cfo' && S.e.cfo ? `${f.grupo(S.e.cfo)} · ${f.mes(cb.corte())}` : `Monitor de la cartera · ${f.mes(cb.corte())}`)));
 			return hoja;
 		}
 		if (!datos || (e.vista !== 'organizacion' && e.vista !== 'empresa')) return null;

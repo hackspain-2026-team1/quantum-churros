@@ -164,13 +164,18 @@ function gravedad(c: Cartera, e: Omit<Entidad, 'nivel' | 'motivo' | 'sube'>): { 
 
 const ORDEN_TAMANO: Record<string, number> = { Micro: 1, Pequeña: 2, Mediana: 3, Grande: 4 };
 
-/** Todas las entidades de la unidad en el mes t. */
-export function entidades(c: Cartera, unidad: Unidad, t: number, indice: EntidadesM | null): Entidad[] {
+/**
+ * Todas las entidades de la unidad en el mes t. Con `grupo`, el universo se recorta a ese grupo:
+ * es lo que ve el CFO, y no solo un filtro (la rosa, el resumen y la arena cuentan sobre él).
+ */
+export function entidades(c: Cartera, unidad: Unidad, t: number, indice: EntidadesM | null, grupo?: string | null): Entidad[] {
+	const grupos = grupo ? c.groups.filter((g) => g.id === grupo) : c.groups;
 	const hzIx = c.horizontes && c.horizontes.cut === c.months[t] ? c.horizontes.entities : null;
 	const hzDe = (id: string) => { const h = hzIx?.[id]; return h ? { p50: h.p50_h6, pCritico: h.p_critical_h6, cruce: h.cross } : null; };
 	const salida: Entidad[] = [];
 	if (unidad === 'organizaciones') {
-		c.groups.forEach((g, gi) => {
+		grupos.forEach((g) => {
+			const gi = c.groups.indexOf(g);
 			const m = g.meses[t], a = g.meses[t - 1], m3 = g.meses[t - 3];
 			const serie = g.meses.map((x) => x.shown);
 			const ritmo = tendencia(g, t);
@@ -187,7 +192,7 @@ export function entidades(c: Cartera, unidad: Unidad, t: number, indice: Entidad
 	}
 	const porEmpresa = new Map<string, Alerta[]>();
 	for (const a of c.alertasEmpresas ?? []) { if (a.month > t) continue; const l = porEmpresa.get(a.entity_id) ?? []; l.push(a); porEmpresa.set(a.entity_id, l); }
-	for (const g of c.groups) for (const em of g.companies) {
+	for (const g of grupos) for (const em of g.companies) {
 		const s = em.shown[t] ?? null, a = em.shown[t - 1] ?? null, s3 = em.shown[t - 3] ?? null;
 		if (s === null && a === null) continue; // sin datos en el corte ni el mes anterior: fuera del monitor
 		const ritmo = ritmoSerie(em.shown, t, em.first_month);
