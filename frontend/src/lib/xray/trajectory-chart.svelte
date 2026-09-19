@@ -9,6 +9,13 @@
 		format?: (value: number) => string;
 	};
 
+	/** Best / common / worst of the score three months ahead, computed by the engine. */
+	type ChartScenario = {
+		best: number;
+		common: number;
+		worst: number;
+	};
+
 	let {
 		values,
 		projected = [],
@@ -21,7 +28,8 @@
 		metrics = [],
 		metricLabel = 'Score de salud',
 		unit = '',
-		activeMetric = $bindable<string | undefined>(undefined)
+		activeMetric = $bindable<string | undefined>(undefined),
+		scenario = null
 	}: {
 		/** One value per month; null = not observed (the line breaks there). */
 		values: (number | null)[];
@@ -38,6 +46,8 @@
 		metricLabel?: string;
 		unit?: string;
 		activeMetric?: string;
+		/** Engine scenarios at t+3: shaded band between best and worst, no band when null. */
+		scenario?: ChartScenario | null;
 	} = $props();
 	const width = 760;
 	let height = $derived(compact ? 150 : 230);
@@ -50,15 +60,24 @@
 		(currentMetric?.format ?? format)
 			? (currentMetric?.format ?? format)!(value)
 			: `${formatNumber(value, 2)}${currentUnit ? `\u00A0${currentUnit}` : ''}`;
-	let all = $derived<(number | null)[]>([...values, ...projected]);
-	let known = $derived(all.filter((value): value is number => value !== null));
+	let lastIndex = $derived(values.findLastIndex((value) => value !== null));
+	let lastValue = $derived(lastIndex >= 0 ? (values[lastIndex] as number) : 0);
+	let hasChange = $derived(changeIndex !== null && changeIndex >= 0 && changeIndex < values.length);
+	// The scenario points sit at t+3; the axis holds one slot per future month.
+	let futureSlots = $derived(Math.max(projected.length, scenario ? 3 : 0));
+	let all = $derived<(number | null)[]>([
+		...values,
+		...Array<number | null>(futureSlots).fill(null)
+	]);
+	let known = $derived(
+		[...values, ...projected, ...(scenario ? [scenario.best, scenario.common, scenario.worst] : [])].filter(
+			(value): value is number => value !== null
+		)
+	);
 	let spread = $derived(known.length ? Math.max(...known) - Math.min(...known) : 0);
 	let margin = $derived(Math.max(spread * 0.15, Math.abs(known[0] ?? 1) * 0.04, 0.5));
 	let min = $derived((known.length ? Math.min(...known) : 0) - margin);
 	let max = $derived((known.length ? Math.max(...known) : 1) + margin);
-	let lastIndex = $derived(values.findLastIndex((value) => value !== null));
-	let lastValue = $derived(lastIndex >= 0 ? (values[lastIndex] as number) : 0);
-	let hasChange = $derived(changeIndex !== null && changeIndex >= 0 && changeIndex < values.length);
 	let total = $derived(Math.max(2, all.length - 1));
 	const x = (index: number) => pad + (index / total) * (width - pad * 2);
 	const y = (value: number) => height - pad - ((value - min) / (max - min)) * (height - pad * 2);
@@ -81,6 +100,13 @@
 					`${x(lastIndex)},${y(lastValue)}`,
 					...projected.map((value, index) => `${x(values.length + index)},${y(value)}`)
 				].join(' ')
+			: ''
+	);
+	// t+3: three months after the last observed one, where the engine places the scenarios.
+	let scenarioIndex = $derived(values.length + 2);
+	let scenarioBand = $derived(
+		scenario && lastIndex >= 0
+			? `${x(lastIndex)},${y(lastValue)} ${x(scenarioIndex)},${y(scenario.best)} ${x(scenarioIndex)},${y(scenario.worst)}`
 			: ''
 	);
 	const shortMonth = (month: string) => {
@@ -106,7 +132,8 @@
 			.filter((index) => index % step === 0 || index === all.length - 1);
 	});
 	let hoverIndex = $state<number | null>(null);
-	const valueAt = (index: number) => all[index];
+	const valueAt = (index: number) =>
+		scenario && index === scenarioIndex ? scenario.common : all[index];
 	const pointHint = (index: number) =>
 		index < values.length ? pointLabel(index) : `${pointLabel(index)} (proy.)`;
 
@@ -202,6 +229,40 @@
 					data-testid="chart-target">{projectedLabel} {formatValue(targetValue)}</text
 				>
 			{/if}
+			{#if scenario && lastIndex >= 0}
+				<polygon points={scenarioBand} class="scenario-band" />
+				<line
+					x1={x(lastIndex)}
+					y1={y(lastValue)}
+					x2={x(scenarioIndex)}
+					y2={y(scenario.common)}
+					class="scenario-line"
+				/>
+				<circle cx={x(scenarioIndex)} cy={y(scenario.best)} r="3.5" class="scenario-dot" />
+				<circle cx={x(scenarioIndex)} cy={y(scenario.common)} r="4.5" class="scenario-dot common" />
+				<circle cx={x(scenarioIndex)} cy={y(scenario.worst)} r="3.5" class="scenario-dot" />
+				<text
+					x={x(scenarioIndex) - 10}
+					y={y(scenario.best) - 8}
+					text-anchor="end"
+					class="value-label scenario-label"
+					data-testid="chart-scenario-best">Mejor {formatValue(scenario.best)}</text
+				>
+				<text
+					x={x(scenarioIndex) - 10}
+					y={y(scenario.common) + 4}
+					text-anchor="end"
+					class="value-label scenario-label"
+					data-testid="chart-scenario-common">Común {formatValue(scenario.common)}</text
+				>
+				<text
+					x={x(scenarioIndex) - 10}
+					y={y(scenario.worst) + 16}
+					text-anchor="end"
+					class="value-label scenario-label"
+					data-testid="chart-scenario-worst">Peor {formatValue(scenario.worst)}</text
+				>
+			{/if}
 			{#if hoverIndex !== null}
 				<line
 					x1={x(hoverIndex)}
@@ -245,9 +306,17 @@
 				}, -50%);`}
 			>
 				<span class="font-semibold">{pointHint(hoverIndex)}</span>
-				<span class="font-data ml-2 font-semibold"
-					>{valueAt(hoverIndex) === null ? 'Sin dato' : formatValue(valueAt(hoverIndex) ?? 0)}</span
-				>
+				{#if scenario && hoverIndex === scenarioIndex}
+					<span class="font-data ml-2 font-semibold"
+						>Mejor {formatValue(scenario.best)} · Común {formatValue(scenario.common)} · Peor {formatValue(
+							scenario.worst
+						)}</span
+					>
+				{:else}
+					<span class="font-data ml-2 font-semibold"
+						>{valueAt(hoverIndex) === null ? 'Sin dato' : formatValue(valueAt(hoverIndex) ?? 0)}</span
+					>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -282,6 +351,29 @@
 	}
 	.target-label {
 		fill: var(--success-strong);
+	}
+	.scenario-band {
+		fill: var(--signal);
+		stroke: none;
+		opacity: 0.08;
+	}
+	.scenario-line {
+		stroke: var(--signal);
+		stroke-width: 2;
+		stroke-dasharray: 2 6;
+		stroke-linecap: round;
+		opacity: 0.75;
+	}
+	.scenario-dot {
+		fill: var(--card);
+		stroke: var(--signal);
+		stroke-width: 2;
+	}
+	.scenario-dot.common {
+		fill: var(--signal);
+	}
+	.scenario-label {
+		fill: var(--signal-strong);
 	}
 	.observed-dot {
 		fill: var(--card);

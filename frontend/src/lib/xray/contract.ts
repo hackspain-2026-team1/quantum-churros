@@ -132,6 +132,17 @@ export const financingSchema = z.object({
 	new_score_tenths: scoreTenths
 });
 
+// Optional, newer bundles only: best/common/worst scenarios of the score
+// horizon_months ahead, computed by the engine from past-only history.
+export const outlookSchema = z.object({
+	basis: z.enum(['drift', 'flat']),
+	horizon_months: z.number().int().min(1),
+	best: scoreTenths,
+	common: scoreTenths,
+	worst: scoreTenths,
+	gates: z.array(code)
+});
+
 const entityMonthShape = z.object({
 	month,
 	shown: scoreTenths,
@@ -154,6 +165,7 @@ const entityMonthShape = z.object({
 	months_observed: count,
 	perimeter_changed: z.boolean(),
 	verdict: verdictSchema,
+	outlook: outlookSchema.nullable().optional(),
 	abstain: z.object({ reason: code, unlock: text }).nullable(),
 	actions: z.array(actionSchema).optional(),
 	actions_combined: actionsCombinedSchema.nullable().optional(),
@@ -502,6 +514,7 @@ export type ReceiptCheck = z.infer<typeof receiptCheckSchema>;
 export type EntityMonth = z.infer<typeof entityMonthSchema>;
 export type EntityAction = z.infer<typeof actionSchema>;
 export type ActionsCombined = z.infer<typeof actionsCombinedSchema>;
+export type Outlook = z.infer<typeof outlookSchema>;
 export type PillarEntry = z.infer<typeof pillarSchema>;
 export type Verdict = z.infer<typeof verdictSchema>;
 export type ProfileAttribute = z.infer<typeof profileAttributeSchema>;

@@ -48,6 +48,16 @@
 	const activeSeries = $derived(extra.find((item) => item.key === activeMetric));
 	const values = $derived(activeSeries ? activeSeries.values.slice(0, size) : trajectory.values);
 	const onScore = $derived(!activeSeries);
+	// Engine scenarios of the score three months ahead; the other metrics have none.
+	const scenario = $derived(
+		onScore && entry.outlook
+			? {
+					best: entry.outlook.best / 10,
+					common: entry.outlook.common / 10,
+					worst: entry.outlook.worst / 10
+				}
+			: null
+	);
 	const trendLabel = $derived(
 		!verdict.available
 			? 'Sin veredicto este mes'
@@ -117,6 +127,7 @@
 				projected={onScore && targetTenths !== null ? [targetTenths / 10] : []}
 				projectedLabel={targetLabel}
 				{metrics}
+				{scenario}
 				bind:activeMetric
 			/></Card.Content
 		></Card.Root

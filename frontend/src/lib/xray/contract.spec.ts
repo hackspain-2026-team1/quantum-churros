@@ -61,6 +61,30 @@ describe('export bundle contract', () => {
 		expect(entityMonthSchema.safeParse(broken).success).toBe(false);
 	});
 
+	it('parses the optional outlook block and rejects a broken one', () => {
+		const entry = entityMonths[0];
+		expect(entry.outlook).toBeUndefined(); // the frozen fixture predates the outlook
+		const outlook = {
+			basis: 'drift',
+			horizon_months: 3,
+			best: 760,
+			common: 640,
+			worst: 520,
+			gates: []
+		};
+		const parsed = entityMonthSchema.safeParse({ ...entry, outlook });
+		expect(parsed.success).toBe(true);
+		const broken = entityMonthSchema.safeParse({ ...entry, outlook: { ...outlook, best: 2000 } });
+		expect(broken.success).toBe(false);
+		const unclamped = entityMonthSchema.safeParse({
+			...entry,
+			outlook: { ...outlook, common: 640.5 }
+		});
+		expect(unclamped.success).toBe(false);
+		const nulled = entityMonthSchema.safeParse({ ...entry, outlook: null });
+		expect(nulled.success).toBe(true);
+	});
+
 	it('projects every group file into the portfolio', () => {
 		expect(portfolio.groups.map((group) => group.id)).toEqual(groups.map((group) => group.id));
 		for (const group of groups) {
