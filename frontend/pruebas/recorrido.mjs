@@ -68,6 +68,15 @@ comprobar('«las que piden atención hoy» sale de los datos', (await p.$$('.ate
 comprobar('la portada no lleva regla ni reloj de arena', await p.evaluate(() => getComputedStyle(document.querySelector('.reproducir')).display === 'none' && getComputedStyle(document.querySelector('.regla')).display === 'none'));
 comprobar('la portada lleva la rosa de los vientos y, en la cabecera, solo el monograma', await p.evaluate(() => !!document.querySelector('.entrada-rosa[data-placa]') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'visible' && getComputedStyle(document.querySelector('.barra .marca .logotipo')).display === 'none'));
 comprobar('el buscador va pegado a la rosa, dentro de la cabeza', await p.evaluate(() => { const c = document.querySelector('.mon-cabeza > .mon-campo'); const r = document.querySelector('.mon-rosa'); return !!c && !!r && c.getBoundingClientRect().top >= r.getBoundingClientRect().bottom - 1; }));
+comprobar('la línea de puntos del buscador mide lo que se escribe', await p.evaluate(async () => {
+	const i = document.querySelector('.entrada-buscar');
+	const vacio = i.getBoundingClientRect().width;
+	i.value = 'Grupo'; i.dispatchEvent(new Event('input'));
+	await new Promise((r) => requestAnimationFrame(r));
+	const escrito = i.getBoundingClientRect().width;
+	i.value = ''; i.dispatchEvent(new Event('input'));
+	return vacio > 200 && escrito > 60 && escrito < vacio - 40;
+}));
 // ─── 1b. El monitor ───────────────────────────────────────
 {
 	const pf = await leer(p, `${DATOS}portfolio.json`);
@@ -217,7 +226,21 @@ comprobar('la gráfica tiene sus ejes: score de 0 a 100 y los meses', await p.ev
 }
 // Los horizontes y los supuestos, siempre a la vista: nada se esconde tras un botón.
 comprobar('los tres horizontes se rotulan a la vez', (await p.$$('.escenario .g-etq.boya')).length === 3);
-if (await p.$('.esc-drift')) comprobar('«qué pasaría si» se dibuja siempre como línea, aparte de la previsión', (await p.$$('.escenario .g-etq.alternativa')).length === (await p.$$('.escenario .esc.leyenda')).length);
+// Cada caso del mando tiene su trazo en la gráfica: el que se mira, dibujado; los demás, rotulados
+// al borde con su score. Con una acción marcada tampoco desaparecen: entonces están los tres.
+if (await p.$('.esc-drift')) {
+	const casos = (await p.$$('.escenario .esc')).length;
+	const conAccion = !!(await p.$('.escenario .zona-t.con-acciones'));
+	const rotulos = (await p.$$('.escenario .g-etq.alternativa')).length;
+	comprobar('«qué pasaría si» se dibuja siempre como línea, aparte de la previsión', rotulos === (conAccion ? casos : casos - 1), `${rotulos} rótulos · ${casos} casos${conAccion ? ' · con una acción marcada' : ''}`);
+	if (conAccion) comprobar('con una acción marcada se sigue leyendo el score de cada caso', await p.$$eval('.escenario .g-etq.alternativa', (xs) => xs.every((x) => /\d/.test(x.textContent))));
+}
+// La acción marca su punto en la gráfica, a la distancia en que se nota y con su score.
+{
+	const hitos = await p.$$eval('.escenario .g-etq.hito-accion', (xs) => xs.map((x) => x.textContent));
+	comprobar('la acción marca su punto a su distancia temporal, con el score', hitos.length > 0 && hitos.every((t) => /^(a (un mes|un año|\d+ meses)|las \d+ juntas) · \d/.test(t)), hitos.join(' · '));
+	comprobar('cada punto marcado lleva su grano en la gráfica', (await p.$$('.escenario .g-hito-pto')).length === hitos.length);
+}
 // La regla en un mes pasado: toda la aplicación lo dice y el horizonte enseña lo que se preveía entonces.
 await p.evaluate(() => document.activeElement?.blur());
 await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft');

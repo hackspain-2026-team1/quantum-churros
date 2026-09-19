@@ -205,18 +205,21 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	}
 
 	// ─── El campo: una organización o una vista ─────────────
-	const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: cfo() ? '¿qué empresa?' : '¿qué organización?', 'aria-label': cfo() ? 'Buscar una de tus empresas o pedir una vista' : 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off' }) as HTMLInputElement;
-	// La línea de puntos mide lo que se escribe (o lo que se ofrece): así el campo queda centrado
-	// bajo la rosa en vez de arrastrar una raya vacía hacia la derecha.
+	const entrada = h('input', { class: 'entrada-buscar', type: 'text', placeholder: cfo() ? '¿qué empresa?' : '¿qué organización?', 'aria-label': cfo() ? 'Buscar una de tus empresas o pedir una vista' : 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off' }) as HTMLInputElement;
+	// La línea de puntos vale lo que vale lo escrito (o lo que se ofrece): un espejo invisible mide el
+	// texto con la letra del propio campo y el campo toma esa anchura. Así «rumbo de …» queda
+	// centrado de verdad, en vez de arrastrar una raya vacía hacia la derecha.
 	const espejo = h('span', { class: 'entrada-espejo', 'aria-hidden': 'true' });
 	const ajustarEntrada = () => {
 		const cs = getComputedStyle(entrada);
 		for (const k of ['fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'letterSpacing'] as const) espejo.style[k] = cs[k];
 		espejo.textContent = entrada.value || entrada.placeholder;
-		const ancho = espejo.offsetWidth;
+		const texto = espejo.getBoundingClientRect().width;
 		// Sin dibujar todavía (o sin la letra cargada) no se mide: ya se volverá a medir.
-		// Con el relleno del campo y el vuelo de la cursiva, o la última letra se corta.
-		if (ancho) entrada.style.width = `${Math.min(ancho + 20, Math.round(innerWidth * 0.8))}px`;
+		if (!texto) return;
+		const relleno = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+		// La cursiva vuela por la derecha: sin ese aire se corta la última letra.
+		entrada.style.width = `${Math.min(Math.ceil(texto + relleno + 12), Math.round(innerWidth * 0.8))}px`;
 	};
 	// La letra cambia las medidas al cargarse: se remide cuando llega.
 	void document.fonts?.ready.then(ajustarEntrada);
