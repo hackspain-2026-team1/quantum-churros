@@ -2,7 +2,7 @@
 // antes de meter Rumbo en la imagen web.
 //   · no lleva datos dentro: ni el bundle ni lo generado por Rumbo (se montan en el servidor);
 //   · no lleva la cartera sintética ni identificadores reales escritos a mano;
-//   · no pide nada a terceros (solo se admite el espacio de nombres SVG);
+//   · no pide nada a terceros: solo el espacio de nombres SVG y el Worker de Jev (VITE_VISTA_URL, en .env);
 //   · todos los recursos cuelgan de la base con la que se construyó.
 // Uso: bun scripts/comprobar-build.mjs [base]   (por defecto, /)
 
@@ -34,6 +34,10 @@ for (const carpeta of ['datos', 'rumbo', 'data']) {
 const todos = ficheros(dist);
 const codigo = todos.filter((f) => /\.(js|css|html)$/.test(f));
 const PERMITIDAS = new Set(['http://www.w3.org/2000/svg', 'http://www.w3.org/1999/xlink']);
+// El Worker propio de «dile qué quieres ver»: la única dirección externa admitida.
+const envTexto = existsSync(new URL('../.env.production', import.meta.url)) ? readFileSync(new URL('../.env.production', import.meta.url), 'utf8') : '';
+const worker = (process.env.VITE_VISTA_URL ?? envTexto.match(/^VITE_VISTA_URL=(.*)$/m)?.[1] ?? '').trim().replace(/\/$/, '');
+if (worker) PERMITIDAS.add(worker);
 
 for (const f of codigo) {
 	const texto = readFileSync(f, 'utf8');

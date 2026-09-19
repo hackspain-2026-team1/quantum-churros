@@ -1,0 +1,637 @@
+{
+ "fecha": "2026-09-19T17:07:19.770Z",
+ "frases": 40,
+ "vistas_correctas": 33,
+ "vistas_sin_filtros_de_mas": 40,
+ "piezas_correctas": 63,
+ "piezas_esperadas": 63,
+ "piezas_de_mas": 10,
+ "segundos_medios": 1.21,
+ "detalle": [
+  {
+   "frase": "las que se hunden en marketing",
+   "esperado": {
+    "mz": "hunde",
+    "msec": "Marketing y publicidad"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mz": "hunde",
+    "msec": "Marketing y publicidad"
+   },
+   "bien": true,
+   "segundos": 1.1,
+   "entendido": "Entendido «las que se hunden en marketing»: Las 5 organizaciones que se hunden× de marketing y publicidad×, por gravedad · Jev, 1,1 s"
+  },
+  {
+   "frase": "qué ha cambiado este mes",
+   "esperado": {
+    "mf": "flujo"
+   },
+   "obtenido": {
+    "mf": "flujo",
+    "mo": "cambio",
+    "mu": "organizaciones"
+   },
+   "bien": false,
+   "segundos": 2.7,
+   "entendido": "Entendido «qué ha cambiado este mes»: Las 250 organizaciones, por lo que cambian este mes · Jev, 2,7 s"
+  },
+  {
+   "frase": "las críticas ordenadas por lo que más caen",
+   "esperado": {
+    "mb": "critical",
+    "mo": "cambio"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "cambio",
+    "mu": "organizaciones",
+    "mb": "critical"
+   },
+   "bien": true,
+   "segundos": 0.4,
+   "entendido": "Entendido «las críticas ordenadas por lo que más caen»: Las 65 organizaciones en crítico×, por lo que cambian este mes · Jev, 0,4 s"
+  },
+  {
+   "frase": "a quién le encaja el factoring y está en vigilancia",
+   "esperado": {
+    "mprod": "factoring:encaja",
+    "mb": "watch"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mb": "watch",
+    "mprod": "factoring:encaja"
+   },
+   "bien": true,
+   "segundos": 0.6,
+   "entendido": "Entendido «a quién le encaja el factoring y está en vigilancia»: Las 9 organizaciones en vigilancia× a las que les encaja factoring×, por gravedad · Jev, 0,6 s"
+  },
+  {
+   "frase": "cómo estarán en seis meses las de Alemania",
+   "esperado": {
+    "mf": "horizonte",
+    "mpais": "DE"
+   },
+   "obtenido": {
+    "mf": "horizonte",
+    "mo": "horizonte",
+    "mu": "organizaciones",
+    "mpais": "DE"
+   },
+   "bien": false,
+   "segundos": 1.4,
+   "entendido": "Entendido «cómo estarán en seis meses las de Alemania»: Las 10 organizaciones de Alemania×, por probabilidad de crítico a seis meses · Jev, 1,4 s"
+  },
+  {
+   "frase": "empresas con los datos del banco sin actualizar, en tabla",
+   "esperado": {
+    "mu": "empresas",
+    "mmov": "sin_datos",
+    "mm": "tabla"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "empresas",
+    "mm": "tabla",
+    "mmov": "sin_datos"
+   },
+   "bien": true,
+   "segundos": 15.4,
+   "entendido": "Entendido «empresas con los datos del banco sin actualizar, en tabla»: Las 40 empresas con los datos del banco sin actualizar×, por gravedad · Jev, 15,4 s"
+  },
+  {
+   "frase": "las que acaban de entrar en crítico",
+   "esperado": {
+    "mmov": "entra_critico"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mmov": "entra_critico"
+   },
+   "bien": true,
+   "segundos": 0.8,
+   "entendido": "Entendido «las que acaban de entrar en crítico»: Las 7 organizaciones que entran en crítico este mes×, por gravedad · Jev, 0,8 s"
+  },
+  {
+   "frase": "enséñame los avisos del último año",
+   "esperado": {
+    "mf": "avisos"
+   },
+   "obtenido": {
+    "mf": "avisos",
+    "mo": "gravedad",
+    "mu": "organizaciones"
+   },
+   "bien": true,
+   "segundos": 0.8,
+   "entendido": "Entendido «enséñame los avisos del último año»: Las 250 organizaciones, por gravedad · Jev, 0,8 s"
+  },
+  {
+   "frase": "organizaciones grandes que se tuercen",
+   "esperado": {
+    "mtam": "Grande",
+    "mz": "tuerce"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mz": "tuerce",
+    "mtam": "Grande"
+   },
+   "bien": true,
+   "segundos": 3.8,
+   "entendido": "Entendido «organizaciones grandes que se tuercen»: Las 10 organizaciones que se tuercen× de tamaño grande×, por gravedad · Jev, 3,8 s"
+  },
+  {
+   "frase": "las que tienen confirming",
+   "esperado": {
+    "mprod": "confirming:tiene"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mprod": "confirming:tiene"
+   },
+   "bien": true,
+   "segundos": 0.5,
+   "entendido": "Entendido «las que tienen confirming»: Las 43 organizaciones que tienen confirming×, por gravedad · Jev, 0,5 s"
+  },
+  {
+   "frase": "mapa de las de software",
+   "esperado": {
+    "mf": "plano",
+    "msec": "Software"
+   },
+   "obtenido": {
+    "mf": "plano",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "msec": "Software"
+   },
+   "bien": true,
+   "segundos": 0.8,
+   "entendido": "Entendido «mapa de las de software»: Las 5 organizaciones de software×, por gravedad · Jev, 0,8 s"
+  },
+  {
+   "frase": "el tapiz de las de servicios financieros",
+   "esperado": {
+    "mf": "tapiz",
+    "msec": "Servicios financieros"
+   },
+   "obtenido": {
+    "mf": "tapiz",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "msec": "Servicios financieros"
+   },
+   "bien": true,
+   "segundos": 0.7,
+   "entendido": "Entendido «el tapiz de las de servicios financieros»: Las 15 organizaciones de servicios financieros×, por gravedad · Jev, 0,7 s"
+  },
+  {
+   "frase": "las que suben de banda",
+   "esperado": {
+    "mmov": "sube_banda"
+   },
+   "obtenido": {
+    "mf": "flujo",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mmov": "sube_banda"
+   },
+   "bien": false,
+   "segundos": 0.7,
+   "entendido": "Entendido «las que suben de banda»: Las 26 organizaciones que suben de banda este mes×, por gravedad · Jev, 0,7 s¿En qué orden? por lo que cambian en tres meses o por lo que cambian este mes¿Qué zona? Mejoran o Sólidas"
+  },
+  {
+   "frase": "las que bajan de banda este mes",
+   "esperado": {
+    "mmov": "baja_banda"
+   },
+   "obtenido": {
+    "mf": "flujo",
+    "mo": "cambio",
+    "mu": "organizaciones",
+    "mmov": "baja_banda"
+   },
+   "bien": false,
+   "segundos": 1.6,
+   "entendido": "Entendido «las que bajan de banda este mes»: Las 31 organizaciones que bajan de banda este mes×, por lo que cambian este mes · Jev, 1,6 s"
+  },
+  {
+   "frase": "riesgo de pasar a crítico en los próximos meses",
+   "esperado": {
+    "mmov": "hacia_critico"
+   },
+   "obtenido": {
+    "mf": "horizonte",
+    "mo": "horizonte",
+    "mu": "organizaciones",
+    "mmov": "hacia_critico"
+   },
+   "bien": false,
+   "segundos": 0.6,
+   "entendido": "Entendido «riesgo de pasar a crítico en los próximos meses»: Las 5 organizaciones que van hacia crítico (50 % o más a seis meses)×, por probabilidad de crítico a seis meses · Jev, 0,6 s"
+  },
+  {
+   "frase": "deterioros confirmados por el motor",
+   "esperado": {
+    "mmov": "deterioro"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mmov": "deterioro"
+   },
+   "bien": true,
+   "segundos": 0.5,
+   "entendido": "Entendido «deterioros confirmados por el motor»: Las 5 organizaciones con un deterioro confirmado este mes×, por gravedad · Jev, 0,5 s"
+  },
+  {
+   "frase": "las sólidas de España",
+   "esperado": {
+    "mb": "solid",
+    "mpais": "ES"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mb": "solid",
+    "mpais": "ES"
+   },
+   "bien": true,
+   "segundos": 0.9,
+   "entendido": "Entendido «las sólidas de España»: Las 28 organizaciones en sólido× de España×, por gravedad · Jev, 0,9 s¿Organizaciones o empresas? Organizaciones o Empresas"
+  },
+  {
+   "frase": "ranking de empresas por tamaño",
+   "esperado": {
+    "mf": "ranking",
+    "mu": "empresas",
+    "mo": "tamano"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "tamano",
+    "mu": "empresas"
+   },
+   "bien": true,
+   "segundos": 1.5,
+   "entendido": "Entendido «ranking de empresas por tamaño»: Las 1.286 empresas, por tamaño · Jev, 1,5 s"
+  },
+  {
+   "frase": "cuántas hay en cada banda",
+   "esperado": {
+    "mf": "bandas"
+   },
+   "obtenido": {
+    "mf": "bandas",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mm": "tabla"
+   },
+   "bien": true,
+   "segundos": 3.9,
+   "entendido": "Entendido «cuántas hay en cada banda»: Las 250 organizaciones, por gravedad · Jev, 3,9 s"
+  },
+  {
+   "frase": "las de logística, en tabla",
+   "esperado": {
+    "msec": "Logística y cadena de suministro",
+    "mm": "tabla"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mm": "tabla",
+    "msec": "Logística y cadena de suministro"
+   },
+   "bien": true,
+   "segundos": 0.7,
+   "entendido": "Entendido «las de logística, en tabla»: Las 4 organizaciones de logística y cadena de suministro×, por gravedad · Jev, 0,7 s"
+  },
+  {
+   "frase": "previsión a seis meses de las que están en vigilancia",
+   "esperado": {
+    "mf": "horizonte",
+    "mb": "watch"
+   },
+   "obtenido": {
+    "mf": "horizonte",
+    "mo": "horizonte",
+    "mu": "organizaciones",
+    "mb": "watch"
+   },
+   "bien": false,
+   "segundos": 0.5,
+   "entendido": "Entendido «previsión a seis meses de las que están en vigilancia»: Las 72 organizaciones en vigilancia×, por probabilidad de crítico a seis meses · Jev, 0,5 s"
+  },
+  {
+   "frase": "las que mejoran de verdad",
+   "esperado": {
+    "mz": "mejora"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mz": "mejora"
+   },
+   "bien": true,
+   "segundos": 2,
+   "entendido": "Entendido «las que mejoran de verdad»: Las 72 organizaciones que mejoran×, por gravedad · Jev, 2 s¿En qué orden? por lo que cambian en tres meses o por lo que cambian este mes"
+  },
+  {
+   "frase": "las medianas del sector energético",
+   "esperado": {
+    "mtam": "Mediana",
+    "msec": "Energía y utilities"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "msec": "Energía y utilities",
+    "mtam": "Mediana"
+   },
+   "bien": true,
+   "segundos": 0.6,
+   "entendido": "Entendido «las medianas del sector energético»: Las 2 organizaciones de energía y utilities× de tamaño mediana×, por gravedad · Jev, 0,6 s"
+  },
+  {
+   "frase": "qué empresas tienen una línea de crédito",
+   "esperado": {
+    "mu": "empresas",
+    "mprod": "linea_credito:tiene"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "empresas",
+    "mprod": "linea_credito:tiene"
+   },
+   "bien": true,
+   "segundos": 0.7,
+   "entendido": "Entendido «qué empresas tienen una línea de crédito»: Las 0 empresas que tienen línea de crédito×, por gravedad · Jev, 0,7 s"
+  },
+  {
+   "frase": "candidatas a seguro de crédito",
+   "esperado": {
+    "mprod": "seguro_credito:encaja"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mprod": "seguro_credito:encaja"
+   },
+   "bien": true,
+   "segundos": 0.3,
+   "entendido": "Entendido «candidatas a seguro de crédito»: Las 0 organizaciones a las que les encaja seguro de crédito×, por gravedad · Jev, 0,3 s"
+  },
+  {
+   "frase": "las que más han caído en el trimestre",
+   "esperado": {
+    "mo": "cambio3"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "cambio3",
+    "mu": "organizaciones"
+   },
+   "bien": true,
+   "segundos": 0.4,
+   "entendido": "Entendido «las que más han caído en el trimestre»: Las 250 organizaciones, por lo que cambian en tres meses · Jev, 0,4 s"
+  },
+  {
+   "frase": "las de Países Bajos ordenadas por score",
+   "esperado": {
+    "mpais": "NL",
+    "mo": "score"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "score",
+    "mu": "organizaciones",
+    "mpais": "NL"
+   },
+   "bien": true,
+   "segundos": 0.4,
+   "entendido": "Entendido «las de Países Bajos ordenadas por score»: Las 7 organizaciones de Países Bajos×, por score, de menor a mayor · Jev, 0,4 s"
+  },
+  {
+   "frase": "movimientos entre bandas de las empresas",
+   "esperado": {
+    "mf": "flujo",
+    "mu": "empresas"
+   },
+   "obtenido": {
+    "mf": "flujo",
+    "mo": "gravedad",
+    "mu": "empresas"
+   },
+   "bien": true,
+   "segundos": 0.4,
+   "entendido": "Entendido «movimientos entre bandas de las empresas»: Las 1.286 empresas, por gravedad · Jev, 0,4 s"
+  },
+  {
+   "frase": "las que tienen golpes por confirmar",
+   "esperado": {
+    "mmov": "por_confirmar"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mmov": "por_confirmar"
+   },
+   "bien": true,
+   "segundos": 0.5,
+   "entendido": "Entendido «las que tienen golpes por confirmar»: Las 35 organizaciones con un golpe por confirmar×, por gravedad · Jev, 0,5 s"
+  },
+  {
+   "frase": "con avisos este mes",
+   "esperado": {
+    "mmov": "avisos"
+   },
+   "obtenido": {
+    "mf": "avisos",
+    "mo": "avisos",
+    "mu": "organizaciones",
+    "mmov": "avisos"
+   },
+   "bien": false,
+   "segundos": 0.3,
+   "entendido": "Entendido «con avisos este mes»: Las 25 organizaciones con algún aviso este mes×, por avisos del mes · Jev, 0,3 s"
+  },
+  {
+   "frase": "servicios profesionales en crítico",
+   "esperado": {
+    "msec": "Servicios profesionales",
+    "mb": "critical"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mb": "critical",
+    "msec": "Servicios profesionales"
+   },
+   "bien": true,
+   "segundos": 0.4,
+   "entendido": "Entendido «servicios profesionales en crítico»: Las 2 organizaciones en crítico× de servicios profesionales×, por gravedad · Jev, 0,4 s"
+  },
+  {
+   "frase": "dame las pequeñas que se hunden",
+   "esperado": {
+    "mtam": "Pequeña",
+    "mz": "hunde"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mz": "hunde",
+    "mtam": "Pequeña"
+   },
+   "bien": true,
+   "segundos": 0.4,
+   "entendido": "Entendido «dame las pequeñas que se hunden»: Las 9 organizaciones que se hunden× de tamaño pequeña×, por gravedad · Jev, 0,4 s"
+  },
+  {
+   "frase": "historia mes a mes de las críticas",
+   "esperado": {
+    "mf": "tapiz",
+    "mb": "critical"
+   },
+   "obtenido": {
+    "mf": "tapiz",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mb": "critical"
+   },
+   "bien": true,
+   "segundos": 0.8,
+   "entendido": "Entendido «historia mes a mes de las críticas»: Las 65 organizaciones en crítico×, por gravedad · Jev, 0,8 s"
+  },
+  {
+   "frase": "las que podrían necesitar un depósito",
+   "esperado": {
+    "mprod": "depositos:encaja"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mprod": "depositos:encaja"
+   },
+   "bien": true,
+   "segundos": 0.4,
+   "entendido": "Entendido «las que podrían necesitar un depósito»: Las 0 organizaciones a las que les encaja depósitos y letras×, por gravedad · Jev, 0,4 s"
+  },
+  {
+   "frase": "las francesas",
+   "esperado": {
+    "mpais": "FR"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mpais": "FR"
+   },
+   "bien": true,
+   "segundos": 0.4,
+   "entendido": "Entendido «las francesas»: Las 4 organizaciones de Francia×, por gravedad · Jev, 0,4 s"
+  },
+  {
+   "frase": "el flujo en tabla",
+   "esperado": {
+    "mf": "flujo",
+    "mm": "tabla"
+   },
+   "obtenido": {
+    "mf": "flujo",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mm": "tabla"
+   },
+   "bien": true,
+   "segundos": 0.4,
+   "entendido": "Entendido «el flujo en tabla»: Las 250 organizaciones, por gravedad · Jev, 0,4 s"
+  },
+  {
+   "frase": "lo más urgente primero",
+   "esperado": {
+    "mo": "gravedad"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones"
+   },
+   "bien": true,
+   "segundos": 0,
+   "entendido": "Entendido «lo más urgente primero»: Las 250 organizaciones, por gravedad · palabras claveJev no responde; entendido por palabras clave."
+  },
+  {
+   "frase": "las de manufactura con más avisos",
+   "esperado": {
+    "msec": "Manufactura",
+    "mo": "avisos"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "avisos",
+    "mu": "organizaciones",
+    "msec": "Manufactura"
+   },
+   "bien": true,
+   "segundos": 0,
+   "entendido": "Entendido «las de manufactura con más avisos»: Las 5 organizaciones de manufactura×, por avisos del mes · palabras claveJev no responde; entendido por palabras clave."
+  },
+  {
+   "frase": "qué tal el tiempo mañana",
+   "esperado": {},
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones"
+   },
+   "bien": true,
+   "segundos": 0,
+   "entendido": "No sé qué vista es «qué tal el tiempo mañana». Prueba con una banda («las críticas»), un movimiento («las que caen»), un sector, un país, un producto o una forma («el flujo», «en tabla»)."
+  },
+  {
+   "frase": "las estables que empeoran este mes",
+   "esperado": {
+    "mb": "stable",
+    "mmov": "cae"
+   },
+   "obtenido": {
+    "mf": "ranking",
+    "mo": "gravedad",
+    "mu": "organizaciones",
+    "mb": "stable",
+    "mmov": "cae"
+   },
+   "bien": true,
+   "segundos": 0,
+   "entendido": "Entendido «las estables que empeoran este mes»: Las 15 organizaciones en estable× que caen tres puntos o más este mes×, por gravedad · palabras claveJev no responde; entendido por palabras clave."
+  }
+ ]
+}

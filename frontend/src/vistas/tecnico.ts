@@ -252,6 +252,25 @@ function supuestos(d: DatosFicha): HTMLElement {
 	const hz = d.hor;
 	if (!hz) { caja.append(h('p', { class: 'aviso-datos' }, 'Falta rumbo/horizons/ para esta entidad: ejecuta scripts/datos/horizontes.py.')); return caja; }
 	if (!hz.scenarios) { caja.append(h('p', {}, `Sin horizonte: ${hz.reason ?? 'la entidad no tiene score vivo en el corte'}.`)); return caja; }
+	const nuevo = hz as unknown as { model?: { version: string; trained_until?: string }; explain_h6?: { variable: string; points: number }[] };
+	if (nuevo.model) {
+		// forecast-v1: regresión cuantílica calibrada. Se enseña qué empuja su previsión a seis meses.
+		caja.append(dl([
+			['Modelo', `${nuevo.model.version}, entrenado hasta ${nuevo.model.trained_until ? f.mes(nuevo.model.trained_until) : '—'}: predice el cambio del score a cada horizonte y calibra la franja con lo que pasó de verdad`],
+			['Qué empuja su previsión a seis meses', (nuevo.explain_h6 ?? []).map((x) => `${x.variable} ${f.signo(x.points, 1)}`).join(' · ') || '—'],
+			['Bundle de origen', `${hz.bundle_id.slice(0, 12)}${hz.bundle_id === d.man.bundle_id ? ' (el mismo que se ve)' : ' · distinto del que se ve: vuelve a generar los horizontes'}`],
+		]));
+		const val = h('div', { class: 'calibracion' });
+		caja.append(val);
+		void carga.horizontesIndice().then((ix) => {
+			const v = (ix as unknown as { validation?: { cortes?: string[]; por_horizonte?: Record<string, { n: number; error_mediana: number; error_sin_cambio: number; acierta_50: number; acierta_80: number }> } } | null)?.validation;
+			if (!v?.por_horizonte) return;
+			const fila = (k: string, nombre: string): [string, string] => { const x = v.por_horizonte![k]; return [nombre, x ? `la franja del 50 % acierta el ${f.porcentaje(x.acierta_50, 0)} y la del 80 %, el ${f.porcentaje(x.acierta_80, 0)}; la mediana se equivoca en ${f.numero(x.error_mediana, 1)} puntos, frente a ${f.numero(x.error_sin_cambio, 1)} de suponer que nada cambia (${f.numero(x.n)} casos)` : '—']; };
+			val.append(h('p', {}, h('b', {}, 'Prueba hacia atrás'), ` en ${f.plural(v.cortes?.length ?? 0, 'corte', 'cortes')}, comparando con lo que pasó de verdad:`), dl([fila('h3', 'A tres meses'), fila('h6', 'A seis meses'), fila('h12', 'A un año')]),
+				h('p', { class: 'nota' }, `Comprobaciones: ${Object.entries((ix as unknown as { checks?: Record<string, string> }).checks ?? {}).map(([k2, x]) => `${k2.replace(/_/g, ' ')} ${x}`).join(' · ')}.`));
+		});
+		return caja;
+	}
 	const me = (hz.method ?? {}) as { sims?: number; block?: number; phi?: number; widen_k?: number; lags?: Record<string, number>; median_window?: number };
 	caja.append(dl([
 		['Simulaciones', `${f.numero(me.sims ?? 0)} trayectorias de 12 meses desde ${f.mes(hz.cut)}`],
@@ -266,6 +285,7 @@ function supuestos(d: DatosFicha): HTMLElement {
 	void carga.horizontesIndice().then((ix) => {
 		vaciar(indice);
 		if (!ix) { indice.append(h('p', { class: 'nota' }, 'Sin índice de horizontes.')); return; }
+		if (!ix.calibration) { indice.append(h('p', { class: 'nota' }, 'El índice de horizontes no trae la prueba hacia atrás.')); return; }
 		const c = ix.calibration as { h3?: { cov50: number; cov80: number; n: number }; h6?: { cov50: number; cov80: number; n: number }; mae_median?: number; mae_naive?: number; mae_median_drift?: number; eval_cut?: string; drift_cov?: { h6?: { cov80: number } } };
 		indice.append(h('p', {}, h('b', {}, 'Prueba hacia atrás'), ` desde ${c.eval_cut ? f.mes(c.eval_cut) : '—'}, comparando con lo que pasó de verdad:`),
 			dl([
@@ -274,7 +294,7 @@ function supuestos(d: DatosFicha): HTMLElement {
 				['Error de la mediana', c.mae_median !== undefined ? `${f.numero(c.mae_median, 1)} puntos, frente a ${f.numero(c.mae_naive ?? 0, 1)} de suponer que no cambia nada: mejora poco, porque el score se mueve mucho mes a mes` : '—'],
 				['Si sigue la deriva', c.mae_median_drift !== undefined ? `error de ${f.numero(c.mae_median_drift, 1)} puntos y su franja del 80 % acierta el ${f.porcentaje(c.drift_cov?.h6?.cov80 ?? 0, 0)}: es un «qué pasaría si», no una predicción` : '—'],
 			]),
-			h('p', { class: 'nota' }, `Comprobaciones: el corte se reproduce con el motor en ${ix.checks.h0_reproduced}; cada acción llega a la cifra del motor en ${ix.checks.actions_consistent}; cada combinación, en ${ix.checks.combos_consistent}.`));
+			h('p', { class: 'nota' }, `Comprobaciones: ${Object.entries(ix.checks ?? {}).map(([k2, x]) => `${k2.replace(/_/g, ' ')} ${x}`).join(' · ')}.`));
 	});
 	return caja;
 }
