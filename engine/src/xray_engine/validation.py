@@ -59,7 +59,7 @@ NEUTRALITY_OK = 0.03
 NEUTRALITY_FAIL = 0.10
 CHECK_KEYS: tuple[str, ...] = (
     "isolation", "truncation", "additivity", "scale", "determinism", "ablation", "neutrality",
-    "penalty_by_branch", "rank_stability", "history_truncation", "persistence",
+    "penalty_by_branch", "rank_stability", "history_truncation", "persistence", "verdict_persistence",
     "netting_placebo", "injection",
 )
 # expensive checks left out by ``quick``
@@ -67,6 +67,10 @@ QUICK_SKIPPED: tuple[str, ...] = ("history_truncation", "netting_placebo", "inje
 INJECTION_KINDS: tuple[str, ...] = ("spike", "step", "ramp")
 P_STRUCTURAL_SPIKE_MAX = 0.10
 P_STRUCTURAL_STEP_MIN = 0.70
+VERDICT_LAGS: tuple[int, ...] = (3, 6)  # months after the verdict
+P_PERSIST_STRUCTURAL_MIN = 0.75
+P_PERSIST_BUMP_MAX = 0.45
+PERSIST_GAP_MIN = 0.10  # structural over pending
 
 TITLES: dict[str, str] = {
     "isolation": "Aislamiento de cohorte",
@@ -80,6 +84,7 @@ TITLES: dict[str, str] = {
     "rank_stability": "Estabilidad del orden",
     "history_truncation": "Historia mínima",
     "persistence": "Persistencia",
+    "verdict_persistence": "Persistencia de veredictos",
     "netting_placebo": "Placebo de traspasos",
     "injection": "Deterioros inyectados",
 }
@@ -1061,6 +1066,209 @@ def persistence(scored: Scored, *, lag: int = 6, low_score: float = 40.0, min_li
     }
 
 
+def _scored_live(item: EntityMonth | None) -> bool:
+    return item is not None and item.parts.feed_live and item.parts.carried_from is None and not item.parts.abstained
+
+
+def _persistence_cell(rows: Sequence[Mapping[str, Any]], lags: Sequence[int], move: float) -> dict[str, Any]:
+    """``rows`` = verdicts as {move, sign, gaps}: ``move`` = score(t) - pre-move
+    level, ``gaps[lag]`` = score(t + lag) - pre-move level (None when that month
+    is not live and scored). Per lag: share at least ``move`` points below
+    (``down``) and above (``up``) the pre-move level, and ``persist`` = the one
+    in the direction of the verdict (None without a direction)."""
+    cell: dict[str, Any] = {
+        "n": len(rows), "mean_move": float(np.mean([row["move"] for row in rows])) if rows else None,
+    }
+    for lag in lags:
+        known = [row for row in rows if row["gaps"].get(lag) is not None]
+        down = sum(row["gaps"][lag] <= -move for row in known)
+        up = sum(row["gaps"][lag] >= move for row in known)
+        held = sum(row["gaps"][lag] * row["sign"] >= move for row in known if row["sign"])
+        directed = sum(1 for row in known if row["sign"])
+        cell[f"lag{lag}"] = {
+            "n": len(known),
+            "down": down / len(known) if known else None,
+            "up": up / len(known) if known else None,
+            "persist": held / directed if directed and directed == len(known) else None,
+        }
+    return cell
+
+
+def verdict_persistence(
+    scored: Scored, *, lags: Sequence[int] = VERDICT_LAGS, min_cases: int = 20, grade_kind: str = "group",
+) -> dict[str, Any]:
+    """Do the trajectory labels mean what they say? Label-free, past verdicts only.
+
+    For every verdict class (``direction/nature``), groups and companies apart:
+    n, mean move against ``t - horizon_months`` and, ``lags`` months after the
+    verdict, the share of scores still ``min_delta_points`` beyond the pre-move
+    level (score of ``t - horizon_months``), next to the base rate over every
+    eligible entity-month. A month counts when t and ``t - horizon_months`` are
+    live, own-scored and not abstained; a lag counts when ``t + lag`` is too.
+    Splits: ``by_horizon`` (a call of the long horizon alone has ``|delta3|``
+    under the threshold by construction, so it also reports ``own_reference``:
+    against the first month of its drift window); ``by_age`` of a pending call
+    (its first month or a later one); ``by_shock_direction`` of a bump (in the
+    direction of the shock it undoes). Graded on the falls of
+    ``grade_kind`` called with the short horizon: fail when structural ones do
+    not persist more than pending ones; pass when they reach
+    ``P_PERSIST_STRUCTURAL_MIN``, beat pending ones by ``PERSIST_GAP_MIN`` and
+    bumps stay under ``P_PERSIST_BUMP_MAX``; a warning in between.
+    """
+    cfg = scored.params.trajectory
+    horizon, move, lags = cfg.horizon_months, cfg.min_delta_points, tuple(lags)
+    calls = {"improving": 1.0, "deteriorating": -1.0}
+    found: dict[str, dict[str, Any]] = {}
+    for kind in ("group", "company"):
+        every: list[dict[str, Any]] = []
+        classes: dict[str, list] = defaultdict(list)
+        horizons: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+        own: dict[str, list] = defaultdict(list)
+        ages: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+        shocks: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+        for key, items in _entities(scored.months).items():
+            if key[0] != kind:
+                continue
+            by_month = {item.row.month: item for item in items}
+
+            def row(item: EntityMonth, reference: EntityMonth, sign: float) -> dict[str, Any]:
+                level = reference.parts.score
+                later = {lag: by_month.get(_shift_month(item.row.month, lag)) for lag in lags}
+                return {
+                    "move": item.parts.score - level, "sign": sign,
+                    "gaps": {lag: other.parts.score - level if _scored_live(other) else None
+                             for lag, other in later.items()},
+                }
+
+            for item in items:
+                before = by_month.get(_shift_month(item.row.month, -horizon))
+                if not _scored_live(item) or not _scored_live(before):
+                    continue
+                verdict = item.trajectory
+                sign = calls.get(getattr(verdict, "direction", None), 0.0)
+                every.append(row(item, before, 0.0))
+                if not getattr(verdict, "available", False):
+                    continue
+                label = f"{verdict.direction}/{verdict.nature or 'none'}"
+                entry = row(item, before, sign)
+                classes[label].append(entry)
+                if sign:
+                    horizons[label][str(verdict.horizon)].append(entry)
+                    if verdict.horizon == "long" and verdict.drift_months:
+                        start = by_month.get(_shift_month(item.row.month, 1 - verdict.drift_months))
+                        if _scored_live(start):
+                            own[label].append(row(item, start, sign))
+                    elif verdict.nature == "shock_pending":
+                        age = "first_month" if verdict.persistence_months <= 1 else "later_months"
+                        ages[label][age].append(entry)
+                elif verdict.nature == "bump" and verdict.shock_month in by_month:
+                    shock = by_month[verdict.shock_month].trajectory
+                    if shock.direction in calls and before.row.month < verdict.shock_month:
+                        shocks[label][shock.direction].append(row(item, before, calls[shock.direction]))
+        cells: dict[str, Any] = {}
+        for label in sorted(classes):
+            cell = _persistence_cell(classes[label], lags, move)
+            if label in horizons:
+                cell["by_horizon"] = {
+                    name: _persistence_cell(rows, lags, move) for name, rows in sorted(horizons[label].items())
+                }
+                if label in own:
+                    cell["by_horizon"]["long"]["own_reference"] = _persistence_cell(own[label], lags, move)
+            if label in ages:
+                cell["by_age"] = {name: _persistence_cell(rows, lags, move) for name, rows in sorted(ages[label].items())}
+            if label in shocks:
+                cell["by_shock_direction"] = {
+                    name: _persistence_cell(rows, lags, move) for name, rows in sorted(shocks[label].items())
+                }
+            cells[label] = cell
+        found[kind] = {"base_rate": _persistence_cell(every, lags, move), "classes": cells}
+
+    first = f"lag{lags[0]}"
+
+    def short_call(kind: str, label: str) -> dict[str, Any]:
+        """Verdicts of ``label`` the short horizon takes part in (short or both)."""
+        split = found[kind]["classes"].get(label, {}).get("by_horizon", {})
+        counted = {lag: [0, 0.0] for lag in lags}
+        for name in ("short", "both"):
+            for lag in lags:
+                cell = split.get(name, {}).get(f"lag{lag}", {})
+                if cell.get("n"):
+                    counted[lag][0] += cell["n"]
+                    counted[lag][1] += cell["persist"] * cell["n"]
+        return {
+            "n": sum(split.get(name, {}).get("n", 0) for name in ("short", "both")),
+            **{f"lag{lag}": {"n": n, "persist": held / n if n else None} for lag, (n, held) in counted.items()},
+        }
+
+    def bump(kind: str, direction: str) -> dict[str, Any]:
+        cell = found[kind]["classes"].get("stable/bump", {}).get("by_shock_direction", {}).get(direction)
+        return cell or _persistence_cell([], lags, move)
+
+    graded: dict[str, Any] = {}
+    for kind in ("group", "company"):
+        for direction, name in (("deteriorating", "falls"), ("improving", "rises")):
+            side = "down" if direction == "deteriorating" else "up"
+            graded[f"{kind}_{name}"] = {
+                "structural": short_call(kind, f"{direction}/structural"),
+                "pending": short_call(kind, f"{direction}/shock_pending"),
+                "bump": bump(kind, direction),
+                "base_rate": {f"lag{lag}": found[kind]["base_rate"][f"lag{lag}"][side] for lag in lags},
+            }
+    falls = graded[f"{grade_kind}_falls"]
+    structural, pending, reverted = (falls[name][first] for name in ("structural", "pending", "bump"))
+    ok, warning = None, False
+    if structural["n"] >= min_cases and pending["n"] >= min_cases:
+        gap = structural["persist"] - pending["persist"]
+        bumps_ok = reverted["n"] < min_cases or reverted["persist"] <= P_PERSIST_BUMP_MAX
+        if gap <= 0:
+            ok = False
+        elif structural["persist"] >= P_PERSIST_STRUCTURAL_MIN and gap >= PERSIST_GAP_MIN and bumps_ok:
+            ok = True
+        else:
+            warning = True
+    words = {"group": "grupo", "company": "empresa"}
+    summary = (
+        f"Caídas de {words.get(grade_kind, grade_kind)} llamadas con el horizonte corto: {lags[0]} meses después sigue "
+        f"{move:g} puntos o más por debajo del nivel previo el {_pct(structural['persist'])} de las estructurales "
+        f"({structural['n']} casos, objetivo ≥ {_pct(P_PERSIST_STRUCTURAL_MIN)}), el {_pct(pending['persist'])} de las "
+        f"pendientes de confirmar y el {_pct(reverted['persist'])} de los baches revertidos (objetivo ≤ "
+        f"{_pct(P_PERSIST_BUMP_MAX)}); tasa base {_pct(falls['base_rate'][first])}."
+    )
+    if ok is None and not warning:
+        summary += " Casos insuficientes para un veredicto."
+    elif ok is False:
+        summary += " Las etiquetas no discriminan: lo estructural no persiste más que lo pendiente."
+    elif warning:
+        summary += " Discrimina, sin alcanzar todos los objetivos."
+    labels = {"falls": "caídas", "rises": "mejoras"}
+    metrics = []
+    for kind in (grade_kind, *(name for name in ("group", "company") if name != grade_kind)):
+        for name in ("falls", "rises"):
+            item, where = graded[f"{kind}_{name}"], f"{labels[name]} de {words[kind]}"
+            metrics += [
+                _metric(f"Estructurales que persisten a +{lags[0]} meses · {where}", item["structural"][first]["persist"], "proporción"),
+                _metric(f"Pendientes que persisten a +{lags[0]} meses · {where}", item["pending"][first]["persist"], "proporción"),
+                _metric(f"Baches revertidos que persisten a +{lags[0]} meses · {where}", item["bump"][first]["persist"], "proporción"),
+                _metric(f"Tasa base a +{lags[0]} meses · {where}", item["base_rate"][first], "proporción"),
+            ]
+            if kind == grade_kind:
+                metrics.append(_metric(f"Veredictos estructurales con desenlace · {where}", item["structural"][first]["n"], "casos"))
+                if len(lags) > 1:
+                    metrics.append(_metric(
+                        f"Estructurales que persisten a +{lags[-1]} meses · {where}",
+                        item["structural"][f"lag{lags[-1]}"]["persist"], "proporción",
+                    ))
+    return {
+        "pass": ok, "warning": warning, "move_points": move, "horizon_months": horizon, "lags": list(lags),
+        "grade_kind": grade_kind, "by_kind": found, "short_horizon_calls": graded,
+        "targets": {
+            "p_persist_structural_min": P_PERSIST_STRUCTURAL_MIN, "p_persist_bump_max": P_PERSIST_BUMP_MAX,
+            "persist_gap_min": PERSIST_GAP_MIN,
+        },
+        "summary": summary, "metrics": metrics,
+    }
+
+
 def _netted_shares(transactions: pl.DataFrame) -> dict[str, float | None]:
     outflow = transactions.filter((pl.col("amount_cents") < 0) & ~pl.col("fx_excluded").fill_null(True))
     value = pl.col("amount_cents").abs() / 100 * pl.col("fx_rate")
@@ -1546,6 +1754,7 @@ def run_checks(scored: Scored, *, quick: bool = False, log: Callable[[str], None
         "rank_stability": lambda: rank_stability(scored, draws=30 if quick else 200),
         "history_truncation": lambda: history_truncation(scored),
         "persistence": lambda: persistence(scored),
+        "verdict_persistence": lambda: verdict_persistence(scored),
         "netting_placebo": lambda: netting_placebo(scored),
         "injection": lambda: injection_study(scored),
     }
@@ -1643,4 +1852,5 @@ __all__ = [
     "subset_tables",
     "tail_tables",
     "truncate_tables",
+    "verdict_persistence",
 ]

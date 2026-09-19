@@ -141,6 +141,7 @@ CHECK_TEXTS: dict[str, tuple[str, str]] = {
     "rank_stability": ("Estabilidad del orden", "El orden de los grupos aguanta cambios de ±10 puntos en los pesos y de la penalización."),
     "history_truncation": ("Historia mínima", "Cuánto cambia el score cuando solo se ven los últimos meses de un grupo."),
     "persistence": ("Persistencia", "La caja negativa de hoy sigue siendo negativa seis meses después."),
+    "verdict_persistence": ("Persistencia de veredictos", "Lo que se llama estructural sigue ahí tres y seis meses después; lo pendiente y los baches, menos."),
     "netting_placebo": ("Placebo de traspasos", "El emparejamiento de traspasos internos casi no encuentra nada con las fechas desplazadas."),
     "injection": ("Deterioros inyectados", "Retraso de detección y falsas alertas al inyectar picos, escalones y rampas."),
 }  # fmt: skip
