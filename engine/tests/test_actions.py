@@ -1,12 +1,13 @@
-"""Suggested actions: the uplift is the aggregate recomputed, never an estimate."""
+"""Suggested actions: a lever is a delta over the measured month and the uplift
+is the aggregate recomputed over the month it produces, never an estimate."""
 
 from __future__ import annotations
 
 import random
-from dataclasses import replace
 
 from xray_engine.actions import (
     MAX_ACTIONS,
+    MAX_STAGES,
     MAX_STEP,
     MIN_UPLIFT,
     TARGET_CEILING,
@@ -32,25 +33,28 @@ def _cases(panel_rows, params, seed: int, **overrides):
         yield row, pillars, aggregate(pillars, row, params)
 
 
-def test_uplift_is_the_aggregate_recomputed_with_the_pillar_at_its_target(panel_rows, params) -> None:
+def test_uplift_is_the_engine_rescoring_the_month_with_the_lever(panel_rows, params) -> None:
     seen: set[str] = set()
     for row, pillars, parts in _cases(panel_rows, params, 71):
         plan = plan_actions(row, pillars, parts, params)
-        changed_all = dict(pillars)
+        combined_row = row
         for action in plan.actions:
             result = pillars[action.pillar]
             assert result.score is not None and result.score < TARGET_CEILING
-            assert result.score < action.pillar_target <= min(TARGET_CEILING, result.score + MAX_STEP) + 1e-9
-            changed = {**pillars, action.pillar: replace(result, score=action.pillar_target)}
-            again = aggregate(changed, row, params)
+            new_row = action.row_delta(row)
+            new_pillars = compute_pillars(new_row, params)
+            again = aggregate(new_pillars, new_row, params)
             assert action.new_score == again.score
+            assert action.pillar_target == new_pillars[action.pillar].score
+            assert action.pillar_target >= result.score - 1e-9  # the lever helps its own pillar
             assert action.uplift == again.score - parts.score
             assert action.uplift_tenths == action.new_score_tenths - round(parts.score * 10)
             assert action.id.startswith(f"{action.pillar}-") and action.effort in ("bajo", "medio", "alto")
             assert action.title and action.detail and len(action.detail) <= 400
-            changed_all[action.pillar] = changed[action.pillar]
+            combined_row = action.row_delta(combined_row)
             seen.add(action.id)
-        assert plan.combined_score == aggregate(changed_all, row, params).score
+        combined_pillars = compute_pillars(combined_row, params)
+        assert plan.combined_score == aggregate(combined_pillars, combined_row, params).score
         assert plan.combined_uplift == plan.combined_score - parts.score
     assert {key for key in PILLAR_KEYS} == {name.split("-")[0] for name in seen}
 
@@ -63,9 +67,32 @@ def test_actions_never_lower_the_score_and_are_sorted_and_bounded(panel_rows, pa
         assert all(uplift >= MIN_UPLIFT for uplift in uplifts)
         assert uplifts == sorted(uplifts, reverse=True) and len(uplifts) <= MAX_ACTIONS
         assert len({action.pillar for action in plan.actions}) == len(uplifts)
-        assert plan.combined_uplift >= max(uplifts, default=0.0) - 1e-9
         with_actions += bool(uplifts)
     assert with_actions > N_ROWS // 4
+
+
+def test_the_ladder_rescores_each_stage_up_to_the_best_achievable(panel_rows, params) -> None:
+    ladders = 0
+    for row, pillars, parts in _cases(panel_rows, params, 78):
+        plan = plan_actions(row, pillars, parts, params)
+        if not plan.stages:
+            assert plan.actions == () and plan.max_score == parts.score
+            continue
+        ladders += 1
+        assert [stage.number for stage in plan.stages] == list(range(1, len(plan.stages) + 1))
+        assert len(plan.stages) <= MAX_STAGES
+        state = row
+        for stage in plan.stages:
+            assert stage.actions  # every stage suggests something
+            for action in stage.actions:
+                state = action.row_delta(state)
+            new_pillars = compute_pillars(state, params)
+            assert stage.score == aggregate(new_pillars, state, params).score
+            assert stage.uplift == stage.score - parts.score
+        assert plan.max_score == plan.stages[-1].score
+        assert plan.max_uplift == plan.max_score - parts.score
+        assert plan.max_uplift >= 0.0
+    assert ladders > N_ROWS // 4
 
 
 def test_targets_move_the_input_in_the_right_direction(panel_rows, params) -> None:
@@ -73,6 +100,22 @@ def test_targets_move_the_input_in_the_right_direction(panel_rows, params) -> No
         for action in suggest_actions(row, pillars, parts, params):
             lower_is_better = action.pillar in ("payments", "collections", "debt")
             assert (action.target < action.current) if lower_is_better else (action.target > action.current)
+
+
+def test_paying_suppliers_earlier_costs_cash(panel_rows, params) -> None:
+    """The payments lever moves cash out, so the rescored liquidity pays for it."""
+    checked = 0
+    for row, pillars, parts in _cases(panel_rows, params, 79):
+        for action in plan_actions(row, pillars, parts, params).actions:
+            if action.pillar != "payments":
+                continue
+            new_row = action.row_delta(row)
+            assert new_row.cash_month_end < row.cash_month_end  # cash went out
+            checked += 1
+            break
+        if checked:
+            break
+    assert checked > 0
 
 
 def test_no_actions_on_abstained_or_stale_months(panel_rows, params) -> None:
@@ -120,3 +163,22 @@ def test_invert_and_step_target(params) -> None:
             x = invert(table, target, table.points[0][0])
             assert x is not None and abs(table(x) - target) < 1e-9
     assert step_target(80.0, params.anchors["payments"]) is None
+
+
+def test_levers_never_ask_for_more_than_a_plausible_move(panel_rows, params) -> None:
+    from xray_engine.actions import MAX_BURDEN_CUT, MAX_COVERAGE_GAIN, MAX_DAYS_GAIN, MAX_EXTRA_BUFFER_DAYS
+
+    kinds: set[str] = set()
+    for row, pillars, parts in _cases(panel_rows, params, 74):
+        for action in plan_actions(row, pillars, parts, params).actions:
+            kind = action.id.split("-", 1)[1]
+            kinds.add(kind)
+            if kind == "buffer":
+                assert action.target - action.current <= MAX_EXTRA_BUFFER_DAYS + 1e-6
+            elif kind in ("punctuality", "speed"):
+                assert action.current - action.target <= MAX_DAYS_GAIN + 1e-6
+            elif kind == "coverage":
+                assert action.target <= action.current * (1 + MAX_COVERAGE_GAIN) + 1e-9
+            else:
+                assert action.target >= action.current * (1 - MAX_BURDEN_CUT) - 1e-9
+    assert kinds == {"buffer", "punctuality", "speed", "coverage", "burden"}

@@ -1,0 +1,36 @@
+{
+  "schema": "xray-export-v1",
+  "kind": "invoices_due",
+  "month": "2026-08",
+  "rows": {
+    "ar": {
+      "companies": {
+        "COMP_T001": [
+          {"operation_id": "op-fixture-1", "counterparty_id": "COUNTERPARTY_F01", "due_date": "2026-07-30", "amount": 12500.0, "days_overdue": 32},
+          {"operation_id": "op-fixture-2", "counterparty_id": null, "due_date": "2026-08-10", "amount": 840.0, "days_overdue": 21}
+        ],
+        "COMP_T004": [
+          {"operation_id": "op-fixture-3", "counterparty_id": "COUNTERPARTY_F02", "due_date": "2026-08-05", "amount": 3200.0, "days_overdue": 26}
+        ]
+      },
+      "groups": {
+        "GROUP_T001": [
+          {"operation_id": "op-fixture-1", "counterparty_id": "COUNTERPARTY_F01", "due_date": "2026-07-30", "amount": 12500.0, "days_overdue": 32},
+          {"operation_id": "op-fixture-3", "counterparty_id": "COUNTERPARTY_F02", "due_date": "2026-08-05", "amount": 3200.0, "days_overdue": 26}
+        ]
+      }
+    },
+    "ap": {
+      "companies": {
+        "COMP_T001": [
+          {"operation_id": "op-fixture-ap-1", "counterparty_id": "COUNTERPARTY_S01", "due_date": "2026-07-20", "amount": 5600.0, "days_overdue": 42}
+        ]
+      },
+      "groups": {
+        "GROUP_T001": [
+          {"operation_id": "op-fixture-ap-1", "counterparty_id": "COUNTERPARTY_S01", "due_date": "2026-07-20", "amount": 5600.0, "days_overdue": 42}
+        ]
+      }
+    }
+  }
+}

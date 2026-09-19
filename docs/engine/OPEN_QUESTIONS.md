@@ -21,7 +21,8 @@ flowchart TB
   val --> r2["R2 neutrality + R4b flip"] --> q2["Q-02 size-band vs absolute"]
   val --> r4["R4 rank stability"] --> q3["Q-03 weights · Q-12 momentum"]
   val --> r1["R1 paired ablation + R3 penalty by branch"] --> q4["Q-04 collections · Q-07 branch parity"]
-  val --> r8["R8 injections"] --> q5["Q-05 slow drifts"]
+  val --> r8["R8 injections"] --> r9["R9 natural anticipation"]
+  r9 --> q5["Q-05 slow drifts"]
   q2 --> freeze["freeze reference_v1.json + hash"]
   q3 --> freeze
   q4 --> freeze

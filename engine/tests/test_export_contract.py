@@ -324,6 +324,7 @@ def test_glossary_explains_every_code_the_engine_can_emit(exported) -> None:
             used["flags"] |= set(entry["flags"])
             used["caps"] |= set(entry["cap"]["fired"])
             used["gates"] |= {gate for pillar in entry["pillars"] for gate in pillar["gates"]}
+            used["gates"] |= set((entry["outlook"] or {}).get("gates", ()))
             used["reasons"] |= {entry["verdict"]["reason"], (entry["abstain"] or {}).get("reason")} - {None}
             assert not (entry["abstain"] and entry["verdict"]["available"]), (entity["id"], entry["month"])
     for section, codes in used.items():

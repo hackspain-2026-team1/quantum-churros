@@ -184,7 +184,7 @@ async function iniciar() {
 	void capaExp;
 
 	ayuda.append(h('h2', {}, 'Cómo se usa'), h('p', {}, 'La frase de arriba dice lo que ves. Toca cualquier trozo para cambiarlo, o escribe en cualquier parte.'));
-	for (const [k, d] of [['1 2 3 4', 'Scoring, productos, acciones y desglose (en una organización o una empresa)'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
+	for (const [k, d] of [['1 2 3 4', 'Scoring, acciones, productos y detalles (en una organización o una empresa)'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
 		ayuda.append(h('div', { class: 'ayuda-fila' }, h('span', { class: 'ayuda-tecla' }, k), h('span', {}, d)));
 	botonAyuda.addEventListener('click', () => ayuda.classList.toggle('ver'));
 

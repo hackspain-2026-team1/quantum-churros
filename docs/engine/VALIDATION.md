@@ -13,6 +13,7 @@ Related docs:
 - [DECISIONS.md](./DECISIONS.md) — every `JUDGEMENT` record points to a check below
 - [DATA_TRAPS.md](./DATA_TRAPS.md) — the traps the synthetic dataset reproduces
 - [OPEN_QUESTIONS.md](./OPEN_QUESTIONS.md) — what a failed check would reopen
+- [NATURAL_ANTICIPATION.md](./NATURAL_ANTICIPATION.md) — AUC(h) and lead-time on the real portfolio (bonus)
 
 ## Flow
 
@@ -45,6 +46,7 @@ flowchart TB
 | R6 | Netting placebo | `netting_placebo` | mirror pairs are not chance matches | real value share ≥ 10 × date-placebo share | gate |
 | R7 | Persistence | `persistence` | levels persist, which is what a level score needs | P(negative at t+6 \| negative at t) ≥ 5 × P(negative at t+6 \| positive at t) | info |
 | R8 | Injected deteriorations | `injection` | detection delay, bump vs fall, false alerts | step: median delay to `structural` ≤ 3 months *(proposed)* | info |
+| R9 | Natural anticipation | `natural_anticipation` | AUC(h) and lead-time on structural outcomes in the real portfolio; injection calibration; rolling-origin audit | informational only (`pass: null`) | info |
 
 A *gate* makes `xray-score validate` exit with code 1. Criteria marked *(proposed)* are tied
 to a constant the engine already uses or to a public convention, and wait for the team's
@@ -249,8 +251,8 @@ uv run --package xray-engine xray-score predict /path/to/output --params /tmp/fl
 ### R8 · Injected deteriorations
 
 - **Proves.** How many months the monitor needs to call a change, whether it separates a bump
-  from a fall, and how often it cries wolf — *measured*, since the data shows no lead–lag
-  between signals that would allow a claim of natural anticipation.
+  from a fall, and how often it cries wolf — *measured on controlled shapes*. R9 publishes the
+  same kind of metrics on the **real portfolio** (no score retuning).
 - **How.** Healthy groups (score ≥ 60, live feed, long history, no perimeter change in the
   injection window), stratified by **size band**, seed 7. Three shapes of the same final
   magnitude on operating inflow: **spike** (one month), **step** (permanent), **ramp** (linear
@@ -262,6 +264,24 @@ uv run --package xray-engine xray-score predict /path/to/output --params /tmp/fl
   structural alerts per 100 untouched group-months; the same for improvements.
 - **Pass (proposed).** Step: median delay to `structural` ≤ 3 months. P(structural | spike)
   is the number that decides whether D-59 needs a stricter rule.
+
+### R9 · Natural anticipation
+
+- **Proves.** Whether the published score and monitor **anticipate structural deterioration**
+  in the real portfolio — without outcome labels. Complements R8 (controlled injection) with
+  an operational target: first `deterioration_structural` alert or `(deteriorating, structural)`
+  verdict within horizon *h* that was not already present at month *t*.
+- **How.** Read-only on `Scored`: predictor de trayectoria `max(0, -delta3, -drift_points)`
+  at *t*; labels from forward windows on group-months with live feed and no abstention.
+  Horizons *h* ∈ {1, 3, 6, 9, 12}, cada uno con todo su seguimiento disponible. Lead-time
+  from first signal (verdict, alert or score drop) to structural onset. **Calibration** reuses
+  paired R8 windows and compares the injected score with its untouched control during the
+  first 3/6 months. **Audit** recomputes AUC(h = 6) at `rolling_origin` cuts and reports |ΔAUC|.
+- **Reports.** `natural.by_horizon[h].auc`, `natural.lead_time.median_months`, paired AUC,
+  detection/structural delay and coverage under `calibration_on_injection`, plus
+  `audit_rolling_origin.cuts`.
+- **Pass.** None — informational. Baseline and interpretation in [NATURAL_ANTICIPATION.md](./NATURAL_ANTICIPATION.md).
+- **Run.** `make validate` → `make eval-anticipation`.
 
 ---
 
@@ -412,6 +432,20 @@ columns, and the **false drift rate**: months in which an untouched group's fitt
 crosses the bar. That number prices the parameter decision the 82 → 68 canonical case
 exposes (`engine/tests/test_canonical_drift.py`): how much detection the 82 → 68 erosion
 gains per point of `long_threshold`, at which false-alert cost.
+
+### R9 · Natural anticipation
+
+The previous portfolio baseline used score level to rank a trajectory-change outcome and is superseded. Regenerate the challenge dataset before publishing R9. Full method and CI baseline: [NATURAL_ANTICIPATION.md](./NATURAL_ANTICIPATION.md).
+
+| Calibration CI | Paired AUC h = 6 | Detection median | Structural median | Coverage |
+|----------------|------------------|------------------|-------------------|----------|
+| Step | 0,944 | 1 month | 2 months | 100 % |
+| Ramp | 0,813 | 4 months | 5,5 months | 100 % |
+
+Portfolio AUC h = 3/h = 6, lead-time and rolling-origin audit are **pending regeneration** with the trajectory predictor. Publish every AUC with positives, negatives and observations; publish every delay with coverage and its distribution.
+
+Keys: `natural_anticipation.natural` · `natural_anticipation.calibration_on_injection` ·
+`natural_anticipation.audit_rolling_origin`
 
 ---
 

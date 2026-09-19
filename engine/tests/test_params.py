@@ -92,6 +92,8 @@ def test_hand_set_values_follow_the_spec(params) -> None:
     assert (trajectory.perimeter_shift_share, trajectory.perimeter_shift_window_months) == (0.2, 3)
     assert (trajectory.long_horizon, trajectory.long_min_months) == (12, 6)
     assert (trajectory.long_threshold, trajectory.long_sigma_mult) == (8.0, 2.0)
+    assert (trajectory.own_level_months, trajectory.own_level_min_months) == (12, 4)
+    assert trajectory.structural_retention == 0.5
     assert params.alerts.critical_score == 35.0
     profile = params.profile
     assert (profile.concentration_top1_share, profile.concentration_min_months,
@@ -227,6 +229,12 @@ def test_round_trip_and_strict_parsing(params) -> None:
     with pytest.raises(ParamsError, match="one point per band score"):
         tables = {**data["liquidity"]["band_anchors"], "micro": [[0, 0], [10, 50], [20, 100]]}
         params_from_dict({**data, "liquidity": {**data["liquidity"], "band_anchors": tables}})
+    with pytest.raises(ParamsError, match="own_level_min_months"):
+        params_from_dict({**data, "trajectory": {**data["trajectory"], "own_level_min_months": 13}})
+    with pytest.raises(ParamsError, match="structural_retention"):
+        params_from_dict({**data, "trajectory": {**data["trajectory"], "structural_retention": 1.5}})
+    with pytest.raises(ParamsError, match="horizon_months"):
+        params_from_dict({**data, "outlook": {**data["outlook"], "horizon_months": 0}})
     flipped = dataclasses.replace(params, liquidity=dataclasses.replace(params.liquidity, segmented=False))
     assert params_from_dict(params_to_dict(flipped)).liquidity.segmented is False
 

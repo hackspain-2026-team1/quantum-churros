@@ -2,7 +2,7 @@
 
 Files: ``manifest.json``, ``portfolio.json``, ``groups/<id>.json``,
 ``companies/<id>.json``, ``evidence/<id>.json``, ``alerts.json``,
-``receipt.json``. Every number comes from a ``ScoreResult``; evidence rows are
+``invoices_due.json`` (the collect-earlier work lists), ``receipt.json``. Every number comes from a ``ScoreResult``; evidence rows are
 aggregates, never raw descriptions. Output is byte-identical for identical
 inputs: sorted keys, fixed separators, no wall-clock values.
 """
@@ -20,6 +20,8 @@ from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import polars as pl
+
 from . import contracts
 from .contracts import (
     BAND_KEYS,
@@ -31,6 +33,8 @@ from .contracts import (
     EntityMonth,
 )
 from .actions import plan_actions
+from . import financing as financing_module
+from .outlook import outlooks
 from .pillars import NOTE_TEMPLATES, pillar_note
 from .trajectory import trajectory_note
 
@@ -39,7 +43,7 @@ if TYPE_CHECKING:  # the result object is only read through its public fields
 
 BUNDLE_SCHEMA = "xray-export-v1"
 DEFAULT_VALIDATION_PATH = Path("artifacts/validation.json")
-SINGLE_FILES = ("manifest.json", "portfolio.json", "alerts.json", "receipt.json")
+SINGLE_FILES = ("manifest.json", "portfolio.json", "alerts.json", "invoices_due.json", "receipt.json")
 ENTITY_FOLDERS = ("groups", "companies", "evidence")
 SCORES_FILE = "scores.parquet"
 FALLBACK_GATE = "unavailable"
@@ -141,8 +145,25 @@ CHECK_TEXTS: dict[str, tuple[str, str]] = {
     "rank_stability": ("Estabilidad del orden", "El orden de los grupos aguanta cambios de ±10 puntos en los pesos y de la penalización."),
     "history_truncation": ("Historia mínima", "Cuánto cambia el score cuando solo se ven los últimos meses de un grupo."),
     "persistence": ("Persistencia", "La caja negativa de hoy sigue siendo negativa seis meses después."),
+    "verdict_persistence": ("Persistencia de veredictos", "Lo que se llama estructural sigue ahí tres y seis meses después; lo pendiente y los baches, menos."),
     "netting_placebo": ("Placebo de traspasos", "El emparejamiento de traspasos internos casi no encuentra nada con las fechas desplazadas."),
     "injection": ("Deterioros inyectados", "Retraso de detección y falsas alertas al inyectar picos, escalones y rampas."),
+    "natural_anticipation": (
+        "Anticipación natural",
+        "AUC y meses de antelación frente a deterioro estructural en cartera real, con calibración por inyección.",
+    ),
+    "level_vs_slope": (
+        "Nivel frente a pendiente",
+        "La persistencia del score es de nivel, no de pendiente; mide autocorrelación y co-movimiento con liquidez.",
+    ),
+    "rolling_origin": (
+        "Origen rodante",
+        "Re-puntúa en cortes históricos y comprueba que el ranking del mes del corte no cambia al ver el futuro.",
+    ),
+    "outlook_fan": (
+        "Abanico de escenarios",
+        "El score real al horizonte del abanico cae dentro del rango pesimista–optimista mostrado en el mes de origen.",
+    ),
 }  # fmt: skip
 CHECK_MISMATCH = "La validación disponible corresponde a otro dataset o a otros parámetros."
 CHECK_NOT_RUN = "Comprobación no ejecutada en esta validación."
@@ -359,11 +380,78 @@ def _actions(month: EntityMonth, params: Any, group_row: Any, shown: int) -> dic
         for action in plan.actions
     ]
     combined = max(shown, plan.combined_score_tenths) if actions else shown
-    return {"actions": actions, "actions_combined": {"new_score": combined, "uplift": combined - shown}}
+    action_plan = None
+    if plan.stages and plan.max_score is not None:
+        action_plan = {
+            "stages": [
+                {
+                    "number": stage.number,
+                    "score_tenths": _score_tenths(stage.score),
+                    "uplift_tenths": max(0, (_score_tenths(stage.score) or 0) - shown),
+                    "actions": [
+                        {
+                            "id": action.id,
+                            "pillar": action.pillar,
+                            "title": _text(action.title, 200),
+                            "detail": _text(action.detail),
+                            "current": _number(action.current, 2),
+                            "target": _number(action.target, 2),
+                            "unit": action.unit,
+                            "uplift_tenths": max(
+                                0,
+                                (_score_tenths(action.new_score) or 0)
+                                - (_score_tenths(action.new_score - action.uplift) or 0),
+                            ),
+                            "new_score_tenths": _score_tenths(action.new_score),
+                            "effort": action.effort,
+                        }
+                        for action in stage.actions
+                    ],
+                }
+                for stage in plan.stages
+            ],
+            "max_score_tenths": _score_tenths(plan.max_score),
+            "max_uplift_tenths": max(0, (_score_tenths(plan.max_score) or 0) - shown),
+        }
+    financing = [
+        {
+            "id": item.id,
+            "kind": item.kind,
+            "title": _text(item.title, 200),
+            "detail": _text(item.detail),
+            "amount": round(item.amount, 2) if item.amount is not None else None,
+            "uplift_tenths": max(0, item.new_score_tenths - shown),
+            "new_score_tenths": item.new_score_tenths,
+        }
+        for item in financing_module.recommendations(month.row, month.pillars, month.parts, params, group_row)
+    ]
+    return {
+        "actions": actions,
+        "actions_combined": {"new_score": combined, "uplift": combined - shown},
+        "financing": financing,
+        **({"actions_plan": action_plan} if action_plan is not None else {}),
+    }
+
+
+def _outlook_block(outlook: Any) -> dict[str, Any] | None:
+    """Optional scenarios best / common / worst of the score, ``horizon_months``
+    ahead, computed by the engine from the past of the month alone. Null on a
+    carried or abstained month; the points are tenths clamped to 0..1000."""
+    if outlook is None or not outlook.available:
+        return None
+    return {
+        "basis": outlook.basis,
+        "horizon_months": max(1, int(outlook.horizon_months)),
+        "best": _score_tenths(outlook.best),
+        "common": _score_tenths(outlook.common),
+        "worst": _score_tenths(outlook.worst),
+        "gates": _codes(outlook.gates),
+    }
 
 
 def _entity_month(
-    month: EntityMonth, params: Any, bands: Sequence[Mapping[str, Any]], group_row: Any = None
+    month: EntityMonth, params: Any, bands: Sequence[Mapping[str, Any]], group_row: Any = None,
+    outlook: Any = None,
 ) -> dict[str, Any]:
     row, parts = month.row, month.parts
     shown, base, contributions, penalty, cap = _waterfall(parts)
@@ -409,6 +497,7 @@ def _entity_month(
         "months_observed": max(0, int(parts.months_observed or 0)),
         "perimeter_changed": bool(row.perimeter_changed),
         "verdict": _verdict(month),
+        "outlook": _outlook_block(outlook),
         "abstain": (
             {"reason": parts.abstain_reason or "short_history", "unlock": _unlock(parts, params)}
             if parts.abstained
@@ -611,6 +700,57 @@ def _truth(card: Any, last: EntityMonth, codes: Mapping[str, Mapping[str, str]])
 # --------------------------------------------------------------------------
 
 
+# Which pillars an alert's cause lives in: the join between the alert stream
+# and the action system. Structural alerts name the pillars that moved, a fired
+# cap names its rule, and everything else attacks the pillars pulling the score
+# down. The team can grow the alert catalogue: each new kind lands here with
+# its cause, and the actions that attack it appear on the alert automatically.
+_CAP_RULE_PILLARS = {"negative_liquidity": ("liquidity",), "weak_payments": ("payments",)}
+_FINANCING_PILLARS = {
+    "factoring": "collections",
+    "confirming": "payments",
+    "line": "liquidity",
+    "restructure": "debt",
+    "sweep": "liquidity",
+}
+
+
+def _attack_pillars(kind: str, entry: Mapping[str, Any]) -> list[str]:
+    verdict = entry["verdict"]
+    if kind in ("deterioration_structural", "improvement_structural") and verdict["pillars_moved"]:
+        return list(verdict["pillars_moved"])
+    if kind == "cap_fired":
+        return list(_CAP_RULE_PILLARS.get(entry["cap"]["rule"] or "", ()))
+    # level_critical and structural without a named pillar: the weak ones
+    return [p["key"] for p in entry["pillars"] if p["score"] is not None and p["score"] < 600]
+
+
+def _enrich_alerts(alerts: list[dict[str, Any]], entries: dict[tuple[str, str], list[dict[str, Any]]]) -> None:
+    """Attach the actions and financing that attack each alert's cause."""
+    for alert in alerts:
+        if alert["state"] != "fired":
+            continue
+        months = entries.get((alert["entity_kind"], alert["entity_id"]), [])
+        entry = next((m for m in months if m["month"] == alert["month"]), None)
+        if entry is None:
+            continue
+        attacked = _attack_pillars(alert["kind"], entry)
+        actions = [
+            {"id": a["id"], "pillar": a["pillar"], "title": a["title"]}
+            for a in entry.get("actions", [])
+            if a["pillar"] in attacked
+        ][:2]
+        financing = [
+            {"id": f["id"], "kind": f["kind"], "title": f["title"]}
+            for f in entry.get("financing", [])
+            if _FINANCING_PILLARS.get(f["kind"]) in attacked
+        ][:2]
+        if actions:
+            alert["actions"] = actions
+        if financing:
+            alert["financing"] = financing
+
+
 def _alert(alert: Any, shown: int) -> dict[str, Any]:
     muted = alert.suppressed_by
     return {
@@ -640,7 +780,7 @@ def _engine_texts(name: str) -> dict[str, str]:
     """``<name>`` tables of every pure module that declares one (contracts first)."""
     found: dict[str, str] = {}
     modules: list[Any] = [contracts]
-    for module_name in ("pillars", "aggregate", "alerts", "trajectory"):
+    for module_name in ("pillars", "aggregate", "alerts", "trajectory", "outlook"):
         try:
             modules.append(importlib.import_module(f"{__package__}.{module_name}"))
         except Exception:  # noqa: BLE001 - a missing module only loses its own texts
@@ -673,6 +813,8 @@ def _glossary(entities: Iterable[Mapping[str, Any]], alerts: Iterable[Mapping[st
                 used["reasons"].add(entry["abstain"]["reason"])
             if entry["verdict"]["reason"] is not None:
                 used["reasons"].add(entry["verdict"]["reason"])
+            if entry["outlook"]:
+                used["gates"].update(entry["outlook"]["gates"])
     for alert in alerts:
         if alert["suppressed_by"] is not None:
             used["reasons"].add(alert["suppressed_by"]["reason"])
@@ -814,6 +956,47 @@ def _clean_target(out_dir: Path) -> None:
             path.unlink()
 
 
+MAX_REMINDERS = 20  # top open overdue AR invoices per entity in the reminder list
+
+
+def _reminder_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "operation_id": row["operation_id"],
+        "counterparty_id": row["counterparty_id"],
+        "due_date": row["due_date"].isoformat() if row["due_date"] is not None else None,
+        "amount": round(row["amount"], 2),
+        "days_overdue": int(row["days_overdue"]),
+    }
+
+
+def _reminders(
+    due_ar: pl.DataFrame, due_ap: pl.DataFrame
+) -> dict[str, dict[str, dict[str, list[dict[str, Any]]]]]:
+    """Top overdue open invoices per company and per group, both sides:
+    ``ar`` = clients that owe the entity, ``ap`` = suppliers the entity owes."""
+
+    def lado(due: pl.DataFrame) -> dict[str, dict[str, list[dict[str, Any]]]]:
+        rows: dict[str, list[dict[str, Any]]] = {}
+        ids = due["company_id"].drop_nulls().unique().sort().to_list()
+        for entity_id in ids:
+            picked = due.filter(pl.col("company_id") == entity_id).head(MAX_REMINDERS)
+            rows[entity_id] = [_reminder_row(row) for row in picked.to_dicts()]
+        return rows
+
+    def grupo(due: pl.DataFrame) -> dict[str, list[dict[str, Any]]]:
+        rows: dict[str, list[dict[str, Any]]] = {}
+        ids = due["group_id"].drop_nulls().unique().sort().to_list()
+        for entity_id in ids:
+            picked = due.filter(pl.col("group_id") == entity_id).head(MAX_REMINDERS)
+            rows[entity_id] = [_reminder_row(row) for row in picked.to_dicts()]
+        return rows
+
+    return {
+        "ar": {"companies": lado(due_ar), "groups": grupo(due_ar)},
+        "ap": {"companies": lado(due_ap), "groups": grupo(due_ap)},
+    }
+
+
 def export_bundle(
     result: ScoreResult,
     out_dir: Path,
@@ -838,7 +1021,10 @@ def export_bundle(
     copied), gates and notes from ``month.pillars``. Contributions are emitted
     in integer tenths through ``round_preserving_sum`` over ``[base,
     *contributions, -penalty, -cap_adjustment]``. An abstained month never
-    carries a verdict. The trajectory extras the frozen verdict block has no
+    carries a verdict. Every month carries the optional ``outlook`` block
+    (``_outlook_block``): the scenarios best / common / worst of the score that
+    ``outlooks`` projects from the past of the month alone, null on a carried
+    or abstained month. The trajectory extras the frozen verdict block has no
     field for (horizon, drift points) are evidence rows of the entity-month
     (``pillar`` null); the alert detail already names the drift.
     ``evidence_months`` limits ``evidence/<id>.json`` to the last months.
@@ -869,16 +1055,17 @@ def export_bundle(
         (key[1], month.row.month): month.row
         for key, months in by_entity.items() if key[0] == "group" for month in months
     }
-    entries: dict[tuple[str, str], list[dict[str, Any]]] = {
-        key: [
+    entries: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for key, months in by_entity.items():
+        fan = outlooks([month.parts for month in months], params)
+        entries[key] = [
             _entity_month(
                 month, params, bands,
                 group_rows.get((month.row.group_id, month.row.month)) if key[0] == "company" else None,
+                outlook=fan[position],
             )
-            for month in months
+            for position, month in enumerate(months)
         ]
-        for key, months in by_entity.items()
-    }
     shown_at = {
         (kind, entity_id, entry["month"]): entry["shown"]
         for (kind, entity_id), months in entries.items()
@@ -892,6 +1079,7 @@ def export_bundle(
         ),
         key=lambda item: (item["month"], item["id"]),
     )
+    _enrich_alerts(alerts, entries)
     alerts_of: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for alert in alerts:
         alerts_of[alert["entity_id"]].append(alert)
@@ -986,6 +1174,12 @@ def export_bundle(
     # alerts of entities the bundle does not describe cannot be shown
     written = {name.split("/")[1][:-5] for name in files if not name.startswith("evidence/")}
     alerts = [alert for alert in alerts if alert["entity_id"] in written]
+    files["invoices_due.json"] = {
+        "schema": BUNDLE_SCHEMA,
+        "kind": "invoices_due",
+        "month": _month(result.window.last_month),
+        "rows": _reminders(result.due_ar, result.due_ap),
+    }
     files["portfolio.json"] = {"schema": BUNDLE_SCHEMA, "kind": "portfolio", "months": axis, "groups": portfolio_rows}
     files["alerts.json"] = {"schema": BUNDLE_SCHEMA, "kind": "alerts", "alerts": alerts}
 

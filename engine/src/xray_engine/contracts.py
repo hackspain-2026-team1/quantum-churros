@@ -437,6 +437,18 @@ class TrajectoryParams:
     long_min_months: int
     long_threshold: float  # points
     long_sigma_mult: float  # times the own sigma
+    # own level: median score of the live months among the own_level_months
+    # months that end at t - horizon_months (where the entity usually sits)
+    own_level_months: int
+    own_level_min_months: int
+    # share of its gap to the own level a score is expected to keep; a confirmed
+    # move is structural when what is left still clears min_delta_points
+    structural_retention: float
+
+
+@dataclass(frozen=True)
+class OutlookParams:
+    horizon_months: int  # months ahead of the score scenarios best / common / worst
 
 
 @dataclass(frozen=True)
@@ -522,6 +534,7 @@ class Params:
     confidence: ConfidenceParams
     abstention: AbstentionParams
     trajectory: TrajectoryParams
+    outlook: OutlookParams
     alerts: AlertParams
     profile: ProfileParams
     fx: FxParams

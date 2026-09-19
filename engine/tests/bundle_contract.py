@@ -28,6 +28,7 @@ SINGLE_FILES = {
     "manifest.json": "manifest",
     "portfolio.json": "portfolio",
     "alerts.json": "alerts",
+    "invoices_due.json": "invoices_due",
     "receipt.json": "receipt",
 }
 ENTITY_FOLDERS = {"groups": "group", "companies": "company", "evidence": "evidence"}
@@ -232,6 +233,34 @@ def _check_actions(entry: Mapping[str, Any], where: str) -> list[str]:
             errors.append(f"{where}: actions_combined.uplift is not new_score - shown")
         if not actions and combined["uplift"] != 0:
             errors.append(f"{where}: combined uplift without actions")
+    financing = entry.get("financing", [])
+    kind_list = ("factoring", "confirming", "line", "restructure", "sweep")
+    if any(item["kind"] not in kind_list for item in financing):
+        errors.append(f"{where}: financing with an unknown kind")
+    if [item["uplift_tenths"] for item in financing] != sorted(
+        (item["uplift_tenths"] for item in financing), reverse=True
+    ):
+        errors.append(f"{where}: financing must be sorted by uplift")
+    for item in financing:
+        if item["new_score_tenths"] - item["uplift_tenths"] != shown:
+            errors.append(f"{where}: financing {item['id']} uplift is not new_score - shown")
+    plan = entry.get("actions_plan")
+    if plan is not None:
+        stages = plan["stages"]
+        if [stage["number"] for stage in stages] != list(range(1, len(stages) + 1)):
+            errors.append(f"{where}: actions_plan stages are not numbered from 1")
+        if not actions:
+            errors.append(f"{where}: actions_plan without actions")
+        if [a["id"] for a in stages[0]["actions"]] != [a["id"] for a in actions]:
+            errors.append(f"{where}: actions_plan stage 1 is not the actions list")
+        for stage in stages:
+            if stage["score_tenths"] - stage["uplift_tenths"] != shown:
+                errors.append(f"{where}: actions_plan stage {stage['number']} uplift is not score - shown")
+            for action in stage["actions"]:
+                if action["id"].split("-")[0] != action["pillar"]:
+                    errors.append(f"{where}: actions_plan action id {action['id']!r} does not start with its pillar")
+        if plan["max_score_tenths"] != stages[-1]["score_tenths"] or plan["max_uplift_tenths"] != stages[-1]["uplift_tenths"]:
+            errors.append(f"{where}: actions_plan max fields are not the last stage")
     return errors
 
 

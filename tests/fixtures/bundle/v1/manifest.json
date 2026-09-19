@@ -1,7 +1,7 @@
 {
   "schema": "xray-export-v1",
   "kind": "manifest",
-  "bundle_id": "2735a03aafcb0bb2c5365ce007eef08c717fe0a3c6b1d953feb295efc8d670ed",
+  "bundle_id": "682b515cba82eedad5e7b8948e2aac06f5a00c7b3a6cc1a78742f539f357fa2c",
   "engine_version": "engine-v2",
   "params_hash": "synthetic-fixture-params",
   "dataset_hash": "synthetic-fixture-dataset",
@@ -32,15 +32,65 @@
     "2026-07",
     "2026-08"
   ],
-  "counts": {"groups": 3, "companies": 5, "alerts": 13},
+  "counts": {
+    "groups": 3,
+    "companies": 5,
+    "alerts": 13
+  },
   "pillars": [
-    {"key": "liquidity", "label": "Liquidez", "weight": 0.3, "baseline": 610},
-    {"key": "payments", "label": "Pagos a proveedores", "weight": 0.2, "baseline": 680},
-    {"key": "collections", "label": "Cobros de clientes", "weight": 0.15, "baseline": 640},
-    {"key": "activity", "label": "Actividad", "weight": 0.2, "baseline": 620},
-    {"key": "debt", "label": "Deuda", "weight": 0.15, "baseline": 700}
+    {
+      "key": "liquidity",
+      "label": "Liquidez",
+      "weight": 0.3,
+      "baseline": 610
+    },
+    {
+      "key": "payments",
+      "label": "Pagos a proveedores",
+      "weight": 0.2,
+      "baseline": 680
+    },
+    {
+      "key": "collections",
+      "label": "Cobros de clientes",
+      "weight": 0.15,
+      "baseline": 640
+    },
+    {
+      "key": "activity",
+      "label": "Actividad",
+      "weight": 0.2,
+      "baseline": 620
+    },
+    {
+      "key": "debt",
+      "label": "Deuda",
+      "weight": 0.15,
+      "baseline": 700
+    }
   ],
-  "bands": [{"key": "critical", "label": "Crítico", "min": 0}, {"key": "watch", "label": "Vigilancia", "min": 400}, {"key": "stable", "label": "Estable", "min": 600}, {"key": "solid", "label": "Sólido", "min": 800}],
+  "bands": [
+    {
+      "key": "critical",
+      "label": "Crítico",
+      "min": 0
+    },
+    {
+      "key": "watch",
+      "label": "Vigilancia",
+      "min": 400
+    },
+    {
+      "key": "stable",
+      "label": "Estable",
+      "min": 600
+    },
+    {
+      "key": "solid",
+      "label": "Sólido",
+      "min": 800
+    }
+  ],
   "glossary": {
     "gates": {
       "inherited_from_group": "Liquidez heredada del grupo: la caja de esta filial se barre a la matriz.",
@@ -65,7 +115,16 @@
       "fx_excluded": "Hay movimientos en divisas fuera de la tabla de cambio: cuentan en filas, no en importes.",
       "inherited_from_group": "La liquidez mostrada es la del grupo."
     },
-    "caps": {"negative_liquidity": "Caja más líneas disponibles en negativo 3 de los últimos 6 meses: score máximo 40.", "weak_pillar": "Liquidez o pagos por debajo de 25: score máximo 50."},
-    "reasons": {"short_history": "Historia insuficiente.", "perimeter_change": "Cambio de perímetro reciente.", "abstention": "El motor se abstiene en este mes.", "stale_feed": "Feed bancario sin datos recientes.", "no_bank_pillar": "Sin pilares basados en banco."}
+    "caps": {
+      "negative_liquidity": "Caja más líneas disponibles en negativo 3 de los últimos 6 meses: score máximo 40.",
+      "weak_pillar": "Liquidez o pagos por debajo de 25: score máximo 50."
+    },
+    "reasons": {
+      "short_history": "Historia insuficiente.",
+      "perimeter_change": "Cambio de perímetro reciente.",
+      "abstention": "El motor se abstiene en este mes.",
+      "stale_feed": "Feed bancario sin datos recientes.",
+      "no_bank_pillar": "Sin pilares basados en banco."
+    }
   }
 }

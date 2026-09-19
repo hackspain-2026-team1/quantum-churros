@@ -29,4 +29,16 @@ artifacts/*
 
 # IDE
 .idea/
+.vscode/
+
+# frontend build artifacts
+frontend/.svelte-kit/
+frontend/build/
+frontend/test-results/
+frontend/static/data/
+
+# local compose override
+compose.override.yaml
+# local agent worktrees and scratch
+.claude/
 workspace/

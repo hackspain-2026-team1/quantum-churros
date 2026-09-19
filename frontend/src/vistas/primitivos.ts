@@ -11,6 +11,7 @@ import type { Manifiesto, MesM } from '../datos/contrato';
 import { f } from '../datos/formato';
 import { movimiento, nombreBanda } from '../datos/redaccion';
 import { h } from './dom';
+import { logoBanco } from './logos';
 
 const NS = 'http://www.w3.org/2000/svg';
 function svg(w: number, alto: number, clase = ''): SVGSVGElement {
@@ -53,6 +54,24 @@ export function granos3(label: string): SVGSVGElement {
 	const s = svg(20, 8, 'granos3');
 	const n = label === 'high' ? 3 : label === 'medium' ? 2 : 1;
 	for (let i = 0; i < 3; i++) s.append(el('circle', { cx: 3 + i * 7, cy: 4, r: 2.4, class: i < n ? 'lleno' : 'vacio' }));
+	return s;
+}
+
+const PALABRAS_GENERICAS = new Set(['banco', 'bank', 'caja', 'caixa', 'de', 'del', 'la', 'el', 'las', 'los', 'sa', 's']);
+
+/** Marca de una entidad financiera delante de su nombre: el logo real cuando lo tenemos
+ *  (vendido en logos.ts como data-URI local) y, si no, el monograma grabado. */
+export function marcaBanco(nombre: string | null | undefined, tam = 20): Element | null {
+	if (!nombre) return null;
+	const logo = logoBanco(nombre);
+	if (logo) return h('img', { class: 'marca-logo', src: logo, alt: '', width: tam, height: tam });
+	const palabras = nombre.toLowerCase().split(/[^a-zñáéíóúü]+/).filter((p) => p && !PALABRAS_GENERICAS.has(p));
+	const iniciales = (palabras.length >= 2 ? palabras[0][0] + palabras[1][0] : (palabras[0] ?? nombre.toLowerCase()).slice(0, 2)).toUpperCase();
+	const s = svg(tam, tam, 'marca-banco');
+	s.append(el('circle', { cx: tam / 2, cy: tam / 2, r: tam / 2 - 1, class: 'mb-aro' }), el('circle', { cx: tam / 2, cy: tam / 2, r: tam / 2 - 3.5, class: 'mb-aro fino' }));
+	const t = el('text', { x: tam / 2, y: tam / 2 + tam * 0.15, class: 'mb-iniciales', 'text-anchor': 'middle', 'font-size': String(Math.round(tam * 0.42)) });
+	t.textContent = iniciales;
+	s.append(t);
 	return s;
 }
 
@@ -151,4 +170,52 @@ export function llamadas(textos: string[]): { marcas: HTMLElement[]; notas: HTML
 /** Cifra con contexto: número, qué es, comparación. */
 export function cifraC(valor: string, que: string, comparacion?: string | Node | null, tono?: 'sube' | 'baja' | ''): HTMLElement {
 	return h('div', { class: `cifra-c ${tono ?? ''}` }, h('div', { class: 'cc-valor' }, valor), h('div', { class: 'cc-que' }, que), comparacion ? h('div', { class: 'cc-comp' }, comparacion) : null);
+}
+
+export interface ColumnaOrden<T> {
+	titulo: string;
+	/** Columna numérica: cabecera alineada a la derecha, como el .num del cuerpo. */
+	num?: boolean;
+	/** Clave de ordenación de cada fila; null (dato ausente) queda siempre al final. */
+	clave: (fila: T) => string | number | null;
+}
+
+/** Cabeceras ordenables de una tabla: cada th es un botón con aria-sort y su flecha, y al pulsarlo
+ *  se reordenan las filas del tbody reutilizando los tr existentes (los oyentes no se pierden).
+ *  `inicial` deja una columna ordenada al pintar; sin ella, la tabla nace sin orden activo. */
+export function cabecerasOrdenables<T>(columnas: ColumnaOrden<T>[], filas: { dato: T; tr: HTMLTableRowElement }[], tbody: HTMLElement, inicial?: { col: number; dir: 1 | -1 }): { thead: HTMLElement } {
+	let activa = inicial?.col ?? -1;
+	let dir = inicial?.dir ?? 1;
+	const flechas: (HTMLElement | null)[] = columnas.map(() => null);
+	const ths = columnas.map((c, i) => {
+		const flecha = h('span', { class: 'orden-flecha', 'aria-hidden': 'true' });
+		flechas[i] = flecha;
+		const b = h('button', { type: 'button', 'aria-label': `Ordenar por ${c.titulo}` }, c.titulo, flecha);
+		b.addEventListener('click', () => {
+			if (activa === i) dir = (dir * -1) as 1 | -1;
+			else { activa = i; dir = 1; }
+			ordenar();
+		});
+		return h('th', { scope: 'col', class: c.num ? 'num' : undefined }, b);
+	});
+	function ordenar() {
+		const col = columnas[activa];
+		if (!col) return;
+		const ordenadas = filas.slice().sort((a, b) => {
+			const va = col.clave(a.dato), vb = col.clave(b.dato);
+			if (va === null && vb === null) return 0;
+			if (va === null) return 1;
+			if (vb === null) return -1;
+			const r = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es', { numeric: true, sensitivity: 'base' });
+			return r * dir;
+		});
+		for (const f of ordenadas) tbody.append(f.tr);
+		ths.forEach((th, i) => {
+			if (i === activa) th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
+			else th.removeAttribute('aria-sort');
+			flechas[i]!.textContent = i === activa ? (dir === 1 ? '↑' : '↓') : '';
+		});
+	}
+	if (activa >= 0) ordenar();
+	return { thead: h('thead', {}, h('tr', {}, ...ths)) };
 }

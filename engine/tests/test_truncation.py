@@ -7,7 +7,8 @@ from datetime import date
 
 import polars as pl
 import pytest
-from xray_engine.scoring import score_dataset, score_entity
+from xray_engine.outlook import outlooks
+from xray_engine.scoring import score_entity, score_dataset
 
 TOL = 1e-9
 KEYS = ["entity_kind", "entity_id", "month"]
@@ -60,3 +61,21 @@ def test_entity_history_is_past_only(panel_rows, params) -> None:
     shuffled = rows[:]
     rng.shuffle(shuffled)
     assert score_entity(shuffled, params) == whole
+
+
+def test_entity_outlook_is_past_only(panel_rows, params) -> None:
+    """The scenarios of month t only read the history up to t: arriving later
+    months never move them, so the chart of a cut dataset draws the same fan."""
+    rng = random.Random(37)
+    months = [date(2025, month, 1) for month in range(1, 13)]
+    rows = [
+        panel_rows.random(rng, entity_kind="group", entity_id="G", group_id="G", month=month,
+                          months_observed=index + 8, months_since_perimeter_change=None,
+                          perimeter_changed=False, members_joined=0, products_connected=0)
+        for index, month in enumerate(months)
+    ]
+    whole = outlooks([item.parts for item in score_entity(rows, params)], params)
+    for size in (1, 5, 9, len(rows)):
+        cut = score_entity(rows[:size], params)
+        assert [item.row.month for item in cut] == months[:size]
+        assert outlooks([item.parts for item in cut], params) == whole[:size]

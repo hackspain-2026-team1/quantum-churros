@@ -113,7 +113,9 @@ comprobar('la portada lleva la rosa de los vientos y no repite la marca en la ca
 await foto(p, '01-entrada');
 await p.type('.entrada-buscar', '237');
 await esperar(200);
-comprobar('escribir un número encuentra la organización', (await p.$eval('.entrada-resultados', (x) => x.textContent)).includes('Grupo 237'));
+const entidades = await leer(p, `${RUMBO}entities.json`).catch(() => null);
+const nombre237 = entidades?.groups?.GROUP_0237?.name ?? 'Grupo 237';
+comprobar('escribir un número encuentra la organización', (await p.$eval('.entrada-resultados', (x) => x.textContent)).includes(nombre237));
 await p.keyboard.press('Enter');
 await hasta(p, () => document.querySelector('.hoja-ficha h1')?.textContent === 'Grupo 237');
 let e = await estado(p);
@@ -130,9 +132,9 @@ comprobar('el número del grupo es el del fichero', numeroG === `Score ${Math.ro
 const filas = await p.$$eval('.tabla-sutil.empresas tbody tr', (xs) => xs.length);
 comprobar('la flota enseña todas sus empresas', filas === grupo.companies.length, `${filas} de ${grupo.companies.length}`);
 await foto(p, '02-organizacion');
-await p.keyboard.press('2');
+await p.keyboard.press('3');
 await hasta(p, () => !!document.querySelector('.matriz'));
-comprobar('la tecla 2 abre productos', (await estado(p)).sec === 'productos');
+comprobar('la tecla 3 abre productos', (await estado(p)).sec === 'productos');
 comprobar('la matriz empresas × productos tiene una fila por empresa', (await p.$$eval('.matriz tbody tr', (xs) => xs.length)) === grupo.companies.length);
 await foto(p, '03-organizacion-productos');
 
@@ -151,7 +153,7 @@ const tiene = await p.$$eval('.inv-item.estado-tiene', (xs) => xs.length);
 comprobar('el inventario marca lo que tiene según products/', tiene === prod.held.length, `${tiene} en pantalla · ${prod.held.length} en el fichero`);
 await foto(p, '04-empresa-productos');
 
-await p.keyboard.press('3');
+await p.keyboard.press('2');
 await hasta(p, () => !!document.querySelector('.recomendaciones'));
 const recs = await p.$$eval('.recomendaciones .rec:not(.nada):not(.vacia)', (xs) => xs.length);
 comprobar('las recomendaciones son las acciones del motor', recs === (mesE.actions ?? []).length, `${recs} · motor ${(mesE.actions ?? []).length}`);

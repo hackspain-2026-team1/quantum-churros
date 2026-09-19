@@ -27,6 +27,13 @@ export const f = {
 		if (a >= 1e3) return `${nf(0, 0).format(v / 1e3)}${NBSP}k€`;
 		return `${nf(0, 0).format(v)}${NBSP}€`;
 	},
+	/** Importe en una unidad fija y sin sufijo: la unidad vive en la cabecera de la columna
+	 *  cuando se repite en todas las filas (docs/DESIGN_UX.mdx, «Tablas»). */
+	eurosEn: (v: number | null | undefined, unidad: '€' | 'k€' | 'M€') => {
+		if (v === null || v === undefined) return '—';
+		const escala = unidad === 'M€' ? 1e6 : unidad === 'k€' ? 1e3 : 1;
+		return nf(0, unidad === 'M€' ? 1 : 0).format(v / escala);
+	},
 	porcentaje: (ratio: number | null | undefined, dec = 1) => (ratio === null || ratio === undefined ? '—' : `${nf(0, dec).format(ratio * 100)}${NBSP}%`),
 	puntosPorcentaje: (v: number, dec = 1) => `${nf(0, dec).format(v)}${NBSP}%`,
 	dias: (v: number | null | undefined) => {
@@ -42,9 +49,20 @@ export const f = {
 	/** Diferencia en décimas → «+2,1» / «−0,4». */
 	delta: (decimas: number) => nf(1, 1, true).format(decimas / 10).replace('-', '−'),
 	deltaEntero: (decimas: number) => nf(0, 0, true).format(Math.round(decimas / 10)).replace('-', '−'),
+	/** Fecha de calendario «30/06/2026». El ISO se parte a mano para no correr el día por UTC. */
+	fecha: (iso: string) => {
+		const [a, m, d] = iso.slice(0, 10).split('-').map(Number);
+		if (!a || !m || !d) return iso;
+		return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(a, m - 1, d));
+	},
 	mes: (iso: string) => { const [a, m] = iso.split('-').map(Number); return `${MESES[m - 1]} de ${a}`; },
 	mesCorto: (iso: string) => { const [a, m] = iso.split('-').map(Number); return `${MESES_CORTOS[m - 1]} ${a}`; },
 	mesEje: (iso: string) => { const [a, m] = iso.split('-'); return `${m}/${a.slice(2)}`; },
+	contraparte: (id: string | null | undefined) => {
+		if (!id) return '—';
+		const n = id.match(/(\d+)\s*$/);
+		return n ? `Contraparte ${Number(n[1])}` : id;
+	},
 	/** «2026-06-03..2026-08-31» o «2026-03..2026-08» → «de marzo a agosto de 2026». */
 	periodo: (p: string) => {
 		if (!p) return '—';
