@@ -176,8 +176,8 @@ await foto(p, '05-empresa-acciones');
 await p.keyboard.press('1');
 await hasta(p, () => !!document.querySelector('.pt-fila.tocable'));
 const pilarFila = await p.evaluate(() => { const f = document.querySelector('.pt-fila.tocable'); f.click(); return f.querySelector('.pt-nombre').firstChild.textContent; });
-await hasta(p, () => !!document.querySelector('.evidencia select'));
-const filtroPilar = await p.evaluate(() => { const s = document.querySelectorAll('.evidencia select')[1]; return s.options[s.selectedIndex].textContent; });
+await hasta(p, () => !!document.querySelector('.evidencia .desp-boton'));
+const filtroPilar = await p.evaluate(() => document.querySelectorAll('.evidencia .desp-boton')[1].querySelector('.desp-texto').textContent);
 comprobar('un pilar lleva a su evidencia ya filtrada', filtroPilar === pilarFila, `${pilarFila} → ${filtroPilar}`);
 // Triaje de avisos: se guarda y cambia de bandeja.
 const hayAviso = await p.$('.bandeja .av-boton');
