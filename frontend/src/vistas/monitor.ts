@@ -437,7 +437,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		bandas: 'Un montón por banda; cada puñado de arena es una entidad. Arriba de cada montón, las que acaban de entrar: en rojo si vienen de una banda mejor, en verde si suben.',
 		plano: 'El score en horizontal y el ritmo (puntos al mes, doce meses) en vertical. La raya vertical es el corte de 60; la horizontal, ritmo cero.',
 		tapiz: 'Una fila por entidad y una columna por mes: la tinta densa es score alto; los meses en crítico, en rojo.',
-		flujo: 'A la izquierda, la banda del mes pasado; a la derecha, la de este. Los hilos rojos bajan de banda y los verdes suben; las que no cambian son el gris de fondo.',
+		flujo: 'A la izquierda, la banda del mes pasado; a la derecha, la de este. El alto de cada bloque y el grosor de cada cinta son cuántas hay: en rojo, las que bajan de banda; en verde, las que suben; en gris, las que se quedan.',
 		avisos: 'Los avisos del motor de los últimos doce meses, por tipo. El tamaño de cada montón es cuántos hubo.',
 		horizonte: 'De hoy (izquierda) a la mediana dentro de seis meses (derecha), si nada cambia. En rojo, las que van hacia crítico o caen cinco puntos o más; en verde, las que suben cinco o más.',
 	};
