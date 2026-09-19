@@ -11,6 +11,8 @@ import type {
   ProductoId,
   TenenciaM,
 } from "./contrato";
+import { producto } from "./productos";
+import { tasaPara, type FuenteTasa } from "./tasas";
 
 export interface OfertaBanco {
   bank: string;
@@ -21,6 +23,9 @@ export interface OfertaBanco {
   rate_type: string | null;
   granted: number | null;
   outstanding: number | null;
+  /** La tasa de la oferta: la real del banco, o la estimación de mercado marcada. */
+  oferta_tasa: number | null;
+  oferta_fuente: FuenteTasa | null;
 }
 
 export interface FuentesBanco {
@@ -80,6 +85,8 @@ export function ofertasBanco(
         rate_type,
         granted,
         outstanding,
+        oferta_tasa: null,
+        oferta_fuente: null,
       });
     }
   };
@@ -130,15 +137,77 @@ export function ofertasBanco(
       rate_type: null,
       granted: null,
       outstanding: null,
+      oferta_tasa: null,
+      oferta_fuente: null,
     }));
-  return [...exactos.values(), ...resto].sort((a, b) => {
+  const conOferta = (o: OfertaBanco): OfertaBanco => {
+    const oferta = tasaPara(kind, o.rate, o.rate_type);
+    return {
+      ...o,
+      oferta_tasa: oferta?.tasa ?? null,
+      oferta_fuente: oferta?.fuente ?? null,
+    };
+  };
+  return [...exactos.values(), ...resto].map(conOferta).sort((a, b) => {
     if (a.tieneProducto !== b.tieneProducto) return a.tieneProducto ? -1 : 1;
-    if ((a.rate ?? 1e9) !== (b.rate ?? 1e9))
-      return (a.rate ?? 1e9) - (b.rate ?? 1e9);
+    // el dato real siempre rankea antes que la estimación de mercado
+    const pesoFuente = (o: OfertaBanco) =>
+      o.oferta_fuente === "banco" ? 0 : o.oferta_fuente === "mercado" ? 1 : 2;
+    if (pesoFuente(a) !== pesoFuente(b)) return pesoFuente(a) - pesoFuente(b);
+    if ((a.oferta_tasa ?? 1e9) !== (b.oferta_tasa ?? 1e9))
+      return (a.oferta_tasa ?? 1e9) - (b.oferta_tasa ?? 1e9);
     if ((b.granted ?? 0) !== (a.granted ?? 0))
       return (b.granted ?? 0) - (a.granted ?? 0);
     return a.bank.localeCompare(b.bank, "es");
   });
+}
+
+/** Los bancos de la entidad con lo que tiene en cada uno: para «Tus bancos conectados». */
+export interface BancoConectado {
+  bank: string;
+  cuentas: number;
+  productos: {
+    producto: string;
+    granted: number | null;
+    rate: number | null;
+    rate_type: string | null;
+  }[];
+}
+
+export function bancosConectados(fuentes: FuentesBanco): BancoConectado[] {
+  const porBanco = new Map<string, BancoConectado>();
+  const visto = (bank: string): BancoConectado => {
+    if (!porBanco.has(bank))
+      porBanco.set(bank, { bank, cuentas: 0, productos: [] });
+    return porBanco.get(bank)!;
+  };
+  for (const t of fuentes.tenencias)
+    for (const item of t.items) {
+      const b = item.bank?.trim();
+      if (b)
+        visto(b).productos.push({
+          producto: producto(t.product).nombre,
+          granted: item.granted,
+          rate: item.rate,
+          rate_type: item.rate_type,
+        });
+    }
+  for (const o of fuentes.otras) {
+    const b = o.bank?.trim();
+    if (b)
+      visto(b).productos.push({
+        producto: o.type_label,
+        granted: o.granted,
+        rate: o.rate,
+        rate_type: o.rate_type,
+      });
+  }
+  for (const c of fuentes.cuentas) visto(c).cuentas += 1;
+  return [...porBanco.values()].sort((a, b) =>
+    b.productos.length + b.cuentas !== a.productos.length + a.cuentas
+      ? b.productos.length + b.cuentas - (a.productos.length + a.cuentas)
+      : a.bank.localeCompare(b.bank, "es"),
+  );
 }
 
 /** Las fuentes de la ficha de una entidad (empresa: las suyas; grupo: las de sus empresas). */

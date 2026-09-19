@@ -5,6 +5,7 @@
 // navegador del usuario; aquí se guarda qué se propuso y a quién.
 
 import type { FinanciacionM } from "./contrato";
+import { fuenteTexto } from "./tasas";
 
 const CLAVE = "rumbo.propuestas.v1";
 
@@ -17,6 +18,8 @@ export interface FinanciacionElegida {
   bank: string | null;
   rate: number | null;
   rate_type: string | null;
+  /** De dónde sale la tasa: del banco (dato real) o estimación de mercado. */
+  rate_fuente: "banco" | "mercado" | null;
 }
 
 export interface AccionElegida {
@@ -119,7 +122,7 @@ export function correoPropuesta(p: PropuestaGuardada): {
       const banco = f.bank ?? "banco a convenir";
       const tasa =
         f.rate !== null
-          ? `, ${f.rate.toLocaleString("es-ES")} % ${f.rate_type === "variable" ? "variable" : "fijo"}`
+          ? `, ${f.rate.toLocaleString("es-ES")} % ${f.rate_type === "variable" ? "variable" : "fijo"}${f.rate_fuente ? ` (${fuenteTexto(f.rate_fuente)})` : ""}`
           : "";
       lineas.push(`· ${f.title}${monto}, con ${banco}${tasa}.`);
     }
