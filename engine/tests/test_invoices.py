@@ -17,6 +17,8 @@ from xray_engine.invoices import (
     clean_invoices,
     days_beyond_terms_as_of,
     invoice_states_as_of,
+    open_overdue_ap,
+    open_overdue_ar,
     settled_late_summary,
     window_evidence_as_of,
 )
@@ -639,3 +641,24 @@ def test_real_unrecorded_payments_are_a_regime_of_the_erp(real, params) -> None:
         assert 0.05 < regime.height / known.height < 0.25
         assert rest.filter(pl.col("aged_open_n") <= 0.2 * pl.col("aged_n")).height > 0.5 * rest.height
         assert regime["days_beyond_terms"].median() > rest["days_beyond_terms"].median() + 10
+
+
+def test_open_overdue_both_sides() -> None:
+    """The work lists behind the reminders: AR (clients that owe) and AP (suppliers owed), positive amounts both."""
+    end = _month_end(JUNE)  # overdue is measured against the month end
+    rows = [
+        _invoice("ar-late", due=end - timedelta(days=40), settled=None, cents=10_000, side="AR"),
+        _invoice("ar-paid", due=end - timedelta(days=40), settled=end - timedelta(days=10), cents=20_000, side="AR"),
+        _invoice("ap-late", due=end - timedelta(days=20), settled=None, cents=-5_000, side="AP"),
+        _invoice("ap-future", due=date(2026, 7, 10), settled=None, cents=-7_000, side="AP"),
+        _invoice("ap-stamped", due=end - timedelta(days=10), settled=None, cents=-9_000, side="AP", stamped=True),
+    ]
+    frame = _frame(rows)
+    ar = open_overdue_ar(frame, JUNE)
+    ap = open_overdue_ap(frame, JUNE)
+    assert ar["operation_id"].to_list() == ["ar-late"]
+    assert ar["amount"].to_list() == pytest.approx([100.0])
+    assert ar["days_overdue"].to_list() == [40]
+    assert ap["operation_id"].to_list() == ["ap-late"]
+    assert ap["amount"].to_list() == pytest.approx([50.0])  # what the entity owes, positive
+    assert ap["days_overdue"].to_list() == [20]

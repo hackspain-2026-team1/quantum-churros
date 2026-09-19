@@ -25,6 +25,8 @@ def test_api_surface_is_bundle_plus_context() -> None:
         "/api/v1/companies/industry",
         "/api/v1/industry/distribution",
         "/api/v1/scores/{entity_id}",
+        "/api/v1/proposals",
+        "/api/v1/proposals/{proposal_id}",
     }
 
 
