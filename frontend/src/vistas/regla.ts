@@ -37,6 +37,13 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 
 	// ─── Pintado ────────────────────────────────────────────
 	function pintar(e: Estado, ctx: Contexto, M: Marco, visita: number | null) {
+		// La regla manda sobre el intervalo que se lee; en la pestaña de productos el tiempo no
+		// cambia nada: se retira, con sus mandos de reproducción y modo.
+		const sinTiempo = (e.vista === 'organizacion' || e.vista === 'empresa') && e.sec === 'productos';
+		raiz.hidden = sinTiempo;
+		reproducir.hidden = sinTiempo;
+		modoBtn.hidden = sinTiempo;
+		if (sinTiempo) return;
 		actual = { e, ctx, M };
 		const R = M.regla;
 		Object.assign(raiz.style, { left: `${R.x}px`, top: `${R.y}px`, width: `${R.w}px`, height: `${R.h}px` });

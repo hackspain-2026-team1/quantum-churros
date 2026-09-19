@@ -64,7 +64,7 @@ Opcional: `/?tab=diagnostico&focus=GROUP_0083&m=2026-08` (abstención).
 **Hacer:**
 - COMP_0180: naturaleza bache.
 - COMP_1015: deterioro estructural.
-- 5 s en Técnico → alerta suprimida por cambio de perímetro (COMP_0265 si aparece).
+- 5 s en Detalles → alerta suprimida por cambio de perímetro (COMP_0265 si aparece).
 
 **Cubre:** bache vs caída, monitor, falsas alarmas filtradas.
 
@@ -84,7 +84,7 @@ Opcional: `/?tab=diagnostico&focus=GROUP_0083&m=2026-08` (abstención).
 
 ## 2:25–3:00 · Por qué confiar
 
-**Pantalla:** Técnico GROUP_0153
+**Pantalla:** Detalles GROUP_0153
 
 **Decir:** «La suma cuadra al décimo. Sesenta grupos fuera del ajuste, mismo resultado. Cinco pilares medibles — esto se lo enseñas al banco.»
 

@@ -2,6 +2,8 @@
 // coma decimal y punto de miles; «1.234,56 €» con espacio fino no separable; «1,2 M€» y «185 k€»;
 // «42,5 %»; «19 días»; meses con nombre («septiembre de 2026») y en el eje «09/26».
 
+import { nombreEmpresa, nombreGrupo } from './nombres';
+
 const NBSP = ' ';
 const nf = (min: number, max: number, signo = false) =>
 	new Intl.NumberFormat('es-ES', { minimumFractionDigits: min, maximumFractionDigits: max, signDisplay: signo ? 'exceptZero' : 'auto', useGrouping: true });
@@ -24,6 +26,13 @@ export const f = {
 		if (a >= 1e6) return `${nf(0, 1).format(v / 1e6)}${NBSP}M€`;
 		if (a >= 1e3) return `${nf(0, 0).format(v / 1e3)}${NBSP}k€`;
 		return `${nf(0, 0).format(v)}${NBSP}€`;
+	},
+	/** Importe en una unidad fija y sin sufijo: la unidad vive en la cabecera de la columna
+	 *  cuando se repite en todas las filas (docs/DESIGN_UX.mdx, «Tablas»). */
+	eurosEn: (v: number | null | undefined, unidad: '€' | 'k€' | 'M€') => {
+		if (v === null || v === undefined) return '—';
+		const escala = unidad === 'M€' ? 1e6 : unidad === 'k€' ? 1e3 : 1;
+		return nf(0, unidad === 'M€' ? 1 : 0).format(v / escala);
 	},
 	porcentaje: (ratio: number | null | undefined, dec = 1) => (ratio === null || ratio === undefined ? '—' : `${nf(0, dec).format(ratio * 100)}${NBSP}%`),
 	puntosPorcentaje: (v: number, dec = 1) => `${nf(0, dec).format(v)}${NBSP}%`,
@@ -66,8 +75,8 @@ export const f = {
 		const nombre = (s: string) => MESES[Number(s.split('-')[1]) - 1];
 		return aa === ab ? `de ${nombre(ma)} a ${nombre(mb)} de ${ab}` : `de ${f.mes(ma)} a ${f.mes(mb)}`;
 	},
-	grupo: (id: string) => `Grupo ${Number(id.split('_')[1])}`,
-	empresa: (id: string) => `Empresa ${Number(id.split('_')[1])}`,
+	grupo: nombreGrupo,
+	empresa: nombreEmpresa,
 	plural: (n: number, uno: string, varios: string) => `${f.numero(n)} ${n === 1 ? uno : varios}`,
 	/** Valor de una fila de evidencia con su unidad del motor. */
 	valorUnidad: (v: number | string | null, unidad: string) => {

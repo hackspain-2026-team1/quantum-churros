@@ -8,7 +8,7 @@
 import type {
   AlertaM,
   EmpresaM,
-  IndiceEmpresasM,
+  EntidadesM,
   EvidenciaM,
   GrupoM,
   HorizonteM,
@@ -70,8 +70,7 @@ export const carga = {
   horizontesIndice: () =>
     leer<HorizontesIndiceM>(`${RAIZ_RUMBO}horizons/index.json`, true),
   parametros: () => leer<ParametrosM>(`${RAIZ_RUMBO}params.json`, true),
-  indiceEmpresas: () =>
-    leer<IndiceEmpresasM>(`${RAIZ_RUMBO}indice-empresas.json`, true),
+  entidades: () => leer<EntidadesM>(`${RAIZ_RUMBO}entities.json`, true),
 };
 
 /** Lo que se ha cargado ya, sin esperar (para pintar a la primera si está en caché). */

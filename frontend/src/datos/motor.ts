@@ -7,7 +7,8 @@ import {
 	type Grupo, type Huella, type MesEntidad, type Naturaleza, type Pilar, type PilarMes, type TipoAlerta,
 } from './modelo';
 import type { AccionM, Manifiesto } from './contrato';
-import { carga, RAIZ_BUNDLE as RAIZ } from './carga';
+import { carga, mismaHuella, RAIZ_BUNDLE as RAIZ } from './carga';
+import { fijarNombres } from './nombres';
 
 
 interface MesMotor {
@@ -68,7 +69,8 @@ export async function carteraMotor(progreso: (fraccion: number) => void): Promis
 	// Los nombres de pilares y bandas salen del manifiesto, nunca del código.
 	for (const p of manifest.pillars) NOMBRE_PILAR[p.key] = p.label;
 	for (const b of manifest.bands) NOMBRE_BANDA[b.key] = b.label;
-	const [portfolio, alertas, productos, horizontes] = await Promise.all([json<PortfolioMotor>('portfolio.json'), json<{ alerts: AlertaMotor[] }>('alerts.json'), carga.productosIndice(), carga.horizontesIndice()]);
+	const [portfolio, alertas, productos, horizontes, entidades] = await Promise.all([json<PortfolioMotor>('portfolio.json'), json<{ alerts: AlertaMotor[] }>('alerts.json'), carga.productosIndice(), carga.horizontesIndice(), carga.entidades()]);
+	fijarNombres(mismaHuella(manifest.bundle_id, entidades) ? entidades : null, manifest.bundle_id);
 	progreso(0.08);
 	const months = manifest.months;
 	const idx = new Map(months.map((m, i) => [m, i]));

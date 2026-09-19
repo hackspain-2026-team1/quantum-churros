@@ -779,6 +779,11 @@ body[data-vista="expediente"] .frase-linea {
 .regla {
   position: absolute;
 }
+.regla[hidden],
+.reproducir[hidden],
+.modo[hidden] {
+  display: none;
+}
 .regla-zona {
   position: absolute;
   cursor: pointer;
@@ -2655,6 +2660,30 @@ button.miga-paso:hover {
   display: block;
   font-size: 12px;
   color: var(--apagado);
+}
+.tabla-sutil .banco {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.marca-banco {
+  color: var(--tinta);
+}
+.marca-banco .mb-aro {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.7;
+}
+.marca-banco .mb-aro.fino {
+  stroke-width: 0.5;
+  opacity: 0.35;
+}
+.marca-banco .mb-iniciales {
+  font-family: var(--sans);
+  font-weight: 600;
+  fill: currentColor;
+  opacity: 0.85;
 }
 .tabla-sutil tr.tocable {
   cursor: pointer;

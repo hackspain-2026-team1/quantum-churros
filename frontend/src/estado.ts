@@ -11,7 +11,7 @@ import { PRODUCTOS, type ProductoId } from './datos/productos';
 export type Vista = 'entrada' | 'plano' | 'tapiz' | 'organizacion' | 'empresa' | 'metodologia';
 export type Seccion = 'scoring' | 'productos' | 'acciones' | 'tecnico';
 export type Lente = 'score' | 'productos' | 'horizonte';
-export const SECCIONES: Seccion[] = ['scoring', 'productos', 'acciones', 'tecnico'];
+export const SECCIONES: Seccion[] = ['scoring', 'acciones', 'productos', 'tecnico'];
 const PAGINAS: Vista[] = ['organizacion', 'empresa', 'metodologia', 'entrada'];
 export const esPagina = (v: Vista) => PAGINAS.includes(v);
 

@@ -51,6 +51,7 @@ import {
   hilo,
   lineaEstado,
   llamadas,
+  marcaBanco,
   seccion,
   sello,
   type Nudo,
@@ -791,7 +792,7 @@ export function seccionScoring(
         const b = h(
           "button",
           { type: "button", class: "as-enlace" },
-          "Ver el hilo entero en la sección técnica",
+          "Ver el hilo entero en Detalles",
         );
         b.addEventListener("click", () => acc.irSeccion("tecnico"));
         return b;
@@ -870,7 +871,7 @@ function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
       {
         class: `pt-fila tocable ${p.score === null ? "nulo" : ""}`,
         tabindex: "0",
-        title: "Ver de dónde sale, en la sección técnica",
+        title: "Ver de dónde sale, en Detalles",
       },
       h(
         "div",
@@ -1066,7 +1067,13 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
                 "tr",
                 {},
                 h("td", {}, x.type_label),
-                h("td", {}, x.bank ?? "—"),
+                h(
+                  "td",
+                  {},
+                  x.bank
+                    ? h("span", { class: "banco" }, marcaBanco(x.bank), x.bank)
+                    : "—",
+                ),
                 h("td", { class: "num" }, f.eurosCorto(x.granted)),
                 h("td", { class: "num" }, f.eurosCorto(x.outstanding)),
                 h(
@@ -1659,10 +1666,10 @@ function listaAvisos(d: DatosFicha): HTMLElement {
       [
         `${f.plural(sinRevisar, "aviso sin revisar", "avisos sin revisar")}`,
         descartados
-          ? `${f.plural(descartados, "descartado", "descartados")} (se ven en la sección técnica)`
+          ? `${f.plural(descartados, "descartado", "descartados")} (se ven en Detalles)`
           : "",
         vivos.length > 8
-          ? `${f.numero(vivos.length - 8)} más en la sección técnica`
+          ? `${f.numero(vivos.length - 8)} más en Detalles`
           : "",
       ]
         .filter(Boolean)

@@ -1,0 +1,89 @@
+# Rumbo UI design conventions
+
+Design rules for the Rumbo interface (`frontend/src/vistas/`, primitives in
+`frontend/src/vistas/primitivos.ts`). Every change to tables, marks and time controls MUST
+follow them. Number, currency and date rendering rules live in
+[UI_FORMATTING.mdx](./UI_FORMATTING.mdx); this document covers the design layer on top.
+
+The rules are written as a template: they describe how the interface behaves, not a
+particular deployment or company.
+
+## 1. Tables
+
+### 1.1 Uniform units go in the header
+
+If the same unit repeats across the rows of a column, it moves to the column header and the
+cells carry bare numbers:
+
+| Without hoisting   | With hoisting          |
+| ------------------ | ---------------------- |
+| **Concedido**      | **Concedido (k€)**     |
+| 160 k€             | 160                    |
+| 0 €                | 0                      |
+| 95 k€              | 95                     |
+
+- The unit suffix in the header keeps the UI_FORMATTING form: `Concedido (k€)`,
+  `Interés (%)` — with a non-breaking space inside the unit (`k€`, `%`), never inside the
+  parentheses.
+- **Zero is unit-agnostic** (`0 € = 0 k€ = 0 M€`): a zero cell never prevents hoisting, and
+  under a hoisted unit it renders as `0`.
+- **Mixed units stay per-row.** If a column genuinely mixes `€` and `k€` values (or a value
+  is missing, rendered `—`), the header stays unit-less and each cell keeps its own
+  formatted suffix, as before.
+- Percentages follow the same rule: a column where every cell is a percent hoists `%` to the
+  header and the cells show the bare number.
+- Reference implementation: the *Otras deudas* table in `frontend/src/vistas/ficha.ts`
+  (unit detection + `f.eurosEn` in `frontend/src/datos/formato.ts`).
+
+### 1.2 Sortable headers
+
+Wide entity tables (the fleet of companies of a group) expose sortable columns through the
+shared primitive `cabecerasOrdenables` in `frontend/src/vistas/primitivos.ts`:
+
+- Every header cell is a real `<button>` inside the `<th>`, with `aria-sort` on the `th` and
+  a small arrow (↑/↓) next to the label.
+- Clicking toggles: first click ascending, second click descending, on the same column.
+- Missing values (`null` → `—`) always sort last, in both directions.
+- Numbers compare numerically; text compares with Spanish collation (`es`, numeric mode), so
+  `Empresa 8` precedes `Empresa 23`.
+- Reordering reuses the existing `<tr>` nodes: row listeners and focus survive a sort.
+- A table may declare an initial sort (the fleet table starts score-ascending, worst first).
+
+## 2. Entity marks (banks and counterparties)
+
+Counterparties (banks, lenders) open with an **engraved typographic monogram**, not a
+third-party logo:
+
+- `marcaBanco(nombre)` in `frontend/src/vistas/primitivos.ts` draws a small double-ring disc
+  with the initials of the significant words (`Banco Bilbao Vizcaya Argentaria` → `BV`);
+  generic tokens (*banco, bank, caja, caixa*, articles) are skipped.
+- No remote images and no third-party assets ever enter the interface: the mark is inline
+  SVG in the current ink (`--tinta`), consistent with the engraved seals of the product
+  cards.
+- The mark sits before the entity name in table cells (`span.banco`) and decorative
+  (`aria-hidden`) — the name itself is always text next to it.
+- Unknown or anonymous entities (`—`, *Entidad sin nombre*) render no mark.
+
+## 3. Time ruler and playback controls
+
+The time ruler (`div.regla` in `frontend/src/vistas/regla.ts`) is a control, not decoration:
+it selects the interval every screen reads.
+
+- It renders wherever the selected interval changes the reading: portfolio (plano, tapiz),
+  organization and company scoring, acciones, técnico, entrada.
+- It is **hidden on the Productos tab** of an organization or company: the product
+  inventory does not change with the selected window, and a date range there suggests a
+  filtering that does not exist.
+- The playback (`reproducir`) and window-mode (`modo`) controls belong to the ruler and hide
+  with it.
+
+## 4. Quick reference
+
+| Case                              | Rule                                            |
+| --------------------------------- | ----------------------------------------------- |
+| Unit repeated in every row        | Hoist to header: `Concedido (k€)`, bare cells   |
+| Column mixes € and k€             | Keep per-row suffixes, plain header             |
+| Zero under a hoisted unit         | Render `0` (unit-agnostic)                      |
+| Missing value                     | `—`, sorts last in sortable tables              |
+| Bank or counterparty row          | `marcaBanco` monogram + name, no third-party logo |
+| Productos tab                     | No time ruler, no playback controls             |

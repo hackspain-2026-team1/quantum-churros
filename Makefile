@@ -42,8 +42,12 @@ test-backend: ## Run API tests
 	uv run --package quantum-churros-api pytest backend/tests
 
 .PHONY: test-frontend
-test-frontend: ## Type-check and build the production frontend
+test-frontend: test-entities ## Validate generated identities, run frontend tests and build production assets
 	cd frontend && bun run check && bun run test
+
+.PHONY: test-entities
+test-entities: ## Verify deterministic, unique entity naming with a self-contained fixture
+	uv run pytest frontend/scripts/datos/test_entidades.py
 
 .PHONY: test-engine-data
 test-engine-data: ## Run the engine tests that need the real dataset (XRAY_DATA=<folder>)
@@ -113,7 +117,7 @@ daily-core: eval-phase-a ## Alias: Fase A local completa
 daily-core-docker: eval-phase-a-docker ## Alias: Fase A con PostgreSQL
 
 .PHONY: export
-export: ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE (EVIDENCE_MONTHS of evidence per entity)
+export: validate ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE (EVIDENCE_MONTHS of evidence per entity)
 	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out $(XRAY_OUT) --export-dir $(XRAY_BUNDLE) --evidence-months $(EVIDENCE_MONTHS)
 
 .PHONY: db-migrate
@@ -140,6 +144,7 @@ db-classify: ## Classify companies into industry archetypes for the mounted data
 db-sync: ## Start PostgreSQL and synchronize source data, scores, database projections, and the frontend bundle
 	$(COMPOSE) up --build -d --wait postgres api
 	$(COMPOSE) exec api uv run --locked --package quantum-churros-api xray-db sync /data/raw --out-dir /app/artifacts --bundle-dir /app/bundle --evidence-months $(EVIDENCE_MONTHS)
+	uv run python frontend/scripts/datos/entidades.py --bundle $(XRAY_BUNDLE) --out rumbo/entities.json
 
 .PHONY: data-extract
 data-extract: ## Extract the local challenge archive into the ignored data directory

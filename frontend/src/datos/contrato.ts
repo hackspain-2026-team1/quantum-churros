@@ -420,15 +420,35 @@ export interface HorizontesIndiceM {
   >;
 }
 
-// ─── Índice de empresas (rumbo-companies-index-v1) ──────────
-export interface IndiceEmpresasM {
-  schema: "rumbo-companies-index-v1";
+// ─── Índice de entidades e identidades ficticias ──────────
+export interface EntidadesM {
+  schema: "rumbo-entities-v1";
   bundle_id: string;
+  dataset_hash: string;
   cut: string;
+  naming_version: string;
+  vocabulary_hash: string;
+  groups: Record<
+    string,
+    {
+      name: string;
+      brand: string;
+      country: string | null;
+      industry: string | null;
+      industry_label: string | null;
+      industry_confidence: number | null;
+      size: string | null;
+      n_companies: number;
+    }
+  >;
   companies: Record<
     string,
     {
+      name: string;
+      legal_name: string;
       group: string;
+      country: string | null;
+      role: string | null;
       size: string | null;
       shown: number | null;
       band: string | null;

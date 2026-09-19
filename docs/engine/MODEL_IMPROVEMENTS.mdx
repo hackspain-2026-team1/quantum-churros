@@ -1,0 +1,62 @@
+# Mejoras prioritarias del modelo
+
+## P0 · Antes de optimizar
+
+- **Regenerar cartera real:** `make validate && make eval-anticipation`. Las AUC antiguas `0,48/0,44` quedan invalidadas.
+- **No mezclar métricas:** cartera = anticipación interna; inyección = discriminación y retardo desde onset; ninguna equivale a impago.
+- **Publicar soporte:** toda AUC con positivos/negativos; todo retardo con cobertura, mediana y p75.
+
+## P1 · Mejorar el motor
+
+1. **Deriva lenta:** reducir el `22,4 %dd` de rampas no detectadas ajustando `long_threshold`/`long_horizon`.
+   - Guardrails: `P(estructural | pico) ≤ 10 %` y no aumentar alertas por 100 grupo-años.
+2. **Escalón:** mantener detección mediana ≤ 1 mes y confirmación ≤ 3 meses.
+   - Medir también p75 y cobertura; la mediana sola oculta casos no detectados.
+3. **Separar nivel y cambio:** usar nivel para salud actual y `delta3`/`drift_points` para anticipar deterioros. No usar `-score` para predecir cambios de trayectoria.
+4. **Robustez por segmento:** desglosar AUC, cobertura y retardos por tamaño y disponibilidad de pilares; priorizar el peor segmento.
+5. **Dos direcciones:** replicar step/ramp para mejoras; hoy la calibración de anticipación está centrada en deterioro.
+
+## P2 · Mejorar el monitor
+
+- Reducir alertas repetidas: distinguir **nueva**, **activa**, **resuelta** y **suprimida**.
+- Medir alertas accionables, no solo volumen: alerta → causa → acción → impacto.
+- Baseline actual: `24,4 alertas / 100 grupo-años`; vigilar fatiga del usuario.
+
+## Scoreboard de optimización
+
+| Métrica | Objetivo |
+|---|---:|
+| Rampas no detectadas a 9 meses | bajar de 22,4 % |
+| P(estructural \| pico) | ≤ 10 % |
+| Detección mediana de escalón | ≤ 1 mes |
+| Confirmación mediana de escalón | ≤ 3 meses |
+| Cobertura step/ramp | ≥ 80–90 % |
+| AUC pareada step / ramp | ≥ 0,80 / ≥ 0,70 |
+| Alertas por 100 grupo-años | no subir sin más acción útil |
+
+## Métricas killer de `track.md`
+
+El jurado pondera por igual **si acierta, si llega a tiempo y si vale algo**; no publica una fórmula numérica exacta.
+
+| Bloque del track | Killer | Evidencia que debemos enseñar |
+|---|---|---|
+| Si acierta | Generalización en empresas no vistas | Resultado del test oculto; proxy interno: 60 grupos aislados con diferencia 0 |
+| Si acierta | Trayectoria y dos direcciones | Casos 45→65 y 82→68; cobertura/retardo separados para mejora y deterioro |
+| Si llega a tiempo | Meses de antelación | Lead-time h=3/h=6 con soporte; retardo step/ramp desde onset |
+| Si llega a tiempo | Bache vs caída | `P(estructural | pico) = 7,7 %` y escalón confirmado ≤ 3 meses |
+| Si llega a tiempo | Monitor proactivo | Alertas nuevas, accionables y no repetidas |
+| Si vale algo | Explicación | Error aditivo 0; señal, mes y pilar que movieron el score |
+| Si vale algo | Producto y comprador | Alerta → causa → acción → impacto; comprador Embat/empresa claramente visible |
+| Si vale algo | Demo navegable | Recorrido completo sin notebook ni pasos manuales |
+
+### Titulares para el jurado
+
+1. **No confunde un bache con una caída:** 7,7 % de falsos estructurales en picos.
+2. **Detecta un cambio real pronto:** escalón en 1 mes; confirmación ≤ 3.
+3. **Mide su límite:** 22,4 % de rampas no detectadas a 9 meses.
+4. **Generaliza y explica:** mismo resultado aislado, desglose que suma exactamente.
+5. **Sirve para actuar:** cada alerta termina en una acción y un impacto esperado.
+
+## Regla de decisión
+
+Aceptar un cambio solo si mejora rampas o retardos **sin empeorar picos, cobertura, generalización ni coste del monitor**. Para la demo, abrir con bache, escalón y acción; dejar AUC como respaldo técnico.
