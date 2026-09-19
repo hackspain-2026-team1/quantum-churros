@@ -16,7 +16,7 @@ import type {
 import { estadosProductos, recomendaciones, type EstadoProducto } from '../datos/encaje';
 import { f, primeraMayuscula } from '../datos/formato';
 import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
-import { ESFUERZO, ESTADO_AVISO, claveDeMirada, explicacionAccion, lineaAvisoM, movimiento, nombreBanda, nombrePilar, tituloAccion, voz } from '../datos/redaccion';
+import { ESFUERZO, ESTADO_AVISO, accionCorta, claveDeMirada, explicacionAccion, lineaAvisoM, movimiento, nombreBanda, nombrePilar, palancaDeAccion, tituloAccion, voz } from '../datos/redaccion';
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
 import { desplegable } from './desplegable';
@@ -947,11 +947,11 @@ type EstadoAccion = 'propuesta' | 'en curso' | 'hecha';
 function leerEstados(): Record<string, EstadoAccion> { try { return JSON.parse(localStorage.getItem(CLAVE_ESTADOS()) ?? '{}'); } catch { return {}; } }
 function guardarEstado(clave: string, e: EstadoAccion) { const t = leerEstados(); t[clave] = e; try { localStorage.setItem(CLAVE_ESTADOS(), JSON.stringify(t)); } catch { /* Sin almacenamiento, el estado dura solo esta sesión. */ } }
 
-/** Cuánto tarda en notarse una acción. La cifra y la curva están en el horizonte: aquí, solo el plazo. */
-function plazoAccion(d: DatosFicha, a?: AccionM): string | null {
+/** Cuánto tarda en notarse una acción, en meses. La cifra y la curva están en el horizonte. */
+function mesesAccion(d: DatosFicha, a?: AccionM): number | null {
 	const ha = a && d.hor?.actions?.find((x) => x.id === a.id);
 	if (!ha || !hayFuturo(d)) return null;
-	return `se nota ${PLAZO(Math.max(1, ha.lag_months))}`;
+	return Math.max(1, ha.lag_months);
 }
 
 export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
@@ -961,8 +961,9 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const recs = recomendaciones({ mes: m, man: d.man, tenencia: tenenciaDe(d), perfil: d.ent.profile, papel: d.kind === 'company' ? (d.ent as EmpresaM).role : null, heredaLiquidez: d.kind === 'company' ? (d.ent as EmpresaM).inherits_liquidity : false });
 	const sel = acc.horizonte.elegidas();
 	const lista = h('ol', { class: 'recomendaciones' });
+	// Una columna por pregunta: qué hacer, de cuánto a cuánto, cuánto cuesta, cómo queda y cuánto sube.
 	const cabezaLista = h('div', { class: 'rec-cab', 'aria-hidden': 'true' },
-		h('span', {}, 'Ver'), h('span', {}, 'Qué hacer'), h('span', {}, 'Cómo va'), h('span', { class: 'der' }, 'Si se hace'));
+		h('span', {}, 'Ver'), h('span', {}, 'Qué hacer'), h('span', { class: 'centro' }, 'Esfuerzo'), h('span', { class: 'centro' }, 'Se nota'), h('span', { class: 'der' }, 'Sube'), h('span', {}, 'Cómo va'));
 	const estadosG = leerEstados();
 	recs.forEach((r, i) => {
 		const a = r.accion;
@@ -985,16 +986,29 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		});
 		estadoSel.raiz.addEventListener('click', (ev) => ev.stopPropagation());
 		estadoSel.raiz.addEventListener('keydown', (ev) => ev.stopPropagation());
-		const prods = r.productos.map((p) => iconoProducto(p, { tam: 24, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
+		const prods = r.productos.map((p) => iconoProducto(p, { tam: 26, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
+		const pal = palancaDeAccion(a);
+		const meses = mesesAccion(d, a);
 		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id, 'data-estado': estadosG[clave] ?? 'propuesta' },
 			h('span', { class: 'rec-marca' }, marca, h('span', { class: 'rec-orden', 'aria-hidden': 'true' }, String(i + 1))),
 			h('div', { class: 'rec-cuerpo' },
-				h('div', { class: 'rec-titulo' }, ...conCifras(tituloAccion(a), origenPilar(d, acc, a.pillar, 'De cuánto a cuánto tiene que ir la palanca'))),
+				h('div', { class: 'rec-titulo' }, accionCorta(a)),
+				// La palanca, en cifras y grande: de dónde sale y adónde tiene que llegar.
+				h('div', { class: 'rec-palanca', title: tituloAccion(a) },
+					h('b', {}, ...conCifras(pal.de, origenPilar(d, acc, a.pillar, 'Dónde está hoy la palanca'))),
+					h('i', { 'aria-hidden': 'true' }, '→'),
+					h('b', { class: 'meta' }, ...conCifras(pal.hasta, origenPilar(d, acc, a.pillar, 'Adónde tiene que llegar')))),
 				h('p', { class: 'rec-texto' }, ...conCifras(r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a), origenPilar(d, acc, a.pillar, 'Lo que hace falta para llegar al objetivo'))),
-				h('p', { class: 'rec-hechos' }, [plazoAccion(d, a), ESFUERZO[a.effort], `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`].filter(Boolean).join(' · ')),
-				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
-			h('div', { class: 'rec-estado' }, estadoSel.raiz),
-			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')));
+				h('p', { class: 'rec-productos' },
+					...prods,
+					prods.length ? h('span', {}, r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : null,
+					r.propia && !prods.length ? h('span', { class: 'propia' }, r.propia) : null,
+					h('span', { class: 'rec-pilar' }, nombrePilar(d.man, a.pillar).toLowerCase()))),
+			h('div', { class: 'rec-esfuerzo' }, h('b', {}, a.effort)),
+			h('div', { class: 'rec-plazo' }, meses === null ? h('b', { class: 'vacia' }, '—') : h('b', {}, f.numero(meses)),
+				h('span', {}, meses === null ? 'sin previsión' : meses === 1 ? 'mes' : 'meses')),
+			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
+			h('div', { class: 'rec-estado' }, estadoSel.raiz));
 		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija — también al pulsar la fila.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
@@ -1006,7 +1020,11 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		const peor = base.cross && base.cross.dir === 'down';
 		const nada = h('li', { class: 'rec nada' }, h('span', { class: 'rec-marca' }, h('span', { class: 'rec-orden', 'aria-hidden': 'true' }, '—')),
 			h('div', { class: 'rec-cuerpo' }, h('div', { class: 'rec-titulo' }, 'No hacer nada'),
-				h('p', { class: 'rec-hechos' }, `a seis meses, entre ${f.score(base.q.p10[5])} y ${f.score(base.q.p90[5])}; lo más probable, ${f.score(base.q.p50[5])}`, peor && base.cross!.prob !== null ? ` · ${f.porcentaje(base.cross!.prob, 0)} de pasar a ${nombreBanda(d.man, base.cross!.to).toLowerCase()} hacia ${f.mes(base.cross!.month)}` : '')));
+				peor && base.cross!.prob !== null ? h('p', { class: 'rec-texto' }, `${f.porcentaje(base.cross!.prob, 0)} de pasar a ${nombreBanda(d.man, base.cross!.to).toLowerCase()} hacia ${f.mes(base.cross!.month)}.`) : null),
+			h('div', { class: 'rec-esfuerzo' }, h('b', { class: 'vacia' }, '—')),
+			h('div', { class: 'rec-plazo seis' }, h('b', {}, f.score(base.q.p50[5])), h('span', {}, `a seis meses · entre ${f.score(base.q.p10[5])} y ${f.score(base.q.p90[5])}`)),
+			h('div', { class: 'rec-efecto' }, h('b', { class: 'vacia' }, '—'), h('span', {}, 'puntos')),
+			h('div', { class: 'rec-estado' }));
 		nada.addEventListener('pointerenter', () => acc.horizonte.previa([]));
 		nada.addEventListener('pointerleave', () => acc.horizonte.previa(null));
 		lista.append(nada);
@@ -1028,9 +1046,19 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 function accionesEmpresas(d: DatosFicha, acc: Acciones): HTMLElement {
 	const filas = d.empresas.flatMap((em) => (em.ent?.months.find((m) => m.month === d.corte)?.actions ?? []).map((a) => ({ em, a })));
 	filas.sort((x, y) => y.a.uplift_tenths - x.a.uplift_tenths);
+	// Las mismas columnas que la tabla de arriba, para que se lean igual: qué hacer, de cuánto a
+	// cuánto, qué esfuerzo y cuánto sube. «En la empresa» sobraba en cada renglón: la empresa ya va delante.
 	const lista = h('ul', { class: 'acciones-empresas' });
+	if (filas.length) lista.append(h('li', { class: 'ae-cab', 'aria-hidden': 'true' },
+		h('span', {}, 'Empresa'), h('span', {}, 'Qué hacer'), h('span', {}, 'De cuánto a cuánto'), h('span', { class: 'centro' }, 'Esfuerzo'), h('span', { class: 'der' }, 'Sube')));
 	for (const { em, a } of filas.slice(0, 12)) {
-		const li = h('li', { class: 'tocable', tabindex: '0' }, h('b', {}, f.empresa(em.res.id)), h('span', { class: 'ae-titulo' }, tituloAccion(a)), h('span', { class: 'ae-efecto' }, `${f.delta(a.uplift_tenths)} en la empresa · ${ESFUERZO[a.effort]}`));
+		const pal = palancaDeAccion(a);
+		const li = h('li', { class: 'tocable', tabindex: '0', title: tituloAccion(a) },
+			h('b', {}, f.empresa(em.res.id)),
+			h('span', { class: 'ae-titulo' }, accionCorta(a)),
+			h('span', { class: 'ae-palanca' }, pal.de, h('i', { 'aria-hidden': 'true' }, '→'), h('em', {}, pal.hasta)),
+			h('span', { class: 'ae-esfuerzo' }, a.effort),
+			h('span', { class: 'ae-efecto' }, f.delta(a.uplift_tenths)));
 		const ir = () => acc.abrirEmpresa(em.res.id);
 		li.addEventListener('click', ir);
 		li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
