@@ -4,6 +4,35 @@ Registro de lo que se hace en `frontend/`, en qué orden y por qué. Lo lleva el
 
 ---
 
+## 20 de septiembre de 2026, aire, el scoring que se explica y la estantería por necesidad
+
+Tres cosas que se pidieron mirando la ficha: que respire, que el scoring cuente lo que pasa y que los productos empiecen por lo que hace falta.
+
+### El aire
+
+- **Un solo margen lateral.** Era un 44 repetido a mano en la barra, en el escenario, en la hoja y otra vez en TypeScript (`geometria.ts` y `main.ts`). Ahora es `--pad-lateral` (64 px, 40 en pantallas estrechas y 20 en móvil) y los dos sitios de TypeScript llevan los mismos números, así que la regla del tiempo sigue cayendo a plomo sobre el texto. Nada toca el borde.
+- **Hueco bajo la línea del tiempo.** `--aire-escenario` (34 px) separa la regla del nombre de la entidad: antes había 16 px y el título se pegaba a los meses.
+
+### El scoring cuenta lo que pasa (`seccionScoring` en `src/vistas/ficha.ts`)
+
+La pestaña que se abre primero decía «De dónde sale» y tres nudos sueltos. Ahora contesta, en el orden en que se pregunta:
+
+- **Qué dice este número.** La banda y dónde empieza, cuánto margen queda antes de caer a la de abajo, qué es el score (y qué no: ni rating de crédito ni probabilidad de impago) y **la cuenta entera en una línea**: punto de partida + lo que aportan los pilares − penalización − tope = score. Debajo, la confianza, que no entra en la cuenta.
+- **Qué lo empuja y qué lo frena.** Los pilares ordenados por aportación, con el cero en el centro: a la derecha lo que aporta, a la izquierda lo que resta, y la frase del motor de cada uno. Pasar por encima lo señala en el horizonte; pulsar abre su evidencia. La partitura, la cascada y las curvas siguen en Desglose: aquí se cuenta, allí se audita.
+- **Qué está pasando.** El veredicto en palabras: cuánto se mueve en tres meses, frente a qué mes, cuántas veces su vaivén normal, si es confirmado, un bache o un golpe por confirmar, cuántos meses lleva y qué pilares lo mueven. Con los avisos del mes debajo.
+- **Qué lo está limitando.** Topes, penalización del pilar más débil, compuertas, abstención, feed parado y cambios de perímetro, con el texto del glosario del manifiesto. La sección no existe si no hay nada que limite.
+- **Qué lo cambiaría.** Una línea con la acción que más mueve y lo que darían todas juntas, y el paso a Acciones.
+
+### Los productos, por necesidad
+
+En la ficha de una empresa la estantería empieza por **lo que le encajaría ahora** (lo que encaja y lo que ya tiene pero el motor pide ampliar o usar más), ordenado por los puntos que promete. Debajo, «El resto de la estantería», con sus familias de siempre. La matriz del grupo no cambia.
+
+### Pruebas
+
+`bun run check`, `bun test` (31 de 31) y el recorrido, **55 de 55**.
+
+---
+
 ## 19 de septiembre de 2026, la portada como monitor (propuesta 08)
 
 La portada deja de ser una puerta y pasa a ser el monitor de la cartera. Sigue la propuesta `hackspain/08-propuesta-portada-monitor.md`, con las decisiones tomadas: organizaciones por defecto (con conmutador a empresas), la regla de gravedad propuesta, siete formas y Jev en un Worker propio.
