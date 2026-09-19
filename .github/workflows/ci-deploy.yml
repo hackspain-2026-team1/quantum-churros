@@ -71,7 +71,7 @@ jobs:
 
       - name: Check and build frontend
         working-directory: frontend
-        run: bun run check && bun run build:despliegue
+        run: bun run check && bun run test
 
   build-images:
     name: Build ${{ matrix.name }} image
