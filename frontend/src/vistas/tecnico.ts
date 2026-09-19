@@ -145,7 +145,7 @@ function tocable(el: HTMLElement, pilar: string, acc: Acciones) {
 	el.classList.add('tocable');
 	el.tabIndex = 0;
 	el.title = 'Pasa por encima para verlo en el horizonte; clic para su evidencia';
-	const ir = () => acc.irSeccion('tecnico', undefined, { pilar });
+	const ir = () => acc.irSeccion('conciliacion', undefined, { pilar });
 	el.addEventListener('click', ir);
 	el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
 	el.addEventListener('pointerenter', () => acc.horizonte.pilar(pilar));

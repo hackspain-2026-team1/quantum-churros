@@ -173,7 +173,7 @@ if (recs) {
 await foto(p, '05-empresa-acciones');
 
 // El hilo lleva a la evidencia ya filtrada en su dato.
-await p.keyboard.press('1');
+await p.keyboard.press('4');
 await hasta(p, () => !!document.querySelector('.pt-fila.tocable'));
 const pilarFila = await p.evaluate(() => { const f = document.querySelector('.pt-fila.tocable'); f.click(); return f.querySelector('.pt-nombre').firstChild.textContent; });
 await hasta(p, () => !!document.querySelector('.evidencia .desp-boton'));
@@ -221,11 +221,11 @@ const viaje = await p.evaluate(() => [document.querySelector('.regla-viaje').tex
 comprobar('mover la regla hacia atrás cambia la ficha y lo dice', viaje[0].startsWith('Viendo') && viaje[1].startsWith('lo que se preveía'), viaje.join(' · '));
 await p.click('.regla-viaje');
 await hasta(p, () => document.body.dataset.viaje !== '1');
-// El informe para imprimir: las cuatro secciones, con la arena cocida en imágenes.
+// El informe para imprimir: todas las secciones de la ficha, con la arena cocida en imágenes.
 await p.evaluate(() => dispatchEvent(new Event('beforeprint')));
 const inf = await p.evaluate(() => ({ secciones: document.querySelectorAll('.capa-informe .informe-seccion').length, arena: document.querySelectorAll('.capa-informe .arena-impresa').length }));
 await p.evaluate(() => dispatchEvent(new Event('afterprint')));
-comprobar('el informe imprime las cuatro secciones con su arena', inf.secciones === 4 && inf.arena >= 2 && !(await p.$('.capa-informe')), `${inf.secciones} secciones · ${inf.arena} placas`);
+comprobar('el informe imprime todas las secciones con su arena', inf.secciones === 5 && inf.arena >= 2 && !(await p.$('.capa-informe')), `${inf.secciones} secciones · ${inf.arena} placas`);
 await foto(p, '07-empresa-scoring');
 await p.keyboard.press('Escape');
 await esperar(600);
