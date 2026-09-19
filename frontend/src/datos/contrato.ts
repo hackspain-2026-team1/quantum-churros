@@ -211,8 +211,17 @@ export interface HorizontesIndiceM {
 	entities: Record<string, { kind: 'group' | 'company'; p50_h6: number | null; p_critical_h6: number | null; cross: { to: Banda; month: string; prob: number } | null; shown_at_cut: number | null }>;
 }
 
-// ─── Índice de empresas (rumbo-companies-index-v1) ──────────
-export interface IndiceEmpresasM { schema: 'rumbo-companies-index-v1'; bundle_id: string; cut: string; companies: Record<string, { group: string; size: string | null; shown: number | null; band: string | null }> }
+// ─── Índice de entidades e identidades ficticias ──────────
+export interface EntidadesM {
+	schema: 'rumbo-entities-v1';
+	bundle_id: string;
+	dataset_hash: string;
+	cut: string;
+	naming_version: string;
+	vocabulary_hash: string;
+	groups: Record<string, { name: string; brand: string; country: string | null; industry: string | null; industry_label: string | null; industry_confidence: number | null; size: string | null; n_companies: number }>;
+	companies: Record<string, { name: string; legal_name: string; group: string; country: string | null; role: string | null; size: string | null; shown: number | null; band: string | null }>;
+}
 
 // ─── Parámetros del motor (copia verificada de params/reference_v1.json) ──
 export type Tabla = [number, number][];

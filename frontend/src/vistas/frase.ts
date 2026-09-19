@@ -10,6 +10,7 @@ import {
 	type Consulta, type Contexto, type Filtro, type Frente, type Orden, type Propuesta,
 } from '../datos/consulta';
 import type { Cartera } from '../datos/modelo';
+import { nombreGrupo } from '../datos/nombres';
 import { escalaDe, periodoAnioAnterior, periodosDe, type Escala } from '../datos/periodos';
 import type { Almacen, Estado } from '../estado';
 import { h, vaciar } from './dom';
@@ -80,7 +81,7 @@ export function crearFrase(c: Cartera, S: Almacen, ctxDe: (q: Consulta) => Conte
 		linea.classList.toggle('previa', e.previa);
 		const total = c.groups.length - ctx.sinDatos.size;
 		const enExp = e.vista === 'organizacion' && !!e.sel;
-		const quien = enExp ? `El Grupo ${Number(e.sel!.split('_')[1])}` : mayuscula(textoQuien(ctx));
+		const quien = enExp ? `El ${nombreGrupo(e.sel!)}` : mayuscula(textoQuien(ctx));
 		const fQuien = ficha('quien', quien, glifoMonton(enExp ? 0.004 : total ? ctx.visibles.size / total : 0), 'Quién');
 		if (q.filtros.length && !enExp) {
 			const quitar = h('span', { class: 'ficha-quitar', role: 'button', tabindex: 0, 'aria-label': 'Quitar el último filtro', title: 'Quitar el último filtro' }, '×');
@@ -158,7 +159,7 @@ export function crearFrase(c: Cartera, S: Almacen, ctxDe: (q: Consulta) => Conte
 					const i = orden.indexOf(S.confirmado.sel ?? '');
 					for (const id of [...orden.slice(i + 1, i + 7), ...orden.slice(Math.max(0, i - 3), Math.max(0, i))]) {
 						const gi = c.groups.findIndex((g) => g.id === id);
-						o.push({ seccion: 'Otros grupos, en el mismo orden', texto: `Grupo ${Number(id.split('_')[1])}`, detalle: String(Math.round((ctx.valor(gi, ctx.pHasta) ?? 0) / 10)), q, accion: () => acc.abrirGrupo(id) });
+						o.push({ seccion: 'Otros grupos, en el mismo orden', texto: nombreGrupo(id), detalle: String(Math.round((ctx.valor(gi, ctx.pHasta) ?? 0) / 10)), q, accion: () => acc.abrirGrupo(id) });
 					}
 					break;
 				}

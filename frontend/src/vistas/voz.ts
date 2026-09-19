@@ -2,8 +2,9 @@
 
 import { NOMBRE_BANDA, NOMBRE_PILAR, PILARES, type Alerta, type Grupo } from '../datos/modelo';
 import { fmt, tendencia } from '../datos/derivados';
+import { nombreGrupo } from '../datos/nombres';
 
-export const nombreGrupo = (id: string) => `Grupo ${Number(id.split('_')[1])}`;
+export { nombreGrupo };
 
 /** El pilar que más ha movido el score entre dos meses. */
 export function pilarQueEmpuja(g: Grupo, desde: number, hasta: number) {

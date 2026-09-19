@@ -2,6 +2,7 @@
 // usan meses ≤ t, para que el reloj nunca enseñe información del futuro.
 
 import type { Cartera, Grupo } from './modelo';
+import { nombreEmpresa, nombreGrupo } from './nombres';
 
 /**
  * Tendencia larga: pendiente de Theil–Sen del score sobre los últimos 12 meses, en puntos/mes.
@@ -105,7 +106,7 @@ export const fmt = {
 		const [a, m] = iso.split('-');
 		return `${m}/${a.slice(2)}`;
 	},
-	grupo: (id: string) => `Grupo ${Number(id.split('_')[1])}`,
-	empresa: (id: string) => `Empresa ${Number(id.split('_')[1])}`,
+	grupo: nombreGrupo,
+	empresa: nombreEmpresa,
 	entero: (n: number) => new Intl.NumberFormat('es-ES').format(n),
 };

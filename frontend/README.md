@@ -16,9 +16,11 @@ En desarrollo, Rumbo lee dos carpetas enlazadas en `public/` (fuera de git):
 | Carpeta | Contenido | Origen |
 | --- | --- | --- |
 | `public/datos/` | bundle del motor (`xray-export-v1`) | `xray-score predict --export-dir` |
-| `public/rumbo/` | `params.json`, `indice-empresas.json`, `products/`, `horizons/` | `scripts/datos/` |
+| `public/rumbo/` | `params.json`, `entities.json`, `products/`, `horizons/` | `scripts/datos/` |
 
 `scripts/datos/preparar.sh [carpeta_datos] [repositorio_motor]` hace los cinco pasos y crea los enlaces. Nada se escribe a mano: si falta un fichero de `rumbo/`, la interfaz lo dice y no lo rellena.
+
+`entities.json` contiene el índice agregado y los nombres ficticios de grupos y empresas. `scripts/datos/entidades.py` lo deriva de forma determinista a partir de los identificadores y metadatos del bundle; el score no participa en los nombres. En el repositorio completo, `make db-sync` regenera el bundle y este índice en una sola operación.
 
 Con `?datos=sinteticos`, y solo en desarrollo, se usa una cartera sintética con la forma exacta del contrato. El build de producción no la incluye.
 
