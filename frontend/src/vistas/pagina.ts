@@ -1,18 +1,21 @@
 // El controlador de las páginas de Rumbo: la entrada (elegir organización), la organización, la
 // empresa y la metodología. Cada página es un documento que se desplaza; la arena la acompaña con
-// las placas (registro.ts). La miga de pan hace de frase: Rumbo › Grupo › Empresa › Sección.
+// las placas (registro.ts). La miga de pan va en la misma línea que la marca: Grupo › Empresa.
 
 import { TONO } from '../arena/arena';
 import type { Placa } from '../arena/placas';
 import { carga } from '../datos/carga';
-import type { AlertaM, EmpresaM, GrupoM, Manifiesto } from '../datos/contrato';
+import type { EmpresaM, GrupoM, Manifiesto } from '../datos/contrato';
+import type { Filtro } from '../datos/consulta';
 import { f } from '../datos/formato';
 import type { Cartera } from '../datos/modelo';
 import { nombreBanda, movimiento } from '../datos/redaccion';
 import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
 import { cola, h, vaciar } from './dom';
+import { crearMonitor, type Monitor } from './monitor';
 import { cabecera, cargarFicha, contenidoSeccion, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia, type OpcionesGrafico } from './ficha';
 import { iconoProducto } from './iconos';
+import { logotipo, monograma } from './marca';
 import { cabecerasOrdenables, granos3, seccion } from './primitivos';
 import { medirPlacas, placa } from './registro';
 
@@ -25,15 +28,19 @@ export interface Paginas {
 	franja(): [number, number];
 	desplazamiento(): number;
 	ocultar(): void;
+	/** El informe imprimible de la ficha abierta (las cuatro secciones seguidas) o del monitor, o null. */
+	informe(): HTMLElement | null;
+	/** Lleva a la bandeja de avisos de la portada. */
+	irAvisos(): void;
 }
 
-const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Detalles' };
+const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Desglose' };
 const ROMANO: Record<Seccion, string> = { scoring: 'I', acciones: 'II', productos: 'III', tecnico: 'IV' };
 
-export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string }): Paginas {
+export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; imprimir(): void }): Paginas {
 	const raiz = h('main', { class: 'pagina', tabindex: '-1' });
 	const miga = h('nav', { class: 'miga', 'aria-label': 'Dónde estás' });
-	app.append(raiz, miga);
+	app.append(raiz);
 	raiz.addEventListener('scroll', () => cb.alDesplazar(), { passive: true });
 
 	let clave = '';
@@ -58,24 +65,29 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 
 	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; }
 
-	// ─── Miga de pan ───────────────────────────────────────
+	// ─── Miga de pan (en la cabecera, junto a la marca) ─────
 	function pintarMiga(e: Estado) {
 		vaciar(miga);
+		const pasos = h('span', { class: 'miga-pasos' });
 		const paso = (texto: string, accion: (() => void) | null, actual = false) => {
 			const b = h(accion ? 'button' : 'span', { class: `miga-paso ${actual ? 'actual' : ''}`, type: accion ? 'button' : undefined, 'aria-current': actual ? 'page' : undefined }, texto);
 			if (accion) b.addEventListener('click', accion);
-			miga.append(b);
+			pasos.append(b);
 		};
-		const sep = () => miga.append(h('span', { class: 'miga-sep', 'aria-hidden': 'true' }, '›'));
-		paso('Rumbo', e.vista === 'entrada' ? null : () => S.fijar({ vista: 'entrada', sel: null, emp: null }, true), e.vista === 'entrada');
-		if (e.vista === 'metodologia') { sep(); paso('Metodología', null, true); }
+		const sep = () => pasos.append(h('span', { class: 'miga-sep', 'aria-hidden': 'true' }, '›'));
+		if (e.vista === 'metodologia') paso('Metodología', null, true);
 		if ((e.vista === 'organizacion' || e.vista === 'empresa') && e.sel) {
-			sep();
 			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion');
 			if (e.vista === 'empresa' && e.emp) { sep(); paso(f.empresa(e.emp), null, true); }
-			miga.append(h('span', { class: 'miga-cuando' }, `· ${f.mes(cb.corte())}`));
+			pasos.append(h('span', { class: 'miga-cuando' }, f.mes(cb.corte())));
 		}
-		const mapa = h('button', { type: 'button', class: 'miga-mapa' }, 'Mapa de la cartera');
+		miga.append(pasos, h('span', { class: 'hueco' }));
+		if (e.vista === 'organizacion' || e.vista === 'empresa') {
+			const pdf = h('button', { type: 'button', class: 'miga-accion', title: 'Las cuatro secciones, listas para imprimir o guardar en PDF (⌘P)' }, 'Informe en PDF');
+			pdf.addEventListener('click', () => cb.imprimir());
+			miga.append(pdf);
+		}
+		const mapa = h('button', { type: 'button', class: 'miga-accion' }, 'Mapa de la cartera');
 		mapa.addEventListener('click', () => cb.irCartera());
 		miga.append(mapa);
 	}
@@ -98,7 +110,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		pintarMiga(e);
 		const corte = cb.corte();
 		const nueva = `${e.vista}|${e.sel}|${e.emp}|${corte}`;
-		const soloSeccion = nueva === clave && datos;
+		const soloSeccion = nueva === clave && datos && (e.vista === 'organizacion' || e.vista === 'empresa');
 		const k = `${nueva}|${e.sec}`;
 		if (soloSeccion) { pintarFicha(e); return; }
 		clave = nueva;
@@ -217,65 +229,37 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, plano, h('div', { class: 'tabla-caja' }, tabla), hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
 	}
 
-	// ─── Entrada ───────────────────────────────────────────
-	async function pintarEntrada() {
+	// ─── Entrada: el monitor de la cartera (vistas/monitor.ts) ─
+	let monitor: Monitor | null = null;
+	function pintarEntrada() {
 		vaciar(raiz);
-		const hoja = h('article', { class: 'entrada' });
-		const rosa = h('div', { class: 'entrada-rosa', 'aria-hidden': 'true' });
-		placa(rosa, (cj) => ({ tipo: 'rosa', cx: cj.x + cj.w / 2, cy: cj.y + cj.h / 2, r: Math.min(cj.w, cj.h) * 0.36 }));
-		const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: '¿qué organización?', 'aria-label': 'Buscar organización por número, sector o país', autocomplete: 'off', autofocus: true }) as HTMLInputElement;
-		const resultados = h('ul', { class: 'entrada-resultados', role: 'listbox' });
-		const buscar = () => {
-			vaciar(resultados);
-			const q = entrada.value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-			if (!q) return;
-			const num = Number(q.replace(/^grupo\s*/, ''));
-			const hits = c.groups.filter((g) => (Number.isFinite(num) && num > 0 && Number(g.id.split('_')[1]) === num) || `${g.industry ?? ''} ${g.country ?? ''} ${f.grupo(g.id)}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(q)).slice(0, 8);
-			const t = c.months.indexOf(cb.corte());
-			for (const g of hits) {
-				const m = g.meses[t];
-				const li = h('li', { role: 'option', tabindex: '0', class: 'tocable' }, h('b', {}, f.grupo(g.id)), h('span', { class: 'sub' }, [g.industry, g.country, f.plural(g.n_companies, 'empresa', 'empresas')].filter(Boolean).join(' · ')), h('span', { class: 'res-score' }, m?.shown != null ? f.score(m.shown) : '—'));
-				li.addEventListener('click', () => acc.abrirGrupo(g.id));
-				li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') acc.abrirGrupo(g.id); });
-				resultados.append(li);
-			}
-			if (!hits.length) resultados.append(h('li', { class: 'nota' }, `Ninguna organización con «${entrada.value}». Prueba con un número (42), un sector o un país.`));
-		};
-		entrada.addEventListener('input', buscar);
-		entrada.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') (resultados.querySelector('li.tocable') as HTMLElement | null)?.click(); });
-		const atencion = h('ol', { class: 'atencion' }, h('li', { class: 'nota' }, 'Buscando las que piden atención…'));
-		const mapa = h('div', { class: 'entrada-mapa' });
-		for (const [v, t, d] of [['plano', 'El plano', 'Nivel y ritmo de cada organización'], ['tapiz', 'El tapiz', 'Cada organización, mes a mes']] as const) {
-			const b = h('button', { type: 'button', class: 'mapa-btn' }, h('b', {}, t), h('span', {}, d));
-			b.addEventListener('click', () => cb.irCartera(v));
-			mapa.append(b);
-		}
-		const met = h('button', { type: 'button', class: 'as-enlace' }, 'Cómo se calcula todo esto');
-		met.addEventListener('click', () => S.fijar({ vista: 'metodologia' }, true));
-		hoja.append(
-			rosa,
-			h('div', { class: 'entrada-frase' }, h('span', { class: 'entrada-rumbo' }, 'Rumbo de'), entrada),
-			resultados,
-			h('p', { class: 'entrada-lema' }, `${f.numero(man.counts.groups)} organizaciones y ${f.numero(man.counts.companies)} empresas, de ${f.mes(man.months[0])} a ${f.mes(man.months[man.months.length - 1])}. Dónde está cada una, hacia dónde va y qué puede cambiar su rumbo.`),
-			seccion('Las que piden atención hoy', atencion),
-			seccion('O buscarla en el mapa', mapa, met),
-		);
-		raiz.append(hoja);
-		cb.alCambiarArena();
-		requestAnimationFrame(() => entrada.focus({ preventScroll: true }));
-		// Las que piden atención: datos del motor y de los horizontes, nada más.
-		const [alertas, horizontes] = await Promise.all([carga.alertas(), carga.horizontesIndice()]);
-		vaciar(atencion);
-		for (const it of piden(c, cb.corte(), alertas.alerts, horizontes?.entities ?? {}, man).slice(0, 8)) {
-			const g = c.groups.find((x) => x.id === it.id)!;
-			const li = h('li', { class: 'tocable', tabindex: '0' }, h('b', {}, f.grupo(it.id)), h('span', { class: 'at-texto' }, it.texto), cola(g.meses.map((m) => m.shown), 96, 22));
-			li.addEventListener('click', () => acc.abrirGrupo(it.id));
-			li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') acc.abrirGrupo(it.id); });
-			atencion.append(li);
-		}
-		if (!atencion.children.length) atencion.append(h('li', { class: 'nota' }, 'Ninguna organización cambia este mes.'));
+		monitor = crearMonitor({
+			c, man, corte: cb.corte,
+			abrirGrupo: (id) => acc.abrirGrupo(id),
+			abrirEmpresa: (grupo, id) => { raiz.scrollTop = 0; S.fijar({ vista: 'empresa', sel: grupo, emp: id, sec: 'scoring' }, true); },
+			irMapa: (v, est) => {
+				// Los filtros que el mapa también entiende viajan con él.
+				const filtros: Filtro[] = [];
+				if (est.filtros.zona) filtros.push({ tipo: 'zona', v: est.filtros.zona });
+				if (est.filtros.sector) filtros.push({ tipo: 'sector', v: est.filtros.sector });
+				if (est.filtros.pais) filtros.push({ tipo: 'pais', v: est.filtros.pais });
+				if (est.filtros.tamano) filtros.push({ tipo: 'tamano', v: est.filtros.tamano });
+				if (est.filtros.banda === 'critical') filtros.push({ tipo: 'mov', v: 'critica' });
+				if (est.filtros.mov === 'deterioro') filtros.push({ tipo: 'mov', v: 'deterioro' });
+				if (est.filtros.mov === 'mejora') filtros.push({ tipo: 'mov', v: 'mejora' });
+				if (est.filtros.mov === 'por_confirmar') filtros.push({ tipo: 'mov', v: 'confirmar' });
+				if (est.filtros.producto) filtros.push({ tipo: 'producto', v: est.filtros.producto.id, modo: est.filtros.producto.modo });
+				S.fijar({ vista: v, q: { ...S.confirmado.q, filtros } }, true);
+			},
+			repintarArena: () => requestAnimationFrame(() => cb.alCambiarArena()),
+			esMovil: cb.esMovil,
+			metodologia: () => S.fijar({ vista: 'metodologia' }, true),
+		});
+		raiz.append(monitor.raiz);
+		if (avisosPendiente) { avisosPendiente = false; requestAnimationFrame(() => monitor?.irAvisos()); }
 		cb.alCambiarArena();
 	}
+	let avisosPendiente = false;
 
 	// ─── Metodología ───────────────────────────────────────
 	async function pintarMetodologia() {
@@ -300,9 +284,23 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			hoja.append(seccion('Dónde se abstiene', h('ul', { class: 'senales' }, ...[...porRazon].map(([r, n]) => h('li', {}, h('b', {}, man.glossary.reasons[r] ?? r), ` · ${f.plural(n, 'mes de entidad', 'meses de entidad')}`, h('p', {}, recibo.abstentions.find((a) => a.reason === r)?.unlock ?? ''))))));
 		}
 		if (hor) {
-			const cal = hor.calibration as { h3?: { cov50: number; cov80: number }; h6?: { cov50: number; cov80: number }; mae_median?: number; mae_naive?: number; eval_cut?: string };
-			hoja.append(seccion('El futuro', h('p', {}, `Para cada entidad se simulan 12 meses, 400 veces, a partir de sus propias variaciones, y cada mes simulado se puntúa con las funciones del motor. Comprobado contra lo que pasó de verdad desde ${cal.eval_cut ? f.mes(cal.eval_cut) : '—'}: a seis meses, la franja del 80 % acierta el ${f.porcentaje(cal.h6?.cov80 ?? 0, 0)} de las veces. La mediana se equivoca en ${f.numero(cal.mae_median ?? 0, 1)} puntos de media, frente a ${f.numero(cal.mae_naive ?? 0, 1)} de suponer que nada cambia.`),
-				h('p', { class: 'nota' }, `El corte se reproduce con el motor en ${hor.checks.h0_reproduced} entidades; cada acción llega a la cifra del motor en ${hor.checks.actions_consistent}. Los horizontes nunca cambian un score, un veredicto ni un aviso.`)));
+			const x = hor as unknown as {
+				model?: { version?: string; type?: string; features?: string[] };
+				validation?: { cortes?: string[]; por_horizonte?: Record<string, { error_mediana: number; error_sin_cambio: number; acierta_80: number; n: number }> };
+				calibration?: { h6?: { cov80: number }; mae_median?: number; mae_naive?: number; eval_cut?: string };
+				checks?: Record<string, string>;
+			};
+			const checks = Object.entries(x.checks ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ');
+			if (x.model && x.validation?.por_horizonte?.h6) {
+				// forecast-v1: regresión cuantílica con calibración conformal, validada hacia atrás en varios cortes.
+				const v6 = x.validation.por_horizonte.h6, cortes = x.validation.cortes ?? [];
+				hoja.append(seccion('El futuro', h('p', {}, `Para cada entidad, un modelo (${x.model.version}) predice el cambio del score a cada horizonte con ${f.plural(x.model.features?.length ?? 0, 'señal', 'señales')} del motor: su nivel, sus pilares y cómo se ha movido. La franja se calibra con lo que pasó de verdad. Comprobado en ${f.plural(cortes.length, 'corte', 'cortes')} ${cortes.length ? `(de ${f.mes(cortes[0])} a ${f.mes(cortes[cortes.length - 1])})` : ''}: a seis meses, la franja del 80 % acierta el ${f.porcentaje(v6.acierta_80, 0)} de las veces, y la mediana se equivoca en ${f.numero(v6.error_mediana, 1)} puntos de media, frente a ${f.numero(v6.error_sin_cambio, 1)} de suponer que nada cambia.`),
+					h('p', { class: 'nota' }, `${checks}${checks ? '. ' : ''}Los horizontes nunca cambian un score, un veredicto ni un aviso.`)));
+			} else if (x.calibration) {
+				const cal = x.calibration;
+				hoja.append(seccion('El futuro', h('p', {}, `Para cada entidad se simulan 12 meses, 400 veces, a partir de sus propias variaciones, y cada mes simulado se puntúa con las funciones del motor. Comprobado contra lo que pasó de verdad desde ${cal.eval_cut ? f.mes(cal.eval_cut) : '—'}: a seis meses, la franja del 80 % acierta el ${f.porcentaje(cal.h6?.cov80 ?? 0, 0)} de las veces. La mediana se equivoca en ${f.numero(cal.mae_median ?? 0, 1)} puntos de media, frente a ${f.numero(cal.mae_naive ?? 0, 1)} de suponer que nada cambia.`),
+					h('p', { class: 'nota' }, `${checks}${checks ? '. ' : ''}Los horizontes nunca cambian un score, un veredicto ni un aviso.`)));
+			}
 		}
 		if (prod) {
 			const p = prod.portfolio;
@@ -311,36 +309,42 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		cb.alCambiarArena();
 	}
 
+	// ─── Informe para imprimir ─────────────────────────────
+	// El mismo HTML de las cuatro secciones, seguido, con el estado que se ve (escenario elegido,
+	// acciones marcadas). Sin controles: nada se puede tocar en papel.
+	function informe(): HTMLElement | null {
+		const e = S.e;
+		if (e.vista === 'entrada' && monitor) {
+			const hoja = monitor.informe();
+			hoja.prepend(h('header', { class: 'informe-cab' }, h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)), h('span', { class: 'informe-que' }, `Monitor de la cartera · ${f.mes(cb.corte())}`)));
+			return hoja;
+		}
+		if (!datos || (e.vista !== 'organizacion' && e.vista !== 'empresa')) return null;
+		const d = datos;
+		const quieto: Acciones = { abrirEmpresa: () => {}, abrirGrupo: () => {}, irSeccion: () => {}, repintarArena: () => {}, irBandeja: () => {} };
+		const hoja = h('article', { class: `hoja-ficha informe ${d.kind}` });
+		hoja.append(h('header', { class: 'informe-cab' },
+			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
+			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
+		hoja.append(cabecera(d, false, quieto));
+		for (const sec of SECCIONES) {
+			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, h('span', { class: 'sec-marca-n' }, ROMANO[sec]), ` ${NOMBRE_SECCION[sec]}`));
+			if (d.kind === 'group' && sec === 'scoring') cuerpo.append(flota(d));
+			cuerpo.append(contenidoSeccion(d, sec, { ...estadoUI, acciones: new Set(estadoUI.acciones), filtro: null }, quieto, false));
+			hoja.append(cuerpo);
+		}
+		hoja.append(h('footer', { class: 'informe-pie' },
+			`Rumbo · motor ${man.engine_version} · bundle ${man.bundle_id.slice(0, 12)} · parámetros ${man.params_hash.slice(0, 12)} · datos ${man.dataset_hash.slice(0, 12)} · impreso el ${new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}. Todo sale de los ficheros del motor y de los procesos de Rumbo.`));
+		return hoja;
+	}
+
 	return {
-		raiz, miga, pintar: (e) => { void pintar(e); }, ocultar,
+		raiz, miga, pintar: (e) => { void pintar(e); }, ocultar, informe,
+		irAvisos: () => { if (S.e.vista === 'entrada' && monitor?.raiz.isConnected) monitor.irAvisos(); else { avisosPendiente = true; S.fijar({ vista: 'entrada', sel: null, emp: null }, true); } },
 		placas: () => medirPlacas(raiz),
 		franja: () => { const r = raiz.getBoundingClientRect(); return [r.top, r.bottom]; },
 		desplazamiento: () => raiz.scrollTop,
 	};
-}
-
-/** Las organizaciones que piden atención en el corte: avisos nuevos, cambios de banda y horizontes que caen. */
-function piden(c: Cartera, corte: string, alertas: AlertaM[], hor: Record<string, { p_critical_h6: number | null; cross: { to: string; month: string; prob: number } | null; shown_at_cut: number | null }>, man: Manifiesto) {
-	const t = c.months.indexOf(corte);
-	const salida: { id: string; peso: number; texto: string }[] = [];
-	for (const g of c.groups) {
-		const m = g.meses[t], a = g.meses[t - 1];
-		if (!m || m.shown === null) continue;
-		const nuevos = alertas.filter((x) => x.entity_kind === 'group' && x.entity_id === g.id && x.month === corte && x.state === 'fired');
-		const partes: string[] = []; let peso = 0;
-		if (a?.band && m.band && a.band !== m.band) {
-			const baja = man.bands.findIndex((b) => b.key === m.band) < man.bands.findIndex((b) => b.key === a.band);
-			partes.push(`${baja ? 'baja' : 'sube'} a ${nombreBanda(man, m.band).toLowerCase()} este mes`); peso += baja ? 3 : 1;
-		}
-		if (nuevos.some((x) => x.kind === 'deterioration_structural' || x.kind === 'deterioration_drift')) { partes.push('deterioro confirmado'); peso += 3; }
-		const hz = hor[g.id];
-		if (hz?.cross && m.band !== hz.cross.to) {
-			const baja = man.bands.findIndex((b) => b.key === hz.cross!.to) < man.bands.findIndex((b) => b.key === m.band);
-			if (baja && hz.cross.prob >= 0.5) { partes.push(`${f.porcentaje(hz.cross.prob, 0)} de pasar a ${nombreBanda(man, hz.cross.to).toLowerCase()} hacia ${f.mes(hz.cross.month)}`); peso += 2 + hz.cross.prob; }
-		}
-		if (partes.length) salida.push({ id: g.id, peso, texto: `${f.score(m.shown)} · ${partes.join(' · ')}` });
-	}
-	return salida.sort((a, b) => b.peso - a.peso);
 }
 
 export type { EmpresaM };

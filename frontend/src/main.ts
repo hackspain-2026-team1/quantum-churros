@@ -12,11 +12,14 @@ import { carteraMotor, hayBundle } from './datos/motor';
 import { Almacen, SECCIONES, esPagina, type Estado } from './estado';
 import { DOMINIO_SCORE, ajustarDominios, marcasRitmo, marco, scoreEnX, xScore, yRitmo, type Marco } from './geometria';
 import { h, vaciar } from './vistas/dom';
-import { crearPaginas } from './vistas/pagina';
+import { hayInforme, prepararInforme, quitarInforme } from './vistas/imprimir';
+import { crearPaginas, type Paginas } from './vistas/pagina';
 import { escenaPlacas } from './arena/placas';
 import { crearFrase, guardarVisita, leerVisita } from './vistas/frase';
+import { lineaGranos, logotipo, monogramaArena } from './vistas/marca';
 import { miniatura, relojArena } from './vistas/piezas';
 import { crearRegla } from './vistas/regla';
+import { triaje } from './vistas/triaje';
 import { fijarMeses, nombreGrupo, ritmoEnPalabras } from './vistas/voz';
 
 /**
@@ -105,7 +108,9 @@ async function iniciar() {
 
 	// ─── Esqueleto ─────────────────────────────────────────────
 	const barra = h('header', { class: 'barra' });
-	const marca = h('button', { class: 'marca', type: 'button', title: 'Volver a la entrada' }, h('span', { class: 'marca-x' }, 'Rumbo'), h('span', { class: 'marca-de' }, 'para Embat'));
+	barra.style.setProperty('--linea-granos', `url(${lineaGranos()})`);
+	// La marca: el monograma, hecho de arena, y el logotipo. En la portada no aparece: la portada es la marca.
+	const marca = h('button', { class: 'marca', type: 'button', title: 'Volver a la portada', 'aria-label': 'Rumbo, volver a la portada' }, monogramaArena(30), logotipo(21), h('span', { class: 'marca-de' }, 'para Embat'));
 	marca.addEventListener('click', () => S.fijar({ vista: 'entrada', sel: null, emp: null }, true));
 	const lentes = h('div', { class: 'lentes', role: 'radiogroup', 'aria-label': 'Lente de la cartera' });
 	for (const [k, t, d] of [['score', 'Score', 'Nivel y ritmo de hoy'], ['productos', 'Productos', 'Qué tienen contratado y qué les encaja'], ['horizonte', 'Horizonte', 'Dónde estarán en seis meses si nada cambia']] as const) {
@@ -113,6 +118,17 @@ async function iniciar() {
 		b.addEventListener('click', () => S.fijar({ lente: k }, true));
 		lentes.append(b);
 	}
+	// La campana: avisos de organización del mes sin revisar (la revisión es la de la bandeja).
+	const campana = h('button', { class: 'campana', type: 'button', title: 'Avisos del mes sin revisar' }, h('span', { class: 'campana-grano', 'aria-hidden': 'true' }), h('span', { class: 'campana-n' }));
+	const pintarCampana = () => {
+		const t = ctxDe(S.e.q).corte;
+		const n = c.groups.reduce((s, g) => s + g.alerts.filter((a) => a.month === t && a.state === 'fired' && !triaje.de(a.id)).length, 0);
+		campana.querySelector('.campana-n')!.textContent = `${n} ${n === 1 ? 'aviso' : 'avisos'}`;
+		campana.classList.toggle('vacia', n === 0);
+		campana.setAttribute('aria-label', `${n} avisos del mes sin revisar`);
+	};
+	campana.addEventListener('click', () => paginas?.irAvisos());
+	triaje.oir(pintarCampana);
 	const botonMetodo = h('button', { class: 'boton-metodo', type: 'button' }, 'Metodología');
 	botonMetodo.addEventListener('click', () => S.fijar({ vista: 'metodologia' }, true));
 	const selPlano = h('button', { class: 'vista-btn', type: 'button', 'aria-pressed': 'false' });
@@ -122,7 +138,8 @@ async function iniciar() {
 		? h('span', { class: 'nota-datos real', title: `Bundle ${c.meta.bundle_id} · motor ${c.meta.engine_version} · generado el ${new Date(c.meta.generated_at).toLocaleString('es-ES')}. Datos del reto (dataset ${c.meta.dataset_hash.slice(0, 12)}).` }, `datos reales · motor ${c.meta.engine_version}`)
 		: h('span', { class: 'nota-datos', title: 'Cartera sintética con la forma exacta del contrato del motor (xray-export-v1). Se usa cuando no hay bundle servido o con ?datos=sinteticos. Ver frontend/DIARIO.md.' }, 'datos sintéticos');
 	const botonAyuda = h('button', { class: 'boton-ayuda', type: 'button', 'aria-label': 'Cómo se usa (?)', title: 'Cómo se usa (?)' }, '?');
-	barra.append(marca, h('span', { class: 'hueco' }), lentes, selector, nota, botonMetodo, botonAyuda);
+	const hueco = h('span', { class: 'hueco barra-hueco' });
+	barra.append(marca, hueco, lentes, selector, nota, campana, botonMetodo, botonAyuda);
 	const anot = h('div', { class: 'anot' });
 	const capaExp = h('div', { class: 'anot capa-exp' });
 	const lazo = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -145,18 +162,29 @@ async function iniciar() {
 	app.append(frase.raiz, pista, deshacer, ayuda);
 	const regla = crearRegla(c, S, alternarPlay, () => { modo = modo === 'avanza' ? 'acumula' : 'avanza'; pintarHtml(S.e); }, () => modo);
 	app.append(regla.raiz);
-	const paginas = c.manifiesto ? crearPaginas(app, S, c, c.manifiesto, {
+	const paginas: Paginas | null = c.manifiesto ? crearPaginas(app, S, c, c.manifiesto, {
 		alCambiarArena: () => { if (esPagina(S.e.vista)) componer(S.e, false); },
 		alDesplazar: () => arena.desplazar(paginas!.desplazamiento()),
 		irCartera: (v) => S.fijar({ vista: v ?? S.e.cartera }, true),
 		esMovil: () => M.movil,
 		corte: () => c.months[ctxDe(S.e.q).corte],
+		imprimir: () => imprimir(),
 	}) : null;
 	paginas?.ocultar();
+	// La miga de pan de las páginas vive en la cabecera, junto a la marca.
+	if (paginas) hueco.before(paginas.miga);
+
+	// Imprimir (o guardar en PDF): el informe de la ficha abierta. También con ⌘P.
+	function imprimir() {
+		prepararInforme(paginas?.informe() ?? null);
+		print();
+	}
+	addEventListener('beforeprint', () => { if (!hayInforme()) prepararInforme(paginas?.informe() ?? null); });
+	addEventListener('afterprint', () => quitarInforme());
 	void capaExp;
 
 	ayuda.append(h('h2', {}, 'Cómo se usa'), h('p', {}, 'La frase de arriba dice lo que ves. Toca cualquier trozo para cambiarlo, o escribe en cualquier parte.'));
-	for (const [k, d] of [['1 2 3 4', 'Scoring, acciones, productos y detalles (en una organización o una empresa)'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
+	for (const [k, d] of [['1 2 3 4', 'Scoring, acciones, productos y desglose (en una organización o una empresa)'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
 		ayuda.append(h('div', { class: 'ayuda-fila' }, h('span', { class: 'ayuda-tecla' }, k), h('span', {}, d)));
 	botonAyuda.addEventListener('click', () => ayuda.classList.toggle('ver'));
 
@@ -164,7 +192,7 @@ async function iniciar() {
 	function medir() {
 		arena.redimensionar();
 		const { ancho, alto } = arena.dimensiones;
-		const barraAlto = ancho < 700 ? 48 : 58;
+		const barraAlto = ancho < 700 ? 52 : 64;
 		frase.raiz.style.top = `${barraAlto + (ancho < 700 ? 4 : 10)}px`;
 		const pad = ancho < 700 ? 16 : ancho < 1100 ? 28 : 44;
 		frase.raiz.style.left = `${pad}px`;
@@ -172,10 +200,10 @@ async function iniciar() {
 		const abajo = frase.raiz.getBoundingClientRect().bottom || barraAlto + 80;
 		M = marco(ancho, alto, abajo, false);
 		if (paginas) {
-			const migaAlto = M.movil ? 40 : 46;
-			paginas.miga.style.top = `${barraAlto}px`;
-			paginas.raiz.style.top = `${barraAlto + migaAlto}px`;
-			paginas.raiz.style.bottom = `${Math.max(0, alto - M.regla.y + (M.movil ? 4 : 10))}px`;
+			paginas.raiz.style.top = `${barraAlto}px`;
+			// En la portada y en la metodología no hay regla del tiempo: la página llega abajo del todo.
+			const sinRegla = S.e.vista === 'entrada' || S.e.vista === 'metodologia';
+			paginas.raiz.style.bottom = sinRegla ? '0px' : `${Math.max(0, alto - M.regla.y + (M.movil ? 4 : 10))}px`;
 		}
 	}
 
@@ -287,6 +315,7 @@ async function iniciar() {
 		if (esPagina(e.vista) && paginas) paginas.pintar(e); else paginas?.ocultar();
 		for (const b of lentes.querySelectorAll<HTMLElement>('.lente')) b.setAttribute('aria-checked', String(b.dataset.lente === e.lente));
 		pintarSelector(e, ctx);
+		pintarCampana();
 		document.body.dataset.vista = e.vista;
 		colocarDeshacer();
 	}

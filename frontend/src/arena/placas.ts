@@ -5,11 +5,15 @@
 //   · serie: una línea de tiempo que cruza el presente, con la estela asentada (lo observado) y el
 //     futuro como arena suelta (cada grano es una de las simulaciones de los horizontes);
 //   · flota: las empresas de un grupo en un plano pequeño (score y ritmo);
-//   · rosa: la rosa de los vientos de Rumbo, en la entrada.
+//   · rosa: la rosa de los vientos de Rumbo, el objeto de la portada. En el monitor, sus puntas
+//     diagonales son las cuatro zonas del plano (su largo, cuántas hay en cada una) y la aguja
+//     azul apunta hacia donde va la cartera;
+//   · vista: una de las siete formas del monitor (arena/vistas.ts).
 
 import { escenaVacia, TONO, type Escena } from './arena';
 import { ajustar, anillo, disco, linea, punteado, texto, type Puntos } from './formas';
 import { SERIF } from './escenas';
+import { disponer, type DatosVista } from './vistas';
 
 export interface PlacaNumeral { tipo: 'numeral'; x: number; y: number; h: number; texto: string; tono?: number }
 export interface Futuro {
@@ -19,6 +23,12 @@ export interface Futuro {
 	alfa: number;
 	/** Mediana mes a mes (décimas), dibujada como hilo. */
 	mediana?: number[];
+	/**
+	 * 0 = definido (el escenario elegido: granos apretados); 1 = suelto (las alternativas: más
+	 * dispersos y más finos). Cada simulación tiene siempre el mismo número de granos, así que al
+	 * elegir otro escenario la arena se reorganiza: unos se aprietan y otros se sueltan.
+	 */
+	suelto?: number;
 }
 export interface PlacaSerie {
 	tipo: 'serie';
@@ -49,8 +59,15 @@ export interface AbanicoM {
 	mes: number;
 }
 export interface PlacaFlota { tipo: 'flota'; x: number; y: number; w: number; h: number; puntos: { x: number; y: number; r: number; tono: number; alfa?: number }[] }
-export interface PlacaRosa { tipo: 'rosa'; cx: number; cy: number; r: number }
-export type Placa = PlacaNumeral | PlacaSerie | PlacaFlota | PlacaRosa;
+export interface PlacaRosa {
+	tipo: 'rosa'; cx: number; cy: number; r: number;
+	/** Cuántas entidades hay en cada zona del plano (sólidas NE, se tuercen SE, se hunden SO, mejoran NO). */
+	zonas?: { solida: number; mejora: number; tuerce: number; hunde: number };
+	/** Ángulo de la aguja en radianes (0 = norte, en sentido horario). */
+	aguja?: number;
+}
+export interface PlacaVista { tipo: 'vista'; x: number; y: number; w: number; h: number; datos: DatosVista }
+export type Placa = PlacaNumeral | PlacaSerie | PlacaFlota | PlacaRosa | PlacaVista;
 
 class Lote {
 	p: Puntos = []; tono: number[] = []; alfa: number[] = []; talla: number[] = [];
@@ -89,11 +106,13 @@ function serie(l: Lote, s: PlacaSerie) {
 		l.add(linea([X(a[0]), Y(a[1]!), X(b[0]), Y(b[1]!)], n, 1.2), TONO.tinta, 0.9, 1.5);
 	}
 	obs.forEach((q, i) => l.add(disco(X(q[0]), Y(q[1]!), i === obs.length - 1 ? 4.4 : 2.4, i === obs.length - 1 ? 34 : 12), q[2] ?? TONO.tinta, 1, 1.6));
-	// Futuro: arena suelta. Cada grano de la simulación son tres granos de arena.
+	// Futuro: arena suelta. Cada grano de la simulación son cuatro granos de arena.
 	for (const fu of s.futuros ?? []) {
+		const su = fu.suelto ?? 0;
+		const jx = cw * (0.9 + su * 1.4), jy = 3 + su * 11, talla = 1.6 - su * 0.25;
 		for (const [m, d] of fu.granos) {
 			const x0 = X(s.hoy + m), y0 = Y(d / 10);
-			for (let k = 0; k < 4; k++) l.add([x0 + (Math.random() - 0.5) * cw * 1.05, y0 + (Math.random() - 0.5) * 4], fu.tono, fu.alfa, 1.55);
+			for (let k = 0; k < 4; k++) l.add([x0 + (Math.random() - 0.5) * jx, y0 + (Math.random() - 0.5) * jy], fu.tono, fu.alfa, talla);
 		}
 		if (fu.mediana) {
 			const pts = [X(s.hoy), Y(obs.length ? obs[obs.length - 1][1]! : fu.mediana[0] / 10), ...fu.mediana.flatMap((d, i) => [X(s.hoy + i + 1), Y(d / 10)])];
@@ -130,21 +149,40 @@ function rosa(l: Lote, r: PlacaRosa) {
 	const { cx, cy } = r;
 	l.add(anillo(cx, cy, r.r, Math.round(r.r * 5), 1), TONO.tinta, 0.5, 1.2);
 	l.add(anillo(cx, cy, r.r * 0.72, Math.round(r.r * 3), 0.8), TONO.filete, 0.8, 1.1);
+	// Las puntas diagonales, en el orden de las agujas del reloj desde el nordeste.
+	const diagonal: ('solida' | 'tuerce' | 'hunde' | 'mejora')[] = ['solida', 'tuerce', 'hunde', 'mejora'];
+	const total = r.zonas ? Math.max(1, r.zonas.solida + r.zonas.mejora + r.zonas.tuerce + r.zonas.hunde) : 0;
 	// Cuatro puntas largas y cuatro cortas, rellenas de arena (más densas en la mitad de sombra).
 	for (let k = 0; k < 8; k++) {
 		const a = (k / 8) * Math.PI * 2 - Math.PI / 2;
-		const largo = k % 2 === 0 ? r.r * 1.18 : r.r * 0.62;
-		const ancho = k % 2 === 0 ? r.r * 0.16 : r.r * 0.1;
-		const n = Math.round(largo * (k % 2 === 0 ? 9 : 5));
+		const zona = k % 2 ? diagonal[(k - 1) / 2] : null;
+		const cuota = zona && r.zonas ? r.zonas[zona] / total : null;
+		const largo = k % 2 === 0 ? r.r * 1.18 : cuota !== null ? r.r * (0.3 + 1.25 * Math.sqrt(cuota)) : r.r * 0.62;
+		const ancho = k % 2 === 0 ? r.r * 0.16 : r.r * (cuota !== null ? 0.08 + 0.1 * Math.sqrt(cuota) : 0.1);
+		const n = Math.round(largo * (k % 2 === 0 ? 9 : 6));
+		// Con el monitor, el norte deja de ser la aguja: la aguja va aparte y apunta a los datos.
+		const tono = k === 0 && r.aguja === undefined ? TONO.info : zona === 'hunde' ? TONO.peligro : TONO.tinta;
 		for (let i = 0; i < n; i++) {
 			const u = Math.random(), lado = Math.random() < 0.5 ? -1 : 1;
 			const w = (1 - u) * ancho * Math.random();
 			const x = cx + Math.cos(a) * largo * u + Math.cos(a + Math.PI / 2) * w * lado;
 			const y = cy + Math.sin(a) * largo * u + Math.sin(a + Math.PI / 2) * w * lado;
-			l.add([x, y], k === 0 ? TONO.info : TONO.tinta, lado > 0 ? 0.95 : 0.45, 1.35);
+			l.add([x, y], tono, (lado > 0 ? 0.95 : 0.45) * (k % 2 === 0 && r.aguja !== undefined ? 0.55 : 1), 1.35);
+		}
+	}
+	if (r.aguja !== undefined) {
+		const a = r.aguja - Math.PI / 2;
+		const largo = r.r * 1.05, n = Math.round(largo * 7);
+		for (let i = 0; i < n; i++) {
+			const u = Math.random(), lado = Math.random() < 0.5 ? -1 : 1, w = (1 - u) * r.r * 0.07 * Math.random();
+			l.add([cx + Math.cos(a) * largo * u + Math.cos(a + Math.PI / 2) * w * lado, cy + Math.sin(a) * largo * u + Math.sin(a + Math.PI / 2) * w * lado], TONO.info, 1, 1.45);
 		}
 	}
 	l.add(disco(cx, cy, r.r * 0.06, 20), TONO.tinta, 1, 1.4);
+}
+
+function vista(l: Lote, p: PlacaVista) {
+	disponer(p.datos, p.w, p.h).dibujar((x, y, t, a, s) => l.add([x, y], t, a, s), p.x, p.y);
 }
 
 /**
@@ -154,7 +192,11 @@ function rosa(l: Lote, r: PlacaRosa) {
 export function escenaPlacas(placas: Placa[], n: number, ancho: number, alto: number, movil: boolean): Escena {
 	const e = escenaVacia(n);
 	const l = new Lote();
+	// La vista del monitor va primero: así sus granos conservan siempre el mismo número y cada
+	// entidad viaja con los suyos al cambiar de forma, aunque cambie el resto de la página.
+	for (const p of placas) if (p.tipo === 'vista') vista(l, p);
 	for (const p of placas) {
+		if (p.tipo === 'vista') continue;
 		if (p.tipo === 'numeral') numeral(l, p, movil);
 		else if (p.tipo === 'serie') serie(l, p);
 		else if (p.tipo === 'flota') flota(l, p);

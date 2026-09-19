@@ -343,574 +343,247 @@ function explicacion(d: DatosFicha): string {
 // ─── El gráfico de horizonte (I y III) ───────────────────────
 
 export interface OpcionesGrafico {
-  escenario: "base" | "drift" | "stress";
-  acciones: Set<string>;
-  metrica: string; // 'score' o la clave de una serie
-  alto: number;
-  grande?: boolean;
+	escenario: 'base' | 'drift' | 'stress';
+	acciones: Set<string>;
+	metrica: string; // 'score' o la clave de una serie
+	alto: number;
+	grande?: boolean;
+	/** Si se da, tocar la arena del futuro elige el escenario más cercano. */
+	alElegir?: (e: OpcionesGrafico['escenario']) => void;
 }
 
-const NOMBRE_ESCENARIO = {
-  base: "Si todo sigue igual",
-  drift: "Si sigue la deriva",
-  stress: "Si se repite su peor trimestre",
-} as const;
+type Escenario = OpcionesGrafico['escenario'];
+const ESCENARIOS: Escenario[] = ['base', 'drift', 'stress'];
+const NOMBRE_ESCENARIO = { base: 'Si todo sigue igual', drift: 'Si sigue la deriva', stress: 'Si se repite su peor trimestre' } as const;
+const CORTO_ESCENARIO = { base: 'todo igual', drift: 'deriva', stress: 'peor trimestre' } as const;
+/** Cada escenario tiene su color de arena; el elegido se aprieta, los otros se sueltan. */
+const TONO_ESCENARIO = { base: TONO.apagado, drift: TONO.tellme, stress: TONO.ocre } as const;
 
-export function graficoHorizonte(
-  d: DatosFicha,
-  o: OpcionesGrafico,
-  empresasHilo = false,
-): HTMLElement {
-  const caja = h("div", {
-    class: `grafico ${o.grande ? "grande" : ""}`,
-    style: { height: `${o.alto}px` },
-  });
-  const meses = d.ent.months.filter((m) => m.month <= d.corte);
-  const pasado = meses.slice(-24);
-  const escenarios = d.hor?.scenarios;
-  const conFuturo =
-    o.metrica === "score" && !!escenarios && d.hor!.cut === d.corte;
-  // Los escenarios mejor/común/peor que calcula el motor (bundle del mes del corte): abanico a t+horizonte.
-  const abanico =
-    o.metrica === "score" && d.mes?.outlook ? d.mes.outlook : null;
-  const nF = conFuturo ? d.hor!.months.length : 0;
-  const columnas =
-    pasado.length + Math.max(nF, abanico ? abanico.horizon_months : 0);
-  const hoy = pasado.length - 1;
-  const col = (iso: string) => pasado.findIndex((m) => m.month === iso);
+/**
+ * Percentil de un escenario en el mes m (0 = el primero previsto). Los escenarios alternativos solo
+ * traen la mediana: la franja sale entonces de sus propios granos simulados de ese mes.
+ */
+function cuantil(e: EscenarioM, k: 'p10' | 'p50' | 'p90', m: number): number {
+	const q = (e.q as Partial<Record<'p10' | 'p50' | 'p90', number[]>>)[k];
+	if (q) return q[m];
+	const v = (e.grains ?? []).filter((g) => g[0] === m + 1).map((g) => g[1]).sort((a, b) => a - b);
+	if (!v.length) return e.q.p50[m];
+	return v[Math.min(v.length - 1, Math.max(0, Math.round((k === 'p10' ? 0.1 : k === 'p90' ? 0.9 : 0.5) * (v.length - 1))))];
+}
 
-  let valores: [number, number | null, number?][];
-  let unidad = "puntos";
-  if (o.metrica === "score")
-    valores = pasado.map((m, i) => [
-      i,
-      m.shown / 10,
-      m.band === "critical" ? TONO.peligro : TONO.tinta,
-    ]);
-  else {
-    const s = d.ent.series.find((x) => x.key === o.metrica);
-    unidad = s?.unit ?? "";
-    // Las series traen los últimos meses de la entidad: se alinean por el final.
-    const ultimo = d.ent.months[d.ent.months.length - 1].month;
-    const desplaz =
-      d.ent.months.findIndex((m) => m.month === ultimo) -
-      d.ent.months.findIndex((m) => m.month === d.corte);
-    const vals = s
-      ? s.values.slice(0, s.values.length - Math.max(0, desplaz))
-      : [];
-    valores = pasado.map((_, i) => {
-      const k = vals.length - (pasado.length - i);
-      return [i, k >= 0 ? (vals[k] ?? null) : null];
-    });
-  }
-  const futuros: Futuro[] = [];
-  const marcas: [number, number][] = [];
-  let lo = Infinity,
-    hi = -Infinity;
-  for (const v of valores)
-    if (v[1] !== null) {
-      lo = Math.min(lo, v[1]);
-      hi = Math.max(hi, v[1]);
-    }
-  if (abanico)
-    for (const v of [abanico.best, abanico.common, abanico.worst]) {
-      lo = Math.min(lo, v / 10);
-      hi = Math.max(hi, v / 10);
-    }
-  if (conFuturo) {
-    const esc: EscenarioM | undefined =
-      escenarios![o.escenario] ?? escenarios!.base;
-    const accs = (d.hor!.actions ?? []).filter((a) => o.acciones.has(a.id));
-    futuros.push({
-      granos: esc.grains,
-      tono: TONO.apagado,
-      alfa: accs.length ? 0.3 : 0.62,
-      mediana: accs.length ? undefined : esc.q.p50,
-    });
-    for (const a of accs)
-      futuros.push({
-        granos: a.grains,
-        tono: TONO.info,
-        alfa: 0.7,
-        mediana: a.q.p50,
-      });
-    const todas = [esc, ...accs];
-    for (const e of todas)
-      for (const k of ["p10", "p90"] as const)
-        for (const v of e.q[k]) {
-          lo = Math.min(lo, v / 10);
-          hi = Math.max(hi, v / 10);
-        }
-    if (accs.length) {
-      const lag = Math.max(...accs.map((a) => a.lag_months));
-      const ids = accs.map((a) => a.id).sort();
-      const cifra =
-        accs.length === 1
-          ? accs[0].engine_new_score
-          : d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids.join())
-              ?.new_score;
-      if (cifra !== undefined) marcas.push([hoy + lag, cifra / 10]);
-    }
-  }
-  if (!Number.isFinite(lo)) {
-    lo = 0;
-    hi = 100;
-  }
-  const margen = Math.max(3, (hi - lo) * 0.08);
-  if (o.metrica === "score") {
-    lo = Math.max(0, Math.floor((lo - margen) / 5) * 5);
-    hi = Math.min(100, Math.ceil((hi + margen) / 5) * 5);
-  } else {
-    lo = lo - margen;
-    hi = hi + margen;
-  }
-  if (hi - lo < 10 && o.metrica === "score") {
-    hi = Math.min(100, lo + 10);
-  }
-  const bandas =
-    o.metrica === "score"
-      ? d.man.bands.filter((b) => b.min > 0).map((b) => b.min / 10)
-      : [];
+export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo = false): HTMLElement {
+	const caja = h('div', { class: `grafico ${o.grande ? 'grande' : ''}`, style: { height: `${o.alto}px` } });
+	const meses = d.ent.months.filter((m) => m.month <= d.corte);
+	const pasado = meses.slice(-24);
+	const escenarios = d.hor?.scenarios;
+	const conFuturo = o.metrica === 'score' && !!escenarios && d.hor!.cut === d.corte;
+	const nF = conFuturo ? d.hor!.months.length : 0;
+	const columnas = pasado.length + nF;
+	const hoy = pasado.length - 1;
+	const col = (iso: string) => pasado.findIndex((m) => m.month === iso);
 
-  // En el grupo, las estelas finas de sus empresas (alineadas con los meses del fichero del grupo).
-  const hilos: [number, number | null][][] = [];
-  if (empresasHilo && d.kind === "group" && o.metrica === "score") {
-    const g = d.ent as GrupoM;
-    const primero = g.months.findIndex((m) => m.month === pasado[0]?.month);
-    for (const em of g.companies)
-      hilos.push(
-        pasado.map((_, i) => {
-          const v = em.shown[primero + i];
-          return [i, v === null || v === undefined ? null : v / 10];
-        }),
-      );
-    for (const hl of hilos)
-      for (const [, v] of hl)
-        if (v !== null) {
-          lo = Math.min(lo, Math.max(0, v - 2));
-          hi = Math.max(hi, Math.min(100, v + 2));
-        }
-  }
-  const hueco = h("div", { class: "grafico-arena" });
-  placa(hueco, (c): PlacaSerie => ({
-    tipo: "serie",
-    x: c.x,
-    y: c.y,
-    w: c.w,
-    h: c.h,
-    lo,
-    hi,
-    columnas: Math.max(columnas, 2),
-    hoy,
-    pasado: valores,
-    hilos,
-    futuros,
-    bandas,
-    marcas,
-    abanico: abanico
-      ? {
-          mejor: abanico.best,
-          comun: abanico.common,
-          peor: abanico.worst,
-          mes: abanico.horizon_months,
-        }
-      : undefined,
-  }));
-  caja.append(hueco);
+	let valores: [number, number | null, number?][];
+	let unidad = 'puntos';
+	if (o.metrica === 'score') valores = pasado.map((m, i) => [i, m.shown / 10, m.band === 'critical' ? TONO.peligro : TONO.tinta]);
+	else {
+		const s = d.ent.series.find((x) => x.key === o.metrica);
+		unidad = s?.unit ?? '';
+		// Las series traen los últimos meses de la entidad: se alinean por el final.
+		const ultimo = d.ent.months[d.ent.months.length - 1].month;
+		const desplaz = d.ent.months.findIndex((m) => m.month === ultimo) - d.ent.months.findIndex((m) => m.month === d.corte);
+		const vals = s ? s.values.slice(0, s.values.length - Math.max(0, desplaz)) : [];
+		valores = pasado.map((_, i) => { const k = vals.length - (pasado.length - i); return [i, k >= 0 ? (vals[k] ?? null) : null]; });
+	}
+	const futuros: Futuro[] = [];
+	const marcas: [number, number][] = [];
+	let lo = Infinity, hi = -Infinity;
+	for (const v of valores) if (v[1] !== null) { lo = Math.min(lo, v[1]); hi = Math.max(hi, v[1]); }
+	// Los escenarios que se dibujan: con acciones marcadas, el básico y las acciones; sin ellas,
+	// los tres a la vez (el elegido definido, los otros sueltos y en su color).
+	const elegido: Escenario = escenarios?.[o.escenario] ? o.escenario : 'base';
+	const alternativos: { k: Escenario; e: EscenarioM }[] = [];
+	if (conFuturo) {
+		const esc: EscenarioM = escenarios![elegido]!;
+		const accs = (d.hor!.actions ?? []).filter((a) => o.acciones.has(a.id));
+		if (accs.length) {
+			futuros.push({ granos: esc.grains, tono: TONO.apagado, alfa: 0.3 });
+			for (const a of accs) futuros.push({ granos: a.grains, tono: TONO.info, alfa: 0.7, mediana: a.q.p50 });
+		} else {
+			// Siempre en el mismo orden y con los mismos granos: al elegir otro, la arena se reorganiza.
+			for (const k of ESCENARIOS) {
+				const e = escenarios![k];
+				if (!e) continue;
+				const es = k === elegido;
+				// Los escenarios que solo traen la mediana se dibujan como su hilo: definido si es el elegido, tenue si no.
+				const conGranos = !!e.grains?.length;
+				futuros.push({ granos: e.grains ?? [], tono: TONO_ESCENARIO[k], alfa: es ? 0.78 : conGranos ? 0.34 : 0.05, mediana: es || !conGranos ? e.q.p50 : undefined, suelto: es ? 0 : 1 });
+				if (!es) alternativos.push({ k, e });
+			}
+		}
+		const todas = [esc, ...accs, ...alternativos.map((x) => x.e)];
+		for (const e of todas) for (const k of ['p10', 'p90'] as const) for (let m = 0; m < nF; m++) { const v = cuantil(e, k, m); lo = Math.min(lo, v / 10); hi = Math.max(hi, v / 10); }
+		if (accs.length) {
+			const lag = Math.max(...accs.map((a) => a.lag_months));
+			const ids = accs.map((a) => a.id).sort();
+			const cifra = accs.length === 1 ? accs[0].engine_new_score : d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids.join())?.new_score;
+			if (cifra !== undefined) marcas.push([hoy + lag, cifra / 10]);
+		}
+	}
+	if (!Number.isFinite(lo)) { lo = 0; hi = 100; }
+	const margen = Math.max(3, (hi - lo) * 0.08);
+	if (o.metrica === 'score') { lo = Math.max(0, Math.floor((lo - margen) / 5) * 5); hi = Math.min(100, Math.ceil((hi + margen) / 5) * 5); }
+	else { lo = lo - margen; hi = hi + margen; }
+	if (hi - lo < 10 && o.metrica === 'score') { hi = Math.min(100, lo + 10); }
+	const bandas = o.metrica === 'score' ? d.man.bands.filter((b) => b.min > 0).map((b) => b.min / 10) : [];
 
-  // Etiquetas HTML con el mismo mapeo (porcentajes de la caja).
-  const X = (c: number) => `${((c + 0.5) / Math.max(columnas, 2)) * 100}%`;
-  const Y = (v: number) => `${(1 - (v - lo) / (hi - lo)) * 100}%`;
-  const eti = (clase: string, texto: string, x: string, y: string) => {
-    const e = h("span", { class: `g-etq ${clase}` }, texto);
-    e.style.left = x;
-    e.style.top = y;
-    caja.append(e);
-    return e;
-  };
-  const fmtV = (v: number) =>
-    o.metrica === "score"
-      ? f.numero(v)
-      : unidad === "EUR"
-        ? f.eurosCorto(v)
-        : unidad === "ratio"
-          ? f.ratio(v)
-          : `${f.numero(v, 1)}${unidad === "días" ? " días" : ""}`;
-  eti("eje-v", fmtV(hi), "0", "0%");
-  eti("eje-v", fmtV(lo), "0", "100%");
-  for (const b of d.man.bands.filter((x) => x.min > 0))
-    if (o.metrica === "score" && b.min / 10 > lo && b.min / 10 < hi)
-      eti("eje-banda", `${b.label} · ${f.score(b.min)}`, "100%", Y(b.min / 10));
-  pasado.forEach((m, i) => {
-    if (
-      i === hoy ||
-      (pasado.length - 1 - i) % (pasado.length > 14 ? 6 : 3) === 0
-    )
-      eti(
-        `eje-m ${i === hoy ? "hoy" : ""}`,
-        i === hoy ? `hoy · ${f.mesCorto(m.month)}` : f.mesCorto(m.month),
-        X(i),
-        "100%",
-      );
-  });
-  if (conFuturo) {
-    const esc = escenarios![o.escenario] ?? escenarios!.base;
-    for (const hz of [3, 6, 12] as const) {
-      const k = hz - 1;
-      if (k >= nF) continue;
-      const b = esc.bands[`h${hz}` as "h3" | "h6" | "h12"];
-      const q = esc.q;
-      const txt = `${hz === 12 ? "un año" : `${hz} meses`}: ${f.score(q.p10[k])}–${f.score(q.p90[k])}`;
-      const boya = eti(
-        `boya ${hz === 12 ? "fin" : ""}`,
-        txt,
-        X(hoy + hz),
-        "100%",
-      );
-      if (b)
-        boya.title = d.man.bands
-          .map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`)
-          .join(" · ");
-    }
-    eti(
-      "eje-m futuro",
-      o.acciones.size ? "previsto, con acciones" : "previsto",
-      X(hoy + Math.min(6, nF)),
-      "0%",
-    );
-  }
-  if (abanico) {
-    const xa = X(hoy + abanico.horizon_months);
-    eti(
-      "g-etq abanico mejor",
-      `Mejor ${f.score(abanico.best)}`,
-      xa,
-      Y(abanico.best / 10),
-    );
-    eti(
-      "g-etq abanico comun",
-      `Común ${f.score(abanico.common)}`,
-      xa,
-      Y(abanico.common / 10),
-    );
-    eti(
-      "g-etq abanico peor",
-      `Peor ${f.score(abanico.worst)}`,
-      xa,
-      Y(abanico.worst / 10),
-    );
-    if (!conFuturo)
-      eti("g-etq abanico mes", `+${abanico.horizon_months} meses`, xa, "100%");
-  }
-  void empresasHilo;
-  void col;
-  return caja;
+	// En el grupo, las estelas finas de sus empresas (alineadas con los meses del fichero del grupo).
+	const hilos: [number, number | null][][] = [];
+	if (empresasHilo && d.kind === 'group' && o.metrica === 'score') {
+		const g = d.ent as GrupoM;
+		const primero = g.months.findIndex((m) => m.month === pasado[0]?.month);
+		for (const em of g.companies) hilos.push(pasado.map((_, i) => { const v = em.shown[primero + i]; return [i, v === null || v === undefined ? null : v / 10]; }));
+		for (const hl of hilos) for (const [, v] of hl) if (v !== null) { lo = Math.min(lo, Math.max(0, v - 2)); hi = Math.max(hi, Math.min(100, v + 2)); }
+	}
+	const hueco = h('div', { class: 'grafico-arena' });
+	placa(hueco, (c): PlacaSerie => ({ tipo: 'serie', x: c.x, y: c.y, w: c.w, h: c.h, lo, hi, columnas: Math.max(columnas, 2), hoy, pasado: valores, hilos, futuros, bandas, marcas }));
+	caja.append(hueco);
+
+	// Etiquetas HTML con el mismo mapeo (porcentajes de la caja).
+	const X = (c: number) => `${((c + 0.5) / Math.max(columnas, 2)) * 100}%`;
+	const Y = (v: number) => `${(1 - (v - lo) / (hi - lo)) * 100}%`;
+	const eti = (clase: string, texto: string, x: string, y: string) => { const e = h('span', { class: `g-etq ${clase}` }, texto); e.style.left = x; e.style.top = y; caja.append(e); return e; };
+	const fmtV = (v: number) => (o.metrica === 'score' ? f.numero(v) : unidad === 'EUR' ? f.eurosCorto(v) : unidad === 'ratio' ? f.ratio(v) : `${f.numero(v, 1)}${unidad === 'días' ? ' días' : ''}`);
+	eti('eje-v', fmtV(hi), '0', '0%'); eti('eje-v', fmtV(lo), '0', '100%');
+	for (const b of d.man.bands.filter((x) => x.min > 0)) if (o.metrica === 'score' && b.min / 10 > lo && b.min / 10 < hi) eti('eje-banda', `${b.label} · ${f.score(b.min)}`, '100%', Y(b.min / 10));
+	pasado.forEach((m, i) => { if (i === hoy || (pasado.length - 1 - i) % (pasado.length > 14 ? 6 : 3) === 0) eti(`eje-m ${i === hoy ? 'hoy' : ''}`, i === hoy ? `hoy · ${f.mesCorto(m.month)}` : f.mesCorto(m.month), X(i), '100%'); });
+	if (conFuturo) {
+		const esc = escenarios![elegido]!;
+		for (const hz of [3, 6, 12] as const) {
+			const k = hz - 1;
+			if (k >= nF) continue;
+			const b = esc.bands?.[`h${hz}` as 'h3' | 'h6' | 'h12'];
+			const txt = `${hz === 12 ? 'un año' : `${hz} meses`}: ${f.score(cuantil(esc, 'p10', k))}–${f.score(cuantil(esc, 'p90', k))}`;
+			const boya = eti(`boya h${hz} ${hz === 12 ? 'fin' : ''}`, txt, X(hoy + hz), '100%');
+			if (b) boya.title = d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ');
+		}
+		eti('eje-m futuro', o.acciones.size ? 'previsto, con acciones' : `previsto · ${NOMBRE_ESCENARIO[elegido].toLowerCase()}`, X(hoy + Math.min(6, nF)), '0%');
+		// Las alternativas, rotuladas al final de su mediana y en su color; si caen juntas, una debajo de otra.
+		const yPx = (v: number) => (1 - (v - lo) / (hi - lo)) * o.alto;
+		let ultimoY = -Infinity;
+		for (const { k, e } of [...alternativos].sort((a, b) => b.e.q.p50[nF - 1] - a.e.q.p50[nF - 1])) {
+			const ult = e.q.p50[nF - 1];
+			const y = Math.max(yPx(ult / 10), ultimoY + 15);
+			ultimoY = y;
+			const et = eti('alternativa', `${CORTO_ESCENARIO[k]} · ${f.score(ult)}`, X(hoy + nF), `${y}px`);
+			et.classList.add(`esc-${k}`);
+			et.title = `${NOMBRE_ESCENARIO[k]}: a un año, entre ${f.score(cuantil(e, 'p10', nF - 1))} y ${f.score(cuantil(e, 'p90', nF - 1))}. Toca para verlo definido.`;
+			if (o.alElegir) et.addEventListener('click', (ev) => { ev.stopPropagation(); o.alElegir!(k); });
+		}
+		// Tocar la arena del futuro elige el escenario cuya mediana pasa más cerca.
+		if (o.alElegir && alternativos.length) {
+			caja.classList.add('elegible');
+			caja.addEventListener('click', (ev) => {
+				const r = caja.getBoundingClientRect();
+				const cI = Math.floor(((ev.clientX - r.left) / r.width) * Math.max(columnas, 2));
+				const m = cI - hoy - 1;
+				if (m < 0 || m >= nF) return;
+				const v = hi - ((ev.clientY - r.top) / r.height) * (hi - lo);
+				let mejor: Escenario = elegido, dm = Infinity;
+				for (const k of ESCENARIOS) { const e = escenarios![k]; if (!e) continue; const dd = Math.abs(e.q.p50[m] / 10 - v); if (dd < dm) { dm = dd; mejor = k; } }
+				if (mejor !== elegido) o.alElegir!(mejor);
+			});
+		}
+	}
+	void empresasHilo;
+	void col;
+	return caja;
 }
 
 // ─── Sección I · Scoring y tendencia ──────────────────────────
 
-export function seccionScoring(
-  d: DatosFicha,
-  estado: { escenario: OpcionesGrafico["escenario"]; metrica: string },
-  acc: Acciones,
-  movil: boolean,
-): HTMLElement {
-  const raiz = h("div", { class: "sec-scoring" });
-  const m = d.mes;
-  if (!m) {
-    raiz.append(
-      h(
-        "p",
-        { class: "vacio" },
-        `${nombreEntidad(d.kind, d.id)} no tiene datos en ${f.mes(d.corte)}. Su primer mes es ${f.mes(d.ent.first_month)}.`,
-      ),
-    );
-    return raiz;
-  }
+export function seccionScoring(d: DatosFicha, estado: { escenario: OpcionesGrafico['escenario']; metrica: string }, acc: Acciones, movil: boolean): HTMLElement {
+	const raiz = h('div', { class: 'sec-scoring' });
+	const m = d.mes;
+	if (!m) { raiz.append(h('p', { class: 'vacio' }, `${nombreEntidad(d.kind, d.id)} no tiene datos en ${f.mes(d.corte)}. Su primer mes es ${f.mes(d.ent.first_month)}.`)); return raiz; }
 
-  // Controles del gráfico: métrica y escenario.
-  const metricas: [string, string][] = [
-    ["score", "Score"],
-    ...d.ent.series
-      .filter((s) =>
-        [
-          "buffer_days",
-          "cash_month_end",
-          "headroom",
-          "ar_days_beyond_terms",
-          "ap_days_beyond_terms",
-          "activity_coverage",
-          "debt_burden",
-          "op_inflow_1m",
-          "op_outflow_1m",
-        ].includes(s.key),
-      )
-      .map((s) => [s.key, s.label] as [string, string]),
-  ];
-  const selM = h(
-    "select",
-    { class: "sel-sutil", "aria-label": "Qué se dibuja" },
-    ...metricas.map(([k, n]) =>
-      h("option", { value: k, selected: k === estado.metrica }, n),
-    ),
-  );
-  selM.addEventListener("change", () => {
-    estado.metrica = selM.value;
-    repintar();
-  });
-  const esc = h("div", {
-    class: "escenarios",
-    role: "radiogroup",
-    "aria-label": "Escenario",
-  });
-  for (const k of ["base", "drift", "stress"] as const) {
-    const b = h(
-      "button",
-      {
-        type: "button",
-        class: `esc ${estado.escenario === k ? "activo" : ""}`,
-        role: "radio",
-        "aria-checked": String(estado.escenario === k),
-        title:
-          k === "drift"
-            ? "Qué pasaría si: en la prueba hacia atrás, este escenario predice peor que el básico."
-            : undefined,
-      },
-      NOMBRE_ESCENARIO[k],
-    );
-    b.addEventListener("click", () => {
-      estado.escenario = k;
-      repintar();
-    });
-    esc.append(b);
-  }
-  const zona = h("div", { class: "zona-grafico" });
-  const pie = h("p", { class: "grafico-pie" });
-  const repintar = () => {
-    vaciar(zona);
-    zona.append(
-      graficoHorizonte(
-        d,
-        {
-          escenario: estado.escenario,
-          acciones: new Set(),
-          metrica: estado.metrica,
-          alto: movil ? 220 : 300,
-        },
-        true,
-      ),
-    );
-    for (const b of esc.querySelectorAll("button"))
-      b.classList.toggle(
-        "activo",
-        b.textContent === NOMBRE_ESCENARIO[estado.escenario],
-      );
-    pie.textContent = pieGrafico(d, estado.escenario, estado.metrica);
-    esc.hidden = estado.metrica !== "score" || !d.hor?.scenarios;
-    acc.repintarArena();
-  };
-  raiz.append(h("div", { class: "controles-grafico" }, selM, esc), zona, pie);
-  repintar();
+	// Controles del gráfico: métrica y escenario.
+	const metricas: [string, string][] = [['score', 'Score'], ...d.ent.series.filter((s) => ['buffer_days', 'cash_month_end', 'headroom', 'ar_days_beyond_terms', 'ap_days_beyond_terms', 'activity_coverage', 'debt_burden', 'op_inflow_1m', 'op_outflow_1m'].includes(s.key)).map((s) => [s.key, s.label] as [string, string])];
+	const selM = h('select', { class: 'sel-sutil', 'aria-label': 'Qué se dibuja' }, ...metricas.map(([k, n]) => h('option', { value: k, selected: k === estado.metrica }, n)));
+	selM.addEventListener('change', () => { estado.metrica = selM.value; repintar(); });
+	const esc = h('div', { class: 'escenarios', role: 'radiogroup', 'aria-label': 'Escenario' });
+	for (const k of ['base', 'drift', 'stress'] as const) {
+		const b = h('button', { type: 'button', class: `esc esc-${k} ${estado.escenario === k ? 'activo' : ''}`, 'data-escenario': k, role: 'radio', 'aria-checked': String(estado.escenario === k), title: k === 'drift' ? 'Qué pasaría si: en la prueba hacia atrás, este escenario predice peor que el básico.' : undefined }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), NOMBRE_ESCENARIO[k]);
+		b.addEventListener('click', () => elegir(k));
+		esc.append(b);
+	}
+	const zona = h('div', { class: 'zona-grafico' });
+	const pie = h('p', { class: 'grafico-pie' });
+	const elegir = (k: Escenario) => { if (estado.escenario !== k) { estado.escenario = k; repintar(); } };
+	const repintar = () => {
+		vaciar(zona);
+		zona.append(graficoHorizonte(d, { escenario: estado.escenario, acciones: new Set(), metrica: estado.metrica, alto: movil ? 220 : 300, alElegir: elegir }, true));
+		for (const b of esc.querySelectorAll<HTMLElement>('button')) { const si = b.dataset.escenario === estado.escenario; b.classList.toggle('activo', si); b.setAttribute('aria-checked', String(si)); }
+		pie.replaceChildren(pieGrafico(d, estado.escenario, estado.metrica), estado.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte ? h('span', { class: 'solo-pantalla' }, ' Toca la arena de uno para elegirlo.') : '');
+		esc.hidden = estado.metrica !== 'score' || !d.hor?.scenarios;
+		acc.repintarArena();
+	};
+	raiz.append(h('div', { class: 'bloque-grafico' }, h('div', { class: 'controles-grafico' }, selM, esc), zona, pie));
+	repintar();
 
-  // Cinco cifras con contexto.
-  const v = m.verdict;
-  const deriva = d.evid?.months
-    .find((x) => x.month === d.corte)
-    ?.rows.find((r) => r.pillar === null && /deriva acumulada/i.test(r.label));
-  const esc6 = d.hor?.scenarios?.base;
-  const conSims = !!esc6 && d.hor!.cut === d.corte;
-  const ol = d.mes?.outlook ?? null;
-  const cifras = h(
-    "div",
-    { class: "cifras-c" },
-    cifraC(
-      f.score(m.shown),
-      "score",
-      v.compared_to && v.delta3 !== null
-        ? `${f.delta(v.delta3)} frente a ${f.mesCorto(v.compared_to)}`
-        : null,
-      v.delta3 === null
-        ? ""
-        : v.delta3 < -5
-          ? "baja"
-          : v.delta3 > 5
-            ? "sube"
-            : "",
-    ),
-    cifraC(
-      f.porcentaje(m.conf.value, 0),
-      `confianza ${({ high: "alta", medium: "media", low: "baja" } as Record<string, string>)[m.conf.label]}`,
-      `historia ${f.porcentaje(m.conf.history, 0)} · cobertura ${f.porcentaje(m.conf.coverage, 0)} · calidad ${f.porcentaje(m.conf.quality, 0)}`,
-    ),
-    cifraC(
-      v.persistence_months
-        ? f.plural(v.persistence_months, "mes", "meses")
-        : "—",
-      "persistencia",
-      v.detected_since ? `${movimiento(m)}` : "sin movimiento confirmado",
-      v.available
-        ? v.direction === "improving"
-          ? "sube"
-          : v.direction === "deteriorating"
-            ? "baja"
-            : ""
-        : "",
-    ),
-    cifraC(
-      deriva && typeof deriva.value === "number"
-        ? f.signo(deriva.value, 1)
-        : "—",
-      "deriva de 12 meses",
-      deriva
-        ? `${f.periodo(deriva.period)}, según el motor`
-        : "el motor no la calcula este mes",
-      deriva && typeof deriva.value === "number"
-        ? deriva.value < -3
-          ? "baja"
-          : deriva.value > 3
-            ? "sube"
-            : ""
-        : "",
-    ),
-    cifraC(
-      conSims
-        ? `${f.score(esc6!.q.p10[5])}–${f.score(esc6!.q.p90[5])}`
-        : ol
-          ? `${f.score(ol.worst)}–${f.score(ol.best)}`
-          : "—",
-      "previsto a seis meses",
-      conSims
-        ? `lo más probable, ${f.score(esc6!.q.p50[5])}${esc6!.cross ? ` · ${f.porcentaje(esc6!.cross.prob, 0)} de pasar a ${nombreBanda(d.man, esc6!.cross.to).toLowerCase()}` : ""}`
-        : ol
-          ? `escenario común, ${f.score(ol.common)}: lo calcula el motor, sin simulación`
-          : (d.hor?.reason ?? "sin horizonte en este mes"),
-    ),
-  );
-  raiz.append(cifras);
+	// Cinco cifras con contexto.
+	const v = m.verdict;
+	const deriva = d.evid?.months.find((x) => x.month === d.corte)?.rows.find((r) => r.pillar === null && /deriva acumulada/i.test(r.label));
+	const esc6 = d.hor?.scenarios?.base;
+	const cifras = h('div', { class: 'cifras-c' },
+		cifraC(f.score(m.shown), 'score', v.compared_to && v.delta3 !== null ? `${f.delta(v.delta3)} frente a ${f.mesCorto(v.compared_to)}` : null, v.delta3 === null ? '' : v.delta3 < -5 ? 'baja' : v.delta3 > 5 ? 'sube' : ''),
+		cifraC(f.porcentaje(m.conf.value, 0), `confianza ${({ high: 'alta', medium: 'media', low: 'baja' } as Record<string, string>)[m.conf.label]}`, `historia ${f.porcentaje(m.conf.history, 0)} · cobertura ${f.porcentaje(m.conf.coverage, 0)} · calidad ${f.porcentaje(m.conf.quality, 0)}`),
+		cifraC(v.persistence_months ? f.plural(v.persistence_months, 'mes', 'meses') : '—', 'persistencia', v.detected_since ? `${movimiento(m)}` : 'sin movimiento confirmado'),
+		cifraC(deriva && typeof deriva.value === 'number' ? f.signo(deriva.value, 1) : '—', 'deriva de 12 meses', deriva ? `${f.periodo(deriva.period)}, según el motor` : 'el motor no la calcula este mes', deriva && typeof deriva.value === 'number' ? (deriva.value < -3 ? 'baja' : deriva.value > 3 ? 'sube' : '') : ''),
+		cifraC(esc6 && d.hor!.cut === d.corte ? `${f.score(esc6.q.p10[5])}–${f.score(esc6.q.p90[5])}` : '—', 'previsto a seis meses', esc6 && d.hor!.cut === d.corte ? `lo más probable, ${f.score(esc6.q.p50[5])}${esc6.cross ? ` · ${f.porcentaje(esc6.cross.prob, 0)} de pasar a ${nombreBanda(d.man, esc6.cross.to).toLowerCase()}` : ''}` : d.hor?.reason ?? 'sin horizonte en este mes'),
+	);
+	raiz.append(cifras);
 
-  // La partitura de pilares.
-  raiz.append(partitura(d, acc));
-  // El hilo, en corto.
-  raiz.append(
-    seccion(
-      "De dónde sale",
-      hilo(nudosScore(d, acc).slice(0, 3), true),
-      (() => {
-        const b = h(
-          "button",
-          { type: "button", class: "as-enlace" },
-          "Ver el hilo entero en Detalles",
-        );
-        b.addEventListener("click", () => acc.irSeccion("tecnico"));
-        return b;
-      })(),
-    ),
-  );
-  return raiz;
+	// La partitura de pilares.
+	raiz.append(partitura(d, acc));
+	// El hilo, en corto.
+	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver el hilo entero en el desglose'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
+	return raiz;
 }
 
-function pieGrafico(
-  d: DatosFicha,
-  esc: OpcionesGrafico["escenario"],
-  metrica: string,
-): string {
-  if (metrica !== "score")
-    return "Serie mensual del motor. La previsión se dibuja solo para el score.";
-  const ol = d.mes?.outlook ?? null;
-  const abanicoTxt = ol
-    ? ` Los escenarios mejor, común y peor a ${ol.horizon_months} meses los calcula el motor con la deriva y la volatilidad medidas: no son simulaciones.`
-    : "";
-  if (!d.hor?.scenarios) {
-    if (ol)
-      return `Sin simulación de horizonte para esta entidad.${abanicoTxt}`;
-    return d.hor?.reason
-      ? `Sin horizonte: ${d.hor.reason}`
-      : "Sin horizonte para esta entidad.";
-  }
-  if (d.hor.cut !== d.corte)
-    return `Los horizontes se calculan desde ${f.mes(d.hor.cut)}: mueve la regla a ese mes para verlos.${abanicoTxt}`;
-  const base =
-    "Cada grano del futuro es una de 400 simulaciones puntuadas con el propio motor; donde se amontonan, es más probable.";
-  return (
-    (esc === "drift"
-      ? `${base} Este escenario prolonga la deriva de 12 meses: es un «qué pasaría si», no una predicción (en la prueba hacia atrás acierta menos que el básico).`
-      : esc === "stress"
-        ? `${base} Los tres primeros meses repiten su peor trimestre observado.`
-        : base) + abanicoTxt
-  );
+function pieGrafico(d: DatosFicha, esc: OpcionesGrafico['escenario'], metrica: string): string {
+	if (metrica !== 'score') return 'Serie mensual del motor. La previsión se dibuja solo para el score.';
+	if (!d.hor?.scenarios) return d.hor?.reason ? `Sin horizonte: ${d.hor.reason}` : 'Sin horizonte para esta entidad.';
+	if (d.hor.cut !== d.corte) return `Los horizontes se calculan desde ${f.mes(d.hor.cut)}: mueve la regla a ese mes para verlos.`;
+	const modelo = (d.hor as unknown as { model?: unknown }).model;
+	const base = `${modelo ? 'Cada grano del futuro es un camino posible según el modelo de horizontes, calibrado con lo que pasó de verdad' : 'Cada grano del futuro es una de 400 simulaciones puntuadas con el propio motor'}; donde se amontonan, es más probable. Los tres escenarios se ven a la vez: el elegido, definido y con su mediana; los otros, sueltos y en su color (los que solo traen la mediana, como un hilo).`;
+	return esc === 'drift' ? `${base} Este escenario prolonga la deriva de 12 meses: es un «qué pasaría si», no una predicción (en la prueba hacia atrás acierta menos que el básico).` : esc === 'stress' ? `${base} Los tres primeros meses repiten su peor trimestre observado.` : base;
 }
 
 function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
-  const m = d.mes!;
-  const filas = h("div", { class: "partitura" });
-  const textosNota: string[] = [];
-  for (const p of m.pillars) {
-    const ref = d.man.pillars.find((x) => x.key === p.key)?.baseline ?? null;
-    const gates = p.gates.map((g) => d.man.glossary.gates[g] ?? g);
-    const marcas: HTMLElement[] = [];
-    for (const g of gates) {
-      textosNota.push(g);
-      marcas.push(
-        h(
-          "sup",
-          { class: "llamada" },
-          "¹²³⁴⁵⁶⁷⁸⁹"[textosNota.length - 1] ?? String(textosNota.length),
-        ),
-      );
-    }
-    const barra = h(
-      "div",
-      {
-        class: "pt-barra",
-        title:
-          ref !== null ? `Referencia del motor: ${f.score(ref)}` : undefined,
-      },
-      h("span", {
-        class: "pt-lleno",
-        style: { width: `${p.score === null ? 0 : p.score / 10}%` },
-      }),
-      ref !== null
-        ? h("span", { class: "pt-ref", style: { left: `${ref / 10}%` } })
-        : null,
-    );
-    const fila = h(
-      "div",
-      {
-        class: `pt-fila tocable ${p.score === null ? "nulo" : ""}`,
-        tabindex: "0",
-        title: "Ver de dónde sale, en Detalles",
-      },
-      h(
-        "div",
-        { class: "pt-nombre" },
-        nombrePilar(d.man, p.key),
-        ...marcas,
-        h("span", { class: "pt-peso" }, ` ${f.porcentaje(p.w_eff, 0)}`),
-      ),
-      h(
-        "div",
-        { class: "pt-score" },
-        p.score === null ? "sin dato" : f.score(p.score),
-      ),
-      barra,
-      h(
-        "div",
-        {
-          class: `pt-aporta ${p.contrib < 0 ? "neg" : p.contrib > 0 ? "pos" : ""}`,
-        },
-        p.score === null ? "" : f.delta(p.contrib),
-      ),
-      h("p", { class: "pt-nota" }, p.note ?? ""),
-    );
-    const ir = () => acc.irSeccion("tecnico", undefined, { pilar: p.key });
-    fila.addEventListener("click", ir);
-    fila.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") ir();
-    });
-    filas.append(fila);
-  }
-  const { notas } = llamadas(textosNota);
-  return seccion("Qué aporta cada pilar", filas, notas);
+	const m = d.mes!;
+	const filas = h('div', { class: 'partitura' });
+	const textosNota: string[] = [];
+	for (const p of m.pillars) {
+		const ref = d.man.pillars.find((x) => x.key === p.key)?.baseline ?? null;
+		const gates = p.gates.map((g) => d.man.glossary.gates[g] ?? g);
+		const marcas: HTMLElement[] = [];
+		for (const g of gates) { textosNota.push(g); marcas.push(h('sup', { class: 'llamada' }, '¹²³⁴⁵⁶⁷⁸⁹'[textosNota.length - 1] ?? String(textosNota.length))); }
+		const barra = h('div', { class: 'pt-barra', title: ref !== null ? `Referencia del motor: ${f.score(ref)}` : undefined },
+			h('span', { class: 'pt-lleno', style: { width: `${p.score === null ? 0 : p.score / 10}%` } }),
+			ref !== null ? h('span', { class: 'pt-ref', style: { left: `${ref / 10}%` } }) : null);
+		const fila = h('div', { class: `pt-fila tocable ${p.score === null ? 'nulo' : ''}`, tabindex: '0', title: 'Ver de dónde sale, en el desglose' },
+			h('div', { class: 'pt-nombre' }, nombrePilar(d.man, p.key), ...marcas, h('span', { class: 'pt-peso' }, ` ${f.porcentaje(p.w_eff, 0)}`)),
+			h('div', { class: 'pt-score' }, p.score === null ? 'sin dato' : f.score(p.score)),
+			barra,
+			h('div', { class: `pt-aporta ${p.contrib < 0 ? 'neg' : p.contrib > 0 ? 'pos' : ''}` }, p.score === null ? '' : f.delta(p.contrib)),
+			h('p', { class: 'pt-nota' }, p.note ?? ''));
+		const ir = () => acc.irSeccion('tecnico', undefined, { pilar: p.key });
+		fila.addEventListener('click', ir);
+		fila.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
+		filas.append(fila);
+	}
+	const { notas } = llamadas(textosNota);
+	return seccion('Qué aporta cada pilar', filas, notas);
 }
 
 /** Nudos del hilo del score: score → pilar que más resta → sus medidas → ficheros. */
@@ -1689,56 +1362,22 @@ function avisos(d: DatosFicha): HTMLElement {
 }
 
 function listaAvisos(d: DatosFicha): HTMLElement {
-  const lista = h("ul", { class: "avisos" });
-  const umbral = d.params?.alerts.critical_score ?? null;
-  const deEntidad = d.ent.alerts
-    .filter((a) => a.month <= d.corte)
-    .sort((a, b) => (a.month < b.month ? 1 : -1));
-  const base = d.hor?.scenarios?.base;
-  if (base?.cross && d.hor!.cut === d.corte && d.mes) {
-    const baja =
-      d.man.bands.findIndex((b) => b.key === base.cross!.to) <
-      d.man.bands.findIndex((b) => b.key === d.mes!.band);
-    lista.append(
-      h(
-        "li",
-        { class: `aviso previsto ${baja ? "baja" : "sube"}` },
-        h("span", { class: "av-grano hueco" }),
-        h("span", { class: "av-mes" }, f.mesCorto(base.cross.month)),
-        h(
-          "span",
-          { class: "av-texto" },
-          `Previsto: si nada cambia, ${baja ? "baja" : "sube"} a ${nombreBanda(d.man, base.cross.to).toLowerCase()} (probabilidad ${f.porcentaje(base.cross.prob, 0)})`,
-        ),
-        h("span", { class: "av-estado" }, "horizonte"),
-      ),
-    );
-  }
-  const vivos = deEntidad.filter((a) => triaje.de(a.id) !== "descartado");
-  for (const a of vivos.slice(0, 8))
-    lista.append(lineaAviso(a, d.man, umbral, true));
-  if (!lista.children.length)
-    lista.append(h("li", { class: "nota" }, "Ningún aviso hasta este mes."));
-  const descartados = deEntidad.length - vivos.length;
-  const sinRevisar = vivos.filter((a) => !triaje.de(a.id)).length;
-  lista.append(
-    h(
-      "li",
-      { class: "nota" },
-      [
-        `${f.plural(sinRevisar, "aviso sin revisar", "avisos sin revisar")}`,
-        descartados
-          ? `${f.plural(descartados, "descartado", "descartados")} (se ven en Detalles)`
-          : "",
-        vivos.length > 8
-          ? `${f.numero(vivos.length - 8)} más en Detalles`
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" · ") + ". La clasificación se guarda en este navegador.",
-    ),
-  );
-  return lista;
+	const lista = h('ul', { class: 'avisos' });
+	const umbral = d.params?.alerts.critical_score ?? null;
+	const deEntidad = d.ent.alerts.filter((a) => a.month <= d.corte).sort((a, b) => (a.month < b.month ? 1 : -1));
+	const base = d.hor?.scenarios?.base;
+	if (base?.cross && d.hor!.cut === d.corte && d.mes) {
+		const baja = d.man.bands.findIndex((b) => b.key === base.cross!.to) < d.man.bands.findIndex((b) => b.key === d.mes!.band);
+		lista.append(h('li', { class: `aviso previsto ${baja ? 'baja' : 'sube'}` }, h('span', { class: 'av-grano hueco' }), h('span', { class: 'av-mes' }, f.mesCorto(base.cross.month)),
+			h('span', { class: 'av-texto' }, `Previsto: si nada cambia, ${baja ? 'baja' : 'sube'} a ${nombreBanda(d.man, base.cross.to).toLowerCase()} (probabilidad ${f.porcentaje(base.cross.prob, 0)})`), h('span', { class: 'av-estado' }, 'horizonte')));
+	}
+	const vivos = deEntidad.filter((a) => triaje.de(a.id) !== 'descartado');
+	for (const a of vivos.slice(0, 8)) lista.append(lineaAviso(a, d.man, umbral, true));
+	if (!lista.children.length) lista.append(h('li', { class: 'nota' }, 'Ningún aviso hasta este mes.'));
+	const descartados = deEntidad.length - vivos.length;
+	const sinRevisar = vivos.filter((a) => !triaje.de(a.id)).length;
+	lista.append(h('li', { class: 'nota' }, [`${f.plural(sinRevisar, 'aviso sin revisar', 'avisos sin revisar')}`, descartados ? `${f.plural(descartados, 'descartado', 'descartados')} (se ven en el desglose)` : '', vivos.length > 8 ? `${f.numero(vivos.length - 8)} más en el desglose` : ''].filter(Boolean).join(' · ') + '. La clasificación se guarda en este navegador.'));
+	return lista;
 }
 
 export function lineaAviso(
