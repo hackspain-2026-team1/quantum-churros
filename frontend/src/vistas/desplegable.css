@@ -90,7 +90,7 @@
 	transform-origin: top center;
 	transition: opacity 130ms var(--salida), transform 190ms var(--salida), visibility 0s 190ms;
 }
-.desp.abierto .desp-lista {
+.desp-lista.abierta {
 	visibility: visible;
 	opacity: 1;
 	transform: none;

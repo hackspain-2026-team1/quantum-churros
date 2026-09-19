@@ -94,13 +94,18 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 		// de todo y no la recorta ninguna caja con desbordamiento oculto ni la tapa nada.
 		document.body.append(lista);
 		lista.hidden = false;
+		// La lista ya no cuelga del componente: su estado abierto va en ella misma, o la animación
+		// (que se escribió cuando era hija) no llegaría a aplicarse nunca.
+		lista.classList.add('abierta');
 		boton.setAttribute('aria-expanded', 'true');
 		raiz.classList.add('abierto');
 		colocarLista();
 		(lista.children[marcada] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
 		addEventListener('pointerdown', fuera, true);
 		addEventListener('resize', cerrarSuelto);
-		addEventListener('scroll', cerrarSuelto, true);
+		// El scroll se escucha un fotograma después: si el botón venía fuera de vista, el navegador
+		// desplaza para enseñarlo y ese mismo desplazamiento cerraría la lista recién abierta.
+		requestAnimationFrame(() => { if (abierto) addEventListener('scroll', cerrarSuelto, true); });
 	}
 
 	/** Bajo el botón, o encima si no cabe; y siempre dentro de la pantalla. */
@@ -120,6 +125,7 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 		if (!abierto) return;
 		abierto = false;
 		lista.hidden = true;
+		lista.classList.remove('abierta');
 		// De vuelta a su sitio: así el componente se clona entero (el informe) y no deja nada suelto.
 		lista.removeAttribute('style');
 		raiz.append(lista);
@@ -133,7 +139,8 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 	}
 
 	const fuera = (ev: Event) => { const t = ev.target as Node; if (!raiz.contains(t) && !lista.contains(t)) cerrar(); };
-	const cerrarSuelto = () => cerrar();
+	// Moverse dentro de la lista no la cierra; moverse por detrás de ella, sí.
+	const cerrarSuelto = (ev?: Event) => { if (ev?.target instanceof Node && lista.contains(ev.target)) return; cerrar(); };
 
 	function elegir(i: number) {
 		const op = o.opciones[i];
