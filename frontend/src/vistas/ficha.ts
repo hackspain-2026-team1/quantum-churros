@@ -140,18 +140,20 @@ export interface Acciones {
 export function cabecera(d: DatosFicha, movil: boolean): HTMLElement {
 	const nombre = nombreEntidad(d.kind, d.id);
 	const m = d.mes;
-	const circulo = h('div', { class: 'cab-circulo', role: 'img', 'aria-label': m ? `Score ${f.score(m.shown)} de 100, ${nombreBanda(d.man, m.band).toLowerCase()}` : 'Sin score' });
+	const grupo = d.kind === 'company' ? d.grupoMes : null;
+	const circulo = h('div', { class: 'cab-circulo', role: 'img', 'aria-label': m ? `Score ${f.score(m.shown)} de 100, ${nombreBanda(d.man, m.band).toLowerCase()}${grupo ? `, su grupo ${f.score(grupo.shown)}` : ''}` : 'Sin score' });
 	const numero = h('div', { class: 'cab-numeral', 'aria-label': m ? `Score ${f.score(m.shown)}` : 'Sin score' });
 	circulo.append(numero);
 	if (m) {
 		const marcas: { v: number; tipo: 'pares' | 'grupo' }[] = [];
 		if (d.pares) marcas.push({ v: d.pares.mediana / 10, tipo: 'pares' });
-		if (d.kind === 'company' && d.grupoMes) marcas.push({ v: d.grupoMes.shown / 10, tipo: 'grupo' });
+		if (grupo) marcas.push({ v: grupo.shown / 10, tipo: 'grupo' });
 		placa(circulo, (c) => ({
 			tipo: 'numeral', x: c.x, y: c.y, h: c.h, texto: f.score(m.shown),
 			anillo: { cx: c.x + c.w / 2, cy: c.y + c.h / 2, r: Math.min(c.w, c.h) / 2 - 14, valor: m.shown / 10, bandas: d.man.bands.filter((b) => b.min > 0).map((b) => b.min / 10), tono: m.band === 'critical' ? TONO.peligro : TONO.tinta, marcas },
 		}));
 		circulo.append(h('span', { class: `cab-banda banda-${m.band}` }, nombreBanda(d.man, m.band).toLowerCase()));
+		if (grupo) circulo.append(h('span', { class: 'cab-grupo' }, `Grupo ${f.score(grupo.shown)}`));
 		circulo.title = d.man.bands.map((b) => `${b.label} desde ${f.score(b.min)}`).join(' · ');
 	}
 	const sub: string[] = [];
@@ -175,9 +177,8 @@ function explicacion(d: DatosFicha): HTMLElement {
 	const p = h('p', { class: 'cab-explica' });
 	const peor = [...m.pillars].filter((x) => x.score !== null).sort((a, b) => a.contrib - b.contrib)[0];
 	if (m.abstain) p.append(h('span', {}, `El motor se abstiene: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}`));
-	else if (peor && peor.contrib < 0) p.append(h('span', {}, `Lo que más resta: ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.delta(peor.contrib)}.`));
+	else if (peor && peor.contrib < 0) p.append(h('span', {}, `Lo que más resta: ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.numero(Math.abs(peor.contrib) / 10, 1)} puntos.`));
 	if (d.pares) p.append(h('span', { class: 'cab-marca pares' }, h('i', { 'aria-hidden': 'true' }), `las ${f.numero(d.pares.n)} de su tamaño: mediana ${f.score(d.pares.mediana)}`));
-	if (d.kind === 'company' && d.grupoMes) p.append(h('span', { class: 'cab-marca grupo' }, h('i', { 'aria-hidden': 'true' }), `${voz('su grupo', 'tu grupo')}: ${f.score(d.grupoMes.shown)}`));
 	return p;
 }
 
@@ -458,7 +459,7 @@ export function seccionScoring(d: DatosFicha, acc: Acciones, flota: HTMLElement 
 	const raiz = h('div', { class: 'sec-scoring' });
 	if (!d.mes) { raiz.append(h('p', { class: 'vacio' }, `${nombreEntidad(d.kind, d.id)} no tiene datos en ${f.mes(d.corte)}. Su primer mes es ${f.mes(d.ent.first_month)}.`)); return raiz; }
 	if (flota) raiz.append(flota);
-	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver el hilo entero en Desglose'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
+	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver hilo entero en Desglose'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
 	return raiz;
 }
 
