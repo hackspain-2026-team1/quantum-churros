@@ -193,7 +193,8 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 					const cx = cx0 + (col + 0.5) * celda, cy = Y1 - (fila + 0.5) * celda;
 					const entra = !!e.prevBand && e.prevBand !== e.band;
 					anclas.set(e.id, { x: cx, y: cy, r: celda / 2 });
-					pintores.set(e.id, disco(cx, cy, celda * 0.42, entra ? (rango(e.band) < rango(e.prevBand) ? TONO.peligro : TONO.exito) : tonoBanda(e.band), entra ? 1 : 0.5, celda > 8 ? 1.5 : 1.3));
+					// La banda la dice el montón; el color solo marca a las que acaban de entrar: rojo si bajan, verde si suben.
+					pintores.set(e.id, disco(cx, cy, celda * 0.4, entra ? (rango(e.band) < rango(e.prevBand) ? TONO.peligro : TONO.exito) : TONO.tinta, entra ? 1 : 0.8, celda > 8 ? 1.5 : 1.3));
 				});
 			});
 			guias.colW = colW;
