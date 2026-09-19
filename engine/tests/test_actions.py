@@ -120,3 +120,22 @@ def test_invert_and_step_target(params) -> None:
             x = invert(table, target, table.points[0][0])
             assert x is not None and abs(table(x) - target) < 1e-9
     assert step_target(80.0, params.anchors["payments"]) is None
+
+
+def test_levers_never_ask_for_more_than_a_plausible_move(panel_rows, params) -> None:
+    from xray_engine.actions import MAX_BURDEN_CUT, MAX_COVERAGE_GAIN, MAX_DAYS_GAIN, MAX_EXTRA_BUFFER_DAYS
+
+    kinds: set[str] = set()
+    for row, pillars, parts in _cases(panel_rows, params, 74):
+        for action in plan_actions(row, pillars, parts, params).actions:
+            kind = action.id.split("-", 1)[1]
+            kinds.add(kind)
+            if kind == "buffer":
+                assert action.target - action.current <= MAX_EXTRA_BUFFER_DAYS + 1e-6
+            elif kind in ("punctuality", "speed"):
+                assert action.current - action.target <= MAX_DAYS_GAIN + 1e-6
+            elif kind == "coverage":
+                assert action.target <= action.current * (1 + MAX_COVERAGE_GAIN) + 1e-9
+            else:
+                assert action.target >= action.current * (1 - MAX_BURDEN_CUT) - 1e-9
+    assert kinds == {"buffer", "punctuality", "speed", "coverage", "burden"}

@@ -23,6 +23,12 @@ TARGET_CEILING = 80.0  # a pillar at or above it needs no action
 MAX_STEP = 25.0  # pillar points one action may promise
 MIN_UPLIFT = 0.5  # score points; smaller actions are not worth showing
 MAX_ACTIONS = 4
+# What a finance team can plausibly move in about two quarters. A lever never asks for
+# more: the action promises the pillar score reached at the bounded lever, not the anchor.
+MAX_EXTRA_BUFFER_DAYS = 30.0  # one more month of payments covered
+MAX_DAYS_GAIN = 30.0  # days of delay recovered with suppliers or customers
+MAX_COVERAGE_GAIN = 0.15  # relative rise of operating inflows over outflows
+MAX_BURDEN_CUT = 0.30  # relative cut of debt service, what a refinancing gives
 EFFORT_STEPS: tuple[tuple[float, str], ...] = ((10.0, "bajo"), (20.0, "medio"))
 EFFORT_HIGH = "alto"
 _EPS = 1e-9
@@ -118,7 +124,7 @@ def _liquidity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, d
     def blended(extra: float) -> float:
         return cfg.month_end_weight * table(end + extra) + cfg.intra_min_weight * table(low + extra)
 
-    span = max(table.points[-1][0] - min(end, low), 0.0)
+    span = min(max(table.points[-1][0] - min(end, low), 0.0), MAX_EXTRA_BUFFER_DAYS)
     target = step_target(result.score, table, min(TARGET_CEILING, blended(span)))
     if target is None:
         return None
@@ -155,6 +161,9 @@ def _punctuality(result: PillarResult, p: Params) -> tuple[float, dict] | None:
     goal = invert(table, target, days) if target is not None else None
     if goal is None or goal >= days - _EPS:
         return None
+    if days - goal > MAX_DAYS_GAIN:
+        goal = days - MAX_DAYS_GAIN
+        target = table(goal)
     gain = days - goal
     if result.key == "payments":
         title = (
@@ -196,6 +205,11 @@ def _activity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, di
     goal = invert(table, sub_target, coverage)
     if goal is None or goal <= coverage + _EPS:
         return None
+    if goal > coverage * (1 + MAX_COVERAGE_GAIN):
+        goal = coverage * (1 + MAX_COVERAGE_GAIN)
+        sub_target = table(goal)
+        if goal <= coverage + _EPS or sub_target <= sub + _EPS:
+            return None  # no operating inflow to grow from: not something one action fixes
     score = sub_target if momentum is None else (sub_target + momentum) / 2
     months = max(1, row.months_in_6m_window or p.activity.coverage_window_months)
     more_in = (goal * outflow - inflow) / months
@@ -226,6 +240,9 @@ def _debt(result: PillarResult, p: Params) -> tuple[float, dict] | None:
     goal = invert(table, target, burden) if target is not None else None
     if goal is None or goal >= burden - _EPS:
         return None
+    if goal < burden * (1 - MAX_BURDEN_CUT):
+        goal = burden * (1 - MAX_BURDEN_CUT)
+        target = table(goal)
     months = max(1.0, inputs.get("months") or float(p.debt.window_months))
     yearly = (burden - goal) * inflow * 12.0 / months
     return target, {
