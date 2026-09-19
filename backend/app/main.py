@@ -8,12 +8,15 @@ from xray_engine.artifacts import read_entity_scores
 
 from .benchmarks import seed_benchmark_studies
 from .config import settings
+from .debt_products import list_debt_products
 from .industry import get_classification, get_classifications, industry_distribution
 from .models import (
     BenchmarkIndustryMetric,
     BenchmarkIndustryMetricRead,
     BenchmarkStudy,
     BenchmarkStudyRead,
+    CompanyDebtProductsRead,
+    Entity,
     IndustryClassificationRead,
 )
 
@@ -107,6 +110,15 @@ def get_benchmark(study_id: str) -> BenchmarkStudyRead:
         if study is None:
             raise HTTPException(status_code=404, detail="Benchmark study not found")
         return _build_benchmark_study(session, study)
+
+
+@app.get("/api/v1/companies/{entity_id}/debt-products", response_model=CompanyDebtProductsRead)
+def get_company_debt_products(entity_id: str) -> CompanyDebtProductsRead:
+    normalized = entity_id.upper()
+    return CompanyDebtProductsRead(
+        entity_id=normalized,
+        products=list_debt_products(normalized),
+    )
 
 
 @app.get("/api/v1/companies/{entity_id}/industry", response_model=IndustryClassificationRead)

@@ -194,3 +194,19 @@ class IndustryClassificationRead(SQLModel):
     reason: str
     classifier_version: str
     dataset_hash: str
+
+
+class DebtProductRead(SQLModel):
+    product_id: str
+    type: str
+    type_label: str
+    label: str
+    bank_name: str
+    currency: str
+    granted: float | None = None
+    outstanding: float | None = None
+
+
+class CompanyDebtProductsRead(SQLModel):
+    entity_id: str
+    products: list[DebtProductRead]
