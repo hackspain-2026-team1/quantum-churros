@@ -40,6 +40,7 @@ import {
   nombreBanda,
   nombrePilar,
   tituloAccion,
+  tituloFinanciacion,
 } from "../datos/redaccion";
 import {
   validarPropuesta,
@@ -128,7 +129,7 @@ function financiacionDe(
       filas.push({
         id: x.id,
         kind: x.kind,
-        title: x.title,
+        title: tituloFinanciacion(x),
         amount: x.amount,
         uplift_tenths: x.uplift_tenths,
         bank,
@@ -246,7 +247,12 @@ function filaOferta(
     h(
       "span",
       { class: "propuesta-oferta-banco" },
-      h("span", { class: "propuesta-titulo" }, oferta.bank),
+      h(
+        "span",
+        { class: "propuesta-oferta-entidad" },
+        marcaBanco(oferta.bank, 18),
+        h("span", { class: "propuesta-titulo" }, oferta.bank),
+      ),
       h(
         "span",
         { class: "propuesta-nota" },
@@ -1146,7 +1152,7 @@ export function abrirPropuesta(
           h(
             "p",
             { class: "propuesta-titulo" },
-            `${x.title}${x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : ""}${nativos.has(x.id) ? ` · ${f.delta(x.uplift_tenths)}` : " · efecto en las empresas"}`,
+            `${tituloFinanciacion(x)}${x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : ""}${nativos.has(x.id) ? ` · ${f.delta(x.uplift_tenths)}` : " · efecto en las empresas"}`,
           ),
           h("p", { class: "propuesta-nota" }, x.detail),
           lista,
