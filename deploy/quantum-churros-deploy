@@ -3,6 +3,8 @@ set -Eeuo pipefail
 
 readonly release_sha="${1:-}"
 readonly registry_user="${2:-}"
+readonly api_digest="${3:-}"
+readonly web_digest="${4:-}"
 readonly deploy_dir="/opt/quantum-churros"
 readonly compose_file="$deploy_dir/compose.yaml"
 readonly config_env="$deploy_dir/.env"
@@ -15,12 +17,17 @@ if [[ ! "$release_sha" =~ ^[0-9a-f]{40}$ ]]; then
   exit 64
 fi
 
-if [[ ! "$registry_user" =~ ^[A-Za-z0-9_.\[\]-]+$ ]]; then
+if [[ ! "$registry_user" =~ ^[[:alnum:]_.-]+$ ]]; then
   echo "registry user contains unsupported characters" >&2
   exit 64
 fi
 
-IFS= read -r registry_token
+if [[ ! "$api_digest" =~ ^sha256:[0-9a-f]{64}$ || ! "$web_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo "image digests must use the sha256 format" >&2
+  exit 64
+fi
+
+IFS= read -r registry_token || true
 if [[ -z "$registry_token" ]]; then
   echo "a GHCR token is required on stdin" >&2
   exit 64
@@ -37,8 +44,8 @@ if [[ -f "$release_env" ]]; then
   previous_web_image=$(awk -F= '$1 == "WEB_IMAGE" {print substr($0, index($0, "=") + 1)}' "$release_env")
 fi
 
-readonly api_image="$image_prefix-api:$release_sha"
-readonly web_image="$image_prefix-web:$release_sha"
+readonly api_image="$image_prefix-api@$api_digest"
+readonly web_image="$image_prefix-web@$web_digest"
 release_changed=0
 deployment_succeeded=0
 

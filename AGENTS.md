@@ -52,8 +52,8 @@
 ## Continuous deployment
 
 - Pull requests run the complete verification suite and build both production images through `.github/workflows/ci-deploy.yml`.
-- Every verified commit on `main` publishes immutable `api` and `web` images to GHCR using the full commit SHA, then deploys that exact pair to the `development` GitHub environment on `datons-dev`.
-- The workflow reaches `datons-dev` through an ephemeral Tailscale node tagged `tag:github-ci`. Never add a persistent GitHub runner to the public repository or broaden that tag beyond `datons-dev:22`.
+- Every verified commit on `main` publishes `api` and `web` images to GHCR using the full commit SHA, records their content digests, then deploys those exact digests to the `development` GitHub environment on `datons-dev`.
+- The workflow reaches `datons-dev` through an ephemeral Tailscale node tagged `tag:github-ci`, authenticated with GitHub OIDC workload identity federation. Never add a persistent GitHub runner, restore a reusable Tailscale auth key, or broaden that tag beyond `datons-dev:22`.
 - Server deployment state lives in `/opt/quantum-churros`. The `quantum-deploy` account may only invoke the root-owned `/usr/local/sbin/quantum-churros-deploy` command; never add it to the `docker` group or make deployment files writable by it.
 - Deployment is image-based, not a mutable Git checkout. Do not run `git pull` on the server. The deployment command serializes releases, runs migrations through the API image, waits for container health checks, and restores the previous images when startup fails.
 - PostgreSQL data, model artifacts, and the exported frontend bundle persist independently from application images. The production bundle is mounted from `/opt/quantum-churros/bundle`; application deployments must never replace it or delete the `quantum-churros_postgres_data` volume.
