@@ -2,17 +2,18 @@
 // Cada cambio confirmado es una entrada del historial del navegador: ⌘Z es «atrás» y ⇧⌘Z, «adelante».
 
 import type { Cartera } from './datos/modelo';
+import type { RolFinanciacion } from './datos/financiacion';
 import { consultaInicial, type Consulta, type Filtro, type Frente, type Orden, type Zona } from './datos/consulta';
 import type { Agregado, Escala } from './datos/periodos';
 import { PRODUCTOS, type ProductoId } from './datos/productos';
 
 /** Niveles de Rumbo: la entrada (elegir organización), la cartera como mapa (plano, tapiz),
  * la organización, la empresa y la metodología. */
-export type Vista = 'entrada' | 'plano' | 'tapiz' | 'organizacion' | 'empresa' | 'metodologia';
+export type Vista = 'entrada' | 'plano' | 'tapiz' | 'organizacion' | 'empresa' | 'metodologia' | 'financiacion';
 export type Seccion = 'scoring' | 'productos' | 'acciones' | 'tecnico';
 export type Lente = 'score' | 'productos' | 'horizonte';
 export const SECCIONES: Seccion[] = ['scoring', 'acciones', 'productos', 'tecnico'];
-const PAGINAS: Vista[] = ['organizacion', 'empresa', 'metodologia', 'entrada'];
+const PAGINAS: Vista[] = ['organizacion', 'empresa', 'metodologia', 'financiacion', 'entrada'];
 export const esPagina = (v: Vista) => PAGINAS.includes(v);
 
 export interface Estado {
@@ -28,6 +29,9 @@ export interface Estado {
 	sec: Seccion;
 	/** Lente de la cartera. */
 	lente: Lente;
+	/** Rol y expediente activos en el espacio de financiación. */
+	finRol: RolFinanciacion;
+	finCaso: string | null;
 	hover: string | null;
 	zonaHover: Zona | null;
 	reproduciendo: boolean;
@@ -43,7 +47,7 @@ export class Almacen {
 	private oyentes = new Set<Oyente>();
 
 	constructor(private c: Cartera) {
-		this.base = { vista: 'entrada', cartera: 'plano', q: consultaInicial(c), sel: null, emp: null, sec: 'scoring', lente: 'score', hover: null, zonaHover: null, reproduciendo: false, previa: false };
+		this.base = { vista: 'entrada', cartera: 'plano', q: consultaInicial(c), sel: null, emp: null, sec: 'scoring', lente: 'score', finRol: 'consultant', finCaso: null, hover: null, zonaHover: null, reproduciendo: false, previa: false };
 		this.base = { ...this.base, ...this.leerUrl() };
 		// Un grupo que no existe en la URL no rompe nada: se vuelve a la cartera.
 		if ((this.base.vista === 'organizacion' || this.base.vista === 'empresa') && !c.groups.some((g) => g.id === this.base.sel)) this.base = { ...this.base, vista: 'entrada', sel: null, emp: null };
@@ -104,7 +108,7 @@ export class Almacen {
 	// ─── URL ───────────────────────────────────────────────
 	private url(e: Estado) {
 		const q = new URLSearchParams(location.search);
-		for (const k of ['v', 'c', 'g', 'emp', 'sec', 'lente', 'e', 'a', 'd', 'h', 'm', 'f', 'o', 'z', 'mv', 's', 'p', 't', 'mano', 'gr', 'pr']) q.delete(k);
+		for (const k of ['v', 'c', 'g', 'emp', 'sec', 'lente', 'rol', 'caso', 'e', 'a', 'd', 'h', 'm', 'f', 'o', 'z', 'mv', 's', 'p', 't', 'mano', 'gr', 'pr']) q.delete(k);
 		q.set('v', e.vista);
 		if (e.vista === 'organizacion' || e.vista === 'empresa') {
 			q.set('c', e.cartera);
@@ -113,6 +117,10 @@ export class Almacen {
 			if (e.sec !== 'scoring') q.set('sec', e.sec);
 		}
 		if ((e.vista === 'plano' || e.vista === 'tapiz') && e.lente !== 'score') q.set('lente', e.lente);
+		if (e.vista === 'financiacion') {
+			q.set('rol', e.finRol);
+			if (e.finCaso) q.set('caso', e.finCaso);
+		}
 		q.set('e', e.q.escala);
 		if (e.q.agregado !== 'cierre') q.set('a', e.q.agregado);
 		q.set('d', String(e.q.desde));
@@ -151,18 +159,21 @@ export class Almacen {
 		const emp = q.get('emp');
 		const sec = q.get('sec') as Seccion | null;
 		const lente = q.get('lente') as Lente | null;
+		const rol = q.get('rol') as RolFinanciacion | null;
 		const num = (k: string, def: number) => (q.has(k) && !Number.isNaN(Number(q.get(k))) ? Number(q.get(k)) : def);
 		const mesEnlace = q.get('m');
 		const indiceEnlace = mesEnlace ? this.c.months.indexOf(mesEnlace) : -1;
 		const hasta = indiceEnlace >= 0 ? indiceEnlace : ini.hasta;
 		const escala = (q.get('e') as Escala) ?? ini.escala;
 		return {
-			vista: (vista === 'organizacion' || vista === 'empresa') && !sel ? 'entrada' : vista === 'empresa' && !emp ? 'organizacion' : (['entrada', 'plano', 'tapiz', 'organizacion', 'empresa', 'metodologia'].includes(vista) ? vista : 'entrada') as Vista,
+			vista: (vista === 'organizacion' || vista === 'empresa') && !sel ? 'entrada' : vista === 'empresa' && !emp ? 'organizacion' : (['entrada', 'plano', 'tapiz', 'organizacion', 'empresa', 'metodologia', 'financiacion'].includes(vista) ? vista : 'entrada') as Vista,
 			cartera: q.get('c') === 'tapiz' || vista === 'tapiz' ? 'tapiz' : 'plano',
 			sel,
 			emp,
 			sec: sec && SECCIONES.includes(sec) ? sec : 'scoring',
 			lente: lente === 'productos' || lente === 'horizonte' ? lente : 'score',
+			finRol: rol === 'company' || rol === 'provider' ? rol : 'consultant',
+			finCaso: q.get('caso'),
 			q: {
 				filtros,
 				escala,

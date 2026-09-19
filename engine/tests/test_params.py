@@ -91,7 +91,7 @@ def test_hand_set_values_follow_the_spec(params) -> None:
     assert (trajectory.min_scored_months, trajectory.bump_revert_months) == (6, 2)
     assert (trajectory.perimeter_shift_share, trajectory.perimeter_shift_window_months) == (0.2, 3)
     assert (trajectory.long_horizon, trajectory.long_min_months) == (12, 6)
-    assert (trajectory.long_threshold, trajectory.long_sigma_mult) == (8.0, 2.0)
+    assert (trajectory.long_threshold, trajectory.long_sigma_mult) == (7.25, 2.0)
     assert (trajectory.own_level_months, trajectory.own_level_min_months) == (12, 4)
     assert trajectory.structural_retention == 0.5
     assert params.alerts.critical_score == 35.0

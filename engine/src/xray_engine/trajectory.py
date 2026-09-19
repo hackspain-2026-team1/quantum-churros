@@ -277,6 +277,23 @@ def _verdict(
         drift_call=long,
     )
 
+    for back in range(1, cfg.bump_revert_months + 1):
+        item = position - back
+        if item < 0 or history[item].month != _shift(now.month, -back):
+            break
+        spike = verdicts[item].delta3
+        # A spike is a short-horizon event: a pending drift that fades is not a bump.
+        prior_short = _short_call(verdicts[item])
+        if verdicts[item].nature != "shock_pending" or prior_short is None or short == prior_short or not spike:
+            continue
+        undone = (history[item].score - now.score) * (1.0 if spike > 0 else -1.0)
+        if undone >= cfg.bump_revert_fraction * abs(spike):
+            return Trajectory(
+                **{**common, "direction": "stable", "horizon": None, "pillars_moved": ()},
+                nature="bump",
+                shock_month=verdicts[item].shock_month,
+            )
+
     if direction in _CALLS:
         run, first = 1, now.month
         for item in range(position - 1, -1, -1):
@@ -305,18 +322,6 @@ def _verdict(
             **common, nature="structural", persistence_months=run, detected_since=first
         )
 
-    if direction == "stable":
-        for back in range(1, cfg.bump_revert_months + 1):
-            item = position - back
-            if item < 0 or history[item].month != _shift(now.month, -back):
-                break
-            spike = verdicts[item].delta3
-            # a spike is a short-horizon event: a pending drift that fades is not a bump
-            if verdicts[item].nature != "shock_pending" or _short_call(verdicts[item]) is None or not spike:
-                continue
-            undone = (history[item].score - now.score) * (1.0 if spike > 0 else -1.0)
-            if undone >= cfg.bump_revert_fraction * abs(spike):
-                return Trajectory(**common, nature="bump", shock_month=verdicts[item].shock_month)
     return Trajectory(**common)
 
 

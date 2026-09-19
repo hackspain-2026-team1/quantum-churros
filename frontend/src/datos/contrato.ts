@@ -60,6 +60,7 @@ export interface AccionM {
   uplift_tenths: number;
   new_score_tenths: number;
   effort: "bajo" | "medio" | "alto";
+  amount_eur?: number | null;
 }
 
 export interface VeredictoM {

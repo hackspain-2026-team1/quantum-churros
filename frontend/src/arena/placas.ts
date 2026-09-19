@@ -65,8 +65,13 @@ export interface PlacaFlota {
 	rejillaX: { u: number; fuerte: boolean }[];
 	rejillaY: { u: number; fuerte: boolean }[];
 }
-export interface PlacaRosa { tipo: 'rosa'; cx: number; cy: number; r: number; fijo?: boolean }
-export type Placa = PlacaNumeral | PlacaSerie | PlacaFlota | PlacaRosa;
+export interface PlacaRosa {
+	tipo: 'rosa'; cx: number; cy: number; r: number; fijo?: boolean;
+	zonas?: { solida: number; mejora: number; tuerce: number; hunde: number };
+	aguja?: number;
+}
+export interface PlacaVista { tipo: 'vista'; x: number; y: number; w: number; h: number; datos: DatosVista; fijo?: boolean }
+export type Placa = PlacaNumeral | PlacaSerie | PlacaFlota | PlacaRosa | PlacaVista;
 
 class Lote {
 	p: Puntos = []; tono: number[] = []; alfa: number[] = []; talla: number[] = []; fijo: number[] = [];
@@ -204,6 +209,8 @@ function rosa(l: Lote, r: PlacaRosa) {
 	const { cx, cy } = r;
 	l.add(anillo(cx, cy, r.r, Math.round(r.r * 5), 1), TONO.tinta, 0.5, 1.2);
 	l.add(anillo(cx, cy, r.r * 0.72, Math.round(r.r * 3), 0.8), TONO.filete, 0.8, 1.1);
+	const diagonal: ('solida' | 'tuerce' | 'hunde' | 'mejora')[] = ['solida', 'tuerce', 'hunde', 'mejora'];
+	const total = r.zonas ? Math.max(1, r.zonas.solida + r.zonas.mejora + r.zonas.tuerce + r.zonas.hunde) : 0;
 	for (let k = 0; k < 8; k++) {
 		const a = (k / 8) * Math.PI * 2 - Math.PI / 2;
 		const zona = k % 2 ? diagonal[(k - 1) / 2] : null;
@@ -232,6 +239,10 @@ function rosa(l: Lote, r: PlacaRosa) {
 	l.add(disco(cx, cy, r.r * 0.06, 20), TONO.tinta, 1, 1.4);
 }
 
+function vista(l: Lote, p: PlacaVista) {
+	disponer(p.datos, p.w, p.h).dibujar((x, y, t, a, s) => l.add([x, y], t, a, s), p.x, p.y);
+}
+
 /** Puntos sueltos que se añaden a la escena de una página (la regla, fija arriba). */
 export interface Extra { p: Puntos; tono: number[]; alfa: number[]; talla: number[] }
 
@@ -248,7 +259,8 @@ export function escenaPlacas(placas: Placa[], n: number, ancho: number, alto: nu
 		if (p.tipo === 'numeral') numeral(l, p, movil);
 		else if (p.tipo === 'serie') serie(l, p);
 		else if (p.tipo === 'flota') flota(l, p);
-		else rosa(l, p);
+		else if (p.tipo === 'rosa') rosa(l, p);
+		else vista(l, p);
 	}
 	let pts = l.p, tonos = l.tono, alfas = l.alfa, tallas = l.talla, fijos = l.fijo;
 	if (l.n > n) { pts = ajustar(l.p, n); tonos = tonos.slice(0, n); alfas = alfas.slice(0, n); tallas = tallas.slice(0, n); fijos = fijos.slice(0, n); }

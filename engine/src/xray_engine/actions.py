@@ -57,6 +57,7 @@ class Action:
     uplift: float  # new_score - parts.score
     effort: str
     row_delta: RowDelta = field(compare=False, repr=False)  # the lever; ladder and tests
+    amount_eur: float | None = None  # cash required by the lever, when it has one
 
     @property
     def uplift_tenths(self) -> int:
@@ -219,6 +220,7 @@ def _buffer(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta, d
         "current": end,
         "target": end + extra,
         "unit": "días",
+        "amount_eur": money,
     }
 
 
@@ -417,6 +419,7 @@ def _candidates(
                     uplift=uplift,
                     effort=_effort(pillar_target - (result.score or 0.0)),
                     row_delta=delta,
+                    amount_eur=text.get("amount_eur"),
                 ),
                 delta,
             )

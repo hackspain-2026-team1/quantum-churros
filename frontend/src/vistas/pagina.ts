@@ -5,7 +5,7 @@
 import { TONO, type Hilo } from '../arena/arena';
 import type { Placa } from '../arena/placas';
 import { carga } from '../datos/carga';
-import type { EmpresaM, GrupoM, Manifiesto } from '../datos/contrato';
+import type { GrupoM, Manifiesto } from '../datos/contrato';
 import type { Filtro } from '../datos/consulta';
 import { f } from '../datos/formato';
 import type { Cartera } from '../datos/modelo';
@@ -13,9 +13,11 @@ import { nombreBanda, movimiento } from '../datos/redaccion';
 import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
 import { cola, h, vaciar } from './dom';
 import { cabecera, cargarFicha, contenidoSeccion, graficoHorizonte, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
+import { crearFinanciacion } from './financiacion';
 import { iconoProducto } from './iconos';
 import { logotipo, monograma } from './marca';
-import { granos3, seccion } from './primitivos';
+import { crearMonitor, type Monitor } from './monitor';
+import { cabecerasOrdenables, granos3, seccion } from './primitivos';
 import { medirFijas, medirPlacas, placa } from './registro';
 
 export interface Paginas {
@@ -35,7 +37,7 @@ export interface Paginas {
 	irAvisos(): void;
 }
 
-const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Técnico' };
+const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Desglose' };
 
 export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; imprimir(): void; hilo(hs: Hilo[]): void }): Paginas {
 	// La página: el escenario (el protagonista, fijo) y el cuerpo, que se desplaza debajo.
@@ -51,7 +53,8 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 
 	let clave = '';
 	let datos: DatosFicha | null = null;
-	const estadoUI = { metrica: 'score', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, supuestos: new Set<'drift' | 'stress'>(), filtro: null as FiltroEvidencia | null };
+	const financiacion = crearFinanciacion(S, () => cb.alCambiarArena());
+	const estadoUI = { metrica: 'score', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, supuestos: new Set<'drift' | 'stress'>(), filtro: null as FiltroEvidencia | null, ancla: null as string | null };
 	let accionPendiente: string | null = null;
 
 	const acc: Acciones = {
@@ -126,7 +129,9 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			pasos.append(b);
 		};
 		const sep = () => pasos.append(h('span', { class: 'miga-sep', 'aria-hidden': 'true' }, '›'));
-		if (e.vista === 'metodologia') paso('Metodología', null, true);
+		paso('Rumbo', e.vista === 'entrada' ? null : () => S.fijar({ vista: 'entrada', sel: null, emp: null }, true), e.vista === 'entrada');
+		if (e.vista === 'metodologia') { sep(); paso('Metodología', null, true); }
+		if (e.vista === 'financiacion') { sep(); paso('Financiación', null, true); }
 		if ((e.vista === 'organizacion' || e.vista === 'empresa') && e.sel) {
 			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion');
 			if (e.vista === 'empresa' && e.emp) { sep(); paso(f.empresa(e.emp), null, true); }
@@ -162,14 +167,21 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		document.body.dataset.pagina = e.vista;
 		pintarMiga(e);
 		const corte = cb.corte();
-		const nueva = `${e.vista}|${e.sel}|${e.emp}|${corte}`;
-		const soloSeccion = nueva === clave && datos && (e.vista === 'organizacion' || e.vista === 'empresa');
+		const nueva = `${e.vista}|${e.sel}|${e.emp}|${e.finRol}|${e.finCaso}|${corte}`;
+		const soloSeccion = (e.vista === 'organizacion' || e.vista === 'empresa') && nueva === clave && datos;
 		const k = `${nueva}|${e.sec}`;
 		if (soloSeccion) { pintarFicha(e); return; }
 		clave = nueva;
 		if (!ficha) { vaciar(escenario); escenario.hidden = true; }
 		if (e.vista === 'entrada') return pintarEntrada();
 		if (e.vista === 'metodologia') return pintarMetodologia();
+		if (e.vista === 'financiacion') {
+			vaciar(cuerpoP);
+			cuerpoP.append(financiacion.raiz);
+			financiacion.pintar(e);
+			cb.alCambiarArena();
+			return;
+		}
 		if (!datos || datos.id !== (e.vista === 'empresa' ? e.emp : e.sel)) { vaciar(escenario); vaciar(cuerpoP); cuerpoP.append(h('div', { class: 'cargando' }, h('p', {}, 'Leyendo la ficha…'))); }
 		const kind = e.vista === 'empresa' ? 'company' : 'group';
 		const id = kind === 'company' ? e.emp! : e.sel!;
@@ -306,67 +318,36 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, plano, h('div', { class: 'tabla-caja' }, tabla), hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
 	}
 
-	// ─── Entrada ───────────────────────────────────────────
-	async function pintarEntrada() {
+	// ─── Entrada: el monitor de la cartera ─────────────────
+	let monitor: Monitor | null = null;
+	let avisosPendiente = false;
+	function pintarEntrada() {
 		vaciar(cuerpoP);
-		const hoja = h('article', { class: 'entrada' });
-		// El objeto de la portada: la rosa de los vientos, hecha de arena.
-		const rosa = h('div', { class: 'entrada-rosa', 'aria-hidden': 'true' });
-		placa(rosa, (cj) => ({ tipo: 'rosa', cx: cj.x + cj.w / 2, cy: cj.y + cj.h / 2, r: Math.min(cj.w, cj.h) * 0.36 }));
-		const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: '¿qué organización?', 'aria-label': 'Buscar organización por número, sector o país', autocomplete: 'off', autofocus: true }) as HTMLInputElement;
-		const resultados = h('ul', { class: 'entrada-resultados', role: 'listbox' });
-		const buscar = () => {
-			vaciar(resultados);
-			const q = entrada.value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-			if (!q) return;
-			const num = Number(q.replace(/^grupo\s*/, ''));
-			const hits = c.groups.filter((g) => (Number.isFinite(num) && num > 0 && Number(g.id.split('_')[1]) === num) || `${g.industry ?? ''} ${g.country ?? ''} ${f.grupo(g.id)}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(q)).slice(0, 8);
-			const t = c.months.indexOf(cb.corte());
-			for (const g of hits) {
-				const m = g.meses[t];
-				const li = h('li', { role: 'option', tabindex: '0', class: 'tocable' }, h('b', {}, f.grupo(g.id)), h('span', { class: 'sub' }, [g.industry, g.country, f.plural(g.n_companies, 'empresa', 'empresas')].filter(Boolean).join(' · ')), h('span', { class: 'res-score' }, m?.shown != null ? f.score(m.shown) : '—'));
-				li.addEventListener('click', () => acc.abrirGrupo(g.id));
-				li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') acc.abrirGrupo(g.id); });
-				resultados.append(li);
-			}
-			if (!hits.length) resultados.append(h('li', { class: 'nota' }, `Ninguna organización con «${entrada.value}». Prueba con un número (42), un sector o un país.`));
-		};
-		entrada.addEventListener('input', buscar);
-		entrada.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') (resultados.querySelector('li.tocable') as HTMLElement | null)?.click(); });
-		const atencion = h('ol', { class: 'atencion' }, h('li', { class: 'nota' }, 'Buscando las que piden atención…'));
-		const mapa = h('div', { class: 'entrada-mapa' });
-		for (const [v, t, d] of [['plano', 'El plano', 'Nivel y ritmo de cada organización'], ['tapiz', 'El tapiz', 'Cada organización, mes a mes']] as const) {
-			const b = h('button', { type: 'button', class: 'mapa-btn' }, h('b', {}, t), h('span', {}, d));
-			b.addEventListener('click', () => cb.irCartera(v));
-			mapa.append(b);
-		}
-		const met = h('button', { type: 'button', class: 'as-enlace' }, 'Cómo se calcula todo esto');
-		met.addEventListener('click', () => S.fijar({ vista: 'metodologia' }, true));
-		hoja.append(
-			rosa,
-			h('div', { class: 'entrada-frase' }, h('span', { class: 'entrada-rumbo' }, logotipo(cb.esMovil() ? 34 : 50, 'Rumbo'), h('span', { class: 'entrada-de' }, 'de')), entrada),
-			resultados,
-			h('p', { class: 'entrada-lema' }, `${f.numero(man.counts.groups)} organizaciones y ${f.numero(man.counts.companies)} empresas, de ${f.mes(man.months[0])} a ${f.mes(man.months[man.months.length - 1])}. Dónde está cada una, hacia dónde va y qué puede cambiar su rumbo.`),
-			seccion('Las que piden atención hoy', atencion),
-			seccion('O buscarla en el mapa', mapa, met),
-		);
-		cuerpoP.append(hoja);
-		cb.alCambiarArena();
-		requestAnimationFrame(() => entrada.focus({ preventScroll: true }));
-		// Las que piden atención: datos del motor y de los horizontes, nada más.
-		const [alertas, horizontes] = await Promise.all([carga.alertas(), carga.horizontesIndice()]);
-		vaciar(atencion);
-		for (const it of piden(c, cb.corte(), alertas.alerts, horizontes?.entities ?? {}, man).slice(0, 8)) {
-			const g = c.groups.find((x) => x.id === it.id)!;
-			const li = h('li', { class: 'tocable', tabindex: '0' }, h('b', {}, f.grupo(it.id)), h('span', { class: 'at-texto' }, it.texto), cola(g.meses.map((m) => m.shown), 96, 22));
-			li.addEventListener('click', () => acc.abrirGrupo(it.id));
-			li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') acc.abrirGrupo(it.id); });
-			atencion.append(li);
-		}
-		if (!atencion.children.length) atencion.append(h('li', { class: 'nota' }, 'Ninguna organización cambia este mes.'));
+		monitor = crearMonitor({
+			c, man, corte: cb.corte,
+			abrirGrupo: (id) => acc.abrirGrupo(id),
+			abrirEmpresa: (grupo, id) => { cuerpoP.scrollTop = 0; S.fijar({ vista: 'empresa', sel: grupo, emp: id, sec: 'scoring' }, true); },
+			irMapa: (vista, est) => {
+				const filtros: Filtro[] = [];
+				if (est.filtros.zona) filtros.push({ tipo: 'zona', v: est.filtros.zona });
+				if (est.filtros.sector) filtros.push({ tipo: 'sector', v: est.filtros.sector });
+				if (est.filtros.pais) filtros.push({ tipo: 'pais', v: est.filtros.pais });
+				if (est.filtros.tamano) filtros.push({ tipo: 'tamano', v: est.filtros.tamano });
+				if (est.filtros.banda === 'critical') filtros.push({ tipo: 'mov', v: 'critica' });
+				if (est.filtros.mov === 'deterioro') filtros.push({ tipo: 'mov', v: 'deterioro' });
+				if (est.filtros.mov === 'mejora') filtros.push({ tipo: 'mov', v: 'mejora' });
+				if (est.filtros.mov === 'por_confirmar') filtros.push({ tipo: 'mov', v: 'confirmar' });
+				if (est.filtros.producto) filtros.push({ tipo: 'producto', v: est.filtros.producto.id, modo: est.filtros.producto.modo });
+				S.fijar({ vista, q: { ...S.confirmado.q, filtros } }, true);
+			},
+			repintarArena: () => requestAnimationFrame(() => cb.alCambiarArena()),
+			esMovil: cb.esMovil,
+			metodologia: () => S.fijar({ vista: 'metodologia' }, true),
+		});
+		cuerpoP.append(monitor.raiz);
+		if (avisosPendiente) { avisosPendiente = false; requestAnimationFrame(() => monitor?.irAvisos()); }
 		cb.alCambiarArena();
 	}
-	let avisosPendiente = false;
 
 	// ─── Metodología ───────────────────────────────────────
 	async function pintarMetodologia() {
@@ -410,7 +391,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		}
 		if (!datos || (e.vista !== 'organizacion' && e.vista !== 'empresa')) return null;
 		const d = datos;
-		const quieto: Acciones = { abrirEmpresa: () => {}, abrirGrupo: () => {}, irSeccion: () => {}, repintarArena: () => {}, horizonte: { elegidas: () => estadoUI.acciones, alternar: () => {}, previa: () => {}, pilar: () => {} }, hilo: () => {} };
+		const quieto: Acciones = { abrirEmpresa: () => {}, abrirGrupo: () => {}, irSeccion: () => {}, irBandeja: () => {}, repintarArena: () => {}, horizonte: { elegidas: () => estadoUI.acciones, alternar: () => {}, previa: () => {}, pilar: () => {} }, hilo: () => {} };
 		const hoja = h('article', { class: `hoja-ficha informe ${d.kind}` });
 		hoja.append(h('header', { class: 'informe-cab' },
 			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
@@ -428,6 +409,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 
 	return {
 		raiz, miga, pintar: (e) => { void pintar(e); }, ocultar, informe,
+		irAvisos: () => { if (S.e.vista === 'entrada' && monitor?.raiz.isConnected) monitor.irAvisos(); else { avisosPendiente = true; S.fijar({ vista: 'entrada', sel: null, emp: null }, true); } },
 		placas: () => [...(raiz.classList.contains('escenario-fijo') && !escenario.hidden ? medirFijas(escenario) : []), ...medirPlacas(cuerpoP)],
 		franja: () => { const r = cuerpoP.getBoundingClientRect(); return [r.top, r.bottom]; },
 		desplazamiento: () => cuerpoP.scrollTop,
@@ -457,29 +439,3 @@ function validacion(ix: NonNullable<Awaited<ReturnType<typeof carga.horizontesIn
 	caja.append(h('p', {}, `Las acciones no son predicciones: el motor da el score con el pilar en su objetivo y el modelo prevé desde ahí. «Si sigue la deriva» y «si se repite su peor trimestre» son supuestos, no previsiones.`));
 	return caja;
 }
-
-/** Las organizaciones que piden atención en el corte: avisos nuevos, cambios de banda y horizontes que caen. */
-function piden(c: Cartera, corte: string, alertas: AlertaM[], hor: Record<string, { p_critical_h6: number | null; cross: { to: string; month: string; prob: number | null } | null; shown_at_cut: number | null }>, man: Manifiesto) {
-	const t = c.months.indexOf(corte);
-	const salida: { id: string; peso: number; texto: string }[] = [];
-	for (const g of c.groups) {
-		const m = g.meses[t], a = g.meses[t - 1];
-		if (!m || m.shown === null) continue;
-		const nuevos = alertas.filter((x) => x.entity_kind === 'group' && x.entity_id === g.id && x.month === corte && x.state === 'fired');
-		const partes: string[] = []; let peso = 0;
-		if (a?.band && m.band && a.band !== m.band) {
-			const baja = man.bands.findIndex((b) => b.key === m.band) < man.bands.findIndex((b) => b.key === a.band);
-			partes.push(`${baja ? 'baja' : 'sube'} a ${nombreBanda(man, m.band).toLowerCase()} este mes`); peso += baja ? 3 : 1;
-		}
-		if (nuevos.some((x) => x.kind === 'deterioration_structural' || x.kind === 'deterioration_drift')) { partes.push('deterioro confirmado'); peso += 3; }
-		const hz = hor[g.id];
-		if (hz?.cross && m.band !== hz.cross.to) {
-			const baja = man.bands.findIndex((b) => b.key === hz.cross!.to) < man.bands.findIndex((b) => b.key === m.band);
-			if (baja && (hz.cross.prob ?? 0) >= 0.5) { partes.push(`${f.porcentaje(hz.cross.prob ?? 0, 0)} de pasar a ${nombreBanda(man, hz.cross.to).toLowerCase()} hacia ${f.mes(hz.cross.month)}`); peso += 2 + (hz.cross.prob ?? 0); }
-		}
-		if (partes.length) salida.push({ id: g.id, peso, texto: `${f.score(m.shown)} · ${partes.join(' · ')}` });
-	}
-	return salida.sort((a, b) => b.peso - a.peso);
-}
-
-export type { EmpresaM };

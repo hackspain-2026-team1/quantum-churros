@@ -131,6 +131,8 @@ async function iniciar() {
 	triaje.oir(pintarCampana);
 	const botonMetodo = h('button', { class: 'boton-metodo', type: 'button' }, 'Metodología');
 	botonMetodo.addEventListener('click', () => S.fijar({ vista: 'metodologia' }, true));
+	const botonFinanciacion = h('button', { class: 'boton-financiacion', type: 'button' }, 'Financiación');
+	botonFinanciacion.addEventListener('click', () => S.fijar({ vista: 'financiacion' }, true));
 	const selPlano = h('button', { class: 'vista-btn', type: 'button', 'aria-pressed': 'false' });
 	const selTapiz = h('button', { class: 'vista-btn', type: 'button', 'aria-pressed': 'false' });
 	const selector = h('nav', { class: 'selector', 'aria-label': 'Forma de ver la cartera' }, selPlano, selTapiz);
@@ -138,8 +140,8 @@ async function iniciar() {
 		? h('span', { class: 'nota-datos real', title: `Bundle ${c.meta.bundle_id} · motor ${c.meta.engine_version} · generado el ${new Date(c.meta.generated_at).toLocaleString('es-ES')}. Datos del reto (dataset ${c.meta.dataset_hash.slice(0, 12)}).` }, `datos reales · motor ${c.meta.engine_version}`)
 		: h('span', { class: 'nota-datos', title: 'Cartera sintética con la forma exacta del contrato del motor (xray-export-v1). Se usa cuando no hay bundle servido o con ?datos=sinteticos. Ver frontend/DIARIO.md.' }, 'datos sintéticos');
 	const botonAyuda = h('button', { class: 'boton-ayuda', type: 'button', 'aria-label': 'Cómo se usa (?)', title: 'Cómo se usa (?)' }, '?');
-	const hueco = h('span', { class: 'hueco barra-hueco' });
-	barra.append(marca, hueco, lentes, selector, nota, campana, botonMetodo, botonAyuda);
+const hueco = h('span', { class: 'hueco barra-hueco' });
+barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, botonMetodo, botonAyuda);
 	const anot = h('div', { class: 'anot' });
 	const capaExp = h('div', { class: 'anot capa-exp' });
 	const lazo = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -327,7 +329,7 @@ async function iniciar() {
 	// ─── Reacción al estado ────────────────────────────────────
 	let temporizadorDeshacer = 0;
 	S.oir((e, a) => {
-		const vistaCambia = e.vista !== a.vista || (esPagina(e.vista) && (e.sel !== a.sel || e.emp !== a.emp || e.sec !== a.sec)) || e.lente !== a.lente;
+		const vistaCambia = e.vista !== a.vista || (esPagina(e.vista) && (e.sel !== a.sel || e.emp !== a.emp || e.sec !== a.sec || e.finRol !== a.finRol || e.finCaso !== a.finCaso)) || e.lente !== a.lente;
 		const qCambia = JSON.stringify(e.q) !== JSON.stringify(a.q);
 		const soloTiempo = qCambia && JSON.stringify({ ...e.q, desde: 0, hasta: 0 }) === JSON.stringify({ ...a.q, desde: 0, hasta: 0 });
 		const efimero = !vistaCambia && !qCambia;
@@ -380,7 +382,7 @@ async function iniciar() {
 	function volver() {
 		origen = { x: M.pad + 90, y: M.zona.y + 60 };
 		if (S.e.vista === 'empresa') S.fijar({ vista: 'organizacion', emp: null }, true);
-		else if (S.e.vista === 'organizacion' || S.e.vista === 'metodologia') S.fijar({ vista: 'entrada', sel: null, emp: null }, true);
+		else if (S.e.vista === 'organizacion' || S.e.vista === 'metodologia' || S.e.vista === 'financiacion') S.fijar({ vista: 'entrada', sel: null, emp: null }, true);
 		else S.fijar({ vista: 'entrada', hover: null }, true);
 	}
 	function irA(v: 'plano' | 'tapiz') {

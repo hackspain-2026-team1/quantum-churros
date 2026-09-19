@@ -1156,6 +1156,14 @@
             "medio",
             "alto"
           ]
+        },
+        "amount_eur": {
+          "description": "Importe de caja requerido por la palanca cuando el motor puede calcularlo; null para acciones no monetarias o con varias equivalencias.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
         }
       }
     },

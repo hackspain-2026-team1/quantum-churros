@@ -6,7 +6,7 @@
 // Si un fichero de Rumbo falta, la función devuelve null y la interfaz lo dice; nunca rellena con otra cosa.
 
 import type {
-	AlertaM, EmpresaM, IndiceEmpresasM, EvidenciaM, GrupoM, HorizonteM, HorizontesIndiceM, HorizontesPasadosM, Manifiesto, ParametrosM,
+	AlertaM, EmpresaM, EntidadesM, EvidenciaM, GrupoM, HorizonteM, HorizontesIndiceM, HorizontesPasadosM, InvoicesDueM, Manifiesto, ParametrosM,
 	ProductosEmpresaM, ProductosGrupoM, ProductosIndiceM, ReciboM,
 } from './contrato';
 
@@ -42,6 +42,7 @@ export const carga = {
 	empresa: (id: string) => leer<EmpresaM>(`${RAIZ_BUNDLE}companies/${id}.json`, true),
 	evidencia: (id: string) => leer<EvidenciaM>(`${RAIZ_BUNDLE}evidence/${id}.json`, true),
 	alertas: () => leer<{ alerts: AlertaM[] }>(`${RAIZ_BUNDLE}alerts.json`),
+	facturasVencidas: () => leer<InvoicesDueM>(`${RAIZ_BUNDLE}invoices_due.json`, true),
 	recibo: () => leer<ReciboM>(`${RAIZ_BUNDLE}receipt.json`, true),
 	productosEmpresa: (id: string) => leer<ProductosEmpresaM>(`${RAIZ_RUMBO}products/${id}.json`, true),
 	productosGrupo: (id: string) => leer<ProductosGrupoM>(`${RAIZ_RUMBO}products/${id}.json`, true),
@@ -50,7 +51,7 @@ export const carga = {
 	horizontePasado: (id: string) => leer<HorizontesPasadosM>(`${RAIZ_RUMBO}horizons/pasados/${id}.json`, true),
 	horizontesIndice: () => leer<HorizontesIndiceM>(`${RAIZ_RUMBO}horizons/index.json`, true),
 	parametros: () => leer<ParametrosM>(`${RAIZ_RUMBO}params.json`, true),
-	indiceEmpresas: () => leer<IndiceEmpresasM>(`${RAIZ_RUMBO}indice-empresas.json`, true),
+	entidades: () => leer<EntidadesM>(`${RAIZ_RUMBO}entities.json`, true),
 };
 
 /** Lo que se ha cargado ya, sin esperar (para pintar a la primera si está en caché). */

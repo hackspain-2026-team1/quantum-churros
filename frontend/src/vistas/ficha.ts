@@ -120,6 +120,7 @@ export interface Acciones {
 	abrirEmpresa(id: string): void;
 	abrirGrupo(id: string): void;
 	irSeccion(s: Seccion, accion?: string, filtro?: FiltroEvidencia): void;
+	irBandeja(): void;
 	repintarArena(): void;
 	/** El horizonte, siempre a la vista: las secciones lo previsualizan y lo fijan. */
 	horizonte: {
@@ -570,27 +571,10 @@ function productosGrupo(d: DatosFicha, acc: Acciones): HTMLElement {
 
 // ─── Sección · Acciones ───────────────────────────────────────
 
-export function seccionAcciones(
-  d: DatosFicha,
-  sel: Set<string>,
-  acc: Acciones,
-  movil: boolean,
-): HTMLElement {
-  const raiz = h("div", { class: "sec-acciones" });
-  const m = d.mes;
-  if (!m) {
-    raiz.append(h("p", { class: "vacio" }, `Sin datos en ${f.mes(d.corte)}.`));
-    return raiz;
-  }
-  const recs = recomendaciones({
-    mes: m,
-    man: d.man,
-    tenencia: tenenciaDe(d),
-    perfil: d.ent.profile,
-    papel: d.kind === "company" ? (d.ent as EmpresaM).role : null,
-    heredaLiquidez:
-      d.kind === "company" ? (d.ent as EmpresaM).inherits_liquidity : false,
-  });
+const CLAVE_ESTADOS = 'rumbo.acciones.v1';
+type EstadoAccion = 'propuesta' | 'en curso' | 'hecha';
+function leerEstados(): Record<string, EstadoAccion> { try { return JSON.parse(localStorage.getItem(CLAVE_ESTADOS) ?? '{}'); } catch { return {}; } }
+function guardarEstado(clave: string, e: EstadoAccion) { const t = leerEstados(); t[clave] = e; try { localStorage.setItem(CLAVE_ESTADOS, JSON.stringify(t)); } catch { /* Sin almacenamiento, el estado dura solo esta sesión. */ } }
 
 /** El efecto de una acción: la cifra del motor y la mediana prevista a seis meses con y sin ella. */
 function efectoAccion(d: DatosFicha, a?: AccionM): string | null {

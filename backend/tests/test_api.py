@@ -27,6 +27,19 @@ def test_api_surface_is_bundle_plus_context() -> None:
         "/api/v1/scores/{entity_id}",
         "/api/v1/proposals",
         "/api/v1/proposals/{proposal_id}",
+        "/api/v1/financing/workspace",
+        "/api/v1/financing/cases/{case_id}",
+        "/api/v1/financing/cases/{case_id}/authorize",
+        "/api/v1/financing/cases/{case_id}/publish",
+        "/api/v1/financing/cases/{case_id}/shortlist",
+        "/api/v1/financing/cases/{case_id}/accept",
+        "/api/v1/financing/cases/{case_id}/close",
+        "/api/v1/financing/cases/{case_id}/revoke",
+        "/api/v1/financing/capabilities",
+        "/api/v1/financing/opportunities/{opportunity_id}/offers",
+        "/api/v1/financing/events",
+        "/api/v1/financing/demo/identities",
+        "/api/v1/financing/demo/FIN-024/start",
     }
 
 
