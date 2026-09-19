@@ -5,6 +5,7 @@ import typer
 from sqlmodel import Session, create_engine
 
 from .config import settings
+from .demo_notifications import dispatch_demo_notifications
 from .industry import run_classification
 from .ingest import dataset_fingerprint, ingest_dataset, source_paths
 from .pipeline import sync_dataset
@@ -19,7 +20,10 @@ def main() -> None:
 
 
 @app.command()
-def ingest(input_dir: Annotated[Path, typer.Argument()] = Path("data/raw"), dry_run: bool = False) -> None:
+def ingest(
+    input_dir: Annotated[Path, typer.Argument()] = Path("data/raw"),
+    dry_run: bool = False,
+) -> None:
     """Load an immutable challenge dataset into PostgreSQL with an idempotent content hash."""
     paths = source_paths(input_dir)
     if dry_run:
@@ -64,7 +68,9 @@ def classify(
 
 
 @app.command()
-def publish(out_dir: Annotated[Path, typer.Argument()] = Path("artifacts/full")) -> None:
+def publish(
+    out_dir: Annotated[Path, typer.Argument()] = Path("artifacts/full"),
+) -> None:
     """Load an engine run (panel, scores, alerts) into the xray schema, one attribute per column."""
     dataset_hash, counts = publish_outputs(out_dir, settings.require_database_url())
     typer.echo(f"Published dataset {dataset_hash}: {counts}")
@@ -95,6 +101,28 @@ def sync(
         f"Dataset {result.dataset_hash}: {ingest_state}, {classification_state}, "
         f"published {result.published_counts}, bundle {result.bundle_id[:12]}"
     )
+
+
+@app.command("notify-demo")
+def notify_demo(
+    bundle_dir: Annotated[Path | None, typer.Argument()] = None,
+    month: Annotated[
+        str | None, typer.Option(help="Closing month YYYY-MM; latest fired by default")
+    ] = None,
+    clear: Annotated[bool, typer.Option(help="Clear Mailpit before sending")] = True,
+) -> None:
+    """Send one close's routed demo alerts to the configured Mailpit SMTP sink."""
+    selected, count = dispatch_demo_notifications(
+        bundle_dir or settings.bundle_dir,
+        month=month,
+        clear=clear,
+        smtp_host=settings.smtp_host,
+        smtp_port=settings.smtp_port,
+        sender=settings.notification_from,
+        frontend_base_url=settings.frontend_base_url,
+        mailpit_api_url=settings.mailpit_api_url,
+    )
+    typer.echo(f"Captured {count} demo emails for {selected} in Mailpit")
 
 
 if __name__ == "__main__":

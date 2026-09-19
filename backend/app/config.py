@@ -26,8 +26,15 @@ class Settings(BaseSettings):
     )
     active_dataset_hash: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("XRAY_ACTIVE_DATASET_HASH", "ACTIVE_DATASET_HASH"),
+        validation_alias=AliasChoices(
+            "XRAY_ACTIVE_DATASET_HASH", "ACTIVE_DATASET_HASH"
+        ),
     )
+    smtp_host: str = "localhost"
+    smtp_port: int = 1025
+    notification_from: str = "Embat X-Ray <xray@embat.test>"
+    frontend_base_url: str = "http://localhost:3000"
+    mailpit_api_url: str = "http://localhost:8025"
 
     def require_database_url(self) -> str:
         if self.database_url is None or not self.database_url.strip():

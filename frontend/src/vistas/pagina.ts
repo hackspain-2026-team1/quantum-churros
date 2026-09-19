@@ -138,7 +138,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		if (accionPendiente) { estadoUI.acciones = new Set([accionPendiente]); accionPendiente = null; }
 		const movil = cb.esMovil();
 		const hoja = h('article', { class: `hoja-ficha ${d.kind}` });
-		hoja.append(cabecera(d, movil), marcas(e));
+		hoja.append(cabecera(d, movil, acc), marcas(e));
 		const cuerpo = h('div', { class: 'ficha-cuerpo' });
 		if (d.kind === 'group' && e.sec === 'scoring') cuerpo.append(flota(d));
 		cuerpo.append(contenidoSeccion(d, e.sec, estadoUI, acc, movil));

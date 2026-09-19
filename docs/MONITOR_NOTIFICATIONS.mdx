@@ -1,0 +1,93 @@
+# Monitor proactivo y política de avisos
+
+El monitor convierte las alertas que ya produce X-Ray en mensajes para audiencias distintas.
+No decide si una empresa mejora o empeora: esa decisión sigue perteneciendo al motor en
+`engine/src/xray_engine/alerts.py`.
+
+## Estado del MVP
+
+El MVP tiene dos vías:
+
+- **Dashboard:** banner persistente encima del score y bandeja técnica completa.
+- **Correo de demo:** el backend renderiza mensajes reales y los entrega por SMTP al contenedor
+  Mailpit. Mailpit los captura y los muestra en `http://localhost:8025`.
+
+No se usa Resend y ningún mensaje sale a Internet. Los destinatarios terminan en los dominios
+reservados `embat.test` y `empresa.test`.
+
+## Regla de origen
+
+Solo una alerta con `state = fired` puede salir del dashboard. Las alertas `suppressed` y
+`abstained` siguen visibles en la bandeja con su explicación, pero el notificador no las carga.
+
+Una alerta estructural se emite una sola vez al abrirse el cambio. El banner distingue:
+
+- **Alerta nueva:** el mes seleccionado coincide con el evento `fired`.
+- **Señal activa:** el veredicto sigue siendo estructural en un cierre posterior; no implica
+  otro envío.
+- **En observación:** el movimiento es `shock_pending`; todavía no se notifica.
+- **Aviso en pausa:** el motor reconoce el cambio, pero la alerta no puede salir por supresión
+  o abstención.
+
+## Qué ve cada audiencia
+
+### Dashboard
+
+La bandeja conserva los cinco tipos (`deterioration_structural`,
+`improvement_structural`, `level_critical`, `cap_fired`, `stale_feed`) y los tres estados
+(`fired`, `suppressed`, `abstained`). El banner superior se reserva para mejora y deterioro
+estructurales, porque son la señal de trayectoria que promete el monitor.
+
+### Embat
+
+- **Inmediato al terminar el cierre:** deterioro estructural, nivel crítico y feed caído.
+- **Resumen del cierre:** mejora estructural y topes aplicados.
+- **Buzones simulados:** `cs-riesgo@embat.test`, `customer-success@embat.test`,
+  `data-ops@embat.test` y `riesgo-producto@embat.test`.
+- **Contenido:** entidad, score, detalle del motor, periodo y enlace al diagnóstico.
+
+### Empresa
+
+Se captura un correo por alerta `fired` accionable: deterioro, mejora, nivel crítico y
+reconexión del feed. El texto evita nombres de reglas, supresiones, abstenciones y
+`cap_fired`. Cada correo lee la misma entidad y el mismo cierre del bundle que el dashboard e
+incluye score, banda, confianza, persistencia, los tres drivers con mayor contribución
+absoluta y `actions[]` en el mismo orden. `actions_combined` fija el objetivo conjunto; si el
+bundle no trae acciones, correo y dashboard muestran el mismo estado vacío. Los buzones siguen
+el patrón `tesoreria+<entidad>@empresa.test`.
+
+### Otros canales
+
+No se implementan en el MVP. La evolución recomendada es:
+
+1. tarea en CRM para el responsable de cuenta cuando haya deterioro o nivel crítico;
+2. Slack o Teams solo para urgencias internas y feed caído;
+3. webhook firmado para clientes enterprise que quieran integrar X-Ray;
+4. no usar SMS, WhatsApp o push por defecto: el dato es sensible y el scoring es mensual.
+
+## Operación de la demo
+
+`make up` levanta `mailpit` y un contenedor `notifier`. El notificador:
+
+1. lee `bundle/alerts.json`;
+2. selecciona el cierre más reciente que tenga alertas `fired`;
+3. cruza cada alerta con `groups/<id>.json` o `companies/<id>.json`;
+4. vacía Mailpit para que la demo sea determinista;
+5. genera las variantes interna y de empresa permitidas por la política;
+6. las entrega a `mailpit:1025`.
+
+Para repetir el envío sin reiniciar el stack:
+
+```bash
+make mailpit-notify
+```
+
+La bandeja se abre en `http://localhost:8025`. El puerto se puede cambiar con
+`MAILPIT_HTTP_PORT`.
+
+## Límite honesto
+
+Mailpit prueba el routing, las plantillas MIME, HTML/texto y los enlaces, pero no equivale a
+una infraestructura de correo productiva. No hay contactos reales, suscripciones, outbox
+persistente, reintentos ni seguimiento de rebotes. La generación de alertas permanece pura en
+`engine`; el backend compone y entrega; el frontend solo presenta el estado del monitor.

@@ -104,7 +104,7 @@ export class Almacen {
 	// ─── URL ───────────────────────────────────────────────
 	private url(e: Estado) {
 		const q = new URLSearchParams(location.search);
-		for (const k of ['v', 'c', 'g', 'emp', 'sec', 'lente', 'e', 'a', 'd', 'h', 'f', 'o', 'z', 'mv', 's', 'p', 't', 'mano', 'gr', 'pr']) q.delete(k);
+		for (const k of ['v', 'c', 'g', 'emp', 'sec', 'lente', 'e', 'a', 'd', 'h', 'm', 'f', 'o', 'z', 'mv', 's', 'p', 't', 'mano', 'gr', 'pr']) q.delete(k);
 		q.set('v', e.vista);
 		if (e.vista === 'organizacion' || e.vista === 'empresa') {
 			q.set('c', e.cartera);
@@ -152,6 +152,9 @@ export class Almacen {
 		const sec = q.get('sec') as Seccion | null;
 		const lente = q.get('lente') as Lente | null;
 		const num = (k: string, def: number) => (q.has(k) && !Number.isNaN(Number(q.get(k))) ? Number(q.get(k)) : def);
+		const mesEnlace = q.get('m');
+		const indiceEnlace = mesEnlace ? this.c.months.indexOf(mesEnlace) : -1;
+		const hasta = indiceEnlace >= 0 ? indiceEnlace : ini.hasta;
 		const escala = (q.get('e') as Escala) ?? ini.escala;
 		return {
 			vista: (vista === 'organizacion' || vista === 'empresa') && !sel ? 'entrada' : vista === 'empresa' && !emp ? 'organizacion' : (['entrada', 'plano', 'tapiz', 'organizacion', 'empresa', 'metodologia'].includes(vista) ? vista : 'entrada') as Vista,
@@ -164,8 +167,8 @@ export class Almacen {
 				filtros,
 				escala,
 				agregado: (q.get('a') as Agregado) ?? 'cierre',
-				desde: num('d', ini.desde),
-				hasta: num('h', ini.hasta),
+				desde: num('d', indiceEnlace >= 0 ? indiceEnlace : ini.desde),
+				hasta: num('h', hasta),
 				frente: (q.get('f') as Frente) ?? 'nada',
 				orden: (q.get('o') as Orden) ?? 'score',
 			},
