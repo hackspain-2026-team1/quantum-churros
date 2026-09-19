@@ -98,7 +98,24 @@ const enAnillo = (cx: number, cy: number, r: number, u: number): [number, number
 	return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
 };
 
+/**
+ * El numeral solo se vuelve a acuñar si cambia lo que dice (o dónde está): con los mismos granos en
+ * los mismos sitios, la arena no lo agita al recomponer el resto de la página.
+ */
+const numerales = new Map<string, Lote>();
 function numeral(l: Lote, p: PlacaNumeral, movil: boolean) {
+	const clave = JSON.stringify([p, movil]);
+	let hecho = numerales.get(clave);
+	if (!hecho) {
+		hecho = new Lote();
+		acunar(hecho, p, movil);
+		if (numerales.size > 16) numerales.clear();
+		numerales.set(clave, hecho);
+	}
+	for (let i = 0; i < hecho.n; i++) l.add([hecho.p[i * 2], hecho.p[i * 2 + 1]], hecho.tono[i], hecho.alfa[i], hecho.talla[i]);
+}
+
+function acunar(l: Lote, p: PlacaNumeral, movil: boolean) {
 	const an = p.anillo;
 	const alto = an ? an.r * (p.texto.length >= 3 ? 0.62 : 0.8) : p.h;
 	const t = texto(p.texto, alto, 600, movil ? 1.35 : 1.5, SERIF);
@@ -253,15 +270,18 @@ export interface Extra { p: Puntos; tono: number[]; alfa: number[]; talla: numbe
 export function escenaPlacas(placas: Placa[], n: number, ancho: number, alto: number, movil: boolean, extra?: Extra): Escena {
 	const e = escenaVacia(n);
 	const l = new Lote();
-	if (extra) { l.actual = 1; for (let i = 0; i < extra.tono.length; i++) l.add([extra.p[i * 2], extra.p[i * 2 + 1]], extra.tono[i], extra.alfa[i], extra.talla[i]); }
-	for (const p of placas) {
+	const poner = (p: Placa) => {
 		l.actual = p.fijo ? 1 : 0;
 		if (p.tipo === 'numeral') numeral(l, p, movil);
 		else if (p.tipo === 'serie') serie(l, p);
 		else if (p.tipo === 'flota') flota(l, p);
 		else if (p.tipo === 'rosa') rosa(l, p);
 		else vista(l, p);
-	}
+	};
+	// Los numerales, delante de todo: así ocupan siempre los mismos granos aunque cambie lo demás.
+	placas.filter((p) => p.tipo === 'numeral').forEach(poner);
+	if (extra) { l.actual = 1; for (let i = 0; i < extra.tono.length; i++) l.add([extra.p[i * 2], extra.p[i * 2 + 1]], extra.tono[i], extra.alfa[i], extra.talla[i]); }
+	placas.filter((p) => p.tipo !== 'numeral').forEach(poner);
 	let pts = l.p, tonos = l.tono, alfas = l.alfa, tallas = l.talla, fijos = l.fijo;
 	if (l.n > n) { pts = ajustar(l.p, n); tonos = tonos.slice(0, n); alfas = alfas.slice(0, n); tallas = tallas.slice(0, n); fijos = fijos.slice(0, n); }
 	const usados = Math.min(n, l.n);
