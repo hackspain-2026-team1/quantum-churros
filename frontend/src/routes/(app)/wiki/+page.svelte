@@ -31,25 +31,28 @@
 	const solutions = [
 		{
 			id: 'modelo',
-			question: '¿Por qué no entrenamos un modelo con los datos?',
+			question: '¿Por qué no entrenamos una inteligencia artificial?',
 			keywords: [
 				'modelo',
 				'machine learning',
 				'ml',
+				'ia',
+				'inteligencia artificial',
 				'entrenamiento',
 				'target',
 				'etiqueta',
 				'label',
+				'prediccion',
 				'medir',
 				'medicion',
 				'no compensatorio'
 			],
 			answer:
-				'El dataset no trae ni una etiqueta de resultado: ni impagos, ni ratings, ni señales de «empresa sana». Todo lo que entrenáramos aprendería el objetivo que nosotros mismos hubiéramos escrito, y nos devolvería nuestra propia fórmula con ruido. Por eso X-Ray mide: cinco hechos observables por entidad y mes, mapeados a 0–100 con tablas de ancla congeladas y combinados con una regla no compensatoria. Ninguna estadística de la cohorte puntuada entra en el cálculo.'
+				'Los datos no incluyen el desenlace de ninguna empresa: ni impagos, ni notas de riesgo, ni señales de que vaya bien o mal. Cualquier modelo que entrenáramos aprendería nuestra propia opinión y nos la devolvería con ruido. Por eso X-Ray no predice: mide. Cada empresa y cada mes se evalúan con cinco hechos observables, se convierten en una nota de 0 a 100 con tablas de referencia fijas y se combinan sin que un punto fuerte tape un problema. Ningún dato de las demás empresas influye en la nota de una.'
 		},
 		{
 			id: 'espejos',
-			question: '¿Cómo gestionamos la duplicación de traspasos internos?',
+			question: '¿Qué hacemos con los movimientos entre cuentas del mismo grupo?',
 			keywords: [
 				'espejo',
 				'mirror',
@@ -67,30 +70,30 @@
 				'operativo'
 			],
 			answer:
-				'Más de la mitad del valor de salida son movimientos entre cuentas del mismo grupo: tesorería que se barre a un centro, no compras ni ventas. Emparejamos pares espejo — mismo grupo, producto distinto, signo opuesto, moneda igual y céntimos idénticos en ±1 día (hasta 3 si el hueco cae en fin de semana) — y los excluimos de todas las medidas operativas. El emparejamiento es 1:1, por fecha más cercana e independiente del orden de las filas. Con placebos de fecha (9–11 días) el porcentaje cae del 46,6 % al 1,9 %: el criterio es real, no un artefacto.'
+				'Más de la mitad del dinero que sale son movimientos internos: tesorería que el grupo pasa de una cuenta a otra, no compras ni ventas reales. Detectamos esas parejas (mismo grupo, misma moneda, importe idéntico al céntimo y fechas casi iguales, con hasta 3 días de margen si el hueco cae en fin de semana) y las sacamos de todas las medidas operativas. El emparejamiento es uno a uno, por la fecha más cercana, y no depende del orden de los datos. Si aplicamos el mismo criterio a fechas elegidas al azar, el porcentaje detectado cae del 46,6\u00A0% al 1,9\u00A0%: el criterio responde a un patrón real, no a la casualidad.'
 		},
 		{
 			id: 'guion',
-			question: '¿Qué hacemos con la categoría «-», una de cada cuatro filas?',
+			question: '¿Qué hacemos con los movimientos que llegan sin categoría?',
 			keywords: [
 				'guion',
 				'dash',
 				'categoria',
-				'flow_class',
 				'clasificacion',
 				'signo',
 				'reglas',
 				'narrativas',
 				'retencion',
 				'ajuste',
-				'descripcion'
+				'descripcion',
+				'sin categoria'
 			],
 			answer:
-				'No la tiramos: son cuentas operativas. El signo predice la familia del flujo con precisión 0,89/0,93, así que por defecto clasificamos por signo y solo lo interrumpen 11 reglas narrativas con precisión medida ≥ 0,83 (ajustes de libro → interno, Seguridad Social o Hacienda → salida operativa, amortizaciones → servicio de deuda…). Las retenciones (RETENCION, AP.RET.DST: un 35 % de todo el valor de «-») quedan como clase «ajuste» y salen de todo. Cada fila recibe un flow_class; nunca se borra una, solo se marca.'
+				'Uno de cada cuatro movimientos llega sin categoría, y no los descartamos: son cuentas operativas. El signo del movimiento acierta la familia del flujo nueve de cada diez veces, y solo lo corrigen unas pocas reglas escritas a mano (los ajustes de libro van a operaciones internas, los pagos a la Seguridad Social o a Hacienda son salidas operativas y las amortizaciones son servicio de deuda). Las retenciones, el 35\u00A0% del valor sin categoría, se marcan como ajustes y quedan fuera de todas las medidas. Ninguna fila se borra: las que no se pueden clasificar se marcan, nunca se ocultan.'
 		},
 		{
 			id: 'facturas',
-			question: '¿Cómo puntúamos la puntualidad cuando faltan facturas?',
+			question: '¿Qué pasa si una empresa no aporta facturas?',
 			keywords: [
 				'factura',
 				'facturas',
@@ -104,14 +107,15 @@
 				'erp',
 				'sellada',
 				'vencimiento',
-				'pagos'
+				'pagos',
+				'sin facturas'
 			],
 			answer:
-				'78 de los 250 grupos no tienen facturas y la puntualidad es escasa por naturaleza. No inventamos un 50: el pilar queda a None con una puerta nombrada (sin facturas, pocas facturas, régimen ERP, n efectivo bajo) y los pesos se renormalizan sobre lo observable. Una entidad sin facturas se juzga con liquidez, actividad y deuda; la confianza lo comunica. También excluimos por fila las facturas selladas por el ERP (vencimiento = emisión y liquidación = vencimiento): esas fechas miden el software, no el comportamiento.'
+				'A 78 de los 250 grupos les faltan facturas, y la puntualidad de pago es un dato escaso por naturaleza. No inventamos un valor intermedio: ese pilar se muestra como no disponible, con el motivo a la vista, y la nota se recalcula con lo que sí se puede observar (liquidez, actividad y deuda). La confianza de la nota refleja esa carencia. También excluimos una a una las facturas que el propio programa emite y liquida el mismo día: miden el software, no la conducta de pago.'
 		},
 		{
 			id: 'sweeping',
-			question: '¿Qué pasa con las filiales barridas al centro de tesorería?',
+			question: '¿Por qué la cuenta de una filial aparece vacía?',
 			keywords: [
 				'sweeping',
 				'barrido',
@@ -120,15 +124,14 @@
 				'filial',
 				'grupo',
 				'tesoreria',
-				'inherited_from_group',
 				'liquidez heredada'
 			],
 			answer:
-				'Su cuenta está a cero porque la política del grupo lo decide, no porque la empresa esté mal. Detectamos cuentas de saldo cero con cuota marginal de la caja del grupo o pares de barrido repetidos, y les damos el pilar de liquidez del grupo con la puerta inherited_from_group y su bandera. La caja vacía deja de leerse como estrés.'
+				'Porque la política del grupo decide barrer su caja hacia un centro de tesorería, no porque la empresa esté mal. Detectamos las cuentas a cero que siguen ese patrón y las evaluamos con la liquidez del grupo, con el motivo indicado junto al dato. Así, una caja vacía deja de leerse como señal de estrés.'
 		},
 		{
 			id: 'tamano',
-			question: '¿Cómo evitamos que la liquidez sea una proxy del tamaño?',
+			question: '¿Comparamos a cada empresa con empresas de su tamaño?',
 			keywords: [
 				'liquidez',
 				'tamano',
@@ -140,16 +143,17 @@
 				'micro',
 				'grande',
 				'mediana',
-				'jpmorgan',
 				'ancla',
-				'cuantil'
+				'cuantil',
+				'union europea',
+				'umbrales'
 			],
 			answer:
-				'Con anclas absolutas, la mediana de liquidez cae de ~85 en microgrupos a ~18 en grandes: los grandes corren poco efectivo y viven de líneas, que es estructura, no angustia. Congelamos una tabla por tramo de facturación con los umbrales de pyme de la UE (micro < 2 M€, pequeña < 10 M€, mediana < 50 M€, grande ≥ 50 M€) y cuantiles de referencia por tramo. La tabla absoluta (cuartiles del JPMorgan Chase Institute) queda a un interruptor: params.liquidity.segmented = false.'
+				'Sí. Las empresas grandes manejan poco efectivo y viven de líneas de crédito: es estructura, no angustia. Por eso la liquidez se compara dentro del tramo de facturación, con los umbrales oficiales de la Unión Europea (micro por debajo de 2\u00A0M€, pequeña por debajo de 10\u00A0M€, mediana por debajo de 50\u00A0M€ y grande a partir de 50\u00A0M€), y con puntos de referencia independientes para cada tramo. También existe una tabla única para todos los tamaños, pero queda desactivada por defecto.'
 		},
 		{
 			id: 'unidad',
-			question: '¿Por qué puntuamos el grupo y no solo la empresa?',
+			question: '¿Puntuamos el grupo entero o cada empresa por separado?',
 			keywords: [
 				'grupo',
 				'empresa',
@@ -162,15 +166,14 @@
 				'miembro'
 			],
 			answer:
-				'El 60 % de los pares espejo cruza empresas del mismo grupo y arrastra los importes grandes; las filiales se barren a tesorería y la deuda se concentra en un miembro. Una ratio a nivel de empresa mide fontanería de tesorería, no salud. Sumamos los flujos de los miembros en céntimos primero y tomamos ratios después: la puntuación de un grupo nunca es una media de puntuaciones. Cada empresa se puntúa igual y aparece como detalle, y se escribe siempre en los dos CSV porque la unidad del test oculto no está confirmada.'
+				'El grupo. La mayoría de los movimientos internos cruzan empresas del mismo grupo y arrastran los importes grandes: las filiales vacían su caja hacia el centro y la deuda se concentra en un miembro. Una ratio aislada de una empresa mediría esa fontanería interna, no su salud. Por eso primero sumamos los movimientos de todo el grupo y después calculamos las ratios: la nota de un grupo nunca es un promedio de notas. Cada empresa también recibe su nota y aparece como detalle.'
 		},
 		{
 			id: 'moneda',
-			question: '¿Cómo hacemos la conversión de divisa?',
+			question: '¿Cómo convertimos las monedas extranjeras?',
 			keywords: [
 				'moneda',
 				'divisa',
-				'exchange_rate',
 				'convertir',
 				'conversion',
 				'euro',
@@ -178,34 +181,30 @@
 				'fx',
 				'cambio',
 				'tipo de cambio',
-				'moneda extranjera',
-				'product_id'
+				'moneda extranjera'
 			],
 			answer:
-				'Esa columna relaciona la moneda de la cuenta con la moneda contable de la empresa, no con el euro, en dirección inversa a la lectura ingenua, y en un 4–14 % de filas multimoneda es incoherente. Cada fila hereda la moneda de su producto (banking_products / debt_products) y convertimos con una tabla estática congelada en params.fx. Filas en otra moneda quedan en recuentos y salen de los agregados de valor, con su cuota publicada.'
+				'Cada cuenta informa en una moneda, y la convertimos a la moneda contable de su empresa con una tabla de tipos de cambio fija. La conversión no siempre es directa: en una parte de los movimientos multimoneda (entre el 4\u00A0% y el 14\u00A0%) el dato llega incoherente, así que lo verificamos antes de usarlo. Los movimientos en monedas no cubiertas cuentan en los recuentos, pero salen de los totales de valor, y su peso se publica.'
 		},
 		{
 			id: 'cohortindependiente',
-			question: '¿Cómo garantizamos que puntuar 60 grupos a solas dé el mismo número?',
+			question: '¿La nota sería la misma si volviéramos a calcularla?',
 			keywords: [
 				'independiente',
 				'cohorte',
 				'cohort',
-				'params',
-				'fit-reference',
-				'predict',
-				'sha256',
 				'aislamiento',
 				'test oculto',
 				'congelado',
-				'determinismo'
+				'determinismo',
+				'reproducible'
 			],
 			answer:
-				'Todos los parámetros viven en params/reference_v1.json con su sha256: pesos, anclas, tramos, λ/τ, bandas y medianas de referencia. fit-reference es el único paso que mira a la cohorte (una vez); predict nunca reajusta. La prueba de aislamiento verifica que puntuar un subconjunto reproduce las filas completas con tolerancia 1e-9: lo que necesita un test oculto de entidades no vistas.'
+				'Sí. Todos los pesos, referencias y umbrales se fijan y se congelan antes de puntuar; el cálculo nunca se reajusta con los datos que ve. Lo comprobamos: puntuar un subconjunto de empresas reproduce exactamente las mismas notas que en el cálculo completo, hasta el último decimal. Así se puede puntuar una empresa nueva sin que cambie ninguna nota anterior.'
 		},
 		{
 			id: 'feed',
-			question: '¿Cómo tratamos los meses en que el conector deja de traer datos?',
+			question: '¿Qué pasa cuando deja de llegar información de una cuenta?',
 			keywords: [
 				'feed',
 				'rancio',
@@ -216,15 +215,14 @@
 				'carried',
 				'sin datos',
 				'falta de datos',
-				'abstencion',
-				'stale_feed'
+				'abstencion'
 			],
 			answer:
-				'Un feed rancio es un dato, no un diagnóstico: cuando desaparecen los pagos de Seguridad Social el volumen cae a 0,17× y la empresa no dejó de pagar. Lo detectamos con la ratio de filas del último trimestre contra su línea base propia; si falla, la explicación del último mes vivo se copia literal (carry forward), apagamos penas, topes y alertas por ausencia y el mes se abstiene con motivo stale_feed. Nunca cambiamos el número por esto.'
+				'Falta de datos no es mal diagnóstico. Cuando desaparecen, por ejemplo, los pagos a la Seguridad Social, el volumen de información se desploma aunque la empresa no haya dejado de pagar. Detectamos estas caídas comparando los últimos meses con la actividad habitual de la propia cuenta. Si la información no es suficiente, mantenemos la explicación del último mes sano, se apagan las alertas por ausencia y el mes se abstiene con su motivo a la vista. El número no se cambia por esto.'
 		},
 		{
 			id: 'no-compensatorio',
-			question: '¿Cómo evitamos que un pilar fuerte tape uno roto?',
+			question: '¿Puede un punto fuerte tapar un problema grave?',
 			keywords: [
 				'pena',
 				'penalty',
@@ -240,11 +238,11 @@
 				'identidad'
 			],
 			answer:
-				'La agregación no compensa: por debajo de 45 puntos, el pilar más débil cuesta la mitad de su desfase, hasta 22,5 puntos; y los topes duros (liquidez negativa ⇒ techo 40) no se compran con otros pilares. Además expone todo: la identidad exacta score = base + Σ contribuciones − pena − tope con error ≤ 1e-9, en décimos enteros que suman en pantalla, con puertas y banderas al lado de cada cifra.'
+				'No. Cuando un pilar baja de 45 puntos, su desfase pesa el doble en la nota final, hasta 22,5 puntos; y hay techos que no se pueden comprar con otros pilares: con caja negativa sostenida, la nota no puede pasar de 40. Además todo queda a la vista: la nota final siempre es la suma de sus partes menos penalizaciones y topes, y puedes comprobarlo con las cifras que acompañan a cada dato.'
 		},
 		{
 			id: 'validacion',
-			question: '¿Validamos sin etiquetas de resultado?',
+			question: '¿Cómo sabemos que las notas son fiables?',
 			keywords: [
 				'validacion',
 				'validacion sin etiquetas',
@@ -254,61 +252,62 @@
 				'invariancia',
 				'precision',
 				'acuerdo',
-				'decisions'
+				'decisions',
+				'fiabilidad'
 			],
 			answer:
-				'No hay verdad terrenal en el dataset, así que no alegamos ninguna precisión de acierto. La validez descansa en la construcción (anclas, identidades, invariancias) y en un protocolo de validación sin etiquetas — additividad, aislamiento, truncamiento, placebos — cuyos resultados viven en artifacts/validation.json. Cada decisión y cada parámetro libre está en DECISIONS.md con su evidencia y sensibilidad.'
+				'Los datos no traen la respuesta correcta, así que no prometemos porcentajes de acierto. La fiabilidad descansa en cómo está construido el sistema: referencias fijas, comprobaciones de que las partes suman el total y pruebas de que el resultado no cambia al reordenar o recortar los datos. Cada decisión y cada valor elegido está documentado, con su evidencia y su análisis de sensibilidad.'
 		}
 	];
 
 	const terms = [
 		{
 			term: 'Pilar',
-			def: 'Uno de los cinco hechos medidos: liquidez 0,30, pagos 0,20, cobros 0,15, actividad 0,20, deuda 0,15. Función pura PanelRow → PillarResult.'
+			def: 'Cada uno de los cinco hechos que se miden: liquidez (30\u00A0%), pagos (20\u00A0%), cobros (15\u00A0%), actividad (20\u00A0%) y deuda (15\u00A0%).'
 		},
 		{
-			term: 'Puerta (gate)',
-			def: 'Motivo nombrado por el que un pilar no es observable (buffer_undefined, no_invoices…). None nunca es un 0 ni un 50 imputado.'
+			term: 'Puerta',
+			def: 'El motivo por el que un dato no está disponible (por ejemplo, sin facturas). Cuando algo no se puede medir, se dice: nunca se inventa un cero ni un valor intermedio.'
 		},
 		{
 			term: 'Días sobre términos (DBT)',
-			def: 'Días de retraso medio ponderado por importe: liquidación − vencimiento, recortado a [−30, 90]; las facturas abiertas siguen envejeciendo hasta fin de mes.'
+			def: 'El retraso medio de pago a proveedores, ponderado por el importe de cada factura. Se recorta entre 30 días de adelanto y 90 de retraso, y las facturas sin pagar siguen envejeciendo hasta fin de mes.'
 		},
 		{
 			term: 'Días de colchón',
-			def: '(Caja + headroom) / salida diaria media del trimestre. Cuántos días de gastos cubre el disponible.'
+			def: 'Cuántos días de gastos cubre el dinero disponible: la caja más el margen sin usar de las líneas de crédito.'
 		},
 		{
 			term: 'Cobertura operativa',
-			def: 'Σ entradas operativas / Σ (salidas operativas + servicio de deuda), últimos 6 meses.'
+			def: 'Cuánto entra por la actividad frente a cuánto sale (gastos más devolución de deuda), en los últimos 6 meses.'
 		},
 		{
-			term: 'Bloque espejo / netting',
-			def: 'Emparejamiento 1:1 de movimientos internos del grupo (opuesto, misma cantidad, ±1–3 días) que salen de todas las medidas operativas.'
+			term: 'Bloque espejo',
+			def: 'Movimientos internos entre cuentas del mismo grupo (mismo importe, sentido opuesto, fechas casi iguales) que no son compras ni ventas reales: salen de todas las medidas operativas.'
 		},
 		{
-			term: 'Factura sellada (ERP-stamped)',
-			def: 'Fila con emisión = vencimiento y liquidación = vencimiento: dice nada del comportamiento y se excluye por fila.'
+			term: 'Factura sellada',
+			def: 'Una factura que el software emite y liquida el mismo día: no dice nada de la conducta de pago y se excluye una a una.'
 		},
 		{
 			term: 'Like-for-like',
-			def: 'Toda comparación entre dos ventanas usa solo cuentas que informan en ambas. Los cambios de perímetro no alteran el delta.'
+			def: 'Toda comparación usa solo las cuentas que informan en los dos periodos, para que un cambio de perímetro no falsee la diferencia.'
 		},
 		{
 			term: 'Feed vivo / rancio',
-			def: 'Ratio de filas de los 2 últimos meses contra su línea base propia: < 0,5 o cero filas ⇒ mes rancio, se porta adelante el último mes vivo — carried-forward —.'
+			def: 'Si los últimos meses traen mucha menos información de lo habitual, el mes se marca sin datos fiables y se mantiene la explicación del último mes sano. Falta de datos no es mal diagnóstico.'
 		},
 		{
 			term: 'Abstención',
-			def: 'Menos de 4 meses, feed muerto o sin pilar bancario ⇒ se emite el número igualmente, sin alertas, con unlock_hint en español.'
+			def: 'Con menos de 4 meses de información, un feed sin datos o sin cuentas bancarias, el sistema emite la nota pero sin alertas: no hay base suficiente para alarmarse.'
 		},
 		{
 			term: 'Banda',
-			def: 'Crítico < 40, Vigilancia 40–60, Estable 60–80, Sólido ≥ 80, decididos sobre décimos enteros para que pantalla y motor coincidan.'
+			def: 'Las notas se agrupan en zonas: Crítico por debajo de 40, Vigilancia de 40 a 60, Estable de 60 a 80 y Sólido a partir de 80.'
 		},
 		{
 			term: 'Traza',
-			def: 'Dirección (mejora/deterioro cuando |delta3| ≥ máx(6, 1,5·σ propia)), naturaleza (shock_pending, structural, bump) y perímetro detectado.'
+			def: 'La dirección del cambio (mejora o deterioro), su naturaleza (un bache puntual, un cambio estructural o un movimiento pequeño) y el perímetro afectado.'
 		}
 	];
 </script>
@@ -317,7 +316,7 @@
 	<title>Wiki · Embat X-Ray</title>
 	<meta
 		name="description"
-		content="Cómo hemos resuelto cada problema de datos y de diseño del motor X-Ray."
+		content="Cómo funciona X-Ray: cada problema de datos, la decisión que tomamos y por qué, explicado de forma sencilla."
 	/>
 </svelte:head>
 
@@ -325,16 +324,16 @@
 	<p class="text-sm text-muted-foreground">Wiki</p>
 	<h1 class="mt-1 text-3xl font-bold tracking-tight">Cómo lo hemos resuelto</h1>
 	<p class="mt-2 text-muted-foreground">
-		Cada problema que encontramos en los datos, la decisión que tomamos y por qué. Las cifras son
-		las medidas en el dataset del reto; el detalle completo vive en
-		<span class="font-mono text-xs">docs/engine/ENGINE.md</span>.
+		Cada problema que encontramos en los datos, la decisión que tomamos y por qué, explicado de
+		forma sencilla. Las cifras son las medidas reales sobre los datos analizados. Para el método
+		completo, <a class="underline" href="/wiki/como-puntuamos">aprende cómo puntuamos</a>.
 	</p>
 
 	<div class="relative mt-8">
 		<Search class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 		<Input
 			class="rounded-full py-2 pr-9 pl-9 shadow-none ring-0 focus-visible:ring-0"
-			placeholder="Buscar: divisa, facturas, traspasos…"
+			placeholder="Buscar: monedas, facturas, movimientos internos…"
 			aria-label="Buscar en el wiki"
 			bind:value={query}
 		/>
@@ -353,10 +352,10 @@
 		{#if query.trim() === ''}
 			{solutions.length} preguntas · {terms.length} términos
 		{:else if matches.length === 0 && matchingTerms.length === 0}
-			Sin resultados para «{query}». Prueba con otra palabra.
+			Sin resultados para "{query}". Prueba con otra palabra.
 		{:else}
 			{matches.length + matchingTerms.length} resultado
-			{matches.length + matchingTerms.length === 1 ? '' : 's'} para «{query}»
+			{matches.length + matchingTerms.length === 1 ? '' : 's'} para "{query}"
 		{/if}
 	</p>
 
@@ -381,7 +380,7 @@
 				</Card.Content>
 			</Card.Root>
 		{:else}
-			<p class="text-muted-foreground text-sm">Ninguna pregunta coincide con «{query}».</p>
+			<p class="text-muted-foreground text-sm">Ninguna pregunta coincide con "{query}".</p>
 		{/each}
 	</section>
 
@@ -390,8 +389,8 @@
 	<section>
 		<h2 class="text-2xl font-bold tracking-tight">Los términos que verás en pantalla</h2>
 		<p class="mt-1 text-sm text-muted-foreground">
-			Los códigos exactos (puertas, banderas, topes y motivos) tienen su texto en español en cada
-			bundle, junto a cada dato.
+			Si en pantalla aparece un término técnico, siempre va acompañado de su explicación en español,
+			junto al dato al que se refiere.
 		</p>
 		<div class="mt-6 grid gap-4 sm:grid-cols-2">
 			{#each matchingTerms as t (t.term)}
@@ -401,14 +400,14 @@
 				</div>
 			{:else}
 				{#if query.trim() !== ''}
-					<p class="text-muted-foreground text-sm">Ningún término coincide con «{query}».</p>
+					<p class="text-muted-foreground text-sm">Ningún término coincide con "{query}".</p>
 				{/if}
 			{/each}
 		</div>
 	</section>
 
 	<footer class="mt-12 text-sm text-muted-foreground">
-		Fuente: <span class="font-mono text-xs">docs/engine/ENGINE.md</span> y sus documentos hermanos (DECISIONS,
-		DATA_TRAPS, VALIDATION, OPEN_QUESTIONS).
+		Fuente: la documentación interna del motor, con cada decisión de diseño, sus evidencias y sus
+		límites conocidos.
 	</footer>
 </main>
