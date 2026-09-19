@@ -23,7 +23,7 @@ export function lineaAviso(g: Grupo, a: Pick<Alerta, 'kind' | 'month'>): string 
 	const desde = Math.max(g.first_month, a.month - 3);
 	const s0 = g.meses[desde].shown, s1 = g.meses[a.month].shown;
 	const empuje = pilarQueEmpuja(g, desde, a.month);
-	const tipo = a.kind === 'improvement_structural' ? 'mejora confirmada' : a.kind === 'improvement_drift' ? 'deriva lenta al alza' : a.kind === 'deterioration_drift' ? 'deriva lenta a la baja' : a.kind === 'level_critical' ? 'entra en nivel crítico' : a.kind === 'cap_fired' ? 'salta un tope' : a.kind === 'stale_feed' ? 'datos sin actualizar' : 'deterioro confirmado';
+	const tipo = a.kind === 'improvement_structural' ? 'mejora confirmada' : a.kind === 'improvement_drift' ? 'sube poco a poco' : a.kind === 'deterioration_drift' ? 'baja poco a poco' : a.kind === 'level_critical' ? 'entra en nivel crítico' : a.kind === 'cap_fired' ? 'salta un tope' : a.kind === 'stale_feed' ? 'datos sin actualizar' : 'deterioro confirmado';
 	const partes = [nombreGrupo(g.id), tipo, `de ${fmt.score(s0)} a ${fmt.score(s1)}`];
 	if (empuje && empuje.delta !== 0) partes.push(`pesa ${articulo(NOMBRE_PILAR[empuje.pilar])}`);
 	return partes.join(' · ');
