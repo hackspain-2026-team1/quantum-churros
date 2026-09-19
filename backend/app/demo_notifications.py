@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 import re
 import smtplib
 from collections.abc import Iterable, Mapping
@@ -79,6 +80,20 @@ DIRECTION_LABELS = {
     "perimeter_shift": "Cambio de perímetro",
 }
 
+INK = "#050b2c"
+INK_SECONDARY = "#42444c"
+MUTED = "#6e707c"
+FAINT = "#9a9cab"
+BORDER = "#e8e8ed"
+BORDER_STRONG = "#d2d2db"
+SURFACE = "#ffffff"
+SURFACE_MUTED = "#f3f4f6"
+SURFACE_SUBTLE = "#fbfbfc"
+SUCCESS_TEXT = "#007d25"
+DANGER_TEXT = "#ab2807"
+SERIF_STACK = "Georgia, 'Times New Roman', serif"
+SANS_STACK = "Arial, Helvetica, sans-serif"
+
 
 @dataclass(frozen=True)
 class DemoEmail:
@@ -142,16 +157,17 @@ def humanize_months(text: str) -> str:
 
 
 def format_score(tenths: int) -> str:
-    """Render integer score tenths with the Spanish decimal separator."""
-    return f"{tenths / 10:.1f}".replace(".", ",")
+    """Render integer score tenths as whole points, matching Rumbo."""
+    return str(math.floor(tenths / 10 + 0.5))
 
 
 def format_score_delta(tenths: int) -> str:
     """Render a signed integer-tenths score contribution."""
     if tenths == 0:
         return "0,0"
-    sign = "+" if tenths > 0 else "-"
-    return f"{sign}{format_score(abs(tenths))}"
+    sign = "+" if tenths > 0 else "−"
+    value = f"{abs(tenths) / 10:.1f}".replace(".", ",")
+    return f"{sign}{value}"
 
 
 def load_fired_alerts(
@@ -343,8 +359,8 @@ def _plain_body(
         f"Trayectoria: {insight.direction}\n"
         f"Confianza: {insight.confidence}\n"
         f"Persistencia: {insight.persistence_months} cierres\n\n"
-        f"Qué aporta y qué resta\n{drivers}\n\n"
-        f"Acciones para subir el score\n{target}{actions}\n\n"
+        f"Qué aporta cada pilar\n{drivers}\n\n"
+        f"Qué hacer\n{target}{actions}\n\n"
         f"Abrir el diagnóstico: {link}\n\n"
         "Correo capturado por Mailpit. No se ha enviado a un destinatario real."
     )
@@ -355,7 +371,7 @@ def _drivers_html(insight: EntityInsight) -> str:
     for pillar in insight.pillars[:3]:
         positive = pillar.contribution > 0
         negative = pillar.contribution < 0
-        color = "#198754" if positive else "#b42318" if negative else "#637786"
+        color = SUCCESS_TEXT if positive else DANGER_TEXT if negative else MUTED
         verb = "aporta" if positive else "resta" if negative else "no mueve"
         observed = (
             format_score(pillar.score) if pillar.score is not None else "Sin dato"
@@ -365,19 +381,24 @@ def _drivers_html(insight: EntityInsight) -> str:
             f"""\
 <tr>
   <td style="padding:0 0 10px">
-    <table role="presentation" width="100%" style="border:1px solid #dfe7ec;border-radius:12px">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+           style="border:1px solid {BORDER};border-radius:12px;background:{SURFACE}">
       <tr>
         <td style="padding:14px 16px">
-          <p style="margin:0 0 4px;color:#637786;font-size:11px;text-transform:uppercase;letter-spacing:.08em">
+          <p style="margin:0 0 5px;color:{MUTED};font-size:11px;text-transform:uppercase;letter-spacing:.08em">
             Pilar · {verb} · observado {html.escape(observed)}
           </p>
-          <p style="margin:0;color:#102431;font-size:16px;font-weight:700">
-            {html.escape(pillar.label)}
-            <span style="float:right;color:{color};font-family:monospace">
-              {html.escape(format_score_delta(pillar.contribution))}
-            </span>
-          </p>
-          <p style="margin:8px 0 0;color:#637786;font-size:13px;line-height:1.5">{note}</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+            <tr>
+              <td style="color:{INK};font-family:{SERIF_STACK};font-size:17px;font-weight:700;line-height:1.3">
+                {html.escape(pillar.label)}
+              </td>
+              <td align="right" style="color:{color};font-family:{SERIF_STACK};font-size:17px;font-weight:700;white-space:nowrap">
+                {html.escape(format_score_delta(pillar.contribution))}
+              </td>
+            </tr>
+          </table>
+          <p style="margin:7px 0 0;color:{INK_SECONDARY};font-size:13px;line-height:1.5">{note}</p>
         </td>
       </tr>
     </table>
@@ -389,11 +410,12 @@ def _drivers_html(insight: EntityInsight) -> str:
 
 def _actions_html(insight: EntityInsight) -> str:
     if not insight.actions:
-        return """\
-<table role="presentation" width="100%" style="border:1px dashed #b9c8d2;border-radius:12px">
+        return f"""\
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+       style="border:1px dashed {BORDER_STRONG};border-radius:12px;background:{SURFACE}">
   <tr><td style="padding:16px">
-    <p style="margin:0;color:#102431;font-weight:700">Sin acciones calculadas para este cierre</p>
-    <p style="margin:6px 0 0;color:#637786;font-size:13px;line-height:1.5">
+    <p style="margin:0;color:{INK};font-family:{SERIF_STACK};font-size:16px;font-weight:700">Sin acciones calculadas para este cierre</p>
+    <p style="margin:6px 0 0;color:{INK_SECONDARY};font-size:13px;line-height:1.5">
       El dashboard tampoco muestra acciones para este periodo.
     </p>
   </td></tr>
@@ -403,7 +425,7 @@ def _actions_html(insight: EntityInsight) -> str:
     rows = []
     for action in insight.actions:
         detail = (
-            f'<p style="margin:6px 0 0;color:#637786;font-size:13px;line-height:1.5">'
+            f'<p style="margin:5px 0 0;color:{INK_SECONDARY};font-size:13px;line-height:1.5">'
             f"{html.escape(action.detail)}</p>"
             if action.detail
             else ""
@@ -412,11 +434,12 @@ def _actions_html(insight: EntityInsight) -> str:
             f"""\
 <tr>
   <td style="padding:0 0 10px">
-    <table role="presentation" width="100%" style="background:#fff;border:1px solid #cde8d8;border-radius:12px">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+           style="background:{SURFACE};border:1px solid {BORDER};border-radius:12px">
       <tr><td style="padding:14px 16px">
-        <p style="margin:0;color:#102431;font-weight:700">{html.escape(action.title)}</p>
+        <p style="margin:0;color:{INK};font-family:{SERIF_STACK};font-size:16px;font-weight:700;line-height:1.3">{html.escape(action.title)}</p>
         {detail}
-        <p style="margin:8px 0 0;color:#198754;font-family:monospace;font-weight:700">
+        <p style="margin:8px 0 0;color:{SUCCESS_TEXT};font-family:{SERIF_STACK};font-size:14px;font-weight:700">
           {html.escape(format_score_delta(action.uplift))} puntos · score {html.escape(format_score(action.new_score))}
         </p>
       </td></tr>
@@ -425,7 +448,7 @@ def _actions_html(insight: EntityInsight) -> str:
 </tr>"""
         )
     return f"""\
-<p style="margin:0 0 14px;color:#285c3c;line-height:1.5">
+<p style="margin:0 0 14px;color:{INK_SECONDARY};font-family:{SERIF_STACK};font-size:16px;line-height:1.5">
   Si sigues estas acciones, tu score pasaría de
   <strong>{html.escape(format_score(insight.shown))}</strong> a
   <strong>{html.escape(format_score(target))}</strong>.
@@ -451,11 +474,11 @@ def _message(
     text = _plain_body(alert, insight, headline, detail, link)
     kind = str(alert["kind"])
     tone = (
-        ("#b42318", "#fff1ef")
+        ("#c2401f", DANGER_TEXT, "#ffe7e0")
         if kind in {"deterioration_structural", "level_critical"}
-        else ("#198754", "#edf9f1")
+        else ("#08ab39", SUCCESS_TEXT, "#e7ffee")
         if kind == "improvement_structural"
-        else ("#9a6700", "#fff8e5")
+        else ("#dfb631", "#997800", "#fff5de")
     )
     persistence = (
         f"{insight.persistence_months} cierre"
@@ -465,70 +488,77 @@ def _message(
     html_body = f"""\
 <!doctype html>
 <html lang="es">
-<body style="margin:0;background:#f2f7f9;font-family:Arial,sans-serif;color:#102431">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f2f7f9">
+<body style="margin:0;background:{SURFACE_MUTED};font-family:{SANS_STACK};color:{INK}">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{SURFACE_MUTED}">
     <tr><td align="center" style="padding:28px 14px">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
-             style="max-width:680px;background:#fff;border:1px solid #dfe7ec;border-radius:18px;overflow:hidden">
-        <tr><td style="padding:20px 26px;background:#102f43;color:#fff">
-          <p style="margin:0;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#8edce5">
-            Embat X-Ray · monitor financiero
-          </p>
-          <p style="margin:6px 0 0;font-family:monospace;font-size:18px;font-weight:700">
-            {html.escape(str(alert["entity_id"]))}
-          </p>
+             style="max-width:680px;background:{SURFACE};border:1px solid {BORDER};border-radius:18px;overflow:hidden">
+        <tr><td style="padding:18px 26px;border-bottom:1px solid {BORDER}">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+            <tr>
+              <td style="color:{INK};font-family:{SERIF_STACK};font-size:22px;font-weight:700;letter-spacing:-.01em">
+                Rumbo
+                <span style="color:{MUTED};font-family:{SANS_STACK};font-size:12px;font-weight:400;letter-spacing:0">de Embat</span>
+              </td>
+              <td align="right" style="color:{MUTED};font-size:12px;font-weight:600">
+                {html.escape(str(alert["entity_id"]))}
+              </td>
+            </tr>
+          </table>
         </td></tr>
         <tr><td style="padding:26px">
-          <span style="display:inline-block;padding:6px 10px;border-radius:999px;color:{tone[0]};
-                       background:{tone[1]};font-size:12px;font-weight:700">
+          <p style="margin:0;color:{MUTED};font-size:12px;font-weight:600;letter-spacing:.02em">
             {html.escape(insight.direction)} · {html.escape(period)}
-          </span>
-          <h1 style="margin:16px 0 8px;font-size:26px;line-height:1.2">{html.escape(headline)}</h1>
-          <p style="margin:0 0 20px;color:#637786;font-size:15px;line-height:1.6">{html.escape(detail)}</p>
+          </p>
+          <h1 style="margin:12px 0 8px;color:{INK};font-family:{SERIF_STACK};font-size:29px;line-height:1.18;letter-spacing:-.01em">{html.escape(headline)}</h1>
+          <p style="margin:0 0 22px;color:{INK_SECONDARY};font-family:{SERIF_STACK};font-size:17px;line-height:1.5">{html.escape(detail)}</p>
 
-          <table role="presentation" width="100%" style="background:#f8fbfc;border:1px solid #dfe7ec;border-radius:14px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                 style="background:{SURFACE_SUBTLE};border:1px solid {BORDER};border-radius:14px">
             <tr>
-              <td width="34%" style="padding:18px;border-right:1px solid #dfe7ec;text-align:center">
-                <p style="margin:0;font-family:monospace;font-size:34px;font-weight:700">
+              <td width="34%" style="padding:18px;border-right:1px solid {BORDER};text-align:center">
+                <p style="margin:0;color:{INK};font-family:{SERIF_STACK};font-size:36px;font-weight:700;line-height:1">
                   {html.escape(format_score(insight.shown))}
                 </p>
-                <p style="margin:4px 0 0;color:#637786;font-size:10px;letter-spacing:.14em;text-transform:uppercase">Score</p>
+                <p style="margin:6px 0 0;color:{MUTED};font-size:11px">Score</p>
               </td>
               <td style="padding:18px">
                 <table role="presentation" width="100%" style="font-size:13px">
-                  <tr><td style="padding:3px;color:#637786">Banda</td><td style="padding:3px;font-weight:700">{html.escape(insight.band)}</td></tr>
-                  <tr><td style="padding:3px;color:#637786">Confianza</td><td style="padding:3px;font-weight:700">{html.escape(insight.confidence)}</td></tr>
-                  <tr><td style="padding:3px;color:#637786">Persistencia</td><td style="padding:3px;font-weight:700">{html.escape(persistence)}</td></tr>
+                  <tr><td style="padding:3px;color:{MUTED}">Banda</td><td style="padding:3px;color:{INK};font-weight:700">{html.escape(insight.band)}</td></tr>
+                  <tr><td style="padding:3px;color:{MUTED}">Confianza</td><td style="padding:3px;color:{INK};font-weight:700">{html.escape(insight.confidence)}</td></tr>
+                  <tr><td style="padding:3px;color:{MUTED}">Persistencia</td><td style="padding:3px;color:{INK};font-weight:700">{html.escape(persistence)}</td></tr>
                 </table>
               </td>
             </tr>
           </table>
 
-          <table role="presentation" width="100%" style="margin-top:18px;background:{tone[1]};border-left:4px solid {tone[0]};border-radius:10px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                 style="margin-top:18px;background:{tone[2]};border:1px solid {BORDER};border-left:4px solid {tone[0]};border-radius:12px">
             <tr><td style="padding:16px">
-              <p style="margin:0 0 5px;font-size:12px;font-weight:700;color:{tone[0]};text-transform:uppercase">Qué hemos detectado</p>
-              <p style="margin:0;font-size:14px;line-height:1.6">{html.escape(humanize_months(str(alert["detail"])))}</p>
+              <p style="margin:0 0 5px;color:{tone[1]};font-size:12px;font-weight:700">Qué hemos detectado</p>
+              <p style="margin:0;color:{INK_SECONDARY};font-size:14px;line-height:1.55">{html.escape(humanize_months(str(alert["detail"])))}</p>
             </td></tr>
           </table>
 
-          <h2 style="margin:28px 0 12px;font-size:18px">Qué aporta y qué resta</h2>
+          <h2 style="margin:28px 0 12px;color:{INK};font-family:{SERIF_STACK};font-size:20px">Qué aporta cada pilar</h2>
           <table role="presentation" width="100%">{_drivers_html(insight)}</table>
 
-          <table role="presentation" width="100%" style="margin-top:18px;background:#edf9f1;border:1px solid #cde8d8;border-radius:14px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                 style="margin-top:18px;background:{SURFACE_SUBTLE};border:1px solid {BORDER};border-radius:14px">
             <tr><td style="padding:20px">
-              <p style="margin:0 0 4px;color:#285c3c;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">Qué hacer ahora</p>
-              <h2 style="margin:0 0 14px;font-size:18px">Acciones para subir el score</h2>
+              <p style="margin:0 0 4px;color:{MUTED};font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">III · Acciones</p>
+              <h2 style="margin:0 0 14px;color:{INK};font-family:{SERIF_STACK};font-size:20px">Qué hacer</h2>
               {_actions_html(insight)}
             </td></tr>
           </table>
 
           <p style="margin:24px 0 0">
             <a href="{html.escape(link)}"
-               style="display:inline-block;padding:12px 18px;border-radius:9px;background:#102f43;color:#fff;text-decoration:none;font-weight:700">
+               style="display:inline-block;padding:12px 18px;border-radius:12px;background:{INK};color:#fff;text-decoration:none;font-size:13px;font-weight:700">
               Abrir el diagnóstico completo
             </a>
           </p>
-          <p style="margin:20px 0 0;color:#637786;font-size:11px;line-height:1.5">
+          <p style="margin:20px 0 0;color:{FAINT};font-size:11px;line-height:1.5">
             Correo capturado por Mailpit. No se ha enviado a un destinatario real.
           </p>
         </td></tr>
