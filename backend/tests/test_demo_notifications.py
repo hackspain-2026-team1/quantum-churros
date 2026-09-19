@@ -179,14 +179,52 @@ def test_build_demo_emails_separates_internal_and_company_copy(
         "https://xray.example.test/?v=empresa&g=GROUP_TEST&emp=COMP_TEST&m=2026-08"
         in customer_text
     )
-    assert "Liquidez: -12,0 puntos" in customer_text
+    assert "Score: 67" in customer_text
+    assert "Liquidez: −12,0 puntos" in customer_text
     assert "Recuperar colchón de liquidez: +5,5 puntos" in customer_text
-    assert "el score pasaría de 66,9 a 75,4" in customer_text
+    assert "el score pasaría de 67 a 75" in customer_text
     customer_html = customer.get_body(preferencelist=("html",)).get_content()
-    assert "Qué aporta y qué resta" in customer_html
-    assert "Acciones para subir el score" in customer_html
+    assert "Rumbo" in customer_html
+    assert "#050b2c" in customer_html
+    assert "#c2401f" in customer_html
+    assert "#ffe7e0" in customer_html
+    assert "Qué aporta cada pilar" in customer_html
+    assert "Qué hacer" in customer_html
     assert "Recuperar colchón de liquidez" in customer_html
+    assert "font-family:monospace" not in customer_html
+    assert (
+        'href="https://xray.example.test/?v=empresa&amp;g=GROUP_TEST&amp;'
+        'emp=COMP_TEST&amp;m=2026-08"'
+        in customer_html
+    )
+    cap_html = emails[2].message.get_body(preferencelist=("html",)).get_content()
+    assert "#dfb631" in cap_html
+    assert "#fff5de" in cap_html
     assert customer["X-XRay-Audience"] == "company"
+
+
+def test_mail_template_uses_improvement_tone(tmp_path: Path) -> None:
+    write_entity(tmp_path)
+
+    emails = notifications.build_demo_emails(
+        [
+            alert(
+                entity_id="COMP_TEST",
+                month="2026-08",
+                kind="improvement_structural",
+            )
+        ],
+        bundle_dir=tmp_path,
+        sender="Embat X-Ray <xray@embat.test>",
+        frontend_base_url="https://xray.example.test",
+    )
+
+    company_html = (
+        emails[1].message.get_body(preferencelist=("html",)).get_content()
+    )
+    assert "#08ab39" in company_html
+    assert "#007d25" in company_html
+    assert "#e7ffee" in company_html
 
 
 def test_clear_mailpit_deletes_all_messages(monkeypatch: Any) -> None:
