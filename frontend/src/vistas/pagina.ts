@@ -38,7 +38,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 
 	let clave = '';
 	let datos: DatosFicha | null = null;
-	const estadoUI = { escenario: 'base' as OpcionesGrafico['escenario'], metrica: 'score', acciones: new Set<string>(), filtro: null as FiltroEvidencia | null };
+	const estadoUI = { escenario: 'base' as OpcionesGrafico['escenario'], metrica: 'score', acciones: new Set<string>(), filtro: null as FiltroEvidencia | null, ancla: null as string | null };
 	let accionPendiente: string | null = null;
 
 	const acc: Acciones = {
@@ -48,6 +48,10 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			if (accion) { estadoUI.acciones = new Set([accion]); accionPendiente = accion; }
 			estadoUI.filtro = filtro ?? null;
 			if (S.e.sec === s) pintarFicha(S.e); else S.fijar({ sec: s }, true);
+		},
+		irBandeja: () => {
+			estadoUI.ancla = 'bandeja-avisos';
+			if (S.e.sec === 'tecnico') pintarFicha(S.e); else S.fijar({ sec: 'tecnico' }, true);
 		},
 		repintarArena: () => requestAnimationFrame(() => cb.alCambiarArena()),
 	};
@@ -150,6 +154,14 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			const ev = raiz.querySelector('.evidencia-filtrada') as HTMLElement | null;
 			if (ev) raiz.scrollTop = ev.offsetTop - 70;
 			estadoUI.filtro = null;
+		}
+		if (estadoUI.ancla && e.sec === 'tecnico') {
+			const destino = raiz.querySelector(`#${estadoUI.ancla}`) as HTMLElement | null;
+			if (destino) {
+				raiz.scrollTop = destino.offsetTop - 70;
+				destino.focus({ preventScroll: true });
+			}
+			estadoUI.ancla = null;
 		}
 		cb.alCambiarArena();
 	}
