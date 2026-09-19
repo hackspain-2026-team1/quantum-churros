@@ -608,7 +608,7 @@ make test-engine-data XRAY_DATA=/path/to/output
 | Trayectoria, no foto | Obligatorio | 24 monthly scores per entity, `direction`, `nature`, `persistence_months`; pillars built on trailing windows, not on the last month alone |
 | Explicación | Obligatorio | exact additive and delta identities, gates, evidence rows, all in the bundle |
 | Producto encima del score | Obligatorio | static web app on the bundle: portfolio, group and company views, alert inbox, profile card, receipt |
-| Comprador identificado | Obligatorio | product-level answer, outside this document; the engine's contribution is a verdict that can be handed to a third party with its receipt |
+| Comprador identificado | Obligatorio | answered in [../COMPRADOR.md](../COMPRADOR.md); the engine's contribution is a verdict that can be handed to a third party with its receipt |
 | Demo navegable | Obligatorio | static bundle + static site: nothing to run server-side |
 | Anticipación medida *(bonus)* | Bonus | injection study: detection delay by shape (spike / step / ramp) and size band, false-alert rate |
 | Monitor que avisa *(bonus)* | Bonus | `alerts.json` with fired / suppressed / abstained states and reasons |
