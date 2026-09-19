@@ -2,17 +2,16 @@
 
 ## Frontend stack
 
-- Use SvelteKit 5 with TypeScript and Bun for all frontend work.
+- `frontend/` is the single Rumbo application. It uses plain TypeScript, Vite, Bun, direct DOM composition and WebGL2; do not introduce React, Svelte or another frontend framework unless the team explicitly changes this decision.
 - Bun is the only JavaScript package manager and task runner in this repository. Use `bun install`, `bun add`, `bun run` and `bunx`; never introduce npm, pnpm, Yarn or their lockfiles.
 - Commit `bun.lock` and keep dependency changes reproducible.
 
-## Component-first UI with shadcn-svelte
+## Component-first UI
 
-- Build every frontend feature component-first from shadcn-svelte. Before writing UI markup or introducing another component library, check the existing local components and the shadcn-svelte registry for the required primitive or pattern.
-- Initialize shadcn-svelte with `bunx shadcn-svelte@latest init -c frontend`. Add primitives with `bunx shadcn-svelte@latest add <component> -c frontend` so dependencies, aliases and source files remain consistent with `frontend/components.json`.
-- Treat `frontend/components.json` as the source of truth for registry configuration and aliases. Registry primitives live under `frontend/src/lib/components/ui/`.
-- Compose registry primitives into product and domain components under `frontend/src/lib/components/`. Routes should assemble components and load data; they should not duplicate reusable controls or large interface sections.
-- A custom primitive is allowed only when neither the installed components nor the shadcn-svelte registry provides the required behavior. Build it with the same tokens, accessibility conventions and variant patterns as the local shadcn-svelte components.
+- Build frontend features from the existing primitives in `frontend/src/vistas/`; extend those shared primitives instead of duplicating page-local DOM structures.
+- Use `frontend/src/vistas/dom.ts` for DOM construction and keep product sections in focused modules under `frontend/src/vistas/`.
+- Keep financial contracts, loaders, derived values and formatting under `frontend/src/datos/`; visual modules consume that layer and must not reimplement its rules.
+- Keep the WebGL2 renderer isolated under `frontend/src/arena/`; DOM views may coordinate scenes but must not duplicate rendering internals.
 - Extend shared primitives centrally when a behavior or style must propagate across the application. Do not fork a primitive per screen or reproduce it with page-local markup.
 - Preserve keyboard interaction, focus states, semantic labels, loading states, empty states and error states when composing or adapting components.
 
@@ -22,13 +21,13 @@
 - Locale is Spanish (Spain): `es-ES`. Decimals use a comma, thousands use a dot (`1.234,56`).
 - The euro symbol goes after the amount with a non-breaking space: `1.234,56 €`. Never write `€1.234,56`.
 - Percentages are `NN,N %` with a non-breaking space; scores are integers without decimals.
-- Never render a raw float in the UI (e.g. `-0.9976`, `60.68`). Format through the shared helpers in `frontend/src/lib/format.ts`; never call `toLocaleString()` without an explicit `'es-ES'` locale.
-- Do not duplicate `Intl` formatting per component. Extend `frontend/src/lib/format.ts` centrally when a new format is needed.
+- Never render a raw float in the UI (e.g. `-0.9976`, `60.68`). Format through the shared helpers in `frontend/src/datos/formato.ts`; never call `toLocaleString()` without an explicit `'es-ES'` locale.
+- Do not duplicate `Intl` formatting per view. Extend `frontend/src/datos/formato.ts` centrally when a new format is needed.
 
-## Rumbo (`interfaz/`)
+## Rumbo data and deployment
 
-- `interfaz/` is Rumbo, the redesigned interface. By team decision it is plain TypeScript + Vite + Bun (WebGL2 sand rendering, hand-drawn icons), not SvelteKit or shadcn-svelte; the SvelteKit and shadcn-svelte rules above apply to `frontend/`. Read `interfaz/README.md` and `interfaz/DIARIO.md` before changing it.
-- Rumbo ships inside the `web` image and is served at `/rumbo/`. It reads the bundle from `/data/v1/` and its derived data (`params.json`, `indice-empresas.json`, `products/`, `horizons/`) from `/data/rumbo/`, mounted from `/opt/quantum-churros/rumbo`. Never put Rumbo files inside the engine bundle: that changes its `bundle_id` and breaks the bundle integrity check.
+- Read `frontend/README.md` and `frontend/DIARIO.md` before changing Rumbo.
+- Rumbo ships as the root application in the `web` image. It reads the bundle from `/data/v1/` and its derived data (`params.json`, `indice-empresas.json`, `products/`, `horizons/`) from `/data/rumbo/`, mounted from `/opt/quantum-churros/rumbo`. Never put Rumbo files inside the engine bundle: that changes its `bundle_id` and breaks the bundle integrity check.
 - Rumbo never falls back to invented data: a missing file is shown as missing. The synthetic portfolio exists only in development (`?datos=sinteticos`); `bun run build:despliegue` fails if it, any data file, a hard-coded entity id or a third-party request reaches the build.
 
 ## Pre-redesign UI catalog

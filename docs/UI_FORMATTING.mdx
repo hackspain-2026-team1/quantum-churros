@@ -3,7 +3,7 @@
 Single source of truth for how numbers, currency, dates and text are rendered across the
 Embat X-Ray frontend. Every agent that touches UI copy, metrics, charts or tables MUST
 follow these rules. When a rule is ambiguous, prefer the option that matches the existing
-`es-ES` presentation already used in `frontend/src/lib/xray/diagnosis-view.svelte`.
+`es-ES` presentation already implemented in `frontend/src/datos/formato.ts`.
 
 ## 1. Locale baseline
 
@@ -64,8 +64,7 @@ const euro = (value: number, digits = 2) =>
 
 - Use `Intl.DateTimeFormat('es-ES', …)` — never manual `dd/mm` concatenation.
 - Full period: `septiembre de 2026`.
-- Month axis in charts: `09/26` (two-digit month / two-digit year), already implemented in
-  `trajectory-chart.svelte`.
+- Month axis in charts: `09/26` (two-digit month / two-digit year), implemented through the shared frontend formatting layer.
 - Ranges use an en dash: `jun–sep 2026`.
 - Written dates in running text: `07/12/2021` (two-digit day, four-digit year, slash
   separators) or `07/dic/2021`. File names use the inverse form `aaaa-mm-dd` so alphabetical
@@ -113,7 +112,7 @@ non-technical readers; the same rules apply whatever company or product template
 
 ## 10. Implementation rules
 
-- Put shared formatters in one module, e.g. `frontend/src/lib/format.ts`, and import them.
+- Put shared formatters in `frontend/src/datos/formato.ts` and import them.
   Do not duplicate `Intl.NumberFormat` calls per component.
 - Components receive numbers and format at render time; the API keeps sending raw numbers.
 - Any new numeric UI is checked against these rules before merging.

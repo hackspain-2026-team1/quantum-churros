@@ -69,24 +69,8 @@ jobs:
         working-directory: frontend
         run: bun install --frozen-lockfile
 
-      - name: Check and lint frontend
+      - name: Check and build frontend
         working-directory: frontend
-        run: bun run check && bun run lint
-
-      - name: Install Playwright browser
-        working-directory: frontend
-        run: bunx playwright install --with-deps chromium
-
-      - name: Test frontend
-        working-directory: frontend
-        run: bun run test
-
-      - name: Install Rumbo dependencies
-        working-directory: interfaz
-        run: bun install --frozen-lockfile
-
-      - name: Check and build Rumbo
-        working-directory: interfaz
         run: bun run check && bun run build:despliegue
 
   build-images:
