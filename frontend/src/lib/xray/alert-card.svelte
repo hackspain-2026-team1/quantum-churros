@@ -108,6 +108,32 @@
 			<h3 class="leading-6 font-semibold">{alert.title}</h3>
 			<p class="text-sm leading-6 text-muted-foreground">{humanizeMonths(alert.detail)}</p>
 
+			{#if (alert.actions?.length ?? 0) > 0 || (alert.financing?.length ?? 0) > 0}
+				<div class="flex flex-wrap items-center gap-2 pt-1" data-testid="alert-levers">
+					<span class="text-xs font-medium text-muted-foreground">Qué hacer:</span>
+					{#each alert.actions ?? [] as action (action.id)}
+						<a
+							class="inline-flex max-w-72 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:bg-muted"
+							href={href}
+							title={`${action.pillar} · ${action.title}`}
+						>
+							<span class="truncate">{action.title}</span>
+							<ChevronRight class="size-3.5 shrink-0" />
+						</a>
+					{/each}
+					{#each alert.financing ?? [] as item (item.id)}
+						<a
+							class="inline-flex max-w-72 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:bg-muted"
+							href={href}
+							title={`${item.kind} · ${item.title}`}
+						>
+							<span class="truncate">{item.title}</span>
+							<ChevronRight class="size-3.5 shrink-0" />
+						</a>
+					{/each}
+				</div>
+			{/if}
+
 			{#if muted}
 				<div
 					class={cn(

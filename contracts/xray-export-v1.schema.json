@@ -1550,6 +1550,64 @@
               }
             }
           ]
+        },
+        "actions": {
+          "description": "Optional. The suggested actions of that entity-month that attack this alert's cause (title only, at most 2).",
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "pillar",
+              "title"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pillar": {
+                "$ref": "#/$defs/pillarKey"
+              },
+              "title": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        "financing": {
+          "description": "Optional. The financing instruments of that entity-month that attack this alert's cause (title only, at most 2).",
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "kind",
+              "title"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "enum": [
+                  "factoring",
+                  "confirming",
+                  "line",
+                  "restructure",
+                  "sweep"
+                ]
+              },
+              "title": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
         }
       },
       "if": {

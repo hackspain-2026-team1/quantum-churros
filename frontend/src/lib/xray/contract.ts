@@ -210,6 +210,16 @@ export const suppressedBySchema = z.object({
 	until: month.nullable()
 });
 
+export const alertLeverSchema = z.object({
+	id: z.string().min(1).max(80),
+	pillar: pillarKey,
+	title: text
+});
+export const alertFinancingSchema = z.object({
+	id: z.string().min(1).max(80),
+	kind: z.enum(['factoring', 'confirming', 'line', 'restructure', 'sweep']),
+	title: text
+});
 export const alertSchema = z
 	.object({
 		id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}:[0-9]{4}-(0[1-9]|1[0-2]):[a-z_]+$/),
@@ -222,7 +232,9 @@ export const alertSchema = z
 		title: text,
 		detail: text,
 		shown: scoreTenths,
-		suppressed_by: suppressedBySchema.nullable()
+		suppressed_by: suppressedBySchema.nullable(),
+		actions: z.array(alertLeverSchema).max(2).optional(),
+		financing: z.array(alertFinancingSchema).max(2).optional()
 	})
 	.refine((alert) => (alert.state === 'fired') === (alert.suppressed_by === null), {
 		message: 'suppressed_by is set exactly when the alert is not fired'

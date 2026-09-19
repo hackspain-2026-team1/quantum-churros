@@ -665,6 +665,57 @@ def _truth(card: Any, last: EntityMonth, codes: Mapping[str, Mapping[str, str]])
 # --------------------------------------------------------------------------
 
 
+# Which pillars an alert's cause lives in: the join between the alert stream
+# and the action system. Structural alerts name the pillars that moved, a fired
+# cap names its rule, and everything else attacks the pillars pulling the score
+# down. The team can grow the alert catalogue: each new kind lands here with
+# its cause, and the actions that attack it appear on the alert automatically.
+_CAP_RULE_PILLARS = {"negative_liquidity": ("liquidity",), "weak_payments": ("payments",)}
+_FINANCING_PILLARS = {
+    "factoring": "collections",
+    "confirming": "payments",
+    "line": "liquidity",
+    "restructure": "debt",
+    "sweep": "liquidity",
+}
+
+
+def _attack_pillars(kind: str, entry: Mapping[str, Any]) -> list[str]:
+    verdict = entry["verdict"]
+    if kind in ("deterioration_structural", "improvement_structural") and verdict["pillars_moved"]:
+        return list(verdict["pillars_moved"])
+    if kind == "cap_fired":
+        return list(_CAP_RULE_PILLARS.get(entry["cap"]["rule"] or "", ()))
+    # level_critical and structural without a named pillar: the weak ones
+    return [p["key"] for p in entry["pillars"] if p["score"] is not None and p["score"] < 600]
+
+
+def _enrich_alerts(alerts: list[dict[str, Any]], entries: dict[tuple[str, str], list[dict[str, Any]]]) -> None:
+    """Attach the actions and financing that attack each alert's cause."""
+    for alert in alerts:
+        if alert["state"] != "fired":
+            continue
+        months = entries.get((alert["entity_kind"], alert["entity_id"]), [])
+        entry = next((m for m in months if m["month"] == alert["month"]), None)
+        if entry is None:
+            continue
+        attacked = _attack_pillars(alert["kind"], entry)
+        actions = [
+            {"id": a["id"], "pillar": a["pillar"], "title": a["title"]}
+            for a in entry.get("actions", [])
+            if a["pillar"] in attacked
+        ][:2]
+        financing = [
+            {"id": f["id"], "kind": f["kind"], "title": f["title"]}
+            for f in entry.get("financing", [])
+            if _FINANCING_PILLARS.get(f["kind"]) in attacked
+        ][:2]
+        if actions:
+            alert["actions"] = actions
+        if financing:
+            alert["financing"] = financing
+
+
 def _alert(alert: Any, shown: int) -> dict[str, Any]:
     muted = alert.suppressed_by
     return {
@@ -973,6 +1024,7 @@ def export_bundle(
         ),
         key=lambda item: (item["month"], item["id"]),
     )
+    _enrich_alerts(alerts, entries)
     alerts_of: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for alert in alerts:
         alerts_of[alert["entity_id"]].append(alert)
