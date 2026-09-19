@@ -117,7 +117,7 @@ daily-core: eval-phase-a ## Alias: Fase A local completa
 daily-core-docker: eval-phase-a-docker ## Alias: Fase A con PostgreSQL
 
 .PHONY: export
-export: ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE (EVIDENCE_MONTHS of evidence per entity)
+export: validate ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE (EVIDENCE_MONTHS of evidence per entity)
 	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out $(XRAY_OUT) --export-dir $(XRAY_BUNDLE) --evidence-months $(EVIDENCE_MONTHS)
 
 .PHONY: db-migrate

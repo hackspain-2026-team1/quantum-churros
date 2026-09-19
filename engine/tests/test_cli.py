@@ -112,6 +112,28 @@ def test_fit_reference_then_predict_with_the_new_file(synthetic, tmp_path) -> No
     assert set(pl.read_parquet(tmp_path / "out" / "scores.parquet")["params_hash"]) == {params.sha256}
 
 
+def test_validation_report_is_embedded_in_a_bundle_with_matching_params(synthetic, tmp_path) -> None:
+    artifacts = tmp_path / "artifacts"
+    validation = runner.invoke(app, [
+        "validate", str(synthetic.path), "--out", str(artifacts / "validation.json"), "--quick",
+        "--cache-dir", str(tmp_path / "cache"),
+    ])
+    assert validation.exit_code == 0, validation.output
+
+    exported = runner.invoke(app, [
+        "predict", str(synthetic.path), "--out", str(artifacts),
+        "--export-dir", str(tmp_path / "bundle"), "--cache-dir", str(tmp_path / "cache"),
+    ])
+    assert exported.exit_code == 0, exported.output
+    report = json.loads((artifacts / "validation.json").read_text(encoding="utf-8"))
+    receipt = json.loads((tmp_path / "bundle" / "receipt.json").read_text(encoding="utf-8"))
+    assert receipt["params_hash"] == report["params_hash"]
+    assert receipt["dataset_hash"] == report["dataset_hash"]
+    assert {item["key"]: item["status"] for item in receipt["checks"]} == {
+        item["key"]: item["status"] for item in report["checks"]
+    }
+
+
 def test_export_command_writes_the_bundle(synthetic, tmp_path) -> None:
     done = runner.invoke(app, [
         "export", str(synthetic.path), "--export-dir", str(tmp_path / "bundle"),
