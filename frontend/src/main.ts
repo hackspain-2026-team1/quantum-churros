@@ -178,7 +178,8 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 		irCartera: (v) => S.fijar({ vista: v ?? S.e.cartera }, true),
 		esMovil: () => M.movil,
 		corte: () => c.months[ctxDe(S.e.q).corte],
-		desde: () => c.months[ctxDe(S.e.q).primerMes],
+		// Solo cuando la regla abre un intervalo: con un mes suelto, el gráfico enseña toda la historia.
+		desde: () => (S.e.q.desde < S.e.q.hasta ? c.months[ctxDe(S.e.q).primerMes] : ''),
 		imprimir: () => imprimir(),
 		hilo: (hs) => arena.hilos(hs),
 	}) : null;

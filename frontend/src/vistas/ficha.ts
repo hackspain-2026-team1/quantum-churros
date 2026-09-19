@@ -193,7 +193,7 @@ export interface OpcionesGrafico {
 	/** Un pilar señalado desde la sección de scoring. */
 	pilar: string | null;
 	alto: number;
-	/** Primer mes del intervalo de la regla: el gráfico empieza ahí. */
+	/** Primer mes del intervalo de la regla; vacío si la regla está en un mes suelto. */
 	desde?: string;
 	alHilo?: (hs: Hilo[]) => void;
 	/** Tocar la arena del futuro o una etiqueta elige el escenario más cercano. */
@@ -696,40 +696,50 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const recs = recomendaciones({ mes: m, man: d.man, tenencia: tenenciaDe(d), perfil: d.ent.profile, papel: d.kind === 'company' ? (d.ent as EmpresaM).role : null, heredaLiquidez: d.kind === 'company' ? (d.ent as EmpresaM).inherits_liquidity : false });
 	const sel = acc.horizonte.elegidas();
 	const lista = h('ol', { class: 'recomendaciones' });
+	const cabezaLista = h('div', { class: 'rec-cab', 'aria-hidden': 'true' },
+		h('span', {}, 'Ver'), h('span', {}, 'Qué hacer'), h('span', {}, 'Cómo va'), h('span', { class: 'der' }, 'Si se hace'));
 	const estadosG = leerEstados();
 	recs.forEach((r, i) => {
 		const a = r.accion;
 		const clave = `${d.id}:${d.corte}:${a.id}`;
-		const marca = h('input', { type: 'checkbox', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
-		const fijarMarca = (v: boolean) => { marca.checked = v; acc.horizonte.alternar(a.id, v); li.classList.toggle('elegida', v); };
+		// La casilla es lo primero de la fila y es lo que la lleva al horizonte. Es una casilla de verdad
+		// (teclado, lectores de pantalla), pero dibujada por nosotros, no la del sistema operativo.
+		const marca = h('input', { type: 'checkbox', class: 'rec-tick', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
+		const fijarMarca = (v: boolean) => {
+			marca.checked = v;
+			acc.horizonte.alternar(a.id, v);
+			li.classList.toggle('elegida', v);
+		};
 		marca.addEventListener('change', () => fijarMarca(marca.checked));
+		marca.addEventListener('click', (ev) => ev.stopPropagation());
 		// «Propuesta» es la palabra del comercial; para quien la va a hacer, está pendiente.
 		const estadoSel = desplegable<EstadoAccion>({
-			etiqueta: 'Estado de la acción', clase: 'sutil', valor: estadosG[clave] ?? 'propuesta',
+			etiqueta: 'Estado de la acción', valor: estadosG[clave] ?? 'propuesta',
 			opciones: (['propuesta', 'en curso', 'hecha'] as EstadoAccion[]).map((x) => ({ valor: x, texto: x === 'propuesta' ? voz('propuesta', 'pendiente') : x })),
 			alElegir: (v) => { guardarEstado(clave, v); li.dataset.estado = v; },
 		});
 		estadoSel.raiz.addEventListener('click', (ev) => ev.stopPropagation());
+		estadoSel.raiz.addEventListener('keydown', (ev) => ev.stopPropagation());
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 24, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
-		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id },
-			h('label', { class: 'rec-marca' }, marca, h('span', { class: 'rec-n' }, String(i + 1))),
+		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id, 'data-estado': estadosG[clave] ?? 'propuesta' },
+			h('span', { class: 'rec-marca' }, marca, h('span', { class: 'rec-orden', 'aria-hidden': 'true' }, String(i + 1))),
 			h('div', { class: 'rec-cuerpo' },
 				h('div', { class: 'rec-titulo' }, tituloAccion(a)),
 				h('p', { class: 'rec-texto' }, r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a)),
 				h('p', { class: 'rec-hechos' }, efectoAccion(d, a) ?? '', ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
 				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
-			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
-			h('div', { class: 'rec-estado' }, estadoSel.raiz));
+			h('div', { class: 'rec-estado' }, estadoSel.raiz),
+			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')));
 		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija — también al pulsar la fila.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
-		li.addEventListener('click', (e) => { if ((e.target as Element).closest('.rec-marca')) return; fijarMarca(!marca.checked); });
+		li.addEventListener('click', (e) => { if ((e.target as Element).closest('.rec-estado')) return; fijarMarca(!marca.checked); });
 		lista.append(li);
 	});
 	const base = d.hor?.scenarios?.base;
 	if (base && hayFuturo(d)) {
 		const peor = base.cross && base.cross.dir === 'down';
-		const nada = h('li', { class: 'rec nada' }, h('span', { class: 'rec-marca' }, h('span', { class: 'rec-n' }, '—')),
+		const nada = h('li', { class: 'rec nada' }, h('span', { class: 'rec-marca' }, h('span', { class: 'rec-orden', 'aria-hidden': 'true' }, '—')),
 			h('div', { class: 'rec-cuerpo' }, h('div', { class: 'rec-titulo' }, 'No hacer nada'),
 				h('p', { class: 'rec-hechos' }, `a seis meses, entre ${f.score(base.q.p10[5])} y ${f.score(base.q.p90[5])}; lo más probable, ${f.score(base.q.p50[5])}`, peor && base.cross!.prob !== null ? ` · ${f.porcentaje(base.cross!.prob, 0)} de pasar a ${nombreBanda(d.man, base.cross!.to).toLowerCase()} hacia ${f.mes(base.cross!.month)}` : '')));
 		nada.addEventListener('pointerenter', () => acc.horizonte.previa([]));
@@ -744,7 +754,7 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		h('button', { type: 'button', class: 'boton-propuesta' }, voz('Armar propuesta al cliente', 'Mi plan para el banco')),
 	);
 	cabeceraAcciones.querySelector('button')!.addEventListener('click', () => abrirPropuesta(d, acc.horizonte.elegidas(), acc));
-	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), cabeceraAcciones, lista));
+	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), cabeceraAcciones, recs.length ? cabezaLista : null, lista));
 	if (d.kind === 'group') raiz.append(seccion(voz('Lo que proponen sus empresas', 'Lo que puede hacer cada una de tus empresas'), accionesEmpresas(d, acc)));
 	return raiz;
 }
