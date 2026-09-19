@@ -186,8 +186,6 @@ export interface OpcionesGrafico {
 	/** Acciones fijadas y en vista previa. */
 	acciones: Set<string>;
 	previa: string[] | null;
-	/** Los «qué pasaría si» que se ven, como líneas. */
-	supuestos: Set<'drift' | 'stress'>;
 	/** Un pilar señalado desde la sección de scoring. */
 	pilar: string | null;
 	alto: number;
@@ -244,6 +242,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const marcas: [number, number][] = [];
 	const etFuturo: { t: string; clase: string } = { t: '', clase: '' };
 	const boyas: { h: number; texto: string; titulo?: string }[] = [];
+	const HITOS = [3, 6, 12];
 	const alternativas: { texto: string; clase: string; v: number }[] = [];
 	const validado = d.validado || 12;
 	const base = d.hor?.scenarios?.base;
@@ -251,52 +250,48 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	if (esScore && hayFuturo(d) && base) {
 		const vivas = new Set([...o.acciones, ...(o.previa ?? [])]);
 		const accs = (d.hor!.actions ?? []).filter((a) => vivas.has(a.id));
-		const conValidez = (e: EscenarioM, tono: number, alfa: number): Futuro[] => {
-			// Más allá de lo validado, la arena se aclara: el modelo no se ha podido comprobar ahí.
-			const dentro = e.grains.filter(([m]) => m <= validado), fuera = e.grains.filter(([m]) => m > validado);
-			const r: Futuro[] = [{ granos: dentro, tono, alfa, mediana: e.q.p50 }];
-			if (fuera.length) r.push({ granos: fuera, tono, alfa: alfa * 0.35 });
-			return r;
-		};
+		// La franja de la previsión y su mediana; más allá de lo validado, se aclara.
+		const abanico = (e: EscenarioM, tono: number, alfa: number): Futuro => ({ granos: [], tono, alfa, mediana: e.q.p50, franja: e.q, validado, hitos: HITOS });
 		if (accs.length) {
 			// «No hacer nada» queda como contorno fantasma; las acciones, en azul, con su mediana.
 			lineas.push({ puntos: base.q.p10.map((v, i) => [hoy + i + 1, v / 10]), tono: TONO.apagado, alfa: 0.7, punteada: true });
 			lineas.push({ puntos: base.q.p90.map((v, i) => [hoy + i + 1, v / 10]), tono: TONO.apagado, alfa: 0.7, punteada: true });
 			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...base.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: TONO.apagado, alfa: 0.8, punteada: true });
 			const principal = accs.length === 1 ? accs[0] : accs.reduce((a, b) => (a.q.p50[5] > b.q.p50[5] ? a : b));
-			for (const a of accs) futuros.push(...conValidez(a, TONO.info, a === principal ? 0.72 : 0.3).map((x) => (a === principal ? x : { ...x, mediana: undefined })));
+			// La principal, con su franja; las demás marcadas, solo su mediana.
+			for (const a of accs) futuros.push(a === principal ? abanico(a, TONO.info, 0.72) : { granos: [], tono: TONO.info, alfa: 0.15, mediana: a.q.p50 });
 			const lag = Math.max(...accs.map((a) => a.lag_months));
 			const ids = accs.map((a) => a.id).sort().join();
 			const cifra = accs.length === 1 ? accs[0].engine_new_score : d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids)?.new_score;
 			if (cifra !== undefined) marcas.push([hoy + lag, cifra / 10]);
-			for (const hz of [3, 6, 12]) {
+			for (const hz of HITOS) {
 				const k = hz - 1;
 				const dif = Math.round((principal.q.p50[k] - base.q.p50[k]) / 10);
-				boyas.push({ h: hz, texto: `${hz === 12 ? 'un año' : `${hz} meses`}: ${f.score(base.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana sin hacer nada → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
+				boyas.push({ h: hz, texto: `${f.score(base.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana sin hacer nada → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
 			}
 			etFuturo.t = o.previa?.length && !o.previa.every((x) => o.acciones.has(x)) ? 'vista previa · con esta acción' : accs.length > 1 ? `con ${accs.length} acciones` : 'con la acción marcada';
 			etFuturo.clase = 'con-acciones';
 		} else {
-			futuros.push(...conValidez(base, TONO.tinta, 0.5));
-			for (const hz of [3, 6, 12]) {
+			futuros.push(abanico(base, TONO.tinta, 0.55));
+			for (const hz of HITOS) {
 				const k = hz - 1;
 				const b = base.bands[`h${hz}` as 'h3' | 'h6' | 'h12'];
-				boyas.push({ h: hz, texto: `${hz === 12 ? 'un año' : `${hz} meses`}: ${q6(base, k)}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
+				boyas.push({ h: hz, texto: `${f.score(base.q.p50[k])} · ${q6(base, k)}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
 			}
 			etFuturo.t = 'lo que puede pasar';
 		}
 		for (const k of ['drift', 'stress'] as const) {
 			const e = d.hor!.scenarios![k];
-			if (!e || !o.supuestos.has(k)) continue;
+			if (!e) continue;
 			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...e.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: k === 'drift' ? TONO.tellme : TONO.ocre, alfa: 0.9, punteada: true });
 			alternativas.push({ texto: `${NOMBRE_SUPUESTO[k]} · ${f.score(e.q.p50[11])}`, clase: `esc-${k}`, v: e.q.p50[11] / 10 });
 		}
 	} else if (esScore && d.pasados?.cuts[d.corte]) {
 		// La regla está en un mes pasado: lo que el modelo preveía entonces (sin ver lo que vino después).
 		const pc = d.pasados.cuts[d.corte];
-		futuros.push({ granos: pc.grains, tono: TONO.tinta, alfa: 0.42, mediana: pc.q.p50 });
+		futuros.push({ granos: [], tono: TONO.tinta, alfa: 0.5, mediana: pc.q.p50, franja: pc.q, hitos: HITOS });
 		etFuturo.t = `lo que se preveía en ${f.mesCorto(d.corte)}`;
-		for (const hz of [3, 6]) if (hz <= pc.months.length) boyas.push({ h: hz, texto: `${hz} meses: ${q6(pc, hz - 1)}` });
+		for (const hz of HITOS) if (hz <= pc.months.length) boyas.push({ h: hz, texto: `${f.score(pc.q.p50[hz - 1])} · ${q6(pc, hz - 1)}` });
 	}
 
 	// Dominio: el score siempre de 0 a 100 (las formas se comparan entre páginas).
@@ -336,7 +331,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	for (const b of d.man.bands) if (esScore && b.min > 0) eti('eje-banda', b.label.toLowerCase(), '100%', Y((b.min + (d.man.bands[d.man.bands.indexOf(b) + 1]?.min ?? 1000)) / 20));
 	if (esScore) eti('eje-banda', d.man.bands[0].label.toLowerCase(), '100%', Y(d.man.bands[1].min / 20));
 	eti('eje-titulo-v', esScore ? 'score' : unidad === 'EUR' ? 'euros' : unidad || 'valor', '0', '0');
-	cal.forEach((m, i) => { if (Math.abs(i - hoy) > 3 && (i - hoy) % 3 === 0) eti(`eje-m ${i > hoy ? 'fut' : ''}`, f.mesCorto(m), X(i), '100%'); });
+	// Con horizontes, el futuro se rotula con ellos y no con los meses: así no se pisan.
+	cal.forEach((m, i) => { if (Math.abs(i - hoy) > 3 && (i - hoy) % 3 === 0 && !(i > hoy && boyas.length)) eti(`eje-m ${i > hoy ? 'fut' : ''}`, f.mesCorto(m), X(i), '100%'); });
 	const etHoy = h('span', { class: 'g-etq eje-hoy' }, h('i', { class: 'asa-mini', 'aria-hidden': 'true' }, h('b'), h('b'), h('b')), `hoy · ${f.mesCorto(d.corte)}`);
 	etHoy.style.left = X(hoy); caja.append(etHoy);
 	// Las dos zonas, rotuladas: lo que ha pasado y lo que puede pasar.
@@ -345,7 +341,12 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	if (etFuturo.t) { const zf = eti(`zona-t futuro ${etFuturo.clase}`, etFuturo.t, `${((hoy + 1) / columnas) * 100}%`, '0'); void zf; }
 	if (despues.length && esScore) eti('zona-t despues', 'lo que pasó después', X(Math.min(columnas - 1, hoy + 1)), '14px');
 	if (esScore && hayFuturo(d) && validado < 12) { const ev = eti('sin-validar', 'sin validar', X(hoy + validado + 1), '0'); ev.title = `La previsión está validada fuera de muestra hasta ${validado} meses. Más allá, el modelo no se ha podido comprobar con lo que pasó.`; }
-	for (const b of boyas) { const el = eti(`boya h${b.h} ${b.h === 12 ? 'fin' : ''}`, b.texto, X(hoy + b.h), '100%'); if (b.titulo) el.title = b.titulo; }
+	// Los horizontes, todos a la vista y en una fila: cuándo y qué se espera (mediana · franja del 80 %).
+	for (const b of boyas) {
+		const el = eti(`boya h${b.h} ${b.h === 12 ? 'fin' : ''}`, '', X(hoy + b.h), '100%');
+		el.append(h('b', {}, b.h === 12 ? 'un año' : `${b.h} meses`), h('span', {}, b.texto));
+		el.title = [cal[hoy + b.h] ? f.mes(cal[hoy + b.h]) : '', b.titulo].filter(Boolean).join(' · ');
+	}
 	let ultimoY = -Infinity;
 	for (const a of alternativas.sort((x, y) => y.v - x.v)) {
 		const yPx = Math.max((1 - (a.v - lo) / (hi - lo)) * o.alto, ultimoY + 14);

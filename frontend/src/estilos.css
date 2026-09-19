@@ -3549,3 +3549,20 @@ body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina
 .cv-etq.lee { fill: var(--tinta); font-weight: 600; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
 .curva.leyendo .cv-guia-lee, .curva.leyendo .cv-pto-lee, .curva.leyendo .cv-etq.lee { opacity: 1; }
 .curva.leyendo .cv-etq.aqui { opacity: 0.25; }
+
+/* ─── Horizonte: los tres horizontes en una fila, siempre a la vista ─── */
+.g-etq.boya, .g-etq.boya.h3, .g-etq.boya.h6 {
+	transform: translate(-50%, 24px); display: grid; justify-items: center; gap: 1px; border: 0; padding: 0;
+	font: 400 11px/1.25 var(--sans); color: var(--tinta-2); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.g-etq.boya.fin { transform: translate(-100%, 24px); justify-items: end; border: 0; padding: 0; }
+.g-etq.boya b { font: italic 400 12px var(--serif); color: var(--apagado); }
+.esc.leyenda { cursor: help; }
+.esc.leyenda:hover { color: var(--apagado); }
+.escenarios .esc.leyenda { background: none; }
+/* En pantallas estrechas no caben en una fila: tres meses a la izquierda de su raya, seis debajo. */
+@media screen and (max-width: 699px) {
+	.g-etq.boya.h3 { transform: translate(-100%, 24px); justify-items: end; }
+	.g-etq.boya.h6 { transform: translate(-50%, 54px); }
+	.horizonte .grafico { margin-bottom: 88px; }
+}

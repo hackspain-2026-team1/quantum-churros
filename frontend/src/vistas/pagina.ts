@@ -54,7 +54,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	let clave = '';
 	let datos: DatosFicha | null = null;
 	const financiacion = crearFinanciacion(S, () => cb.alCambiarArena());
-	const estadoUI = { metrica: 'score', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, supuestos: new Set<'drift' | 'stress'>(), filtro: null as FiltroEvidencia | null, ancla: null as string | null };
+	const estadoUI = { metrica: 'score', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, filtro: null as FiltroEvidencia | null, ancla: null as string | null };
 	let accionPendiente: string | null = null;
 
 	const acc: Acciones = {
@@ -90,7 +90,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		temporizadorH = window.setTimeout(() => {
 			const d = datos!;
 			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
-			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, acciones: estadoUI.acciones, previa: estadoUI.previa, supuestos: estadoUI.supuestos, pilar: estadoUI.pilar, alto, alHilo: (hs) => cb.hilo(hs) }, true));
+			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, alHilo: (hs) => cb.hilo(hs) }, true));
 			pintarControles(d);
 			cb.alCambiarArena();
 		}, estadoUI.previa || estadoUI.pilar ? 40 : 0);
@@ -102,11 +102,10 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		selM.addEventListener('change', () => { estadoUI.metrica = selM.value; pintarHorizonte(); });
 		controles.append(selM);
 		if (estadoUI.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte) {
+			// Los dos supuestos se dibujan siempre: esto es su leyenda.
 			const sup = h('div', { class: 'escenarios', role: 'group', 'aria-label': 'Qué pasaría si' }, h('span', { class: 'esc-t' }, 'qué pasaría si'));
 			for (const k of ['drift', 'stress'] as const) {
-				const b = h('button', { type: 'button', class: `esc esc-${k} ${estadoUI.supuestos.has(k) ? 'activo' : ''}`, 'aria-pressed': String(estadoUI.supuestos.has(k)), title: k === 'drift' ? 'Prolonga su pendiente de 12 meses. No es una predicción.' : 'Resta a la previsión su peor caída de tres meses del último año. No es una predicción.' }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), k === 'drift' ? 'sigue la deriva' : 'se repite su peor trimestre');
-				b.addEventListener('click', () => { if (estadoUI.supuestos.has(k)) estadoUI.supuestos.delete(k); else estadoUI.supuestos.add(k); pintarHorizonte(); });
-				sup.append(b);
+				sup.append(h('span', { class: `esc esc-${k} activo leyenda`, title: k === 'drift' ? 'Prolonga su pendiente de 12 meses. No es una predicción.' : 'Resta a la previsión su peor caída de tres meses del último año. No es una predicción.' }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), k === 'drift' ? 'sigue la deriva' : 'se repite su peor trimestre'));
 			}
 			controles.append(sup);
 		}
@@ -396,7 +395,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		hoja.append(h('header', { class: 'informe-cab' },
 			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
 			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
-		hoja.append(cabecera(d, false), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', acciones: new Set(estadoUI.acciones), previa: null, supuestos: new Set(estadoUI.supuestos), pilar: null, alto: 240 }, true)));
+		hoja.append(cabecera(d, false), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', acciones: new Set(estadoUI.acciones), previa: null, pilar: null, alto: 240 }, true)));
 		for (const sec of SECCIONES) {
 			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, NOMBRE_SECCION[sec]));
 			cuerpo.append(contenidoSeccion(d, sec, quieto, null, d.kind === 'group' && sec === 'scoring' ? flota(d) : null));

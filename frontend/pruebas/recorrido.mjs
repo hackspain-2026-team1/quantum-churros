@@ -210,15 +210,9 @@ comprobar('la gráfica tiene sus ejes: score de 0 a 100 y los meses', await p.ev
 	comprobar('pasar por la gráfica deja caer el hilo de arena y lee el mes', /\d/.test(lectura) && await p.evaluate(() => !window.xray.arena.apartar), lectura);
 	await p.mouse.move(5, 5);
 }
-// Los tres escenarios a la vez; elegir otro reorganiza la arena.
-if (await p.$('.esc-drift')) {
-	await p.click('.esc-drift');
-	await esperar(600);
-	const pulsado = await p.$eval('.esc-drift', (x) => x.getAttribute('aria-pressed'));
-	comprobar('«qué pasaría si» se añade como línea, aparte de la previsión', pulsado === 'true' && (await p.$$('.grafico .g-etq.alternativa')).length === 1);
-	await p.click('.esc-drift');
-	await esperar(300);
-}
+// Los horizontes y los supuestos, siempre a la vista: nada se esconde tras un botón.
+comprobar('los tres horizontes se rotulan a la vez', (await p.$$('.escenario .g-etq.boya')).length === 3);
+if (await p.$('.esc-drift')) comprobar('«qué pasaría si» se dibuja siempre como línea, aparte de la previsión', (await p.$$('.escenario .g-etq.alternativa')).length === (await p.$$('.escenario .esc.leyenda')).length);
 // La regla en un mes pasado: toda la aplicación lo dice y el horizonte enseña lo que se preveía entonces.
 await p.evaluate(() => document.activeElement?.blur());
 await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft');

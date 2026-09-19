@@ -25,6 +25,12 @@ export interface Futuro {
 	alfa: number;
 	/** Mediana mes a mes (décimas), dibujada como hilo. */
 	mediana?: number[];
+	/** La franja de la previsión (décimas, mes a mes): el 50 % central punteado y los bordes del 80 %. */
+	franja?: { p10: number[]; p25: number[]; p75: number[]; p90: number[] };
+	/** Meses validados: más allá, la franja se aclara. */
+	validado?: number;
+	/** Horizontes señalados sobre la mediana (meses). */
+	hitos?: number[];
 	/** Columna desde la que empieza (por defecto, la de hoy). */
 	desde?: number;
 }
@@ -201,14 +207,40 @@ function serie(l: Lote, s: PlacaSerie) {
 	// Futuro: arena suelta, pero precisa: cada trayectoria cae en su mes, sin salirse de la columna.
 	for (const fu of s.futuros ?? []) {
 		const c0 = fu.desde ?? s.hoy;
+		const ini = s.pasado.filter((q) => q[1] !== null && q[0] === c0).at(-1)?.[1] ?? (fu.mediana ? fu.mediana[0] / 10 : 0);
+		// El valor de un cuantil en un mes fraccionario (0 = hoy, donde todas las franjas nacen del score).
+		const en = (arr: number[], m: number) => {
+			if (m <= 0) return ini;
+			const k = Math.min(arr.length, m), a = Math.floor(k), u = k - a;
+			const va = a === 0 ? ini : arr[a - 1] / 10, vb = arr[Math.min(arr.length, a + 1) - 1] / 10;
+			return va + (vb - va) * u;
+		};
+		if (fu.franja) {
+			// Una retícula regular, sin azar: el 50 % central, punteado; los bordes del 80 %, en fino.
+			const fr = fu.franja, paso = 3.2, xa = X(c0), meses = fr.p10.length;
+			for (let x = xa + paso; x <= X(c0 + meses) + 0.01; x += paso) {
+				const m = (x - xa) / cw;
+				const a = fu.alfa * (m > (fu.validado ?? meses) ? 0.4 : 1);
+				const y75 = Y(en(fr.p75, m)), y25 = Y(en(fr.p25, m));
+				for (let y = Math.ceil(y75 / paso) * paso; y <= y25; y += paso) l.add([x, y], fu.tono, a * 0.7, 1.35);
+				l.add([x, Y(en(fr.p10, m))], fu.tono, a * 0.9, 1.2);
+				l.add([x, Y(en(fr.p90, m))], fu.tono, a * 0.9, 1.2);
+			}
+		}
 		for (const [m, d] of fu.granos) {
 			const x0 = X(c0 + m), y0 = Y(d / 10);
 			for (let k = 0; k < 3; k++) l.add([x0 + (Math.random() - 0.5) * cw * 1.05, y0 + (Math.random() - 0.5) * 3], fu.tono, fu.alfa, 1.55);
 		}
 		if (fu.mediana) {
-			const ini = s.pasado.filter((q) => q[1] !== null && q[0] === c0).at(-1)?.[1] ?? fu.mediana[0] / 10;
 			const pts = [X(c0), Y(ini), ...fu.mediana.flatMap((d, i) => [X(c0 + i + 1), Y(d / 10)])];
 			l.add(linea(pts, Math.round(s.w * 0.7), 0.9), fu.tono, Math.min(1, fu.alfa + 0.4), 1.45);
+			// Los horizontes: una raya fina de borde a borde de la franja y la mediana, marcada.
+			for (const hz of fu.hitos ?? []) {
+				if (hz > fu.mediana.length) continue;
+				const x = X(c0 + hz);
+				if (fu.franja) l.add(punteado(x, Y(fu.franja.p90[hz - 1] / 10), x, Y(fu.franja.p10[hz - 1] / 10), 2.6), TONO.tinta, 0.75, 1.2);
+				l.add(disco(x, Y(fu.mediana[hz - 1] / 10), 3.4, 22), fu.tono === TONO.info ? TONO.info : TONO.tinta, 1, 1.5);
+			}
 		}
 	}
 	for (const [c, v] of s.marcas ?? []) l.add(anillo(X(c), Y(v), 6.5, 42, 0.9), TONO.info, 1, 1.5);
