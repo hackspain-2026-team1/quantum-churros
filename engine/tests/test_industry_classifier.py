@@ -1,5 +1,7 @@
+import os
 from pathlib import Path
 
+import pytest
 from xray_engine.industry_classifier import (
     CLASSIFIER_VERSION,
     RulesClassifierStrategy,
@@ -8,7 +10,9 @@ from xray_engine.industry_classifier import (
     dataset_fingerprint,
 )
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
+# real dataset only: run with XRAY_DATA=<folder> (see the `dataset` marker)
+DATA_DIR = Path(os.environ.get("XRAY_DATA", "data/raw"))
+pytestmark = pytest.mark.dataset
 
 
 def test_dataset_fingerprint_is_stable() -> None:

@@ -1,16 +1,14 @@
 [project]
 name = "xray-engine"
 version = "0.1.0"
-description = "Temporal and explainable financial health scoring engine"
+description = "Deterministic and explainable financial health measurement engine"
 requires-python = ">=3.12"
 dependencies = [
-    "catboost>=1.2.8",
     "numpy>=2.0",
     "pandas>=2.2",
     "polars>=1.35.2",
     "pyarrow>=20.0",
     "pydantic>=2.12.4",
-    "scikit-learn>=1.6",
     "scipy>=1.15",
     "typer>=0.16.0",
 ]

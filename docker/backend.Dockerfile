@@ -5,6 +5,7 @@ ENV PYTHONUNBUFFERED=1
 COPY pyproject.toml uv.lock ./
 COPY backend ./backend
 COPY engine ./engine
+COPY params ./params
 RUN uv sync --locked --package quantum-churros-api --no-dev
 USER nobody
 EXPOSE 8000

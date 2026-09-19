@@ -1,6 +1,8 @@
 .DEFAULT_GOAL := help
 
 COMPOSE := docker compose -f compose.yaml -f compose.dev.yaml
+XRAY_DATA ?= data/raw
+XRAY_BUNDLE ?= frontend/static/data/v1
 
 .PHONY: dev
 dev: ## Build and start the complete development stack
@@ -37,13 +39,28 @@ test-backend: ## Run API tests
 test-frontend: ## Type-check and test the frontend
 	cd frontend && bun run check && bun run test
 
-.PHONY: train
-train: ## Train and validate the temporal scoring model
-	uv run --package xray-engine xray-score train data/raw --model-dir artifacts/model
+.PHONY: test-engine-data
+test-engine-data: ## Run the engine tests that need the real dataset (XRAY_DATA=<folder>)
+	XRAY_DATA=$(XRAY_DATA) uv run --package xray-engine pytest engine/tests -m dataset
+
+.PHONY: fit-reference
+fit-reference: ## Measure and freeze params/reference_v1.json from XRAY_DATA
+	uv run --package xray-engine xray-score fit-reference $(XRAY_DATA) --out params/reference_v1.json
+
+.PHONY: predict
+predict: ## Score every group and company of XRAY_DATA into artifacts/
+	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out artifacts
 
 .PHONY: score
-score: ## Score the dataset mounted under data/raw
-	uv run --package xray-engine xray-score score data/raw --model-dir artifacts/model --output artifacts/scores.parquet
+score: predict ## Alias of predict
+
+.PHONY: validate
+validate: ## Run the label-free validation suite and write artifacts/validation.json
+	uv run --package xray-engine xray-score validate $(XRAY_DATA) --out artifacts/validation.json
+
+.PHONY: export
+export: ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE
+	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out artifacts --export-dir $(XRAY_BUNDLE)
 
 .PHONY: db-migrate
 db-migrate: ## Apply pending Alembic migrations

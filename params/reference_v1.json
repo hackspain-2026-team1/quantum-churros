@@ -1,0 +1,253 @@
+{
+  "activity": {
+    "base_months": 9,
+    "min_base_months": 4,
+    "min_months_observed": 7,
+    "recent_months": 3
+  },
+  "alerts": {
+    "critical_score": 35.0,
+    "perimeter_quiet_months": 2
+  },
+  "anchors": {
+    "activity": [[0.4, 0.0], [0.6, 20.0], [0.8, 45.0], [1.0, 70.0], [1.2, 85.0], [1.5, 100.0]],
+    "collections": [[-10.0, 100.0], [0.0, 80.0], [15.0, 70.0], [30.0, 50.0], [60.0, 40.0], [90.0, 30.0], [120.0, 20.0]],
+    "debt_dscr": [[0.8, 10.0], [1.0, 35.0], [1.25, 60.0], [2.0, 90.0], [3.0, 100.0]],
+    "debt_utilisation": [[0.0, 100.0], [0.5, 75.0], [0.8, 50.0], [0.95, 25.0], [1.0, 10.0]],
+    "liquidity": [[0.0, 0.0], [13.0, 35.0], [27.0, 60.0], [62.0, 85.0], [120.0, 100.0]],
+    "payments": [[-10.0, 100.0], [0.0, 80.0], [15.0, 70.0], [30.0, 50.0], [60.0, 40.0], [90.0, 30.0], [120.0, 20.0]]
+  },
+  "caps": {
+    "lines_drawn_ceiling": 60.0,
+    "lines_drawn_threshold": 0.98,
+    "negative_liquidity_ceiling": 40.0,
+    "negative_liquidity_min_months": 3,
+    "negative_liquidity_window_months": 6,
+    "weak_pillar_ceiling": 50.0,
+    "weak_pillar_threshold": 25.0,
+    "weak_pillars": ["liquidity", "payments"]
+  },
+  "confidence": {
+    "abstain_below": 0.5,
+    "coverage": [[0.0, 0.0], [0.3, 0.5], [0.5, 0.7], [0.65, 0.85], [0.85, 0.95], [1.0, 1.0]],
+    "history": [[0.0, 0.0], [3.0, 0.4], [6.0, 0.7], [12.0, 0.9], [18.0, 1.0]],
+    "quality_cash_anchor": [[0.0, 0.5], [0.5, 0.8], [1.0, 1.0]],
+    "quality_fx_excluded": [[0.0, 1.0], [0.2, 0.8], [1.0, 0.3]],
+    "quality_uncategorised": [[0.0, 1.0], [0.3, 1.0], [0.6, 0.8], [1.0, 0.5]],
+    "stale_feed_factor": 0.6
+  },
+  "dash_rules": [
+    {
+      "exclude": "TARJETA|PROFESIONAL",
+      "id": "loan_installment",
+      "label": "debt_installment",
+      "pattern": "LIQU(ID)?\\.? ?(CUOTA )?PTMO|LIQUIDACION PERIODICA|CARGO POR AMORTIZACION|CUOTA NUMERO|GSL CUOTA|PRES\\.\\[NUM\\]|CUOTA (DE )?(PR[EÉ]STAMO|LEASING)|AMORTIZACI[OÓ]N (DE )?(PR[EÉ]STAMO|PTMO)",
+      "precision": null,
+      "sign": "negative",
+      "support": null
+    },
+    {
+      "exclude": "COMISI[OÓ]N",
+      "id": "loan_drawdown",
+      "label": "debt_drawdown",
+      "pattern": "DISPOSICI[OÓ]N",
+      "precision": null,
+      "sign": "positive",
+      "support": null
+    },
+    {
+      "exclude": null,
+      "id": "balance_adjustment",
+      "label": "balance_adjustment",
+      "pattern": "SCF-AJUS\\.? ?SALDO|AJUSTE (DE )?SALDO|REGULARIZACI[OÓ]N (DE )?SALDO",
+      "precision": null,
+      "sign": "any",
+      "support": null
+    },
+    {
+      "exclude": null,
+      "id": "internal_transfer",
+      "label": "internal_transfer",
+      "pattern": "TRASPASO",
+      "precision": null,
+      "sign": "any",
+      "support": null
+    },
+    {
+      "exclude": null,
+      "id": "social_security",
+      "label": "social_security",
+      "pattern": "SEG(UROS|URIDAD)?\\.? ?SOCIAL(ES)?|TGSS|TESORERIA GENERAL",
+      "precision": null,
+      "sign": "negative",
+      "support": null
+    },
+    {
+      "exclude": "DEVOLUCI",
+      "id": "tax",
+      "label": "tax",
+      "pattern": "AEAT|AGENCIA TRIBUTARIA|IMPUESTO|HACIENDA",
+      "precision": null,
+      "sign": "negative",
+      "support": null
+    },
+    {
+      "exclude": null,
+      "id": "salary",
+      "label": "salary",
+      "pattern": "N[OÓ]MINA",
+      "precision": null,
+      "sign": "negative",
+      "support": null
+    },
+    {
+      "exclude": null,
+      "id": "fee",
+      "label": "fee",
+      "pattern": "COMISI[OÓ]N",
+      "precision": null,
+      "sign": "negative",
+      "support": null
+    }
+  ],
+  "debt": {
+    "dscr_weight": 0.5,
+    "neutral_score": 75.0,
+    "utilisation_weight": 0.5,
+    "window_months": 12
+  },
+  "ewma_alpha": 0.5,
+  "fitted": false,
+  "fitted_on": null,
+  "flows": {
+    "cash_product_types": ["checking", "saving", "wallet"],
+    "debt_service_categories": ["debt_repayment", "debt_installment", "interest_charge"],
+    "drawdown_labels": ["debt_drawdown"],
+    "excluded_debt_types": ["guarantee"],
+    "op_inflow_categories": ["collection", "bulk_collection", "pos_settlement", "cash_settlement"],
+    "op_outflow_categories": ["payment", "bulk_payment", "salary", "tax", "social_security", "utility", "fee", "interest_charge"],
+    "pending_status": "pending",
+    "revolving_product_types": ["lineofcredit"],
+    "sentinel_abs_balance": 900000000.0
+  },
+  "fx": {
+    "base": "EUR",
+    "rates": {
+      "AED": 0.25,
+      "ARS": 0.001,
+      "AUD": 0.6,
+      "BRL": 0.17,
+      "CAD": 0.67,
+      "CHF": 1.05,
+      "CLP": 0.00098,
+      "COP": 0.00022,
+      "CZK": 0.04,
+      "DKK": 0.134,
+      "EUR": 1.0,
+      "GBP": 1.17,
+      "INR": 0.011,
+      "JPY": 0.006,
+      "MXN": 0.05,
+      "MYR": 0.2,
+      "NOK": 0.086,
+      "NZD": 0.55,
+      "PEN": 0.25,
+      "PLN": 0.23,
+      "SEK": 0.088,
+      "USD": 0.92
+    }
+  },
+  "invoices": {
+    "burn_in_months": 3,
+    "min_settlements": 10,
+    "observation_lag_days": 30,
+    "pooled_cohorts": 3,
+    "prior_days": {
+      "collections": 11.0,
+      "payments": 8.0
+    },
+    "settled_clip_days": [-30.0, 120.0],
+    "settlements_window_months": 6,
+    "shrinkage_pseudo_count": 5.0,
+    "stamped_share_max": 0.5,
+    "stamped_window_months": 12,
+    "unsettled_base_days": 30.0,
+    "unsettled_cap_days": 120.0
+  },
+  "liquidity": {
+    "days_per_month": 30.0,
+    "intra_min_weight": 0.4,
+    "month_end_weight": 0.6,
+    "outflow_window_months": 3,
+    "swept_group_cash_share_max": 0.1,
+    "swept_pairs_cash_share_max": 0.05,
+    "swept_pairs_min": 6,
+    "swept_zero_balance_share_min": 0.5,
+    "tiny_cash_share_max": 0.01,
+    "zero_balance_days_share": 0.5,
+    "zero_balance_relative": 0.01
+  },
+  "live_feed": {
+    "base_from_months": 12,
+    "base_to_months": 4,
+    "min_base_months": 3,
+    "recent_months": 3,
+    "threshold": 0.8
+  },
+  "mirror": {
+    "day_offsets": [0, 1, -1, 2, -2]
+  },
+  "penalty": {
+    "lam": 0.5,
+    "tau": 45.0
+  },
+  "psi": {
+    "edges": [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
+    "fitted": false,
+    "reference": {}
+  },
+  "reference": {
+    "fitted": false,
+    "medians": {
+      "activity": 60.0,
+      "collections": 60.0,
+      "debt": 60.0,
+      "liquidity": 60.0,
+      "payments": 60.0
+    }
+  },
+  "seasonality": {
+    "fitted": false,
+    "month_factors": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+  },
+  "sha256": "4eef3585f86abc9567fda657ecd89a2d4876fc6207513206ea7ffec63349e7ff",
+  "trajectory": {
+    "bump_revert_fraction": 0.5,
+    "bump_revert_months": 2,
+    "horizon_months": 3,
+    "min_delta_points": 6.0,
+    "min_months_observed": 6,
+    "min_sigma_multiple": 1.5,
+    "perimeter_quiet_months": 2,
+    "pillar_move_points": 5.0,
+    "sigma_floor": 2.0,
+    "structural_consecutive_months": 2,
+    "structural_min_pillars": 2,
+    "structural_required_pillar": "liquidity"
+  },
+  "version": "reference_v1",
+  "weights": {
+    "activity": 0.2,
+    "collections": 0.15,
+    "debt": 0.15,
+    "liquidity": 0.3,
+    "payments": 0.2
+  },
+  "winsor": {
+    "activity_ratio": [0.0, 3.0],
+    "buffer_days": [0.0, 720.0],
+    "days_beyond_terms": [-30.0, 120.0],
+    "dscr": [-5.0, 10.0],
+    "utilisation": [0.0, 3.0]
+  }
+}

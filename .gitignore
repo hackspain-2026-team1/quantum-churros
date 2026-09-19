@@ -19,6 +19,7 @@ data/external/*
 data/interim/*
 data/processed/*
 artifacts/*
+frontend/static/data/
 !data/**/.gitkeep
 !artifacts/.gitkeep
 
