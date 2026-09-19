@@ -525,6 +525,17 @@ button.miga-paso:hover { color: var(--tinta); border-bottom-color: var(--borde-2
 .cab-sub { color: var(--apagado); margin: 6px 0 12px; }
 .cab-explica { font: 400 18px/1.5 var(--serif); color: var(--tinta-2); max-width: 64ch; margin-top: 10px; }
 .cab-aviso { font-size: 12.5px; color: var(--apagado); margin-top: 8px; font-style: italic; }
+.monitor {
+	grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 4px 18px;
+	padding: 14px 16px; border: 1px solid var(--borde-2); border-left-width: 4px; border-radius: 12px;
+	background: var(--aviso-s);
+}
+.monitor b { font: 600 17px var(--serif); }
+.monitor p { color: var(--tinta-2); line-height: 1.5; }
+.monitor .as-enlace { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.monitor.sube { border-left-color: var(--exito); background: var(--exito-s); }
+.monitor.baja { border-left-color: var(--peligro); background: var(--peligro-s); }
+.monitor.fase-observando, .monitor.fase-pausa { border-left-color: var(--aviso); background: var(--aviso-s); }
 
 /* Línea de estado: sustituye a las píldoras. */
 .linea-estado { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; color: var(--tinta-2); }

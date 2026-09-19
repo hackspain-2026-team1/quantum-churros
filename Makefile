@@ -26,6 +26,10 @@ logs: ## Follow service logs
 status: ## Show service and health status
 	$(COMPOSE) ps
 
+.PHONY: mailpit-notify
+mailpit-notify: ## Reset Mailpit and capture demo emails from the latest fired close
+	$(COMPOSE) run --rm notifier
+
 .PHONY: test
 test: test-engine test-backend test-frontend ## Run every test suite
 

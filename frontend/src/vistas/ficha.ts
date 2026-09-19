@@ -14,6 +14,7 @@ import type {
 } from '../datos/contrato';
 import { estadosProductos, recomendaciones, type EstadoProducto } from '../datos/encaje';
 import { f, primeraMayuscula } from '../datos/formato';
+import { senalMonitor } from '../datos/monitor';
 import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
 import { ESFUERZO, ESTADO_AVISO, explicacionAccion, lineaAvisoM, movimiento, nombreBanda, nombrePilar, tituloAccion } from '../datos/redaccion';
 import type { Seccion } from '../estado';
@@ -90,7 +91,7 @@ export interface Acciones {
 	repintarArena(): void;
 }
 
-export function cabecera(d: DatosFicha, movil: boolean): HTMLElement {
+export function cabecera(d: DatosFicha, movil: boolean, acc: Acciones): HTMLElement {
 	const nombre = nombreEntidad(d.kind, d.id);
 	const numero = h('div', { class: 'cab-numeral', 'aria-label': d.mes ? `Score ${f.score(d.mes.shown)}` : 'Sin score' });
 	if (d.mes) placa(numero, (c) => ({ tipo: 'numeral', x: c.x - 2, y: c.y, h: c.h, texto: f.score(d.mes!.shown) }));
@@ -110,9 +111,32 @@ export function cabecera(d: DatosFicha, movil: boolean): HTMLElement {
 			d.mes ? lineaEstado(d.man, d.mes, notaConflicto(d)) : h('p', { class: 'cab-vacio' }, `Sin datos en ${f.mes(d.corte)}.`),
 			d.mes ? h('p', { class: 'cab-explica' }, explicacion(d)) : null,
 			d.kind === 'group' ? h('p', { class: 'cab-aviso' }, 'El score del grupo se calcula sumando los flujos de todas sus empresas; no es la media de sus scores.') : null,
-		));
+		),
+		monitorProactivo(d, acc));
 	void movil;
 	return cab;
+}
+
+function monitorProactivo(d: DatosFicha, acc: Acciones): HTMLElement | null {
+	const s = senalMonitor(d.mes, d.ent.alerts, d.id);
+	if (!s || !d.mes) return null;
+	const mejora = s.direccion === 'improving';
+	const movimiento = mejora ? 'mejora estructural' : 'deterioro estructural';
+	const titulo = s.fase === 'nueva' ? `Alerta nueva: ${movimiento}`
+		: s.fase === 'activa' ? `Señal activa: ${movimiento}`
+			: s.fase === 'pausa' ? `Aviso en pausa: ${movimiento}`
+				: `Movimiento ${mejora ? 'positivo' : 'negativo'} en observación`;
+	const texto = s.fase === 'nueva' && s.alerta ? s.alerta.detail
+		: s.fase === 'activa' ? `El cambio sigue presente desde ${f.mes(s.desde ?? d.corte)} y acumula ${f.plural(d.mes.verdict.persistence_months, 'cierre', 'cierres')} de persistencia.`
+			: s.fase === 'pausa' ? 'El motor reconoce el cambio, pero el aviso está silenciado o en abstención.'
+				: 'Todavía no hay evidencia suficiente para tratar el movimiento como estructural ni avisar por correo.';
+	const boton = s.alerta ? h('button', { type: 'button', class: 'as-enlace' }, 'Abrir en la bandeja') : null;
+	boton?.addEventListener('click', () => acc.irSeccion('tecnico'));
+	return h('aside', {
+		class: `monitor ${mejora ? 'sube' : 'baja'} fase-${s.fase}`,
+		'data-monitor-phase': s.fase,
+		'aria-live': s.fase === 'nueva' ? 'polite' : 'off',
+	}, h('b', {}, titulo), h('p', {}, texto), boton);
 }
 
 /** La frase del motor cuando la deriva de 12 meses y el horizonte corto se contradicen. */
