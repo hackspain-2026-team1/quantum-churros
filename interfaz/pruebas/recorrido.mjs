@@ -65,6 +65,7 @@ comprobar('arranca en la entrada', (await estado(p)).vista === 'entrada');
 comprobar('los datos son los del motor', (await p.$eval('.nota-datos', (x) => x.textContent)).includes('datos reales'));
 await hasta(p, () => document.querySelectorAll('.atencion li.tocable').length > 0);
 comprobar('«las que piden atención hoy» sale de los datos', (await p.$$('.atencion li.tocable')).length > 0);
+comprobar('la portada no lleva regla ni reloj de arena', await p.evaluate(() => getComputedStyle(document.querySelector('.reproducir')).display === 'none' && getComputedStyle(document.querySelector('.regla')).display === 'none'));
 comprobar('la portada lleva la rosa de los vientos y no repite la marca en la cabecera', await p.evaluate(() => !!document.querySelector('.entrada-rosa[data-placa]') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'hidden'));
 // ─── 1b. El monitor ───────────────────────────────────────
 {
@@ -118,6 +119,7 @@ await p.keyboard.press('Enter');
 await hasta(p, () => document.querySelector('.hoja-ficha h1')?.textContent === 'Grupo 237');
 let e = await estado(p);
 comprobar('Enter abre la organización', e.vista === 'organizacion' && e.sel === 'GROUP_0237', `${e.vista} ${e.sel}`);
+comprobar('la regla del tiempo va arriba, pegada a la cabecera', await p.evaluate(() => document.querySelector('.regla').getBoundingClientRect().top < 90));
 comprobar('una sola cabecera: la miga va junto a la marca', await p.evaluate(() => !!document.querySelector('.barra .miga .miga-paso.actual') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'visible'));
 
 // ─── 2. La organización ────────────────────────────────────
@@ -158,7 +160,13 @@ comprobar('las recomendaciones son las acciones del motor', recs === (mesE.actio
 if (recs) {
 	await p.$eval('.recomendaciones .rec input[type=checkbox]', (x) => x.click());
 	await esperar(400);
-	comprobar('marcar una acción la lleva al horizonte', (await p.$eval('.frase-horizonte', (x) => x.textContent)).includes('Con esta acción'));
+	comprobar('marcar una acción la lleva al horizonte, que está siempre a la vista', await hasta(p, () => !!document.querySelector('.escenario .zona-t.con-acciones')));
+	// Tantear: pasar por otra acción la previsualiza y la arena del futuro se mueve.
+	const antesH = await p.evaluate(() => [...window.xray.arena.px.slice(0, 64000)]);
+	await p.hover('.recomendaciones .rec:not(.elegida):not(.nada)').catch(() => p.hover('.recomendaciones .rec.nada'));
+	await esperar(900);
+	const movidos = await p.evaluate((a) => { const b = window.xray.arena.px; let n = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 2) n++; return n; }, antesH);
+	comprobar('pasar por una acción mueve el horizonte al instante', movidos > 100, `${movidos} granos se mueven`);
 }
 await foto(p, '05-empresa-acciones');
 
@@ -186,20 +194,37 @@ comprobar('las curvas son las de los parámetros verificados', (await p.$$('.fig
 await foto(p, '06-empresa-tecnico');
 
 await p.keyboard.press('1');
-await hasta(p, () => !!document.querySelector('.cifras-c'));
-comprobar('el scoring enseña el previsto a seis meses', (await p.$eval('.cifras-c', (x) => x.textContent)).includes('previsto a seis meses'));
+await hasta(p, () => !!document.querySelector('.boya.h6'));
+comprobar('el horizonte enseña el previsto a seis meses', (await p.$eval('.boya.h6', (x) => x.textContent)).startsWith('6 meses'));
+comprobar('la gráfica tiene sus ejes: score de 0 a 100 y los meses', await p.evaluate(() => [...document.querySelectorAll('.escenario .g-etq.eje-v')].map((x) => x.textContent).join() === '0,20,40,60,80,100' && document.querySelectorAll('.escenario .g-etq.eje-m').length >= 6));
+// El hilo de arena: al pasar por la gráfica cae un hilo y se lee el valor; la arena no se aparta.
+{
+	const bb = await (await p.$('.escenario .grafico-arena')).boundingBox();
+	await esperar(400);
+	await p.mouse.move(bb.x + bb.width * 0.4, bb.y + bb.height * 0.5);
+	await p.mouse.move(bb.x + bb.width * 0.42, bb.y + bb.height * 0.5, { steps: 3 });
+	await esperar(500);
+	const lectura = await p.$eval('.escenario .g-lectura', (x) => x.textContent);
+	comprobar('pasar por la gráfica deja caer el hilo de arena y lee el mes', /\d/.test(lectura) && await p.evaluate(() => !window.xray.arena.apartar), lectura);
+	await p.mouse.move(5, 5);
+}
 // Los tres escenarios a la vez; elegir otro reorganiza la arena.
 if (await p.$('.esc-drift')) {
-	comprobar('los escenarios alternativos se ven a la vez', (await p.$$('.grafico .g-etq.alternativa')).length === 2);
-	const antes = await p.evaluate(() => [...window.xray.arena.px.slice(0, 40000)]);
 	await p.click('.esc-drift');
-	await esperar(900);
-	const cambio = await p.evaluate((a) => { const b = window.xray.arena.px; let n = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 2) n++; return n; }, antes);
-	const elegido = await p.$eval('.esc-drift', (x) => x.getAttribute('aria-checked'));
-	comprobar('elegir un escenario reorganiza la arena', elegido === 'true' && cambio > 500, `${cambio} granos se mueven`);
-	await p.click('.esc-base');
+	await esperar(600);
+	const pulsado = await p.$eval('.esc-drift', (x) => x.getAttribute('aria-pressed'));
+	comprobar('«qué pasaría si» se añade como línea, aparte de la previsión', pulsado === 'true' && (await p.$$('.grafico .g-etq.alternativa')).length === 1);
+	await p.click('.esc-drift');
 	await esperar(300);
 }
+// La regla en un mes pasado: toda la aplicación lo dice y el horizonte enseña lo que se preveía entonces.
+await p.evaluate(() => document.activeElement?.blur());
+await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft');
+await hasta(p, () => document.body.dataset.viaje === '1' && !!document.querySelector('.escenario .zona-t.futuro')?.textContent.startsWith('lo que se preveía'), 9000);
+const viaje = await p.evaluate(() => [document.querySelector('.regla-viaje').textContent, document.querySelector('.escenario .zona-t.futuro')?.textContent ?? '', window.xray.S.e.q.hasta]);
+comprobar('mover la regla hacia atrás cambia la ficha y lo dice', viaje[0].startsWith('Viendo') && viaje[1].startsWith('lo que se preveía'), viaje.join(' · '));
+await p.click('.regla-viaje');
+await hasta(p, () => document.body.dataset.viaje !== '1');
 // El informe para imprimir: las cuatro secciones, con la arena cocida en imágenes.
 await p.evaluate(() => dispatchEvent(new Event('beforeprint')));
 const inf = await p.evaluate(() => ({ secciones: document.querySelectorAll('.capa-informe .informe-seccion').length, arena: document.querySelectorAll('.capa-informe .arena-impresa').length }));
@@ -259,7 +284,7 @@ comprobar('ninguna petición a terceros', p.fuera.length === 0, p.fuera.slice(0,
 // ─── 6. Móvil ──────────────────────────────────────────────
 const m = await pagina('&v=empresa&g=GROUP_0237&emp=COMP_0023', 390, 844, true);
 await hasta(m, () => !!document.querySelector('.hoja-ficha.company'));
-comprobar('en el móvil la empresa cabe en el ancho', await m.evaluate(() => document.querySelector('.pagina').scrollWidth <= innerWidth + 1));
+comprobar('en el móvil la empresa cabe en el ancho', await m.evaluate(() => document.querySelector('.pagina-cuerpo').scrollWidth <= innerWidth + 1));
 await foto(m, '11-movil-empresa');
 const mm = await pagina('&v=plano', 390, 844, true);
 await mm.tap('.ficha-quien');

@@ -107,7 +107,7 @@ export interface Entidad {
 	avisos: Alerta[];
 	/** Todos los avisos de la entidad hasta el corte. */
 	historia: Alerta[];
-	hz: { p50: number | null; pCritico: number | null; cruce: { to: Banda; month: string; prob: number } | null } | null;
+	hz: { p50: number | null; pCritico: number | null; cruce: { to: Banda; month: string; prob: number | null } | null } | null;
 	/** 0 entra en crítico · 1 deterioro · 2 crítico y baja · 3 hacia crítico · 4 golpe por confirmar · 5 resto de críticas · 6 el resto. */
 	nivel: number;
 	motivo: string;

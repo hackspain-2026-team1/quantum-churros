@@ -67,7 +67,7 @@ export function seccionTecnica(d: DatosFicha, acc: Acciones, filtro: FiltroEvide
 		['Historia × cobertura × calidad', `${f.porcentaje(m.conf.history, 0)} × ${f.porcentaje(m.conf.coverage, 0)} × ${f.porcentaje(m.conf.quality, 0)} = ${f.porcentaje(m.conf.value, 0)}`],
 		['Etiqueta', `${({ high: 'alta', medium: 'media', low: 'baja' } as Record<string, string>)[m.conf.label]}${conf?.label_high_min ? ` (alta desde ${f.porcentaje(conf.label_high_min, 0)}, media desde ${f.porcentaje(conf.label_medium_min ?? 0, 0)})` : ''}`],
 		['Abstención', m.abstain ? `${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason} Qué la levantaría: ${m.abstain.unlock}` : 'no se abstiene'],
-	]), h('p', { class: 'nota' }, 'La confianza acompaña al score y nunca lo modifica.')));
+	])));
 
 	// 5. El hilo entero.
 	raiz.append(seccion('El hilo del score', hilo(nudosScore(d, acc))));
@@ -119,7 +119,7 @@ function bandejaAvisos(d: DatosFicha, todos: AlertaM[]): HTMLElement {
 	};
 	triaje.oir(() => { if (caja.isConnected) pintar(); });
 	pintar();
-	caja.append(pestanas, lista, h('p', { class: 'nota' }, 'Disparados, silenciados (con el porqué al pasar por encima) y sin veredicto: los silenciados se enseñan, no se esconden. La clasificación se guarda en este navegador y se comparte entre pestañas.'));
+	caja.append(pestanas, lista);
 	return caja;
 }
 
@@ -165,7 +165,7 @@ function curvas(d: DatosFicha): HTMLElement {
 }
 
 function curva(titulo: string, tabla: Tabla, x: number | null, unidad: string, pilar: number | null, nota?: string): HTMLElement {
-	const W = 260, H = 110, pad = 22;
+	const W = 280, H = 128, pad = 24;
 	const xs = tabla.map((p) => p[0]);
 	let x0 = Math.min(...xs), x1 = Math.max(...xs);
 	if (x !== null) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
@@ -173,7 +173,7 @@ function curva(titulo: string, tabla: Tabla, x: number | null, unidad: string, p
 	const raiz = x1 - x0 > 150 && x0 >= 0;
 	const tx = (v: number) => (raiz ? Math.sqrt(Math.max(0, v - x0)) / Math.sqrt(x1 - x0) : (v - x0) / (x1 - x0 || 1));
 	const X = (v: number) => pad + tx(v) * (W - pad - 8);
-	const Y = (s: number) => H - 18 - (s / 100) * (H - 30);
+	const Y = (s: number) => H - 18 - (s / 100) * (H - 34);
 	const s = document.createElementNS(NS, 'svg');
 	s.setAttribute('viewBox', `0 0 ${W} ${H}`); s.setAttribute('class', 'curva'); s.setAttribute('role', 'img');
 	s.setAttribute('aria-label', `${titulo}: curva de puntuación del motor`);
@@ -182,8 +182,10 @@ function curva(titulo: string, tabla: Tabla, x: number | null, unidad: string, p
 	s.append(sv('polyline', { points: puntos.map((p) => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' '), class: 'cv-linea' }));
 	for (const p of tabla) s.append(sv('circle', { cx: X(p[0]), cy: Y(p[1]), r: 1.8, class: 'cv-ancla' }));
 	const et = (tx_: number, ty: number, t: string, cl = 'cv-etq') => { const e = sv('text', { x: tx_, y: ty, class: cl }); e.textContent = t; s.append(e); };
-	et(pad - 4, Y(100) + 3, '100', 'cv-etq der'); et(pad - 4, Y(0) + 3, '0', 'cv-etq der');
-	et(X(x0), H - 4, f.numero(x0, 1)); et(X(x1), H - 4, f.numero(x1, 1), 'cv-etq fin');
+	for (const v of [0, 50, 100]) { et(pad - 4, Y(v) + 3, String(v), 'cv-etq der'); if (v === 50) s.append(sv('line', { x1: pad, y1: Y(v), x2: W - 8, y2: Y(v), class: 'cv-rejilla' })); }
+	const medio = raiz ? x0 + (x1 - x0) / 4 : (x0 + x1) / 2;
+	for (const [v, cl] of [[x0, 'cv-etq'], [medio, 'cv-etq'], [x1, 'cv-etq fin']] as const) { et(X(v), H - 4, f.numero(v, Math.abs(v) < 10 ? 1 : 0), cl); s.append(sv('line', { x1: X(v), y1: Y(0), x2: X(v), y2: Y(0) + 3, class: 'cv-eje' })); }
+	et(pad + 2, Y(100) - 2, 'pilar', 'cv-etq titulo'); et(W - 8, H - 14, unidad, 'cv-etq fin titulo');
 	if (x !== null) {
 		const sc = interp(tabla, x);
 		s.append(sv('line', { x1: X(x), y1: Y(0), x2: X(x), y2: Y(sc), class: 'cv-guia' }), sv('circle', { cx: X(x), cy: Y(sc), r: 4, class: 'cv-aqui' }));
@@ -247,51 +249,25 @@ function evidencia(d: DatosFicha, filtro: FiltroEvidencia | null): HTMLElement {
 function supuestos(d: DatosFicha): HTMLElement {
 	const caja = h('div', { class: 'supuestos' });
 	const hz = d.hor;
-	if (!hz) { caja.append(h('p', { class: 'aviso-datos' }, 'Falta rumbo/horizons/ para esta entidad: ejecuta scripts/datos/horizontes.py.')); return caja; }
-	if (!hz.scenarios) { caja.append(h('p', {}, `Sin horizonte: ${hz.reason ?? 'la entidad no tiene score vivo en el corte'}.`)); return caja; }
-	const nuevo = hz as unknown as { model?: { version: string; trained_until?: string }; explain_h6?: { variable: string; points: number }[] };
-	if (nuevo.model) {
-		// forecast-v1: regresión cuantílica calibrada. Se enseña qué empuja su previsión a seis meses.
-		caja.append(dl([
-			['Modelo', `${nuevo.model.version}, entrenado hasta ${nuevo.model.trained_until ? f.mes(nuevo.model.trained_until) : '—'}: predice el cambio del score a cada horizonte y calibra la franja con lo que pasó de verdad`],
-			['Qué empuja su previsión a seis meses', (nuevo.explain_h6 ?? []).map((x) => `${x.variable} ${f.signo(x.points, 1)}`).join(' · ') || '—'],
-			['Bundle de origen', `${hz.bundle_id.slice(0, 12)}${hz.bundle_id === d.man.bundle_id ? ' (el mismo que se ve)' : ' · distinto del que se ve: vuelve a generar los horizontes'}`],
-		]));
-		const val = h('div', { class: 'calibracion' });
-		caja.append(val);
-		void carga.horizontesIndice().then((ix) => {
-			const v = (ix as unknown as { validation?: { cortes?: string[]; por_horizonte?: Record<string, { n: number; error_mediana: number; error_sin_cambio: number; acierta_50: number; acierta_80: number }> } } | null)?.validation;
-			if (!v?.por_horizonte) return;
-			const fila = (k: string, nombre: string): [string, string] => { const x = v.por_horizonte![k]; return [nombre, x ? `la franja del 50 % acierta el ${f.porcentaje(x.acierta_50, 0)} y la del 80 %, el ${f.porcentaje(x.acierta_80, 0)}; la mediana se equivoca en ${f.numero(x.error_mediana, 1)} puntos, frente a ${f.numero(x.error_sin_cambio, 1)} de suponer que nada cambia (${f.numero(x.n)} casos)` : '—']; };
-			val.append(h('p', {}, h('b', {}, 'Prueba hacia atrás'), ` en ${f.plural(v.cortes?.length ?? 0, 'corte', 'cortes')}, comparando con lo que pasó de verdad:`), dl([fila('h3', 'A tres meses'), fila('h6', 'A seis meses'), fila('h12', 'A un año')]),
-				h('p', { class: 'nota' }, `Comprobaciones: ${Object.entries((ix as unknown as { checks?: Record<string, string> }).checks ?? {}).map(([k2, x]) => `${k2.replace(/_/g, ' ')} ${x}`).join(' · ')}.`));
-		});
-		return caja;
-	}
-	const me = (hz.method ?? {}) as { sims?: number; block?: number; phi?: number; widen_k?: number; lags?: Record<string, number>; median_window?: number };
+	if (!hz) { caja.append(h('p', { class: 'aviso-datos' }, 'Falta rumbo/horizons/ para esta entidad: el motor la genera con xray-score forecast.')); return caja; }
+	if (!hz.scenarios) { caja.append(h('p', {}, `Sin previsión: ${d.man.glossary.reasons[hz.reason_code ?? ''] ?? 'la entidad no tiene score vivo en el corte'}.`)); return caja; }
 	caja.append(dl([
-		['Simulaciones', `${f.numero(me.sims ?? 0)} trayectorias de 12 meses desde ${f.mes(hz.cut)}`],
-		['Qué se simula', 'las métricas de entrada de los pilares (colchón, días sobre vencimiento, cobertura, impulso, carga de la deuda) con bloques de 3 meses de su propia historia; cada mes simulado se puntúa con las funciones del motor (compute_pillars y aggregate)'],
-		['Vuelta a su nivel', `φ = ${f.numero(me.phi ?? 0, 2)} hacia su mediana de ${f.numero(me.median_window ?? 12)} meses`],
-		['Ensanchado', `k = ${f.numero(me.widen_k ?? 1, 2)} (lo que hizo falta para que la franja del 80 % acierte el 80 % en la prueba hacia atrás)`],
-		['Cuánto tarda cada acción', Object.entries(me.lags ?? {}).map(([p, n]) => `${nombrePilar(d.man, p).toLowerCase()} ${f.plural(n, 'mes', 'meses')}`).join(' · ')],
-		['Bundle de origen', `${hz.bundle_id.slice(0, 12)}${hz.bundle_id === d.man.bundle_id ? ' (el mismo que se ve)' : ' · distinto del que se ve: vuelve a generar los horizontes'}`],
+		['Modelo', `${hz.model?.version ?? '—'}, entrenado con la historia de la cartera hasta ${f.mes(hz.model?.trained_until ?? hz.cut)}`],
+		['Qué predice', 'el cambio del score a 1–12 meses, con su franja (cuantiles 10, 25, 50, 75 y 90); un modelo por horizonte'],
+		['Validado hasta', `${f.plural(d.validado, 'mes', 'meses')}, fuera de muestra`],
+		['Bundle de origen', `${hz.bundle_id.slice(0, 12)}${hz.bundle_id === d.man.bundle_id ? ' (el mismo que se ve)' : ' · distinto del que se ve: vuelve a generar la previsión'}`],
 	]));
-	const indice = h('div', { class: 'calibracion' }, h('p', { class: 'nota' }, 'Cargando la calibración…'));
+	if (hz.explain_h6?.length) caja.append(h('p', {}, h('b', {}, 'Qué empuja su previsión a seis meses'), ' (puntos): ', hz.explain_h6.map((x) => `${x.variable} ${f.delta(Math.round(x.points * 10))}`).join(' · ')));
+	const indice = h('div', { class: 'calibracion' }, h('p', { class: 'nota' }, 'Cargando la validación…'));
 	caja.append(indice);
 	void carga.horizontesIndice().then((ix) => {
 		vaciar(indice);
-		if (!ix) { indice.append(h('p', { class: 'nota' }, 'Sin índice de horizontes.')); return; }
-		if (!ix.calibration) { indice.append(h('p', { class: 'nota' }, 'El índice de horizontes no trae la prueba hacia atrás.')); return; }
-		const c = ix.calibration as { h3?: { cov50: number; cov80: number; n: number }; h6?: { cov50: number; cov80: number; n: number }; mae_median?: number; mae_naive?: number; mae_median_drift?: number; eval_cut?: string; drift_cov?: { h6?: { cov80: number } } };
-		indice.append(h('p', {}, h('b', {}, 'Prueba hacia atrás'), ` desde ${c.eval_cut ? f.mes(c.eval_cut) : '—'}, comparando con lo que pasó de verdad:`),
-			dl([
-				['A tres meses', c.h3 ? `la franja del 50 % acierta el ${f.porcentaje(c.h3.cov50, 0)} y la del 80 %, el ${f.porcentaje(c.h3.cov80, 0)} (${f.numero(c.h3.n)} casos)` : '—'],
-				['A seis meses', c.h6 ? `la franja del 50 % acierta el ${f.porcentaje(c.h6.cov50, 0)} y la del 80 %, el ${f.porcentaje(c.h6.cov80, 0)} (${f.numero(c.h6.n)} casos)` : '—'],
-				['Error de la mediana', c.mae_median !== undefined ? `${f.numero(c.mae_median, 1)} puntos, frente a ${f.numero(c.mae_naive ?? 0, 1)} de suponer que no cambia nada: mejora poco, porque el score se mueve mucho mes a mes` : '—'],
-				['Si sigue la deriva', c.mae_median_drift !== undefined ? `error de ${f.numero(c.mae_median_drift, 1)} puntos y su franja del 80 % acierta el ${f.porcentaje(c.drift_cov?.h6?.cov80 ?? 0, 0)}: es un «qué pasaría si», no una predicción` : '—'],
-			]),
-			h('p', { class: 'nota' }, `Comprobaciones: ${Object.entries(ix.checks ?? {}).map(([k2, x]) => `${k2.replace(/_/g, ' ')} ${x}`).join(' · ')}.`));
+		const r = ix?.validation.corte_de_referencia;
+		if (!ix || !r) return;
+		indice.append(dl([
+			[`Desde ${f.mes(r.corte)}, a 3 y 6 meses`, `se equivoca ${f.numero(r.error_mediana, 1)} puntos de media, frente a ${f.numero(r.error_sin_cambio, 1)} de suponer que no cambia nada; la franja del 80 % acierta el ${f.porcentaje(r.acierta_80, 0)} (${f.numero(r.n)} casos)`],
+			['Comprobaciones', Object.entries(ix.checks).map(([k, v]) => `${k.replace(/_/g, ' ')} ${v}`).join(' · ')],
+		]));
 	});
 	return caja;
 }

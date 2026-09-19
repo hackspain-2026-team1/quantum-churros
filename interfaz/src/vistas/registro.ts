@@ -30,6 +30,20 @@ export function medirPlacas(contenedor: HTMLElement): Placa[] {
 	return salida;
 }
 
+/** Las placas fijas en pantalla (el protagonista de la ficha): coordenadas de pantalla, marcadas fijas. */
+export function medirFijas(contenedor: HTMLElement): Placa[] {
+	const salida: Placa[] = [];
+	contenedor.querySelectorAll('[data-placa]').forEach((el) => {
+		const f = hacedores.get(el);
+		if (!f) return;
+		const r = el.getBoundingClientRect();
+		if (!r.width || !r.height) return;
+		const p = f({ x: r.left, y: r.top, w: r.width, h: r.height });
+		if (p) salida.push({ ...p, fijo: true });
+	});
+	return salida;
+}
+
 /** La placa de un hueco con una caja dada (para dibujarla fuera de la arena, en el informe). */
 export function hacerPlaca(el: Element, c: Caja): Placa | null {
 	return hacedores.get(el)?.(c) ?? null;

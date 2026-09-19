@@ -59,13 +59,13 @@ export function granos3(label: string): SVGSVGElement {
 const CONFIANZA: Record<string, string> = { high: 'alta', medium: 'media', low: 'baja' };
 
 /** La línea de estado. `nota` es la frase del motor cuando los dos horizontes se contradicen. */
-export function lineaEstado(man: Manifiesto, m: MesM, nota?: string | null): HTMLElement {
+export function lineaEstado(man: Manifiesto, m: MesM, nota?: string | null, sinBanda = false): HTMLElement {
 	const partes: (Node | string)[] = [];
-	partes.push(h('span', { class: 'le-banda', title: `Bandas del motor: ${man.bands.map((b) => `${b.label} desde ${f.score(b.min)}`).join(', ')}` }, h('span', { class: 'versalita' }, nombreBanda(man, m.band)), ' ', h('b', {}, f.score(m.shown)), reglaBanda(man, m.shown, m.band)));
+	if (!sinBanda) partes.push(h('span', { class: 'le-banda', title: `Bandas del motor: ${man.bands.map((b) => `${b.label} desde ${f.score(b.min)}`).join(', ')}` }, h('span', { class: 'versalita' }, nombreBanda(man, m.band)), ' ', h('b', {}, f.score(m.shown)), reglaBanda(man, m.shown, m.band)));
+	if (!sinBanda) partes.push(h('span', { class: 'le-sep' }, '·'));
+	partes.push(h('span', { class: `le-mov ${m.verdict.direction}`, title: m.verdict.available ? `Δ3 ${m.verdict.delta3 === null ? '—' : f.delta(m.verdict.delta3)} frente a ${m.verdict.compared_to ? f.mes(m.verdict.compared_to) : '—'}` : (m.verdict.reason ?? 'Sin veredicto') }, flechaGranos(m.verdict.direction, m.verdict.nature), h('span', {}, movimiento(m))));
 	partes.push(h('span', { class: 'le-sep' }, '·'));
-	partes.push(h('span', { class: `le-mov ${m.verdict.direction}`, title: m.verdict.available ? `Δ3 ${m.verdict.delta3 === null ? '—' : f.delta(m.verdict.delta3)} frente a ${m.verdict.compared_to ? f.mes(m.verdict.compared_to) : '—'}` : (m.verdict.reason ?? 'Sin veredicto') }, flechaGranos(m.verdict.direction, m.verdict.nature), h('span', { class: 'versalita' }, movimiento(m))));
-	partes.push(h('span', { class: 'le-sep' }, '·'));
-	partes.push(h('span', { class: 'le-conf', title: `Confianza ${f.porcentaje(m.conf.value, 0)}: historia ${f.porcentaje(m.conf.history, 0)} × cobertura ${f.porcentaje(m.conf.coverage, 0)} × calidad ${f.porcentaje(m.conf.quality, 0)}. Nunca cambia el score.` }, h('span', { class: 'versalita' }, 'confianza'), ' ', granos3(m.conf.label), h('span', { class: 'le-conf-t' }, ` ${CONFIANZA[m.conf.label] ?? m.conf.label}`)));
+	partes.push(h('span', { class: 'le-conf', title: `Confianza ${f.porcentaje(m.conf.value, 0)}: historia ${f.porcentaje(m.conf.history, 0)} × cobertura ${f.porcentaje(m.conf.coverage, 0)} × calidad ${f.porcentaje(m.conf.quality, 0)}. Nunca cambia el score.` }, h('span', {}, 'confianza'), ' ', granos3(m.conf.label), h('span', { class: 'le-conf-t' }, ` ${CONFIANZA[m.conf.label] ?? m.conf.label}`)));
 	const linea = h('div', { class: 'linea-estado' }, ...partes);
 	if (nota) linea.append(h('div', { class: 'le-nota' }, nota));
 	return linea;

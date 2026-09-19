@@ -4,20 +4,20 @@ import '@fontsource-variable/schibsted-grotesk';
 import './estilos.css';
 
 import { Arena } from './arena/arena';
-import { escenaPlano, escenaTapiz, nGranos, ordenarVisibles, type Fila, type Posicion } from './arena/escenas';
+import { escenaPlano, escenaTapiz, nGranos, ordenarVisibles, reglaPagina, type Fila, type Posicion } from './arena/escenas';
 import { CORTE_SCORE, ESCALAS, ZONAS, conEscala, contexto, type Consulta, type Contexto, type Zona } from './datos/consulta';
 import { fmt, tendencia } from './datos/derivados';
 import type { Cartera } from './datos/modelo';
 import { carteraMotor, hayBundle } from './datos/motor';
 import { Almacen, SECCIONES, esPagina, type Estado } from './estado';
-import { DOMINIO_SCORE, ajustarDominios, marcasRitmo, marco, scoreEnX, xScore, yRitmo, type Marco } from './geometria';
+import { DOMINIO_SCORE, ajustarDominios, alturas, marcasRitmo, marco, scoreEnX, xScore, yRitmo, type Marco } from './geometria';
 import { h, vaciar } from './vistas/dom';
 import { hayInforme, prepararInforme, quitarInforme } from './vistas/imprimir';
 import { crearPaginas, type Paginas } from './vistas/pagina';
 import { escenaPlacas } from './arena/placas';
 import { crearFrase, guardarVisita, leerVisita } from './vistas/frase';
 import { lineaGranos, logotipo, monogramaArena } from './vistas/marca';
-import { miniatura, relojArena } from './vistas/piezas';
+import { miniatura } from './vistas/piezas';
 import { crearRegla } from './vistas/regla';
 import { triaje } from './vistas/triaje';
 import { fijarMeses, nombreGrupo, ritmoEnPalabras } from './vistas/voz';
@@ -32,7 +32,7 @@ async function cargarCartera(app: HTMLElement): Promise<Cartera> {
 	if (pideSinteticos && !import.meta.env.PROD) return (await import('./datos/sintetico')).carteraSintetica();
 	if (!(await hayBundle())) throw new Error('sin-bundle');
 	const barra = h('span', { class: 'carga-barra' });
-	const carga = h('div', { class: 'carga', role: 'status' }, relojArena(), h('p', {}, 'Leyendo la cartera del motor'), h('span', { class: 'carga-pista' }, barra));
+	const carga = h('div', { class: 'carga', role: 'status' }, h('p', {}, 'Leyendo la cartera del motor'), h('span', { class: 'carga-pista' }, barra));
 	app.append(carga);
 	try {
 		return await carteraMotor((f) => { barra.style.transform = `scaleX(${f})`; });
@@ -53,7 +53,7 @@ async function iniciar() {
 		app.append(h('div', { class: 'sin-datos' }, h('h1', {}, falta ? 'Rumbo no encuentra los datos' : 'Rumbo no puede leer los datos'),
 			falta ? null : h('p', {}, `Error: ${err instanceof Error ? err.message : String(err)}`),
 			h('p', {}, 'Falta el bundle del motor en public/datos (y los ficheros de Rumbo en public/rumbo). Rumbo no enseña nada que no salga de los datos, así que no arranca con otros.'),
-			h('p', {}, 'Para prepararlos: exportar con el motor (make export) y ejecutar scripts/datos/parametros.py, productos.py y horizontes.py. Ver interfaz/DIARIO.md.')));
+			h('p', {}, 'Para prepararlos: exportar con el motor (make export), ejecutar scripts/datos/parametros.py y productos.py y generar la previsión con el motor (make forecast). Ver interfaz/DIARIO.md.')));
 		return;
 	}
 	// En producción, un bundle sintético no se enseña nunca.
@@ -169,6 +169,7 @@ async function iniciar() {
 		esMovil: () => M.movil,
 		corte: () => c.months[ctxDe(S.e.q).corte],
 		imprimir: () => imprimir(),
+		hilo: (hs) => arena.hilos(hs),
 	}) : null;
 	paginas?.ocultar();
 	// La miga de pan de las páginas vive en la cabecera, junto a la marca.
@@ -184,7 +185,7 @@ async function iniciar() {
 	void capaExp;
 
 	ayuda.append(h('h2', {}, 'Cómo se usa'), h('p', {}, 'La frase de arriba dice lo que ves. Toca cualquier trozo para cambiarlo, o escribe en cualquier parte.'));
-	for (const [k, d] of [['1 2 3 4', 'Scoring, productos, acciones y desglose (en una organización o una empresa)'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
+	for (const [k, d] of [['1 2 3 4', 'Scoring, productos, acciones y desglose (en una organización o una empresa)'], ['← → en una ficha', 'El mes que se mira'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
 		ayuda.append(h('div', { class: 'ayuda-fila' }, h('span', { class: 'ayuda-tecla' }, k), h('span', {}, d)));
 	botonAyuda.addEventListener('click', () => ayuda.classList.toggle('ver'));
 
@@ -192,8 +193,9 @@ async function iniciar() {
 	function medir() {
 		arena.redimensionar();
 		const { ancho, alto } = arena.dimensiones;
-		const barraAlto = ancho < 700 ? 52 : 64;
-		frase.raiz.style.top = `${barraAlto + (ancho < 700 ? 4 : 10)}px`;
+		const A = alturas(ancho);
+		const barraAlto = A.barra + A.regla;
+		frase.raiz.style.top = `${barraAlto + (ancho < 700 ? 2 : 6)}px`;
 		const pad = ancho < 700 ? 16 : ancho < 1100 ? 28 : 44;
 		frase.raiz.style.left = `${pad}px`;
 		frase.raiz.style.right = `${pad}px`;
@@ -201,7 +203,7 @@ async function iniciar() {
 		M = marco(ancho, alto, abajo, false);
 		if (paginas) {
 			paginas.raiz.style.top = `${barraAlto}px`;
-			paginas.raiz.style.bottom = `${Math.max(0, alto - M.regla.y + (M.movil ? 4 : 10))}px`;
+			paginas.raiz.style.bottom = '0px';
 		}
 	}
 
@@ -211,7 +213,11 @@ async function iniciar() {
 			const [arriba, abajo] = paginas.franja();
 			arena.recortar(arriba, abajo);
 			arena.desplazar(paginas.desplazamiento());
-			arena.fijar(escenaPlacas(paginas.placas(), arena.n, M.W, M.H + paginas.raiz.scrollHeight, M.movil));
+			// La regla va también en las fichas: fija arriba, con los avisos de la entidad abierta.
+			const ctx = ctxDe(e.q);
+			const propios = paginas.avisosPropios()?.map((a) => ({ month: c.months.indexOf(a.month), mejora: a.mejora })).filter((a) => a.month >= 0) ?? null;
+			const regla = e.vista === 'organizacion' || e.vista === 'empresa' ? reglaPagina(ctx, M, propios) : undefined;
+			arena.fijar(escenaPlacas(paginas.placas(), arena.n, M.W, M.H, M.movil, regla));
 			posiciones = []; filas = [];
 			return;
 		}
@@ -327,6 +333,10 @@ async function iniciar() {
 		const efimero = !vistaCambia && !qCambia;
 		// La vista va en el cuerpo antes de medir: cambia el cuerpo de letra de la frase.
 		document.body.dataset.vista = e.vista;
+		// La arena solo se aparta al paso del cursor en la portada; en reposo, quieta.
+		arena.apartar = e.vista === 'entrada';
+		arena.respira = e.vista === 'entrada' || e.vista === 'plano' || e.vista === 'tapiz' ? 0.35 : 0;
+		if (vistaCambia) arena.hilos([]);
 		if (vistaCambia || qCambia) {
 			// La frase puede cambiar de altura: se pinta primero y luego se mide el marco.
 			frase.pintar(e, ctxDe(e.q));
@@ -571,12 +581,18 @@ async function iniciar() {
 	// ─── Teclado ───────────────────────────────────────────────
 	addEventListener('keydown', (ev) => {
 		const t = ev.target as HTMLElement;
-		if (t?.closest?.('input, textarea')) return;
+		if (t?.closest?.('input:not([type=checkbox]), textarea')) return;
 		if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); frase.cerrar(); parar(); ev.shiftKey ? S.rehacer() : S.deshacer(); return; }
 		// En las páginas, las teclas son de la página: 1–4 cambian de sección, Esc sube un nivel.
 		if (esPagina(S.e.vista)) {
 			if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
 			if (/^[1-4]$/.test(ev.key) && (S.e.vista === 'organizacion' || S.e.vista === 'empresa')) S.fijar({ sec: SECCIONES[Number(ev.key) - 1] }, true);
+			else if ((ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && (S.e.vista === 'organizacion' || S.e.vista === 'empresa') && !t?.closest?.('select')) {
+				ev.preventDefault();
+				const q = S.confirmado.q, ult = ctxDe(q).periodos.length - 1;
+				const hasta = Math.max(0, Math.min(ult, q.hasta + (ev.key === 'ArrowRight' ? 1 : -1)));
+				if (hasta !== q.hasta) S.consulta({ ...q, desde: Math.min(q.desde, hasta), hasta });
+			}
 			else if (ev.key === '?') ayuda.classList.toggle('ver');
 			else if (ev.key === 'Escape') { if (ayuda.classList.contains('ver')) ayuda.classList.remove('ver'); else if (S.e.vista !== 'entrada') volver(); }
 			return;
@@ -616,6 +632,8 @@ async function iniciar() {
 
 	// ─── Arranque: la arena cae y se posa ──────────────────────
 	document.body.dataset.vista = S.e.vista;
+	arena.apartar = S.e.vista === 'entrada';
+	arena.respira = S.e.vista === 'organizacion' || S.e.vista === 'empresa' || S.e.vista === 'metodologia' ? 0 : 0.35;
 	frase.pintar(S.e, ctxDe(S.e.q));
 	medir();
 	pintarHtml(S.e);
