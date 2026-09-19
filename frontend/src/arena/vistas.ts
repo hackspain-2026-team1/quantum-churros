@@ -53,7 +53,6 @@ export interface Disposicion {
 }
 
 const ORDEN_BANDAS: BandaA[] = ['critical', 'watch', 'stable', 'solid'];
-const tonoBanda = (b: BandaA | null) => (b === 'critical' ? TONO.peligro : TONO.tinta);
 const rango = (b: BandaA | null) => (b ? ORDEN_BANDAS.indexOf(b) : -1);
 const azar = (a: number) => (Math.random() - 0.5) * a;
 /** Semilla estable por entidad, para que dos entidades no repitan el mismo dibujo de granos. */
@@ -209,7 +208,12 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 				if (!e.visible || e.shown === null) continue;
 				const x = X(e.shown), y = Y(e.ritmo ?? 0);
 				anclas.set(e.id, { x, y, r: rr + 2 });
-				pintores.set(e.id, disco(x, y, rr, tonoBanda(e.band), 0.85));
+				// La banda la dice la posición; el color, solo el cambio de banda de este mes.
+				const cambia = !!e.prevBand && !!e.band && e.prevBand !== e.band;
+				const tono = cambia ? (rango(e.band) < rango(e.prevBand) ? TONO.peligro : TONO.exito) : TONO.tinta;
+				// Si el ritmo se sale de la escala, el punto va al borde y hueco: un anillo avisa de que está recortado.
+				if (Math.abs(e.ritmo ?? 0) > 5) pintores.set(e.id, (add) => { for (let i = 0; i < k; i++) { const a = (i / k) * Math.PI * 2; add(x + Math.cos(a) * rr, y + Math.sin(a) * rr, tono, 0.9, 1.3); } });
+				else pintores.set(e.id, disco(x, y, rr, tono, 0.85));
 			}
 			break;
 		}

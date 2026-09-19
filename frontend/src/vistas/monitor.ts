@@ -557,7 +557,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				for (const s of [0, 20, 40, 60, 80, 100]) et(g.x0 + (s / 100) * (g.x1 - g.x0), g.y1 + 6, 'mr-eje x', String(s));
 				for (const r of [-4, -2, 0, 2, 4]) et(g.x0 - 6, (g.y0 + g.y1) / 2 - (r / 5) * (g.y1 - g.y0) / 2, 'mr-eje y', r === 0 ? '0' : `${r > 0 ? '+' : '−'}${Math.abs(r)}`);
 				const zonas: [Zona, number, number, string][] = [['mejora', g.x0 + 8, g.y0 + 4, 'izq'], ['solida', g.x1 - 8, g.y0 + 4, 'der'], ['hunde', g.x0 + 8, g.y1 - 18, 'izq'], ['tuerce', g.x1 - 8, g.y1 - 18, 'der']];
-				for (const [z, x, y, lado] of zonas) { const n = vis.filter((e) => e.zona === z).length; const b = et(x, y, `mr-zona ${lado}`, `${primeraMayuscula(NOMBRE_ZONA[z])} · ${f.numero(n)}`); b.addEventListener('click', () => filtrar({ zona: z })); }
+				for (const [z, x, y, lado] of zonas) { const n = vis.filter((e) => e.zona === z).length; const b = et(x, y, `mr-zona ${lado}`, `${primeraMayuscula(NOMBRE_ZONA[z])} · ${f.numero(n)}`); b.style.color = 'var(--tinta)'; b.style.fontSize = '16px'; b.addEventListener('click', () => filtrar({ zona: z })); }
 				break;
 			}
 			case 'tapiz': {
