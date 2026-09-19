@@ -220,8 +220,9 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 		case 'tapiz': {
 			const alto = (Y1 - Y0) / Math.max(1, v.filas), ancho = (X1 - X0) / Math.max(1, v.meses);
 			guias.fila = alto; guias.col = ancho;
-			// Cada fila es la trayectoria del score (0 a 100 dentro de la fila), una línea de arena; el tramo de un mes
-			// en crítico, en rojo. Los meses sin dato quedan en blanco.
+			// Cada fila es la trayectoria del score (0 a 100 dentro de la fila), una línea de arena. Como en el resto
+			// de vistas, el color solo marca el cambio de banda: rojo el tramo en que baja, verde el tramo en que sube.
+			// Los meses sin dato quedan en blanco.
 			const Ys = (base: number, d: number) => base - 1 - Math.max(0, Math.min(1, d / 1000)) * (alto - 3);
 			for (const e of v.ents) {
 				if (!e.visible || e.puesto < 0 || e.puesto >= v.filas) continue;
@@ -237,8 +238,9 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 						const pos = ((i + 0.5) / k) * tramos.length, j = Math.min(tramos.length - 1, Math.floor(pos)), u = pos - j;
 						const [c0, c1] = tramos[j];
 						const d = e.serie[c0]! + (e.serie[c1]! - e.serie[c0]!) * u;
-						const c = u < 0.5 ? c0 : c1;
-						add(X0 + (c0 + 0.5 + (c1 - c0) * u) * ancho, Ys(base, d) + azar(0.6), e.bandas[c] === 'critical' ? TONO.peligro : TONO.tinta, 0.9, 1.6);
+						const r0 = rango(e.bandas[c0]), r1 = rango(e.bandas[c1]);
+						const tono = r1 < r0 ? TONO.peligro : r1 > r0 ? TONO.exito : TONO.tinta;
+						add(X0 + (c0 + 0.5 + (c1 - c0) * u) * ancho, Ys(base, d) + azar(0.6), tono, 0.9, 1.6);
 					}
 				});
 			}
