@@ -11,6 +11,7 @@ import { f } from '../datos/formato';
 import type { Cartera } from '../datos/modelo';
 import { nombreBanda, movimiento } from '../datos/redaccion';
 import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
+import { conCifras } from './cifras';
 import { cola, h, vaciar } from './dom';
 import { desplegable } from './desplegable';
 import { cabecera, cargarFicha, contenidoSeccion, graficoHorizonte, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
@@ -278,7 +279,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		// El protagonista: número y horizonte, arriba y siempre a la vista.
 		escenario.hidden = false;
 		vaciar(escenario);
-		escenario.append(h('div', { class: `escenario-hoja ${d.kind}` }, cabecera(d, movil), h('div', { class: 'horizonte' }, controles, zonaHorizonte)));
+		escenario.append(h('div', { class: `escenario-hoja ${d.kind}` }, cabecera(d, movil, acc), h('div', { class: 'horizonte' }, controles, zonaHorizonte)));
 		const fijo = escenarioFijo();
 		raiz.classList.toggle('escenario-fijo', fijo);
 		vaciar(cuerpoP);
@@ -374,7 +375,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		], pares, cuerpotabla, { col: 2, dir: 1 });
 		const tabla = h('table', { class: 'tabla-sutil empresas' }, thead, cuerpotabla);
 		const hereda = g.companies.filter((x) => x.inherits_liquidity).length;
-		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, h('div', { class: 'tabla-caja' }, tabla), plano, hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
+		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, h('div', { class: 'tabla-caja' }, tabla), plano, hereda ? h('p', { class: 'nota' }, ...conCifras(`${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`, { que: 'Empresas cuya liquidez decide el grupo' })) : null);
 	}
 
 	// ─── Entrada: el monitor de la cartera ─────────────────
@@ -434,7 +435,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		if (hor) hoja.append(seccion('El futuro: la previsión del motor', validacion(hor)));
 		if (prod) {
 			const p = prod.portfolio;
-			hoja.append(seccion('Los productos', h('ul', { class: 'senales' }, ...Object.entries(p).map(([id, x]) => h('li', { class: 'prod-met' }, iconoProducto(id as never, { tam: 32 }), h('div', {}, h('b', {}, `${f.plural(x.companies, 'empresa', 'empresas')}`), ` en ${f.plural(x.groups, 'grupo', 'grupos')}: ${f.numero(x.declared)} declaradas por el banco, ${f.numero(x.inferred)} deducidas de sus movimientos`, h('p', { class: 'nota' }, (prod.rules[id] as { note?: string })?.note ?? '')))))));
+			hoja.append(seccion('Los productos', h('ul', { class: 'senales' }, ...Object.entries(p).map(([id, x]) => h('li', { class: 'prod-met' }, iconoProducto(id as never, { tam: 32 }), h('div', {}, h('b', {}, ...conCifras(`${f.plural(x.companies, 'empresa', 'empresas')}`, { que: 'Empresas con el producto' })), ...conCifras(` en ${f.plural(x.groups, 'grupo', 'grupos')}: ${f.numero(x.declared)} declaradas por el banco, ${f.numero(x.inferred)} deducidas de sus movimientos`, { que: 'De dónde sale que lo tienen' }), h('p', { class: 'nota' }, (prod.rules[id] as { note?: string })?.note ?? '')))))));
 		}
 		cb.alCambiarArena();
 	}
@@ -456,7 +457,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		hoja.append(h('header', { class: 'informe-cab' },
 			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
 			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
-		hoja.append(cabecera(d, false), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, alto: 240 }, true)));
+		hoja.append(cabecera(d, false, acc), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, alto: 240 }, true)));
 		for (const sec of SECCIONES) {
 			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, nombreSeccion(sec, e.vista)));
 			cuerpo.append(contenidoSeccion(d, sec, quieto, null, d.kind === 'group' && sec === 'scoring' ? flota(d) : null));
@@ -499,7 +500,7 @@ function validacion(ix: NonNullable<Awaited<ReturnType<typeof carga.horizontesIn
 	}
 	const cortes = v?.cortes ?? [];
 	if (cortes.length && v) {
-		caja.append(h('p', {}, `Validado fuera de muestra hasta ${f.plural(v.validado_hasta, 'mes', 'meses')}: en cada corte de ${f.mes(cortes[0])} a ${f.mes(cortes[cortes.length - 1])} se entrenó solo con lo anterior y se comparó con lo que pasó. Más allá, la arena se aclara y se marca «sin validar».`));
+		caja.append(h('p', {}, ...conCifras(`Validado fuera de muestra hasta ${f.plural(v.validado_hasta, 'mes', 'meses')}: en cada corte de ${f.mes(cortes[0])} a ${f.mes(cortes[cortes.length - 1])} se entrenó solo con lo anterior y se comparó con lo que pasó. Más allá, la arena se aclara y se marca «sin validar».`, { que: 'Hasta dónde está comprobada la previsión con lo que pasó después' })));
 	} else {
 		const viejo = ix as unknown as { calibration?: { eval_cut?: string; mae_median?: number; mae_naive?: number; h6?: { cov80?: number; n?: number } } };
 		const c = viejo.calibration;
@@ -507,7 +508,7 @@ function validacion(ix: NonNullable<Awaited<ReturnType<typeof carga.horizontesIn
 			const trozos = [`Prueba hacia atrás${c.eval_cut ? ` desde ${f.mes(c.eval_cut)}` : ''}, comparando con lo que pasó de verdad`];
 			if (c.mae_median != null && c.mae_naive != null) trozos.push(`: se equivoca ${f.numero(c.mae_median, 1)} puntos de media, frente a ${f.numero(c.mae_naive, 1)} de suponer que no cambia nada`);
 			if (c.h6?.cov80 != null) trozos.push(`; la franja del 80 % acierta el ${f.porcentaje(c.h6.cov80, 0)}${c.h6.n != null ? ` (${f.numero(c.h6.n)} casos)` : ''}`);
-			caja.append(h('p', {}, trozos.join(''), '.'));
+			caja.append(h('p', {}, ...conCifras(`${trozos.join('')}.`, { que: 'Prueba de la previsión contra lo que pasó de verdad' })));
 		} else {
 			caja.append(h('p', { class: 'aviso-datos' }, 'Este índice de horizontes no trae la validación en el formato que lee Rumbo.'));
 		}
