@@ -32,7 +32,7 @@ services:
       XRAY_BUNDLE_DIR: /app/bundle
       XRAY_HORIZONS_DIR: /app/rumbo/horizons
       XRAY_ENTITY_ALIASES_PATH: /app/rumbo/entities.json
-      FINANCING_DEMO_ENABLED: ${FINANCING_DEMO_ENABLED:-true}
+      FINANCING_DEMO_ENABLED: "true"
     volumes:
       - ./artifacts:/app/artifacts:ro
       - ./bundle:/app/bundle:ro
