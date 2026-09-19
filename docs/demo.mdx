@@ -1,212 +1,309 @@
 # Demo de Rumbo — 3 minutos
 
-Guion único para presentar y probar Rumbo contra los criterios de [`track.md`](../track.md).
-El límite es estricto: **3 minutos en total**, de los cuales **2 minutos son navegación real**.
+Guion de entrega para [`track.md`](../track.md). El límite es **3:00 en total** y la navegación
+real ocupa exactamente **2:00**.
 
-La demo principal usa una sola empresa para evitar saltos y demostrar una cadena completa:
+## 1. Decisión desde primeros principios
 
-> **señal → trayectoria → explicación → alerta → acción → producto → recibo**
+El jurado reparte la evaluación en tres bloques con el mismo peso:
 
-Caso principal del bundle actual: **Pradonda Operaciones (`COMP_0089`, `GROUP_0153`)**, cierre
-**agosto de 2026**. Si al regenerar el bundle deja de cumplir las comprobaciones de este documento,
-se elige otro caso real; nunca se fuerza el relato ni se escribe un dato a mano.
-
-## 1. Qué debe recordar el jurado
-
-> «Rumbo convierte el rastro bancario y de facturas que Embat ya tiene en una decisión: detecta
-> hacia dónde va una empresa, explica por qué, avisa sin que le pregunten y propone una acción y
-> un producto financiero cuyo impacto vuelve a calcular el motor.»
-
-Tres pruebas que deben quedar visibles:
-
-1. **Trayectoria:** una empresa todavía en *Vigilancia* ya presenta deterioro estructural.
-2. **Decisión:** el confirming conserva caja y vuelve a puntuar la empresa de 43,6 a 69,4.
-3. **Confianza:** cada número tiene evidencia, calibración y un recibo reproducible.
-
-## 2. Preparación: cuatro pestañas, ningún tecleo
-
-Abrirlas antes de que empiece el tiempo y dejar cada una en el pliegue que se va a enseñar:
-
-1. **Cartera:** `/?v=plano&m=2026-08`
-2. **Empresa · Scoring:** `/?v=empresa&c=plano&g=GROUP_0153&emp=COMP_0089&m=2026-08`
-3. **Empresa · Acciones:** `/?v=empresa&c=plano&g=GROUP_0153&emp=COMP_0089&m=2026-08&sec=acciones`
-4. **Empresa · Técnico:** `/?v=empresa&c=plano&g=GROUP_0153&emp=COMP_0089&m=2026-08&sec=tecnico`
-
-No buscar entidades, cambiar meses ni abrir menús durante la presentación. Las pestañas eliminan
-latencia y hacen que los dos minutos sean producto, no navegación.
-
-## 3. Guion cronometrado
-
-### 0:00–0:20 · Problema, sin tocar la pantalla
-
-**Decir:**
-
-> «Una foto no distingue una empresa mediocre que mejora de una aparentemente sana que empieza
-> a torcerse. Embat ya tiene 24 meses de banca, facturas y deuda. Rumbo convierte ese rastro en
-> trayectoria, explicación y una decisión financiera.»
-
-**Cubre:** problema del reto y lectura del rastro.
-
-### 0:20–0:40 · Demo 1/4 — leer toda la cartera
-
-**Pantalla:** cartera.
-
-**Hacer:** señalar las organizaciones, sus estelas y las dos direcciones; no filtrar.
-
-**Decir:**
-
-> «Aquí están los 250 grupos. La posición es salud; la estela dice si mejoran o empeoran. El
-> monitor prioriza los movimientos reales y no obliga al CFO a revisar empresa por empresa.»
-
-**Cubre:** quién está sano, señal en las dos direcciones, trayectoria y monitor.
-
-### 0:40–1:20 · Demo 2/4 — una empresa que ya se está torciendo
-
-**Pantalla:** Scoring de **Pradonda Operaciones**.
-
-**Hacer:** señalar, en este orden: score y banda → deterioro estructural → alerta → pilares →
-horizonte.
-
-**Decir:**
-
-> «Pradonda aún está en Vigilancia, con 43,6 y confianza alta, pero no está estable: pierde 22,2
-> puntos en tres meses. El motor detecta el cambio en julio y lo confirma como estructural al
-> segundo mes. La explicación no es generativa: el colchón cae a 7 días, paga 23 días tarde y
-> cada punto se descompone. Si nada cambia, el horizonte le da un 51 % de probabilidad de entrar
-> en Crítico en diciembre.»
-
-**Cubre:** quién empieza a torcerse, trayectoria frente a foto, por qué cambió, cuándo se detectó,
-explicación y aviso automático.
-
-### 1:20–1:55 · Demo 3/4 — convertir el score en producto
-
-**Pantalla:** Acciones de la misma empresa.
-
-**Hacer:** marcar o señalar **confirming** y mostrar el horizonte resultante. No activar varias
-palancas.
-
-**Decir:**
-
-> «Rumbo no vende el número: propone la decisión. Con confirming, los proveedores cobran al
-> vencimiento y la empresa conserva 198.264 euros de caja. El impacto no es una promesa escrita
-> a mano: el motor vuelve a calcular los cinco pilares y pasa de 43,6 a 69,4.»
-
-**Cubre:** producto encima del score, utilidad y vínculo señal → acción → financiación.
-
-### 1:55–2:20 · Demo 4/4 — por qué confiar
-
-**Pantalla:** Técnico de la misma empresa.
-
-**Hacer:** señalar la cascada y el recibo; no hacer scroll largo.
-
-**Decir:**
-
-> «La cascada cuadra al décimo y cada pilar baja hasta su fila de origen. El mismo grupo puntuado
-> solo o dentro de la cartera da el mismo resultado: así generalizamos al test oculto. Bundle,
-> parámetros y dataset quedan fijados en el recibo.»
-
-**Cubre:** explicación, generalización, artesanía y demo verificable.
-
-### 2:20–3:00 · Comprador y cierre, sin más navegación
-
-**Decir:**
-
-> «Embat compra este módulo porque ya tiene el dato y la relación con el CFO. El CFO recibe la
-> alerta y la acción; el intermediario o banco recibe un dossier auditable y coloca el producto
-> adecuado. Embat monetiza la colocación y retiene al cliente. Rumbo no es otro dashboard: dice
-> a quién mirar, por qué, cuándo actuar y qué decisión puede cambiar el resultado.»
-
-**Cerrar exactamente con:**
-
-> «Del rastro a la decisión, con un recibo que se puede defender.»
-
-## 4. Orden de prueba antes de presentar
-
-Ejecutar estas pruebas en orden. Las cinco primeras bloquean la demo; las demás protegen las
-preguntas del jurado y los casos límite del track.
-
-### P0 · Recorrido que se enseña
-
-| Orden | Entidad y fecha | Qué probar | Resultado esperado del bundle actual | Criterio de `track.md` |
-| ---: | --- | --- | --- | --- |
-| 1 | Cartera · 2026-08 | Carga, mapa, estelas, mejora y deterioro, acceso por teclado | Datos reales; 250 grupos; sin peticiones de terceros ni errores de consola | Demo navegable · dos direcciones · artesanía |
-| 2 | `COMP_0089` · 2026-08 | Score, banda, confianza, dirección, naturaleza, alerta y pilares | 43,6 · Vigilancia · alta · deterioro estructural · −22,2 puntos/3 meses · detectado desde julio | Trayectoria · explicación · monitor |
-| 3 | `COMP_0089` · 2026-08 | Horizonte base | Cruce a Crítico en 2026-12 con probabilidad 51 %; el escenario de deriva se presenta como «qué pasaría si», no como predicción | Anticipación y honestidad |
-| 4 | `COMP_0089` · 2026-08 | Acción operativa y producto financiero | Colchón 7 días; pagos 23 días tarde; confirming por 198.263,81 €; score recomputado 69,4, uplift +25,8 | Producto encima del score |
-| 5 | `COMP_0089` · 2026-08 | Cascada, evidencia y recibo | La suma cuadra al décimo; hashes coherentes; el origen abre filtrado | Explicación · generalización · artesanía |
-
-Si falla cualquiera de estas cinco comprobaciones, no se presenta hasta regenerar los datos o
-cambiar el caso principal.
-
-### P1 · Las seis preguntas del reto
-
-| Orden | Pregunta del reto | Caso que probar | URL / fecha | Qué debe verse |
-| ---: | --- | --- | --- | --- |
-| 6 | ¿Quién está sano? | **Neresa Tesorería (`COMP_0978`)** | `/?v=empresa&c=plano&g=GROUP_0142&emp=COMP_0978&m=2026-08` | 99,7 · Sólido · confianza alta · estable · sin acción artificial |
-| 7 | ¿Quién está mejorando? | **Cenuna Operaciones (`COMP_0160`)** | `/?v=empresa&c=plano&g=GROUP_0106&emp=COMP_0160&m=2026-08` | 62,4 · mejora estructural · persistencia de 9 meses · confianza alta |
-| 8 | ¿Quién empieza a torcerse? | **Pradonda Operaciones (`COMP_0089`)** | URL principal · 2026-08 | Todavía en Vigilancia, pero deterioro estructural y alerta activa |
-| 9 | ¿Bache o caída? | **Pradiana Operaciones (`COMP_0265`)** frente a `COMP_0089` | Pradiana en `m=2025-05`; Pradonda en `m=2026-08` | Pradiana revierte a `bump`; Pradonda acumula dos meses y pasa a `structural` |
-| 10 | ¿Por qué cambió? | `COMP_0089` | Scoring → Técnico | Pilares movidos, notas, aportaciones y filas de evidencia |
-| 11 | ¿Cuándo se vio venir? | `COMP_0089` | Scoring → horizonte | Detectado desde julio, confirmado en agosto y cruce probabilístico en diciembre |
-
-La comparación de bache y caída es material de preguntas, no del recorrido principal: abrir dos
-empresas durante los dos minutos consume tiempo y debilita la historia única.
-
-### P2 · Honestidad y guardrails
-
-| Orden | Caso | URL / fecha | Qué probar |
-| ---: | --- | --- | --- |
-| 12 | Feed caído | `GROUP_0083`, `m=2026-08` | El motor se abstiene, no recomienda producto y pide reconectar el feed bancario |
-| 13 | Historia insuficiente | `COMP_0965`, `m=2026-08` | Puede publicar nivel, pero no inventa trayectoria; explica `short_history` |
-| 14 | Cambio de perímetro | `COMP_0265`, `m=2026-07`, Técnico | El aviso crítico queda suprimido por cambio de perímetro y sigue visible en la bandeja |
-| 15 | Empresa excepcionalmente sana | `COMP_0978`, `m=2026-08` | Una empresa sólida no recibe una recomendación forzada |
-
-## 5. Matriz de cobertura del track
-
-| Requisito | Dónde se demuestra en tres minutos | Respaldo si preguntan |
+| Bloque | Pregunta real | Una prueba, no una lista de funciones |
 | --- | --- | --- |
-| Predicción sobre test oculto | Técnico: aislamiento respecto de la cohorte | Recibo P1: entidades puntuadas solas reproducen la cartera |
-| Señal en las dos direcciones | Estelas verdes y rojas de cartera | `COMP_0160` mejora; `COMP_0089` deteriora |
-| Trayectoria, no foto | `COMP_0089`: 43,6 pero deterioro estructural | Serie mensual y persistencia |
-| Explicación | Pilares y cascada exacta | Evidencia por fichero y fila |
-| Producto encima del score | Confirming de `COMP_0089` | Acción recomputada y horizonte con acción |
-| Comprador identificado | Cierre: Embat → CFO / intermediario / banco | [`COMPRADOR.md`](COMPRADOR.md) |
-| Demo navegable | Cuatro vistas reales, mismo bundle | `bun run prueba` |
-| Anticipación medida · bonus | Detección, persistencia y horizonte calibrado | `make eval-anticipation` y `make eval-injection`; citar cifras solo tras regenerarlas |
-| Monitor que avisa · bonus | Alerta estructural de `COMP_0089` | Bandeja, triaje y caso suprimido `COMP_0265` |
+| **Si acierta** | ¿Distingue nivel y dirección y generaliza? | Dos organizaciones con prácticamente el mismo score y trayectorias opuestas; previsión validada fuera de muestra |
+| **Si llega a tiempo** | ¿Separa señal de ruido y avisa solo? | Monitor de cartera → deterioro estructural → causa y fecha de detección |
+| **Si vale algo** | ¿Alguien pagaría por lo construido encima? | La señal abre una necesidad de financiación, la empresa autoriza y los proveedores compiten |
 
-## 6. Gates técnicos antes de salir
+Por tanto, la demo **no** recorre todas las pantallas. Cuenta una sola transformación:
 
-- [ ] Regenerar datos: `make db-sync` o `make export`, seguido de `make validate`.
-- [ ] Regenerar derivados de Rumbo con `bun run datos` en el proyecto de interfaz.
-- [ ] Ejecutar `bun run prueba`: deben pasar las 36 comprobaciones sobre datos reales.
-- [ ] Ejecutar build de despliegue y abrir `/rumbo/`, no el modo sintético.
-- [ ] Confirmar que `bundle_id`, `params_hash` y `dataset_hash` coinciden entre bundle, recibo,
-      productos y horizontes.
-- [ ] Ejecutar `make eval-injection` y `make eval-anticipation`. Si no hay soporte suficiente o
-      una métrica no está publicada, no convertirla en titular oral.
-- [ ] Probar las cuatro URLs P0 en una ventana limpia y con caché fría.
-- [ ] Confirmar que no hay errores de consola, peticiones a terceros ni datos inventados.
-- [ ] Ensayar con cronómetro: 20 s de apertura + 120 s de producto + 40 s de cierre.
-- [ ] Tener captura o vídeo local del recorrido por si falla la proyección o WebGL2.
+> **Dos scores iguales → dos rumbos opuestos → una alerta explicada → una necesidad financiable → una decisión.**
 
-## 7. Frases prohibidas y respuesta correcta
+La tesis que debe recordar el jurado:
 
-| No decir | Decir |
+> «Embat ya tiene el rastro. Rumbo detecta el cambio, demuestra por qué y convierte el momento
+> adecuado en una operación de financiación con consentimiento y trazabilidad.»
+
+## 2. Qué ha cambiado y sí merece entrar
+
+Desde el guion anterior se han añadido cuatro piezas que cambian la historia:
+
+1. **La portada ya es un monitor:** enseña entradas y salidas de bandas, movimientos, avisos y
+   horizonte de toda la cartera. En agosto entran 7 organizaciones en Crítico y salen 8; mirar
+   solo el total escondería las siete nuevas.
+2. **La previsión ya vive en el motor:** `forecast-v1` es una regresión cuantílica por horizonte,
+   calibrada en el tiempo y validada con origen móvil. Conserva previsiones pasadas para compararlas
+   con lo que ocurrió realmente.
+3. **Existe un espacio de financiación completo:** consultor, empresa y proveedor; autorización,
+   teaser seudonimizado, ofertas, preselección, aceptación, revocación y actividad en vivo.
+4. **La señal y el producto ya comparten un caso real:** `FIN-024` selecciona del bundle una
+   necesidad explicable y abre el expediente de financiación con hashes y versión del motor.
+
+Esto sustituye el cierre anterior de “simular una acción y enseñar el recibo”. El recibo sigue
+siendo respaldo técnico; el cierre principal ahora es una **operación utilizable**.
+
+## 3. Los dos casos que cuentan la tesis
+
+### La pareja de apertura
+
+| Organización | Foto de agosto | Trayectoria | Lectura |
+| --- | ---: | --- | --- |
+| **Grupo Oraria (`GROUP_0076`)** | **44,8** · Vigilancia | **+40,4 puntos/3 meses**, mejora estructural | Score modesto, rumbo favorable |
+| **Grupo Maravia (`GROUP_0045`)** | **45,5** · Vigilancia | **−18,2 puntos/3 meses**, deterioro estructural | Casi el mismo score, decisión opuesta |
+
+Solo hay **0,7 puntos** entre ambas. Es la pregunta central del brief —“dos empresas, tres puntos
+de diferencia”— resuelta con datos del bundle, no con una diapositiva inventada.
+
+### El caso que continúa hasta financiación
+
+**Grupo Maravia (`GROUP_0045`)**:
+
+- confianza **alta**: 90,25 %;
+- deterioro detectado desde **junio de 2026** y confirmado como estructural;
+- caída acumulada del aviso: **25,4 puntos en 11 meses**;
+- principal causa: colchón de solo **7 días**;
+- segunda causa: cobros operativos cubren **0,59 veces** los pagos;
+- `FIN-024`: necesidad prevista de **240.000–330.000 €**, propuesta central de **285.000 €**,
+  entre diciembre de 2026 y febrero de 2027;
+- producto del caso: línea de crédito, con alternativas comparables de proveedores.
+
+Las cifras se verifican de nuevo después de cada `make db-sync`. Si cambia el bundle, se actualiza
+el guion; nunca se fija el motor para conservar esta historia.
+
+## 4. Preparación de la sala
+
+### Pestañas preparadas
+
+1. **Monitor, ranking en tabla por score:**
+   `/?v=entrada&mf=ranking&mm=tabla&mo=score`
+
+   Dejar visibles y consecutivas las filas de Oraria y Maravia.
+2. **Maravia · Scoring:**
+   `/?v=organizacion&c=plano&g=GROUP_0045&m=2026-08`
+3. **Financiación · Empresa:**
+   `/?v=financiacion&rol=company`
+4. **Respaldo · Metodología:**
+   `/?v=metodologia&m=2026-08`
+
+No buscar, escribir, cambiar de mes ni recorrer menús durante los tres minutos. Cambiar de pestaña
+es más rápido y reproducible que demostrar navegación accidental.
+
+### Dejar `FIN-024` listo
+
+Antes de entrar en la sala:
+
+1. Confirmar `FINANCING_DEMO_ENABLED=true` y API/PostgreSQL saludables.
+2. Abrir **Financiación** y ejecutar **Iniciar escenario FIN-024**.
+3. Cambiar a **Empresa** y pulsar **Autorizar la ronda**, manteniendo identidad oculta hasta la
+   preselección.
+4. Volver a **Consultor** y pulsar **Abrir ronda de ofertas**.
+5. Entrar como **Norte Capital** y **Banco Atlas** y dejar una oferta de cada uno.
+6. Volver a **Empresa**. Dejar visibles la necesidad, las dos ofertas y la actividad en vivo.
+7. No aceptar ninguna: la decisión debe seguir abierta para que el jurado pueda probarla.
+
+La demo no debe comenzar en “Iniciar escenario”: ese botón prueba infraestructura, no valor. El
+jurado debe ver directamente el resultado de la cadena y puede rehacerla después si lo solicita.
+
+## 5. Guion exacto
+
+### 0:00–0:18 · Apertura
+
+**Pantalla:** ranking con Oraria y Maravia visibles.
+
+**Decir:**
+
+> «Oraria saca 44,8. Maravia, 45,5. Siete décimas de diferencia: una mejora y la otra se tuerce.
+> Una foto las trata igual; el rastro financiero exige decisiones opuestas.»
+
+No explicar todavía el motor ni el producto. Crear la pregunta.
+
+---
+
+### 0:18–0:48 · Demo 1/3 — si acierta
+
+**Hacer:** señalar primero Oraria y después Maravia; abrir o cambiar a la ficha de Maravia.
+
+**Decir:**
+
+> «Oraria mejora 40,4 puntos en tres meses. Maravia cae 18,2 y el monitor la confirma como
+> deterioro estructural. El score no aprende de quién comparte el fichero: la misma organización
+> sola o dentro de las 250 obtiene exactamente la misma nota.»
+
+**Demuestra:** dos direcciones, trayectoria frente a foto y generalización al test oculto.
+
+---
+
+### 0:48–1:18 · Demo 2/3 — si llega a tiempo
+
+**Pantalla:** Maravia · Scoring.
+
+**Hacer:** señalar la alerta en junio, el horizonte y los dos pilares responsables. No abrir
+Técnico.
+
+**Decir:**
+
+> «El cambio empieza en junio y persiste: no es un mes malo. La causa principal es exacta: solo
+> siete días de colchón; además, los cobros cubren 0,59 veces los pagos. El monitor levanta la mano
+> solo y el modelo sitúa la ventana de financiación antes de que esa liquidez obligue a negociar
+> desde una posición peor.»
+
+**Demuestra:** monitor, estabilidad, fecha, explicación y anticipación operativa.
+
+---
+
+### 1:18–2:18 · Demo 3/3 — si vale algo
+
+**Pantalla:** Financiación · Empresa, caso ya preparado.
+
+**Hacer, en este orden:**
+
+1. señalar **240.000–330.000 €**, diciembre–febrero y confianza;
+2. señalar que la empresa autorizó alcance y ocultación de identidad;
+3. comparar las dos ofertas;
+4. señalar la actividad en vivo y los roles Consultor / Empresa / Proveedor.
+
+**Decir:**
+
+> «Esta señal no termina en un dashboard. Rumbo abre una necesidad de 240.000 a 330.000 euros
+> para diciembre–febrero. La empresa decide qué comparte; hasta preseleccionar, el mercado ve un
+> teaser seudonimizado. Dos proveedores compiten con importe, tipo, plazo, comisión y garantías.
+> Cada autorización, oferta y cambio queda versionado y llega en directo.»
+
+> «Esto es lo que compra Embat: detectar la ventana, preparar el caso y cerrar financiación sobre
+> el rastro que ya custodia.»
+
+**Demuestra:** producto completo, comprador, control, trazabilidad y demo navegable.
+
+---
+
+### 2:18–3:00 · Prueba y cierre
+
+**Pantalla:** permanecer en las ofertas. No volver a Técnico.
+
+**Decir:**
+
+> «No predecimos quiebras. Medimos cinco hechos financieros y prevemos cómo cambia el score. En
+> validación temporal, a seis meses el error baja de 17,7 a 16,1 puntos y la franja del 80 % contiene
+> el resultado entre el 80 y el 86 % de las veces. Cada score conserva explicación y recibo.»
+
+> «Embat licencia el módulo; la entidad financiera paga cuando gana una operación cualificada.
+> Rumbo convierte el dinero que ya pasó en la decisión que aún estamos a tiempo de tomar.»
+
+**Última frase, literal:**
+
+> **«Mismo score. Distinto rumbo. Una decisión a tiempo.»**
+
+## 6. Qué no se enseña en los tres minutos
+
+Estas funciones son valiosas, pero cada una abre una historia nueva y diluye los tres bloques:
+
+- las siete formas completas del monitor;
+- lenguaje natural / Jev;
+- todos los productos contratados;
+- escenarios de deriva y peor trimestre;
+- cascada, curvas, evidencia fila a fila y hashes;
+- generación de PDF;
+- recorrido completo por los tres roles;
+- abstención, feed caído y cambio de perímetro.
+
+Se mantienen preparadas para preguntas. La demo principal enseña **resultado**, no inventario.
+
+### Cobertura explícita de la entrega
+
+| Requisito de `track.md` | Prueba en la demo o respaldo inmediato |
 | --- | --- |
-| «Predice quiebras» | «Mide comportamiento financiero y trayectoria; el dataset no contiene defaults.» |
-| «El escenario de deriva es una predicción» | «Es un qué-pasaría-si; el horizonte base es probabilístico y muestra su calibración.» |
-| «Anticipamos siempre» | «Medimos detección, persistencia, cobertura y retardo; también enseñamos los fallos.» |
-| «La IA recomienda confirming» | «Una regla auditable conecta el retraso de pagos y el colchón con confirming; el motor recomputa el impacto.» |
-| «El banco compra leads» | «Embat compra el módulo; CFO e intermediario comparten un dossier auditable y la entidad paga por la operación cerrada.» |
+| Predicción sobre test oculto | Aislamiento de cohorte; el test real lo decide el organizador |
+| Señal en las dos direcciones | Oraria mejora y Maravia deteriora con solo 0,7 puntos de diferencia |
+| Trayectoria, no foto | +40,4 frente a −18,2 puntos en tres meses |
+| Explicación | Maravia: liquidez y actividad, con aportaciones y evidencia exactas |
+| Producto encima del score | `FIN-024`: necesidad, consentimiento, ronda y ofertas |
+| Comprador identificado | Embat licencia; el proveedor ganador paga la colocación |
+| Demo navegable | Monitor, ficha y espacio transaccional abiertos delante del jurado |
+| Anticipación medida · bonus | Forecast temporal y caso canónico 45→65; cifras solo tras regenerar evaluación |
+| Monitor que avisa · bonus | Alerta estructural de Maravia sin consulta manual |
 
-## 8. Respuestas de diez segundos
+## 7. Orden de verificación
 
-- **¿Por qué no ML?** «No hay etiqueta de default o salud. Preferimos cinco medidas congeladas,
-  auditables y aisladas de la cohorte antes que entrenar contra una etiqueta inventada.»
-- **¿Generaliza?** «El score no aprende de las otras empresas: una entidad puntuada sola o dentro
-  de las 250 produce exactamente el mismo resultado.»
-- **¿Bache o caída?** «El primer movimiento queda pendiente; solo la persistencia lo convierte en
-  estructural. Los cambios de perímetro se suprimen, no se esconden.»
-- **¿Quién paga?** «Embat licencia el módulo y retiene al CFO; la entidad financiera paga la
-  colocación cuando la recomendación termina en una operación.»
+### P0 · Bloqueantes de la historia
+
+| Orden | Prueba | Resultado exigido |
+| ---: | --- | --- |
+| 1 | Bundle + derivados | `bundle_id`, `params_hash` y `dataset_hash` coinciden en bundle, entidades y horizontes |
+| 2 | Forecast nuevo | `horizons/index.json` usa `rumbo-horizons-index-v2` y modelo `forecast-v1`; no presentar con los horizontes v1 antiguos |
+| 3 | Pareja | Oraria 44,8 / mejora estructural; Maravia 45,5 / deterioro estructural |
+| 4 | Maravia | −18,2 puntos/3 meses; detectada desde junio; colchón 7 días; cobertura 0,59 |
+| 5 | `FIN-024` | Selecciona `GROUP_0045`; 240.000–330.000 €; central 285.000 €; diciembre–febrero; confianza 90 % |
+| 6 | Ofertas | Caso publicado, dos ofertas visibles desde Empresa, identidad todavía protegida |
+| 7 | Recorrido frontend | `bun run prueba` pasa completo sobre datos reales |
+| 8 | Backend de financiación | Tests de autorización, publicación, ofertas, preselección, aceptación y revocación en verde |
+
+Si falla cualquiera, no se improvisa: se corrige o se usa el fallback del §9.
+
+### P1 · Criterios del track para preguntas
+
+| Pregunta | Caso | Qué debe verse |
+| --- | --- | --- |
+| ¿Quién está sano? | `COMP_0978`, Neresa Tesorería | 99,7 · Sólido · confianza alta · sin recomendación forzada |
+| ¿Quién mejora? | `GROUP_0076`, Oraria | 44,8 · +40,4 puntos/3 meses · mejora estructural |
+| ¿Quién se tuerce? | `GROUP_0045`, Maravia | 45,5 · −18,2 puntos/3 meses · deterioro estructural |
+| ¿Bache o caída? | `COMP_0265`, mayo de 2025, frente a Maravia | Pradiana revierte a `bump`; Maravia persiste y pasa a `structural` |
+| ¿Por qué cambió? | Maravia → Scoring / Técnico | Liquidez y actividad, aportaciones exactas y evidencia de origen |
+| ¿Cuándo se vio venir? | Caso canónico 45→65 + evaluación | Alerta ≥6 meses antes del mes 24; retardos y cobertura regenerados |
+| ¿Qué pasa sin datos? | `GROUP_0083` | Abstención, cero producto y pista para reconectar el feed |
+| ¿Puede comprobarse una previsión? | Regla a un mes pasado | Previsión emitida entonces junto a lo que ocurrió realmente |
+
+## 8. Claims técnicos permitidos
+
+Solo después de regenerar los artefactos correspondientes:
+
+- **Generalización:** aislamiento de cohorte con tolerancia `1e-9`.
+- **Explicación:** `score = base + Σ aportaciones − penalización − tope`, al décimo.
+- **Forecast:** validación con origen móvil y sin información futura; mejora al naïve en todos los
+  horizontes validados de 1 a 10 meses.
+- **Última validación documentada:** MAE 14,2 vs 15,5 a tres meses; 16,1 vs 17,7 a seis; cobertura
+  de la franja del 80 % entre 80 % y 86 %.
+- **Anticipación:** el patrón canónico de mejora 45→65 dispara alerta al menos seis meses antes del
+  mes 24. No afirmar anticipación universal: el 82→68 es el límite honesto del motor.
+- **Producto:** el expediente procede del bundle; no es una empresa, necesidad o score escrito a
+  mano.
+
+## 9. Fallback si falla el backend de financiación
+
+No intentar arreglar PostgreSQL o SSE delante del jurado.
+
+1. Permanecer en Maravia → **Acciones**.
+2. Marcar cobertura de actividad y colchón de liquidez.
+3. Enseñar el score recomputado y el horizonte contrafactual.
+4. Abrir el informe PDF ya generado con bancos, acción, bundle y parámetros.
+5. Cerrar con el mismo comprador: Embat licencia el módulo; la entidad paga la colocación.
+
+Frase de transición:
+
+> «La ronda operativa necesita el servicio transaccional; el dossier que la origina sigue siendo
+> determinista y está aquí, generado desde el mismo score.»
+
+## 10. Checklist de sala
+
+- [ ] `make db-sync`, `make validate` y `make forecast` ejecutados sobre la misma versión del dataset.
+- [ ] Derivados de frontend regenerados y hashes coincidentes.
+- [ ] `forecast-v1` visible; previsiones antiguas v1 retiradas.
+- [ ] Stack API/PostgreSQL saludable y `FINANCING_DEMO_ENABLED=true`.
+- [ ] `FIN-024` preparado con dos ofertas y sin aceptar.
+- [ ] Las tres pestañas principales cargadas con caché fría y después dejadas listas.
+- [ ] Prueba completa de frontend en verde; última referencia documentada: 50/50.
+- [ ] Tests de financiación en verde.
+- [ ] Sin errores de consola ni peticiones financieras a terceros.
+- [ ] Ensayo cronometrado: 18 s apertura + 120 s demo + 42 s cierre.
+- [ ] PDF y vídeo local del recorrido disponibles como respaldo.
+
+## 11. Respuestas de diez segundos
+
+- **¿Por qué no ML para el score?** «No hay etiqueta de default o salud. El score mide cinco hechos
+  con parámetros congelados; el forecast sí se entrena, pero solo para predecir el cambio futuro del
+  score y se valida fuera de muestra.»
+- **¿Generaliza al oculto?** «El nivel no depende de la cohorte: una entidad sola o dentro de las
+  250 produce exactamente la misma nota.»
+- **¿No es solo un marketplace?** «No empieza con un formulario: empieza con el rastro, detecta la
+  ventana y abre el caso solo cuando la señal, la confianza y el importe son financiables.»
+- **¿Quién paga?** «Embat paga la licencia porque convierte tesorería en decisión y retención; el
+  proveedor financiero paga la colocación cuando gana la operación.»
+- **¿Qué protege a la empresa?** «Autorización explícita, identidad oculta hasta preselección,
+  alcance revocable, expiración y auditoría de cada transición.»

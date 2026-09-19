@@ -102,7 +102,18 @@ it selects the interval every screen reads.
 - The playback (`reproducir`) and window-mode (`modo`) controls belong to the ruler and hide
   with it.
 
-## 4. Quick reference
+## 4. Breadcrumb
+
+The breadcrumb (`nav.miga` in `frontend/src/vistas/pagina.ts`) only shows the navigation
+path: the group and, on a company, the company after the separator.
+
+- The current step is text (`aria-current="page"`), the parent steps are real buttons.
+- **No decorative data.** A value that is already stated by the screen — the reading month,
+  the score, the size band — is not repeated in the breadcrumb. Data without a real reading
+  in that place is not rendered, even when it is available.
+- Reference implementation: `pintarMiga` in `frontend/src/vistas/pagina.ts`.
+
+## 5. Quick reference
 
 | Case                              | Rule                                            |
 | --------------------------------- | ----------------------------------------------- |
@@ -114,3 +125,4 @@ it selects the interval every screen reads.
 | Bank or counterparty row          | Real logo (vendored locally) + name; monogram fallback |
 | Comparative data (`cifraC` tono)  | `baja` in red (`--peligro-t`), `sube` in green (`--exito-t`), value and comparison |
 | Entity pages                      | Time ruler only on the Scoring tab; no playback elsewhere |
+| Breadcrumb                        | Only the path (group › company); no repeated reading month |
