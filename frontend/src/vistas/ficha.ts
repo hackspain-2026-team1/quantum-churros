@@ -218,6 +218,8 @@ const ESCENARIOS: Escenario[] = ['base', 'drift', 'stress'];
 const NOMBRE_ESCENARIO = { base: 'Si todo sigue igual', drift: 'Si sigue al mismo ritmo', stress: 'Si se repite su peor trimestre' } as const;
 const CORTO_ESCENARIO = { base: 'todo igual', drift: 'mismo ritmo', stress: 'peor trimestre' } as const;
 const TONO_ESCENARIO = { base: TONO.tinta, drift: TONO.tellme, stress: TONO.ocre } as const;
+/** Cuánto tarda en notarse una acción, dicho como se dice. */
+const PLAZO = (m: number) => (m === 1 ? 'a un mes' : m === 12 ? 'a un año' : `a ${f.numero(m)} meses`);
 
 /**
  * Percentil de un escenario en el mes m (0 = el primero previsto). Los supuestos solo
@@ -283,7 +285,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const etFuturo: { t: string; clase: string } = { t: '', clase: '' };
 	const boyas: { h: number; texto: string; titulo?: string }[] = [];
 	const HITOS = [3, 6, 12];
-	let referenciaTendencia: { col: number; value: number; texto: string } | null = null;
+	/** El punto de cada acción en el calendario: cuándo se nota y con qué score. */
+	const hitos: { col: number; v: number; texto: string; titulo: string }[] = [];
 	const alternativas: { texto: string; clase: string; v: number; k: Escenario }[] = [];
 	const validado = d.validado || 12;
 	const base = d.hor?.scenarios?.base;
@@ -295,27 +298,46 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		// La franja de la previsión y su mediana: una retícula regular en vez de la nube de trayectorias.
 		const abanico = (e: EscenarioM, tono: number, alfa: number): Futuro => ({ granos: [], tono, alfa, mediana: e.q.p50, franja: e.q, validado, hitos: HITOS });
 		if (accs.length) {
-			const tendencia = d.hor!.scenarios?.drift ?? base;
-			const tonoTendencia = tendencia === base ? TONO.apagado : TONO.tellme;
+			// La referencia es el caso que se está mirando, no siempre «si sigue al mismo ritmo»:
+			// comparar contra otro caso hacía leer como caída lo que solo era cambiar de supuesto.
+			const tendencia = d.hor!.scenarios![elegido] ?? base;
+			const tonoTendencia = TONO_ESCENARIO[elegido];
 			const p10 = 'p10' in tendencia.q ? tendencia.q.p10 : [];
 			const p90 = 'p90' in tendencia.q ? tendencia.q.p90 : [];
-			if (p10.length) lineas.push({ puntos: p10.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.45, punteada: true });
-			if (p90.length) lineas.push({ puntos: p90.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.45, punteada: true });
+			if (p10.length) lineas.push({ puntos: p10.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.4, punteada: true });
+			if (p90.length) lineas.push({ puntos: p90.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.4, punteada: true });
 			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...tendencia.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: tonoTendencia, alfa: 0.9, punteada: true });
+			// Los otros casos no desaparecen al marcar una acción: siguen dibujados, tenues, y los
+			// tres llevan su score a un año al borde derecho. Así se ve la acción contra todos.
+			for (const k of ESCENARIOS) {
+				const raw = d.hor!.scenarios![k];
+				if (!raw) continue;
+				if (k !== elegido) lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...raw.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: TONO_ESCENARIO[k], alfa: 0.38, punteada: true, grosor: 0.7 });
+				if (raw.q.p50[11] != null) alternativas.push({ texto: `${CORTO_ESCENARIO[k]} · ${f.score(raw.q.p50[11])}`, clase: `esc-${k} ${k === elegido ? 'actual' : ''}`, v: raw.q.p50[11] / 10, k });
+			}
 			const principal = accs.length === 1 ? accs[0] : accs.reduce((a, b) => (a.q.p50[5] > b.q.p50[5] ? a : b));
 			// La principal, con su franja; las demás marcadas, solo su mediana.
 			for (const a of accs) futuros.push(a === principal ? abanico(a, TONO.info, 0.72) : { granos: [], tono: TONO.info, alfa: 0.15, mediana: a.q.p50 });
-			const lag = Math.max(...accs.map((a) => a.lag_months));
+			// Cada acción tarda lo suyo en notarse: se marca el punto a esa distancia, con su score.
+			for (const a of accs) {
+				const lag = Math.min(Math.max(1, a.lag_months), a.q.p50.length);
+				const v = a.q.p50[lag - 1] / 10;
+				marcas.push([hoy + lag, v]);
+				const ficha = d.mes!.actions?.find((x) => x.id === a.id);
+				hitos.push({ col: hoy + lag, v, texto: `${PLAZO(lag)} · ${f.score(a.q.p50[lag - 1])}`, titulo: `${ficha ? tituloAccion(ficha) : a.id}: el motor la da por hecha en ${f.mes(cal[Math.min(cal.length - 1, hoy + lag)])}` });
+			}
+			// Varias juntas: el motor da una cifra combinada; se marca donde ya están todas hechas.
 			const ids = accs.map((a) => a.id).sort().join();
-			const cifra = accs.length === 1 ? accs[0].engine_new_score : d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids)?.new_score;
-			if (cifra !== undefined) marcas.push([hoy + lag, cifra / 10]);
-			const nombreReferencia = tendencia === base ? 'la referencia base' : 'la tendencia actual';
-			const ultimo = tendencia.q.p50.length - 1;
-			if (ultimo >= 0) referenciaTendencia = { col: hoy + ultimo + 1, value: tendencia.q.p50[ultimo] / 10, texto: tendencia === base ? 'referencia base' : 'tendencia actual' };
+			const combo = accs.length > 1 ? d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids)?.new_score : undefined;
+			if (combo !== undefined) {
+				const lag = Math.max(...accs.map((a) => Math.max(1, a.lag_months)));
+				marcas.push([hoy + lag, combo / 10]);
+				hitos.push({ col: hoy + lag, v: combo / 10, texto: `las ${accs.length} juntas · ${f.score(combo)}`, titulo: `Las ${accs.length} acciones marcadas, según el motor` });
+			}
 			for (const hz of HITOS) {
 				const k = hz - 1;
 				const dif = Math.round((principal.q.p50[k] - tendencia.q.p50[k]) / 10);
-				boyas.push({ h: hz, texto: `${f.score(tendencia.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana de ${nombreReferencia} → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
+				boyas.push({ h: hz, texto: `${f.score(tendencia.q.p50[k])} → ${f.score(principal.q.p50[k])}${dif === 0 ? '' : ` (${dif > 0 ? '+' : '−'}${Math.abs(dif)})`}`, titulo: `Sin hacer nada (${NOMBRE_ESCENARIO[elegido].toLowerCase()}) → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
 			}
 			etFuturo.t = o.previa?.length && !o.previa.every((x) => o.acciones.has(x)) ? 'vista previa · con esta acción' : accs.length > 1 ? `con ${accs.length} acciones` : 'con la acción marcada';
 			etFuturo.clase = 'con-acciones';
@@ -396,10 +418,6 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const zp = eti('zona-t pasado', 'lo que ha pasado', '0', '0'); void zp;
 	const zfFondo = h('div', { class: 'zona-futuro' }); zfFondo.style.left = `${((hoy + 1) / columnas) * 100}%`; caja.prepend(zfFondo);
 	if (etFuturo.t) { const zf = eti(`zona-t futuro ${etFuturo.clase}`, etFuturo.t, `${((hoy + 1) / columnas) * 100}%`, '0'); void zf; }
-	if (referenciaTendencia) {
-		const et = eti('referencia-tendencia', referenciaTendencia.texto, X(Math.min(columnas - 1, referenciaTendencia.col)), Y(referenciaTendencia.value));
-		et.title = 'Trayectoria de referencia para comparar la acción seleccionada.';
-	}
 	if (despues.length && esScore) eti('zona-t despues', 'lo que pasó después', X(Math.min(columnas - 1, hoy + 1)), '14px');
 	if (esScore && hayFuturo(d) && validado < 12) { const ev = eti('sin-validar', 'sin validar', X(hoy + validado + 1), '0'); ev.title = `La previsión está validada fuera de muestra hasta ${validado} meses. Más allá, el modelo no se ha podido comprobar con lo que pasó.`; }
 	// Los horizontes, todos a la vista y en una fila: cuándo y qué se espera (mediana · franja del 80 %).
@@ -415,13 +433,28 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		const chocan = els.some((r, i) => i > 0 && r.left < els[i - 1].right + 6);
 		caja.classList.toggle('boyas-escalonadas', chocan);
 	});
+	// El punto de cada acción: a qué distancia se nota y con qué score. Dos rótulos solo se apilan
+	// si además caen a la misma altura; si no, cada uno se queda sobre su punto.
+	const puestos: { col: number; v: number }[] = [];
+	for (const q of hitos) {
+		const n = puestos.filter((x) => x.col === q.col && Math.abs(x.v - q.v) < 9).length;
+		puestos.push({ col: q.col, v: q.v });
+		const x = X(Math.min(columnas - 1, q.col)), y = Y(q.v);
+		const pto = h('span', { class: 'g-hito-pto', 'aria-hidden': 'true' });
+		pto.style.left = x; pto.style.top = y;
+		caja.append(pto);
+		const et = eti(`hito-accion ${q.col > columnas - 4 ? 'izq' : ''}`, q.texto, x, y);
+		et.style.marginTop = `${-n * 18}px`;
+		et.title = q.titulo;
+	}
 	let ultimoY = -Infinity;
 	for (const a of alternativas.sort((x, y) => y.v - x.v)) {
 		const yPx = Math.max((1 - (a.v - lo) / (hi - lo)) * o.alto, ultimoY + 14);
 		ultimoY = yPx;
 		const et = eti(`alternativa ${a.clase}`, a.texto, X(hoy + 12), `${yPx}px`);
-		et.title = `${NOMBRE_ESCENARIO[a.k]}: a un año, entre ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p10', 11))} y ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p90', 11))}. Toca para verlo definido.`;
-		if (o.alElegir) et.addEventListener('click', (ev) => { ev.stopPropagation(); o.alElegir!(a.k); });
+		const actual = a.clase.includes('actual');
+		et.title = `${NOMBRE_ESCENARIO[a.k]}${actual ? ', el caso que estás mirando' : ''}: a un año, sin hacer nada, entre ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p10', 11))} y ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p90', 11))}.${actual ? '' : ' Toca para verlo definido.'}`;
+		if (o.alElegir && !actual) et.addEventListener('click', (ev) => { ev.stopPropagation(); o.alElegir!(a.k); });
 	}
 	if (o.alElegir && alternativas.length) {
 		caja.classList.add('elegible');
@@ -466,9 +499,15 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			else texto += ' · sin previsión';
 		} else texto += v !== null ? ` · ${fmtV(v)}` : ' · sin dato';
 		lectura.textContent = texto;
-		lectura.style.left = `${((c + 0.5) / columnas) * 100}%`;
-		lectura.classList.toggle('izq', c > columnas * 0.6);
+		// El globo va debajo y a la derecha del ratón, donde no tapa lo que se está mirando.
+		// Solo se aparta cuando no cabe: arriba si el ratón está muy abajo, a la izquierda si
+		// se sale por el borde derecho.
 		caja.classList.add('leyendo');
+		const px = ev.clientX - r.left, py = ev.clientY - r.top;
+		const anchoG = lectura.offsetWidth, altoG = lectura.offsetHeight;
+		const cabeDebajo = py + 18 + altoG <= r.height;
+		lectura.style.top = `${cabeDebajo ? py + 18 : Math.max(-altoG - 4, py - 12 - altoG)}px`;
+		lectura.style.left = `${Math.max(0, px + 14 + anchoG <= r.width ? px + 14 : px - 14 - anchoG)}px`;
 		if (v !== null) { punto.style.left = `${((c + 0.5) / columnas) * 100}%`; punto.style.top = `${(1 - (v - lo) / (hi - lo)) * 100}%`; punto.hidden = false; } else punto.hidden = true;
 		o.alHilo?.([{ x0: x, y0: r.top - 2, x1: x, y1: r.bottom, tono: TONO.info }]);
 	};
@@ -893,14 +932,11 @@ type EstadoAccion = 'propuesta' | 'en curso' | 'hecha';
 function leerEstados(): Record<string, EstadoAccion> { try { return JSON.parse(localStorage.getItem(CLAVE_ESTADOS()) ?? '{}'); } catch { return {}; } }
 function guardarEstado(clave: string, e: EstadoAccion) { const t = leerEstados(); t[clave] = e; try { localStorage.setItem(CLAVE_ESTADOS(), JSON.stringify(t)); } catch { /* Sin almacenamiento, el estado dura solo esta sesión. */ } }
 
-/** El efecto de una acción: la cifra del motor y la mediana prevista a seis meses con y sin ella. */
-function efectoAccion(d: DatosFicha, a?: AccionM): string | null {
-	if (!a) return null;
-	const partes = [`${f.delta(a.uplift_tenths)} puntos según el motor`];
-	const ha = d.hor?.actions?.find((x) => x.id === a.id);
-	const hb = d.hor?.scenarios?.base;
-	if (ha && hb && hayFuturo(d)) partes.push(`a seis meses, ${f.score(ha.q.p50[5])} en vez de ${f.score(hb.q.p50[5])}`);
-	return partes.join(' · ');
+/** Cuánto tarda en notarse una acción. La cifra y la curva están en el horizonte: aquí, solo el plazo. */
+function plazoAccion(d: DatosFicha, a?: AccionM): string | null {
+	const ha = a && d.hor?.actions?.find((x) => x.id === a.id);
+	if (!ha || !hayFuturo(d)) return null;
+	return `se nota ${PLAZO(Math.max(1, ha.lag_months))}`;
 }
 
 export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
@@ -940,7 +976,7 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 			h('div', { class: 'rec-cuerpo' },
 				h('div', { class: 'rec-titulo' }, ...conCifras(tituloAccion(a), origenPilar(d, acc, a.pillar, 'De cuánto a cuánto tiene que ir la palanca'))),
 				h('p', { class: 'rec-texto' }, ...conCifras(r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a), origenPilar(d, acc, a.pillar, 'Lo que hace falta para llegar al objetivo'))),
-				h('p', { class: 'rec-hechos' }, ...conCifras(efectoAccion(d, a) ?? '', { que: 'Lo que sube el score con esta acción, según el motor', mes: d.corte }), ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
+				h('p', { class: 'rec-hechos' }, [plazoAccion(d, a), ESFUERZO[a.effort], `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`].filter(Boolean).join(' · ')),
 				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
 			h('div', { class: 'rec-estado' }, estadoSel.raiz),
 			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')));

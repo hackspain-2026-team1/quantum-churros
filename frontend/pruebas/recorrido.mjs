@@ -221,7 +221,21 @@ comprobar('la gráfica tiene sus ejes: score de 0 a 100 y los meses', await p.ev
 }
 // Los horizontes y los supuestos, siempre a la vista: nada se esconde tras un botón.
 comprobar('los tres horizontes se rotulan a la vez', (await p.$$('.escenario .g-etq.boya')).length === 3);
-if (await p.$('.esc-drift')) comprobar('«qué pasaría si» se dibuja siempre como línea, aparte de la previsión', (await p.$$('.escenario .g-etq.alternativa')).length === (await p.$$('.escenario .esc.leyenda')).length);
+// Cada caso del mando tiene su trazo en la gráfica: el que se mira, dibujado; los demás, rotulados
+// al borde con su score. Con una acción marcada tampoco desaparecen: entonces están los tres.
+if (await p.$('.esc-drift')) {
+	const casos = (await p.$$('.escenario .esc')).length;
+	const conAccion = !!(await p.$('.escenario .zona-t.con-acciones'));
+	const rotulos = (await p.$$('.escenario .g-etq.alternativa')).length;
+	comprobar('«qué pasaría si» se dibuja siempre como línea, aparte de la previsión', rotulos === (conAccion ? casos : casos - 1), `${rotulos} rótulos · ${casos} casos${conAccion ? ' · con una acción marcada' : ''}`);
+	if (conAccion) comprobar('con una acción marcada se sigue leyendo el score de cada caso', await p.$$eval('.escenario .g-etq.alternativa', (xs) => xs.every((x) => /\d/.test(x.textContent))));
+}
+// La acción marca su punto en la gráfica, a la distancia en que se nota y con su score.
+{
+	const hitos = await p.$$eval('.escenario .g-etq.hito-accion', (xs) => xs.map((x) => x.textContent));
+	comprobar('la acción marca su punto a su distancia temporal, con el score', hitos.length > 0 && hitos.every((t) => /^(a (un mes|un año|\d+ meses)|las \d+ juntas) · \d/.test(t)), hitos.join(' · '));
+	comprobar('cada punto marcado lleva su grano en la gráfica', (await p.$$('.escenario .g-hito-pto')).length === hitos.length);
+}
 // La regla en un mes pasado: toda la aplicación lo dice y el horizonte enseña lo que se preveía entonces.
 await p.evaluate(() => document.activeElement?.blur());
 await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft');
