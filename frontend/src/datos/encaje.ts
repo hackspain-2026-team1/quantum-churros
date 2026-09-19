@@ -8,7 +8,7 @@
 import type { AccionM, AtributoM, Manifiesto, MesM, ProductoId, ProductosEmpresaM, TenenciaM } from './contrato';
 import { f } from './formato';
 import { PRODUCTOS } from './productos';
-import { palanca, tituloAccion, type Palanca } from './redaccion';
+import { palanca, tituloAccion, voz, type Palanca } from './redaccion';
 
 export type Estado = 'tiene' | 'encaja' | 'bloqueado' | 'no_consta';
 export type Forma = 'contratar' | 'ampliar' | 'usar_mas' | 'siguiente_nivel';
@@ -90,7 +90,7 @@ export function estadosProductos(h: Hechos): EstadoProducto[] {
 
 	// Bloqueos generales: hechos del motor.
 	const bloqueoGeneral = mes.abstain
-		? `El motor se abstiene este mes (${man.glossary.reasons[mes.abstain.reason] ?? mes.abstain.reason}): no hay veredicto con el que ofrecer nada.`
+		? `El motor se abstiene este mes (${man.glossary.reasons[mes.abstain.reason] ?? mes.abstain.reason}): ${voz('no hay veredicto con el que ofrecer nada', 'sin veredicto no podemos recomendarte nada')}.`
 		: !mes.feed_live ? 'Los datos del banco no están al día: el efecto no se puede medir.' : null;
 
 	const salida: EstadoProducto[] = [];
@@ -104,12 +104,12 @@ export function estadosProductos(h: Hechos): EstadoProducto[] {
 		if (a) {
 			const forma: Forma = t ? (p.id === 'linea_credito' ? 'ampliar' : 'usar_mas') : 'contratar';
 			const motivo = forma === 'ampliar'
-				? `Ya tiene ${t ? datoTenencia(t) : 'línea'} y aun así el motor pide: ${minuscula(tituloAccion(a))}.`
+				? `Ya ${voz('tiene', 'tienes')} ${t ? datoTenencia(t) : 'línea'} y aun así el motor pide: ${minuscula(tituloAccion(a))}.`
 				: forma === 'usar_mas'
-					? `Ya lo tiene; el motor pide: ${minuscula(tituloAccion(a))}. Toca pasar más operaciones por él.`
+					? `Ya lo ${voz('tiene', 'tienes')}; el motor pide: ${minuscula(tituloAccion(a))}. Toca pasar más operaciones por él.`
 					: `El motor pide: ${minuscula(tituloAccion(a))}.`;
 			e = { ...base, estado: t ? 'tiene' : 'encaja', forma, motivo, accion: a };
-			if (p.id === 'linea_credito' && h.heredaLiquidez) e = { ...e, estado: t ? 'tiene' : 'bloqueado', bloqueo: 'La liquidez la lleva el grupo: se decide en su tesorería, no en esta empresa.' };
+			if (p.id === 'linea_credito' && h.heredaLiquidez) e = { ...e, estado: t ? 'tiene' : 'bloqueado', bloqueo: `La liquidez la lleva el grupo: se decide en ${voz('su tesorería', 'la tesorería del grupo')}, no en esta empresa.` };
 		} else if (p.id === 'seguro_credito' && concentrada) {
 			const ev = h.perfil.find((x) => x.key === 'customer_concentration')?.evidence;
 			e = { ...base, estado: t ? 'tiene' : 'encaja', forma: t ? undefined : 'contratar', motivo: ev ?? 'Depende de un cliente principal.', sinEfecto: 'No mueve el score: cubre el riesgo del cliente principal.' };
@@ -119,15 +119,15 @@ export function estadosProductos(h: Hechos): EstadoProducto[] {
 			const siguiente = niveles.find((x) => !tiene(x.id));
 			const esElSiguiente = siguiente?.id === p.id;
 			const pensionesPermitidas = p.id !== 'plan_pensiones' || (mes.band === 'solid' && mes.conf.label === 'high');
-			if (t) e = { ...base, estado: 'tiene', motivo: 'Lo tiene: su caja ya rinde.' };
+			if (t) e = { ...base, estado: 'tiene', motivo: voz('Lo tiene: su caja ya rinde.', 'Lo tienes: tu caja ya rinde.') };
 			else if (esElSiguiente && pensionesPermitidas) {
 				e = { ...base, estado: 'encaja', forma: tiene(niveles[0].id) ? 'siguiente_nivel' : 'contratar',
 					motivo: `Liquidez en nivel ${man.bands.find((b) => b.key === 'solid')?.label.toLowerCase()} (${f.score(liquidez.score)} puntos) y ninguna acción de colchón: hay excedente.`,
-					sinEfecto: 'No cambia su rumbo: lo consolida.' };
+					sinEfecto: voz('No cambia su rumbo: lo consolida.', 'No cambia tu rumbo: lo consolida.') };
 			}
 		}
-		if (!e && t) e = { ...base, estado: 'tiene', motivo: t.source === 'movimientos' ? 'Se ve en sus movimientos.' : 'Declarado por el banco.' };
-		if (!e) e = { ...base, estado: 'no_consta', motivo: 'Ni lo tiene según los datos ni el motor pide lo que resuelve.' };
+		if (!e && t) e = { ...base, estado: 'tiene', motivo: t.source === 'movimientos' ? voz('Se ve en sus movimientos.', 'Se ve en tus movimientos.') : 'Declarado por el banco.' };
+		if (!e) e = { ...base, estado: 'no_consta', motivo: voz('Ni lo tiene según los datos ni el motor pide lo que resuelve.', 'Ni lo tienes según los datos ni el motor pide lo que resuelve.') };
 		if (bloqueoGeneral && e.estado === 'encaja') e = { ...e, estado: 'bloqueado', bloqueo: bloqueoGeneral };
 		salida.push(e);
 	}

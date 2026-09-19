@@ -105,7 +105,9 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 		// Zonas sensibles por periodo: arriba mejoras, abajo deterioros.
 		vaciar(zonas);
 		const giSel = (e.vista === 'organizacion' || e.vista === 'empresa') && e.sel ? c.groups.findIndex((g) => g.id === e.sel) : -1;
-		const grupos = giSel >= 0 ? [giSel] : gruposDeLaRegla(ctx);
+		// Desde la silla del CFO, la regla cuenta su historia, no la de la cartera.
+		const giCFO = e.modo === 'cfo' && e.cfo ? c.groups.findIndex((g) => g.id === e.cfo) : -1;
+		const grupos = giSel >= 0 ? [giSel] : giCFO >= 0 ? [giCFO] : gruposDeLaRegla(ctx);
 		const { mejoras, deterioros, lista } = avisosPorPeriodo(ctx, grupos);
 		for (const p of ctx.periodos) {
 			const t = tramo(M, p.meses);

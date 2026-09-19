@@ -16,7 +16,7 @@ import type {
 import { estadosProductos, recomendaciones, type EstadoProducto } from '../datos/encaje';
 import { f, primeraMayuscula } from '../datos/formato';
 import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
-import { ESFUERZO, ESTADO_AVISO, explicacionAccion, lineaAvisoM, nombreBanda, nombrePilar, tituloAccion } from '../datos/redaccion';
+import { ESFUERZO, ESTADO_AVISO, explicacionAccion, lineaAvisoM, nombreBanda, nombrePilar, tituloAccion, voz } from '../datos/redaccion';
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
 import { iconoProducto } from './iconos';
@@ -175,7 +175,7 @@ function explicacion(d: DatosFicha): HTMLElement {
 	if (m.abstain) p.append(h('span', {}, `El motor se abstiene: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}`));
 	else if (peor && peor.contrib < 0) p.append(h('span', {}, `Lo que más resta: ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.delta(peor.contrib)}.`));
 	if (d.pares) p.append(h('span', { class: 'cab-marca pares' }, h('i', { 'aria-hidden': 'true' }), `las ${f.numero(d.pares.n)} de su tamaño: mediana ${f.score(d.pares.mediana)}`));
-	if (d.kind === 'company' && d.grupoMes) p.append(h('span', { class: 'cab-marca grupo' }, h('i', { 'aria-hidden': 'true' }), `su grupo: ${f.score(d.grupoMes.shown)}`));
+	if (d.kind === 'company' && d.grupoMes) p.append(h('span', { class: 'cab-marca grupo' }, h('i', { 'aria-hidden': 'true' }), `${voz('su grupo', 'tu grupo')}: ${f.score(d.grupoMes.shown)}`));
 	return p;
 }
 
@@ -505,7 +505,7 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 		if (p.familia !== familia) { familia = p.familia; estante.append(h('h3', { class: 'est-familia' }, FAMILIAS[p.familia].nombre)); }
 		const t = tenenciaDe(d).find((x) => x.product === e.id);
 		const fila = h('div', { class: `est-fila inv-item estado-${e.estado}` });
-		const estadoT = e.estado === 'tiene' ? (t?.source === 'movimientos' ? 'deducido de sus movimientos' : 'contratado') : e.estado === 'encaja' ? 'le encajaría' : e.estado === 'bloqueado' ? 'hoy no' : 'no consta';
+		const estadoT = e.estado === 'tiene' ? (t?.source === 'movimientos' ? voz('deducido de sus movimientos', 'deducido de tus movimientos') : 'contratado') : e.estado === 'encaja' ? voz('le encajaría', 'te conviene') : e.estado === 'bloqueado' ? 'hoy no' : 'no consta';
 		const cuerpo = h('div', { class: 'est-cuerpo' }, h('div', { class: 'est-cab' }, h('span', { class: 'inv-nombre' }, p.nombre), h('span', { class: 'est-estado' }, estadoT)));
 		if (t) cuerpo.append(contratos(t));
 		if (e.estado === 'encaja' || e.estado === 'bloqueado' || e.forma) cuerpo.append(h('p', { class: 'est-motivo' }, e.bloqueo ?? e.motivo));
@@ -514,7 +514,7 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 			const ha = d.hor?.actions?.find((a) => a.id === e.accion!.id);
 			efecto.append(h('b', {}, `${f.delta(e.accion.uplift_tenths)}`), h('span', {}, ha && hayFuturo(d) ? `a 6 meses, ${f.score(ha.q.p50[5])}` : 'puntos'));
 			fila.classList.add('tocable');
-			fila.title = 'Pasa por encima para verlo en el horizonte; clic para marcar su acción';
+			fila.title = voz('Pasa por encima para verlo en el horizonte; clic para marcar su acción', 'Pasa por encima para verlo en tu horizonte; clic para marcar la acción');
 			fila.addEventListener('pointerenter', () => acc.horizonte.previa([e.accion!.id]));
 			fila.addEventListener('pointerleave', () => acc.horizonte.previa(null));
 			fila.addEventListener('click', () => acc.irSeccion('acciones', e.accion!.id));
@@ -565,8 +565,8 @@ function productosGrupo(d: DatosFicha, acc: Acciones): HTMLElement {
 	}
 	tabla.append(cuerpo);
 	// La leyenda es la propia forma: los cuatro estados de un mismo grabado.
-	const leyenda = h('div', { class: 'mz-leyenda' }, ...(['tiene', 'encaja', 'bloqueado', 'no_consta'] as const).map((s) => h('span', {}, iconoProducto('linea_credito' as never, { tam: 22, estado: s, titulo: false, sinFilete: true }), { tiene: 'lo tiene', encaja: 'le encajaría', bloqueado: 'hoy no', no_consta: 'no consta' }[s])));
-	raiz.append(seccion('Qué tiene cada empresa y qué le encajaría', leyenda, h('div', { class: 'matriz-caja' }, tabla)));
+	const leyenda = h('div', { class: 'mz-leyenda' }, ...(['tiene', 'encaja', 'bloqueado', 'no_consta'] as const).map((s) => h('span', {}, iconoProducto('linea_credito' as never, { tam: 22, estado: s, titulo: false, sinFilete: true }), { tiene: voz('lo tiene', 'lo tiene'), encaja: voz('le encajaría', 'le conviene'), bloqueado: 'hoy no', no_consta: 'no consta' }[s])));
+	raiz.append(seccion(voz('Qué tiene cada empresa y qué le encajaría', 'Qué tiene cada una de tus empresas y qué le conviene'), leyenda, h('div', { class: 'matriz-caja' }, tabla)));
 	return raiz;
 }
 
@@ -629,8 +629,8 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		lista.append(nada);
 	}
 	if (!recs.length) lista.prepend(h('li', { class: 'rec vacia' }, h('p', {}, m.abstain ? `El motor se abstiene este mes y no propone acciones: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}` : !m.feed_live ? 'Sin datos del banco al día, el motor no propone acciones.' : 'El motor no encuentra este mes ninguna palanca que suba el score al menos medio punto.')));
-	raiz.append(seccion(d.kind === 'group' ? 'Qué puede hacer el grupo' : 'Qué puede cambiar su rumbo', lista));
-	if (d.kind === 'group') raiz.append(seccion('Lo que proponen sus empresas', accionesEmpresas(d, acc)));
+	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), lista));
+	if (d.kind === 'group') raiz.append(seccion(voz('Lo que proponen sus empresas', 'Lo que puede hacer cada una de tus empresas'), accionesEmpresas(d, acc)));
 	return raiz;
 }
 

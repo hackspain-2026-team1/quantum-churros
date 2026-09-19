@@ -1,6 +1,8 @@
-// La voz de Rumbo: tercera persona, frases cortas y el formato del equipo. Las acciones del motor
-// traen campos (palanca, de cuánto a cuánto, unidad) y un texto propio en segunda persona; aquí se
-// redactan de nuevo a partir de los campos. El texto del motor se conserva para la sección técnica.
+// La voz de Rumbo: frases cortas y el formato del equipo. Habla de la empresa en tercera persona
+// cuando mira Embat, y de tú cuando mira el CFO de su grupo: es su dinero, no el de un tercero.
+// Las acciones del motor traen campos (palanca, de cuánto a cuánto, unidad) y un texto propio en
+// segunda persona; aquí se redactan de nuevo a partir de los campos. El texto del motor se conserva
+// para la sección técnica.
 
 import type { AccionM, AlertaM, Manifiesto, MesM } from './contrato';
 import { f } from './formato';
@@ -17,6 +19,12 @@ export interface Importe {
 	cada: 'una vez' | 'mes' | 'año';
 	sentido: 'más caja o líneas' | 'más cobros' | 'menos pagos' | 'menos cuotas';
 }
+
+let tuteo = false;
+/** Fija la voz: `true` cuando Rumbo se dirige al CFO de la empresa que enseña. */
+export const fijarVoz = (tu: boolean) => { tuteo = tu; };
+/** El par de la misma frase: la de Embat y la del CFO. */
+export const voz = (deEl: string, deTu: string) => (tuteo ? deTu : deEl);
 
 const numeroMotor = (s: string) => Number(s.replace(/\./g, '').replace(',', '.'));
 
@@ -49,9 +57,9 @@ export function tituloAccion(a: AccionM): string {
 		case 'liquidity-buffer':
 			return `Subir el colchón de caja de ${f.dias(Math.max(0, de))} a ${f.dias(a_)}`;
 		case 'collections-speed':
-			return a_ <= 0.5 ? `Cobrar a sus clientes al vencimiento (hoy, ${f.dias(de)} tarde)` : `Cobrar ${f.dias(de - a_)} antes (de ${f.dias(de)} de retraso a ${f.dias(a_)})`;
+			return a_ <= 0.5 ? `Cobrar a ${voz('sus', 'tus')} clientes al vencimiento (hoy, ${f.dias(de)} tarde)` : `Cobrar ${f.dias(de - a_)} antes (de ${f.dias(de)} de retraso a ${f.dias(a_)})`;
 		case 'payments-punctuality':
-			return a_ <= 0.5 ? `Pagar a sus proveedores al vencimiento (hoy, ${f.dias(de)} tarde)` : `Pagar a proveedores ${f.dias(de - a_)} antes (de ${f.dias(de)} de retraso a ${f.dias(a_)})`;
+			return a_ <= 0.5 ? `Pagar a ${voz('sus', 'tus')} proveedores al vencimiento (hoy, ${f.dias(de)} tarde)` : `Pagar a proveedores ${f.dias(de - a_)} antes (de ${f.dias(de)} de retraso a ${f.dias(a_)})`;
 		case 'activity-coverage':
 			return `Que los cobros cubran ${f.ratio(a_)} veces los pagos (hoy, ${f.ratio(de)})`;
 		case 'debt-burden':
@@ -61,16 +69,16 @@ export function tituloAccion(a: AccionM): string {
 	}
 }
 
-/** Una frase que explica el porqué y el cuánto, en tercera persona. */
+/** Una frase que explica el porqué y el cuánto. */
 export function explicacionAccion(a: AccionM): string {
 	const imp = importes(a);
 	switch (palanca(a)) {
 		case 'liquidity-buffer':
-			return imp.length ? `Le hacen falta unos ${f.euros(imp[0].valor)} más entre caja y líneas sin disponer, a fin de mes y en el peor día del mes.` : 'Más caja o más línea sin disponer, a fin de mes y en el peor día del mes.';
+			return imp.length ? `${voz('Le hacen', 'Te hacen')} falta unos ${f.euros(imp[0].valor)} más entre caja y líneas sin disponer, a fin de mes y en el peor día del mes.` : 'Más caja o más línea sin disponer, a fin de mes y en el peor día del mes.';
 		case 'collections-speed':
-			return 'Sus clientes pagan tarde, ponderado por importe. Recordatorios, anticipo de facturas o domiciliación acortan el ciclo de caja.';
+			return `${voz('Sus', 'Tus')} clientes pagan tarde, ponderado por importe. Recordatorios, anticipo de facturas o domiciliación acortan el ciclo de caja.`;
 		case 'payments-punctuality':
-			return 'Paga tarde a sus proveedores, ponderado por importe. Empezar por las facturas grandes mejora la puntualidad y puede levantar el tope que limita el score.';
+			return `${voz('Paga tarde a sus proveedores', 'Pagas tarde a tus proveedores')}, ponderado por importe. Empezar por las facturas grandes mejora la puntualidad y puede levantar el tope que limita el score.`;
 		case 'activity-coverage':
 			return imp.length === 2 ? `Supone unos ${f.euros(imp[0].valor)} más de cobros al mes o ${f.euros(imp[1].valor)} menos de pagos al mes.` : 'Más cobros operativos o menos pagos cada mes.';
 		case 'debt-burden':
@@ -82,7 +90,7 @@ export function explicacionAccion(a: AccionM): string {
 
 export const ESFUERZO: Record<AccionM['effort'], string> = { bajo: 'esfuerzo bajo', medio: 'esfuerzo medio', alto: 'esfuerzo alto' };
 
-/** Una línea por aviso del motor, en tercera persona. `umbralCritico` sale de los parámetros. */
+/** Una línea por aviso del motor. `umbralCritico` sale de los parámetros. */
 export function lineaAvisoM(a: AlertaM, man: Manifiesto, umbralCritico: number | null): string {
 	switch (a.kind) {
 		case 'level_critical': return umbralCritico !== null ? `Baja de ${f.numero(umbralCritico)} puntos: nivel crítico (${f.score(a.shown)})` : `Nivel crítico (${f.score(a.shown)})`;

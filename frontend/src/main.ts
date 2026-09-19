@@ -13,6 +13,7 @@ import { Almacen, SECCIONES, esPagina, type Estado } from './estado';
 import { DOMINIO_SCORE, ajustarDominios, alturas, marcasRitmo, marco, scoreEnX, xScore, yRitmo, type Marco } from './geometria';
 import { h, vaciar } from './vistas/dom';
 import { hayInforme, prepararInforme, quitarInforme } from './vistas/imprimir';
+import { fijarVoz } from './datos/redaccion';
 import { crearMirada } from './vistas/mirada';
 import { crearPaginas, type Paginas } from './vistas/pagina';
 import { escenaPlacas } from './arena/placas';
@@ -321,6 +322,8 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 	selTapiz.addEventListener('click', () => irA('tapiz'));
 
 	function pintarHtml(e: Estado) {
+		// Rumbo habla de tú cuando lo mira el CFO de la empresa que enseña.
+		fijarVoz(e.modo === 'cfo');
 		const ctx = ctxDe(e.q);
 		frase.pintar(e, ctx);
 		pintarAnotaciones(e, ctx);

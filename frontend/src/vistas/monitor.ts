@@ -74,7 +74,12 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		return cache.get(k)!;
 	};
 	const visibles = () => ordenar(todas().filter((e) => pasa(c, e, est.filtros, t())), est.orden);
-	const vocab = vocabulario(c);
+	// Lo que se manda a Jev también se acota: los sectores y países de la cartera son de Embat.
+	const vocab = (() => {
+		const v = vocabulario(c);
+		const g = cfo() ? c.groups.find((x) => x.id === cfo()) : null;
+		return g ? { ...v, sectores: [g.industry].filter((x): x is string => !!x), paises: [g.country].filter((x): x is string => !!x) } : v;
+	})();
 	// En la cartera, una empresa se nombra con su grupo detrás; en su propio grupo, el grupo sobra.
 	const nombreEnt = (e: Entidad) => (e.kind === 'company' && !cfo() ? `${e.nombre} · ${f.grupo(e.grupo)}` : e.nombre);
 	const abrir = (e: Entidad) => (e.kind === 'group' ? ctx.abrirGrupo(e.id) : ctx.abrirEmpresa(e.grupo, e.id));
