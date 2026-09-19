@@ -427,7 +427,10 @@ export const receiptSchema = z.object({
 export const reminderSchema = z.object({
 	operation_id: z.string().min(1),
 	counterparty_id: z.string().nullable(),
-	due_date: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/).nullable(),
+	due_date: z
+		.string()
+		.regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)
+		.nullable(),
 	amount: z.number().min(0),
 	days_overdue: count
 });

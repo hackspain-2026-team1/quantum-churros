@@ -6,10 +6,8 @@
 	import type { InvoicesDue } from './contract.js';
 	import EmptyState from './empty-state.svelte';
 
-	let {
-		entityId,
-		invoicesDue
-	}: { entityId: string; invoicesDue: InvoicesDue | null | undefined } = $props();
+	let { entityId, invoicesDue }: { entityId: string; invoicesDue: InvoicesDue | null | undefined } =
+		$props();
 
 	// The engine only picks the top overdue invoices per entity; the component
 	// shows the first five and tracks which reminders were sent (demo state).
@@ -26,7 +24,11 @@
 		sent.has(operationId) ? sent.delete(operationId) : sent.add(operationId);
 </script>
 
-<section class="space-y-3" aria-labelledby="invoice-reminders-heading" data-testid="invoice-reminders">
+<section
+	class="space-y-3"
+	aria-labelledby="invoice-reminders-heading"
+	data-testid="invoice-reminders"
+>
 	<div>
 		<p class="eyebrow">Cobrar antes</p>
 		<h2 id="invoice-reminders-heading" class="text-xl font-semibold tracking-[-0.02em]">
@@ -58,8 +60,10 @@
 								<Check class="size-3.5" /> Enviado
 							</Button>
 						{:else}
-							<Button size="sm" onclick={() => toggle(row.operation_id)} aria-label="Enviar recordatorio"
-								><Send class="size-3.5" /> Recordar</Button
+							<Button
+								size="sm"
+								onclick={() => toggle(row.operation_id)}
+								aria-label="Enviar recordatorio"><Send class="size-3.5" /> Recordar</Button
 							>
 						{/if}
 					</div>

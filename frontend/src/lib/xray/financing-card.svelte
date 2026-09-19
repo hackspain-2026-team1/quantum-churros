@@ -1,19 +1,10 @@
 <script lang="ts">
-	import { Banknote, Landmark, LineChart } from '@lucide/svelte';
 	import { formatMoney, formatScore, formatScoreDelta } from '$lib/format.js';
 	import type { EntityMonth } from './contract.js';
 
 	let { entry }: { entry: EntityMonth } = $props();
 
 	const items = $derived(entry.financing ?? []);
-
-	const ICONS: Record<string, typeof Landmark> = {
-		factoring: Banknote,
-		confirming: Landmark,
-		line: LineChart,
-		restructure: Landmark,
-		sweep: Banknote
-	};
 </script>
 
 {#if items.length > 0}
@@ -29,7 +20,9 @@
 				<li class="rounded-lg border p-4">
 					<div class="flex flex-wrap items-center justify-between gap-2">
 						<p class="font-medium">{item.title}</p>
-						<span class="inline-flex items-center gap-1.5 text-sm text-[var(--success)] tabular-nums">
+						<span
+							class="inline-flex items-center gap-1.5 text-sm text-[var(--success)] tabular-nums"
+						>
 							{formatScoreDelta(item.uplift_tenths)} → {formatScore(item.new_score_tenths)}
 						</span>
 					</div>
