@@ -82,6 +82,7 @@ def sync(
     out_dir: Path = typer.Option(Path("artifacts"), help="Parquet artifact directory"),
     bundle_dir: Path | None = typer.Option(None, help="JSON bundle directory"),
     evidence_months: int = typer.Option(24, min=0),
+    horizons_dir: Path | None = typer.Option(None, help="Write Rumbo's score forecast here (rumbo/horizons)"),
 ) -> None:
     """Ingest, classify, score, publish, and export one immutable dataset version."""
     target_bundle = bundle_dir or settings.bundle_dir
@@ -92,6 +93,7 @@ def sync(
         bundle_dir=target_bundle,
         database_url=settings.require_database_url(),
         evidence_months=evidence_months,
+        horizons_dir=horizons_dir or settings.horizons_dir,
     )
     ingest_state = "already loaded" if result.ingest_skipped else "loaded"
     classification_state = (
@@ -101,6 +103,8 @@ def sync(
         f"Dataset {result.dataset_hash}: {ingest_state}, {classification_state}, "
         f"published {result.published_counts}, bundle {result.bundle_id[:12]}"
     )
+    if result.horizons:
+        typer.echo(f"Forecast: {result.horizons}")
 
 
 @app.command("notify-demo")

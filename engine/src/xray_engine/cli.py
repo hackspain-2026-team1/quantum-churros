@@ -146,6 +146,31 @@ def export(
 
 
 @app.command()
+def forecast(
+    artifacts: Path = typer.Option(Path("artifacts"), help="Folder with scores.parquet and panel.parquet from predict"),
+    bundle: Path = typer.Option(..., help="Bundle folder written by predict --export-dir"),
+    out: Path = typer.Option(..., help="Output folder for the horizons (rumbo/horizons)"),
+    past: Optional[str] = typer.Option("2025-03:", help="Past cuts to forecast out of sample, FROM:TO (empty TO = up to the cut)"),
+    params_path: Optional[Path] = typer.Option(None, "--params", help="Params file"),
+) -> None:
+    """Train the score forecast on the scored history, validate it out of time and write the horizons."""
+    from .forecast import mindex, prever
+
+    pasados = None
+    if past:
+        a, _, b = past.partition(":")
+        pasados = (mindex(a), mindex(b) if b else 10**6)
+    index = prever(artifacts, bundle, _params(params_path), out, pasados=pasados, log=typer.echo)
+    ref = index["validation"].get("corte_de_referencia")
+    if ref:
+        typer.echo(
+            f"Validation at {ref['corte']} (3 and 6 months): median error {ref['error_mediana']} points "
+            f"vs {ref['error_sin_cambio']} if nothing changes; 80 % band covers {ref['acierta_80']:.0%}"
+        )
+    typer.echo(f"Wrote horizons for {len(index['entities'])} entities to {out}")
+
+
+@app.command()
 def validate(
     input_dir: str,
     out: Path = typer.Option(Path("artifacts/validation.json"), help="Report to write"),

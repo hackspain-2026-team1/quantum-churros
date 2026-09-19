@@ -20,6 +20,11 @@ class Settings(BaseSettings):
         default=Path("bundle"),
         validation_alias=AliasChoices("XRAY_BUNDLE_DIR", "BUNDLE_DIR"),
     )
+    # Rumbo's score forecast (horizons/), trained by the sync cycle; unset = not computed.
+    horizons_dir: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("XRAY_HORIZONS_DIR", "HORIZONS_DIR"),
+    )
     data_dir: Path = Field(
         default=Path("data/raw"),
         validation_alias=AliasChoices("XRAY_DATA_DIR", "DATA_DIR"),

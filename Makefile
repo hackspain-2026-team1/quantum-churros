@@ -4,6 +4,7 @@ COMPOSE := docker compose -f compose.yaml -f compose.dev.yaml
 XRAY_DATA ?= data/raw
 XRAY_BUNDLE ?= bundle
 XRAY_OUT ?= artifacts
+XRAY_HORIZONS ?= rumbo/horizons
 EVIDENCE_MONTHS ?= 24
 
 .PHONY: dev
@@ -115,6 +116,10 @@ daily-core: eval-phase-a ## Alias: Fase A local completa
 
 .PHONY: daily-core-docker
 daily-core-docker: eval-phase-a-docker ## Alias: Fase A con PostgreSQL
+
+.PHONY: forecast
+forecast: ## Train the score forecast on XRAY_OUT (scores + panel) and write Rumbo's horizons to XRAY_HORIZONS
+	uv run --package xray-engine xray-score forecast --artifacts $(XRAY_OUT) --bundle $(XRAY_BUNDLE) --out $(XRAY_HORIZONS)
 
 .PHONY: export
 export: validate ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE (EVIDENCE_MONTHS of evidence per entity)
