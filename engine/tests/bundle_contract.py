@@ -235,6 +235,17 @@ def _check_actions(entry: Mapping[str, Any], where: str) -> list[str]:
             errors.append(f"{where}: actions_combined.uplift is not new_score - shown")
         if not actions and combined["uplift"] != 0:
             errors.append(f"{where}: combined uplift without actions")
+    financing = entry.get("financing", [])
+    kind_list = ("factoring", "confirming", "line", "restructure", "sweep")
+    if any(item["kind"] not in kind_list for item in financing):
+        errors.append(f"{where}: financing with an unknown kind")
+    if [item["uplift_tenths"] for item in financing] != sorted(
+        (item["uplift_tenths"] for item in financing), reverse=True
+    ):
+        errors.append(f"{where}: financing must be sorted by uplift")
+    for item in financing:
+        if item["new_score_tenths"] - item["uplift_tenths"] != shown:
+            errors.append(f"{where}: financing {item['id']} uplift is not new_score - shown")
     plan = entry.get("actions_plan")
     if plan is not None:
         stages = plan["stages"]

@@ -122,6 +122,16 @@ export const actionsPlanSchema = z.object({
 	max_uplift_tenths: tenths
 });
 
+export const financingSchema = z.object({
+	id: z.string().min(1).max(80),
+	kind: z.enum(['factoring', 'confirming', 'line', 'restructure', 'sweep']),
+	title: text,
+	detail: z.string().max(600),
+	amount: z.number().min(0).nullable(),
+	uplift_tenths: tenths,
+	new_score_tenths: scoreTenths
+});
+
 const entityMonthShape = z.object({
 	month,
 	shown: scoreTenths,
@@ -147,7 +157,8 @@ const entityMonthShape = z.object({
 	abstain: z.object({ reason: code, unlock: text }).nullable(),
 	actions: z.array(actionSchema).optional(),
 	actions_combined: actionsCombinedSchema.nullable().optional(),
-	actions_plan: actionsPlanSchema.nullable().optional()
+	actions_plan: actionsPlanSchema.nullable().optional(),
+	financing: z.array(financingSchema).max(3).optional()
 });
 
 /** base + contributions - penalty - cap - shown, in tenths; 0 on a valid entity-month. */

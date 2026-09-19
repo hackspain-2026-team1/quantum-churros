@@ -33,6 +33,7 @@ from .contracts import (
     EntityMonth,
 )
 from .actions import plan_actions
+from . import financing as financing_module
 from .pillars import NOTE_TEMPLATES, pillar_note
 from .trajectory import trajectory_note
 
@@ -395,9 +396,22 @@ def _actions(month: EntityMonth, params: Any, group_row: Any, shown: int) -> dic
             "max_score_tenths": _score_tenths(plan.max_score),
             "max_uplift_tenths": max(0, (_score_tenths(plan.max_score) or 0) - shown),
         }
+    financing = [
+        {
+            "id": item.id,
+            "kind": item.kind,
+            "title": _text(item.title, 200),
+            "detail": _text(item.detail),
+            "amount": round(item.amount, 2) if item.amount is not None else None,
+            "uplift_tenths": max(0, item.new_score_tenths - shown),
+            "new_score_tenths": item.new_score_tenths,
+        }
+        for item in financing_module.recommendations(month.row, month.pillars, month.parts, params, group_row)
+    ]
     return {
         "actions": actions,
         "actions_combined": {"new_score": combined, "uplift": combined - shown},
+        "financing": financing,
         **({"actions_plan": action_plan} if action_plan is not None else {}),
     }
 

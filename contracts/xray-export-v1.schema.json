@@ -1016,6 +1016,14 @@
         "actions_plan": {
           "description": "Optional. The stage ladder to the best achievable score.",
           "$ref": "#/$defs/actionsPlan"
+        },
+        "financing": {
+          "description": "Financing options when management levers are not enough, best uplift first, at most 3; empty otherwise.",
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/financingRec"
+          }
         }
       }
     },
@@ -1808,6 +1816,55 @@
               }
             }
           }
+        }
+      }
+    },
+    "financingRec": {
+      "description": "One financing recommendation: a delta over the measured month, rescored; amount in EUR, null when the instrument moves no money.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "title",
+        "detail",
+        "amount",
+        "uplift_tenths",
+        "new_score_tenths"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z_]+$"
+        },
+        "kind": {
+          "enum": [
+            "factoring",
+            "confirming",
+            "line",
+            "restructure",
+            "sweep"
+          ]
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "detail": {
+          "$ref": "#/$defs/text"
+        },
+        "amount": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "uplift_tenths": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "new_score_tenths": {
+          "$ref": "#/$defs/scoreTenths"
         }
       }
     }

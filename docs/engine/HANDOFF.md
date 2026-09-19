@@ -137,9 +137,22 @@ paso 4).
 
 **Hecho:** `actions.py` reescrito + tests (`engine/tests/test_actions.py`, 10
 tests incl. ladder, caja honesta, determinismo). Suite completa en verde.
+También hechos los pasos 2-4:
+
+- **Paso 2 (hecho):** la escalera se exporta en `actions_plan` (stages + max) y
+  se muestra en la página de entidad.
+- **Paso 3 (hecho):** `invoices.py:open_overdue_ar` + `invoices_due.json` en el
+  bundle (top 20 facturas abiertas vencidas por empresa y grupo) + recordatorios
+  con botón de envío en la página de entidad.
+- **Paso 4 (hecho):** `financing.py` con 5 instrumentos (factoring, confirming,
+  póliza nueva, reestructuración, barrido intragrupo), exportado en el campo
+  `financing` y mostrado en la página de entidad. Medido en real: 66/250 grupos
+  y 211/1.286 empresas reciben al menos una recomendación en 2026-08.
+
 **Pendiente de este trabajo (no empezado):**
 
-- **Paso 2 — exportar la escalera al bundle.** `export.py:_actions` (línea ~343)
+- (nada del bloque de acciones; ver pasos 5-7 abajo)
+- **Antiguo paso 2 — exportar la escalera al bundle (hecho).** `export.py:_actions` (línea ~343)
   todavía solo emite `actions` (etapa 1) y `actions_combined`. Agregar campo
   opcional `actions_plan` con `stages[{number, score_tenths, uplift_tenths,
   actions[]}]`, `max_score_tenths`, `max_uplift_tenths`. Contratos a tocar:

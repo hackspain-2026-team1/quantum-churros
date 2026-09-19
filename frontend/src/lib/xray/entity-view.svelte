@@ -11,6 +11,7 @@
 	import type { EntityContext, EntityMonth, InvoicesDue, Series } from './contract.js';
 	import EmptyState from './empty-state.svelte';
 	import EntityActions from './entity-actions.svelte';
+	import FinancingCard from './financing-card.svelte';
 	import InvoiceReminders from './invoice-reminders.svelte';
 	import EntityHero from './entity-hero.svelte';
 	import MonthSlider from './month-slider.svelte';
@@ -91,6 +92,7 @@
 				{/if}
 				<EntityHero {entry} {entries} {series} targetTenths={target} />
 				<EntityActions entityId={id} {entry} />
+				<FinancingCard {entry} />
 				<InvoiceReminders entityId={id} {invoicesDue} />
 				<div class="flex flex-wrap items-end justify-between gap-3 pt-2">
 					<div>
