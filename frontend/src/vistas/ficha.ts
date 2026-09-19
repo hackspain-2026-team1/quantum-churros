@@ -1,8 +1,8 @@
 // La ficha de una entidad (empresa u organización) con sus cuatro secciones (propuesta 06, §3–4):
 //   I   Scoring y tendencia: lo observado y lo previsto en una sola línea de tiempo.
-//   II  Productos: lo que tiene contratado y lo que le encajaría.
-//   III Acciones: avisos, recomendaciones del motor y el horizonte de cada una.
-//   IV  Técnico: la trazabilidad completa (ver tecnico.ts).
+//   II  Acciones: avisos, recomendaciones del motor y el horizonte de cada una.
+//   III Productos: lo que tiene contratado y lo que le encajaría.
+//   IV  Detalles: la trazabilidad completa (ver tecnico.ts).
 // Todo sale de los ficheros: el bundle del motor, products/, horizons/ y params.json.
 
 import { TONO } from '../arena/arena';
@@ -327,7 +327,7 @@ export function seccionScoring(d: DatosFicha, estado: { escenario: OpcionesGrafi
 	// La partitura de pilares.
 	raiz.append(partitura(d, acc));
 	// El hilo, en corto.
-	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver el hilo entero en la sección técnica'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
+	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver el hilo entero en Detalles'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
 	return raiz;
 }
 
@@ -360,7 +360,7 @@ function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
 		const barra = h('div', { class: 'pt-barra', title: ref !== null ? `Referencia del motor: ${f.score(ref)}` : undefined },
 			h('span', { class: 'pt-lleno', style: { width: `${p.score === null ? 0 : p.score / 10}%` } }),
 			ref !== null ? h('span', { class: 'pt-ref', style: { left: `${ref / 10}%` } }) : null);
-		const fila = h('div', { class: `pt-fila tocable ${p.score === null ? 'nulo' : ''}`, tabindex: '0', title: 'Ver de dónde sale, en la sección técnica' },
+		const fila = h('div', { class: `pt-fila tocable ${p.score === null ? 'nulo' : ''}`, tabindex: '0', title: 'Ver de dónde sale, en Detalles' },
 			h('div', { class: 'pt-nombre' }, nombrePilar(d.man, p.key), ...marcas, h('span', { class: 'pt-peso' }, ` ${f.porcentaje(p.w_eff, 0)}`)),
 			h('div', { class: 'pt-score' }, p.score === null ? 'sin dato' : f.score(p.score)),
 			barra,
@@ -624,7 +624,7 @@ function listaAvisos(d: DatosFicha): HTMLElement {
 	if (!lista.children.length) lista.append(h('li', { class: 'nota' }, 'Ningún aviso hasta este mes.'));
 	const descartados = deEntidad.length - vivos.length;
 	const sinRevisar = vivos.filter((a) => !triaje.de(a.id)).length;
-	lista.append(h('li', { class: 'nota' }, [`${f.plural(sinRevisar, 'aviso sin revisar', 'avisos sin revisar')}`, descartados ? `${f.plural(descartados, 'descartado', 'descartados')} (se ven en la sección técnica)` : '', vivos.length > 8 ? `${f.numero(vivos.length - 8)} más en la sección técnica` : ''].filter(Boolean).join(' · ') + '. La clasificación se guarda en este navegador.'));
+	lista.append(h('li', { class: 'nota' }, [`${f.plural(sinRevisar, 'aviso sin revisar', 'avisos sin revisar')}`, 	descartados ? `${f.plural(descartados, 'descartado', 'descartados')} (se ven en Detalles)` : '', vivos.length > 8 ? `${f.numero(vivos.length - 8)} más en Detalles` : ''].filter(Boolean).join(' · ') + '. La clasificación se guarda en este navegador.'));
 	return lista;
 }
 

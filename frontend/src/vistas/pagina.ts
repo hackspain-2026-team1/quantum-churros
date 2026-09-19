@@ -27,8 +27,8 @@ export interface Paginas {
 	ocultar(): void;
 }
 
-const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Técnico' };
-const ROMANO: Record<Seccion, string> = { scoring: 'I', productos: 'II', acciones: 'III', tecnico: 'IV' };
+const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Detalles' };
+const ROMANO: Record<Seccion, string> = { scoring: 'I', acciones: 'II', productos: 'III', tecnico: 'IV' };
 
 export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string }): Paginas {
 	const raiz = h('main', { class: 'pagina', tabindex: '-1' });

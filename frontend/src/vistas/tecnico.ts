@@ -1,4 +1,4 @@
-// Sección IV · Técnico: la trazabilidad completa de una entidad (propuesta 06 §3.4 y 07 §5).
+// Sección IV · Detalles: la trazabilidad completa de una entidad (propuesta 06 §3.4 y 07 §5).
 // Traslado de la página de empresa de Bruno (cascada que cuadra al décimo, evidencia por pilar,
 // confianza, abstención) a las piezas de Rumbo, más lo que le faltaba: las curvas reales del
 // motor con la entidad encima, el veredicto por dentro, la evidencia filtrable, los supuestos y la
