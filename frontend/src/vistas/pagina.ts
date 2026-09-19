@@ -119,9 +119,9 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 				if (vals.length >= 5) d.pares = { mediana: vals[Math.floor(vals.length / 2)], n: vals.length, tamano: g.size_band };
 			}
 		}
-		// Las empresas de su tamaño, del índice de empresas (sale del bundle): mismo corte, mismo tramo.
+		// Las empresas de su tamaño, del índice de entidades derivado del mismo bundle: mismo corte, mismo tramo.
 		if (d && kind === 'company') {
-			const ix = await carga.indiceEmpresas();
+			const ix = await carga.entidades();
 			const yo = ix?.companies[id];
 			if (ix && ix.cut === corte && yo?.size) {
 				const vals = Object.values(ix.companies).filter((x) => x.size === yo.size && x.shown !== null).map((x) => x.shown!).sort((a, b) => a - b);
