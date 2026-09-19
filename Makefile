@@ -89,11 +89,15 @@ eval-report: ## Imprime resumen legible desde validation.json
 eval-injection: ## Tutorial del estudio de inyección con resultados y puntos de mejora
 	@uv run --package xray-engine python scripts/print_injection_report.py $(XRAY_OUT)/validation.json
 
+.PHONY: eval-anticipation
+eval-anticipation: ## Informe AUC(h) y lead-time de anticipación natural
+	@uv run --package xray-engine python scripts/print_anticipation_report.py $(XRAY_OUT)/validation.json
+
 .PHONY: eval-phase-a
-eval-phase-a: eval-reconcile-tests eval-validate eval-snapshot eval-report ## Fase A local (CSV): conciliación→validación→KPIs→informe
+eval-phase-a: eval-reconcile-tests eval-validate eval-snapshot eval-report eval-anticipation ## Fase A local (CSV): conciliación→validación→KPIs→informe
 
 .PHONY: eval-phase-a-docker
-eval-phase-a-docker: eval-reconcile-docker eval-validate eval-snapshot eval-report ## Fase A con db-seed (Docker)
+eval-phase-a-docker: eval-reconcile-docker eval-validate eval-snapshot eval-report eval-anticipation ## Fase A con db-seed (Docker)
 
 .PHONY: kpi-snapshot
 kpi-snapshot: ## Append KPI row from validation.json to docs/engine/KPI_HISTORY.md

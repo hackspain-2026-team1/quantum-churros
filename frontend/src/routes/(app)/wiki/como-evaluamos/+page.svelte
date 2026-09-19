@@ -121,6 +121,14 @@
 					result:
 						'7,7\u00A0% de picos confundidos con caída estructural · 1 mes de mediana hasta detectar un escalón · 24,4 alertas por cada 100 grupo-años sin inyección real',
 					objective: 'pico ≤ 10\u00A0% · escalón ≤ 3 meses'
+				},
+				{
+					name: 'Anticipación natural (AUC y meses de antelación)',
+					tests:
+						'Sin labels de quiebra: medimos si la nota ordena quién entrará en deterioro estructural en los próximos meses y cuánto antes avisa el monitor.',
+					result:
+						'AUC a 3 meses 0,48 · AUC a 6 meses 0,44 · 1 mes de mediana de anticipación (68 onsets) · calibración por inyección AUC-6 0,51',
+					objective: 'publicar método reproducible (bonus anticipación medida)'
 				}
 			]
 		}

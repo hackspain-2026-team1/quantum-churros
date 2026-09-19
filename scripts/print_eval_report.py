@@ -139,6 +139,14 @@ def main() -> int:
     print("    Acierto del abanico de escenarios a 3 meses:")
     print(f"      {_pct(score.get('outlook_fan_hit_rate'))}")
     print("    Tutorial completo:  make eval-injection  →  docs/engine/INJECTION_STUDY.md")
+    print("  Anticipación natural (R9 — cartera real)")
+    print("    AUC a 3 / 6 meses:")
+    print(f"      {_fmt(score.get('natural_auc_h3'))} / {_fmt(score.get('natural_auc_h6'))}")
+    print("    Meses de antelación mediana (señal → onset estructural):")
+    print(f"      {_fmt(score.get('natural_median_lead_months'))} meses")
+    print("    Calibración escalón AUC-6 (onset conocido):")
+    print(f"      {_fmt(score.get('injection_cal_auc_h6_step'))}")
+    print("    Informe completo:  make eval-anticipation  →  docs/engine/NATURAL_ANTICIPATION.md")
     print()
 
     coverage = doc.get("coverage") or {}

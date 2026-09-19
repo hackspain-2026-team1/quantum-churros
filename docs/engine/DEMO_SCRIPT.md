@@ -103,18 +103,25 @@ Opcional: `/?tab=diagnostico&focus=GROUP_0083&m=2026-08` (abstención).
 | Si preguntan… | Respuesta |
 |---------------|-----------|
 | ¿Es inteligencia artificial? | «No entrenamos un modelo: medimos cinco pilares con reglas congeladas. Wiki → Cómo puntuamos.» |
-| ¿Predicís el futuro? | «Mostramos escenarios descriptivos; el estudio de inyección mide cuántos meses antes vemos un cambio real.» |
+| ¿Predicís el futuro? | «Mostramos escenarios descriptivos. R8 mide capacidad con inyección; R9 publica AUC y meses de antelación en cartera real — ver wiki Cómo evaluamos.» |
 | ¿Y Velasco 82→68? | «Erosión lenta documentada en tests; el umbral de deriva larga es conservador a propósito.» |
 
 ---
 
 ## Evidencia numérica para el pitch (última validación)
 
-Ejecutar `make eval-injection` y citar:
+Ejecutar `make eval-injection` y citar (capacidad del motor):
 
 - Pico confundido con caída estructural: **7,7 %** (objetivo ≤ 10 %)
 - Escalón detectado en mediana: **1 mes**
 - Rampa sin detectar en 9 meses: **22,4 %** (punto de mejora honesto)
 - Falsas alarmas en cartera: **24,4 / 100 grupo-años**
 
-Detalle completo: [`INJECTION_STUDY.md`](INJECTION_STUDY.md)
+Ejecutar `make eval-anticipation` y citar (bonus anticipación medida — cartera real):
+
+- AUC a 3 meses: **0,48** (66 eventos estructurales)
+- AUC a 6 meses: **0,44**
+- Anticipación mediana (señal → onset): **1 mes** (68 onsets)
+- Calibración escalón AUC-6: **0,51** (onset conocido, coherente con R8)
+
+Detalle: [`INJECTION_STUDY.md`](INJECTION_STUDY.md) · [`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md)
