@@ -224,8 +224,9 @@ def _verdict(
     sigma = own_sigma(history[: position + 1], p)
     threshold = max(cfg.min_delta_points, cfg.min_sigma_multiple * sigma)
 
+    # a month of a shock that a later verdict declared a bump is not a base to compare against
     echo = any(
-        verdicts[item].nature == "bump" and verdicts[item].shock_month == compared
+        verdicts[item].nature == "bump" and verdicts[item].shock_month <= compared
         for item in range(base + 1, position)
     )
     shifted = "perimeter_shift" in now.flags
@@ -315,7 +316,7 @@ def _verdict(
                 continue
             undone = (history[item].score - now.score) * (1.0 if spike > 0 else -1.0)
             if undone >= cfg.bump_revert_fraction * abs(spike):
-                return Trajectory(**common, nature="bump", shock_month=history[item].month)
+                return Trajectory(**common, nature="bump", shock_month=verdicts[item].shock_month)
     return Trajectory(**common)
 
 
@@ -386,9 +387,9 @@ def trajectory(history: Sequence[ScoreParts], p: Params) -> Trajectory:
     no improvement or deterioration call on either horizon, nature None.
     Short horizon: improving / deteriorating when ``|delta3| >=
     max(min_delta_points, min_sigma_multiple * sigma)``; never when
-    ``compared_to`` is the ``shock_month`` of an earlier ``bump`` verdict (a
-    spike that reverted is not a base to compare against, so it leaves no echo
-    three months later).
+    ``compared_to`` is a month of a shock that a later verdict declared a
+    ``bump`` (from its ``shock_month`` on: a shock that reverted is not a base
+    to compare against, so it leaves no echo three months later).
     Like-for-like guard on that call: when the two ends are not measured the
     same way (a pillar is available at one end only; the activity momentum
     came online in between, i.e. ``months_observed`` crossed
@@ -444,7 +445,8 @@ def trajectory(history: Sequence[ScoreParts], p: Params) -> Trajectory:
     On a stable month: ``bump`` when a month of the last
     ``bump_revert_months`` was a ``shock_pending`` call of the short horizon
     and the score has since undone at least ``bump_revert_fraction`` of the
-    ``delta3`` of that month (``shock_month`` = that month); else None.
+    ``delta3`` of that month (``shock_month`` = first month of the run of
+    that call); else None.
     """
     if not history:
         return Trajectory(available=False, reason="short_history")

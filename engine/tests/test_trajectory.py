@@ -132,10 +132,13 @@ def test_a_spike_on_its_way_back_is_not_a_second_month(score_parts, params) -> N
     """A one-month event often takes two months to leave the score: the month in between is
     still beyond the threshold, and already six points or more on its way back."""
     spike = [70] * 8 + [40, 55, 69, 70, 70]
-    assert _natures(score_parts, params, spike)[8:11] == ["d?", "d?", "b"]
+    assert _natures(score_parts, params, spike)[8:] == ["d?", "d?", "b", "b", "-"]
     verdicts = _verdicts(_history(score_parts, params, spike), params)
     assert verdicts[9].delta3 == pytest.approx(-15.0) and verdicts[9].persistence_months == 2
-    assert _natures(score_parts, params, [50] * 8 + [80, 66, 51, 50, 50])[8:11] == ["i?", "i?", "b"]
+    # the bump names the first month of the shock, and no month of it is a base to compare against
+    assert verdicts[10].shock_month == verdicts[11].shock_month == score_parts.month_add(START, 8)
+    assert [verdicts[index].delta3 for index in (11, 12)] == [pytest.approx(30.0), pytest.approx(15.0)]
+    assert _natures(score_parts, params, [50] * 8 + [80, 66, 51, 50, 50])[8:] == ["i?", "i?", "b", "b", "-"]
     # under six points back the second month confirms
     assert _natures(score_parts, params, [70] * 8 + [40, 45.9, 46, 46])[8:10] == ["d?", "D"]
     assert _natures(score_parts, params, [70] * 8 + [40, 46, 46, 46])[8:10] == ["d?", "d?"]
@@ -143,13 +146,15 @@ def test_a_spike_on_its_way_back_is_not_a_second_month(score_parts, params) -> N
 
 def test_a_two_month_dip_is_not_structural_unless_half_of_it_still_makes_a_move(score_parts, params) -> None:
     shallow = _natures(score_parts, params, [70] * 8 + [60, 60, 70, 70, 70])
-    assert shallow[8:11] == ["d?", "d?", "b"] and "D" not in shallow
+    assert shallow[8:] == ["d?", "d?", "b", "b", "-"] and "D" not in shallow
     # a deep one cannot be told from a step in its second month; the month it comes back says so
     deep = _verdicts(_history(score_parts, params, [70] * 8 + [50, 50, 70, 70, 70]), params)
-    assert [(item.direction, item.nature) for item in deep[8:11]] == [
+    assert [(item.direction, item.nature) for item in deep[8:]] == [
         ("deteriorating", "shock_pending"), ("deteriorating", "structural"), ("stable", "bump"),
+        ("stable", None), ("stable", None),
     ]
     assert deep[10].shock_month == score_parts.month_add(START, 8)
+    assert deep[12].delta3 == pytest.approx(20.0)  # against a month of the bump: no echo
 
 
 def test_a_step_is_structural_when_it_is_expected_to_hold(score_parts, params) -> None:
