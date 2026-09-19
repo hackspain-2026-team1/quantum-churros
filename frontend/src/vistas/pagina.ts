@@ -11,9 +11,10 @@ import { f } from '../datos/formato';
 import type { Cartera } from '../datos/modelo';
 import { nombreBanda, movimiento } from '../datos/redaccion';
 import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
+import { conCifras } from './cifras';
 import { cola, h, vaciar } from './dom';
 import { desplegable } from './desplegable';
-import { cabecera, cargarFicha, contenidoSeccion, graficoHorizonte, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
+import { cabecera, cargarFicha, contenidoSeccion, graficoHorizonte, nombreEntidad, TONO_BANDA, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
 import { crearFinanciacion } from './financiacion';
 import { iconoProducto } from './iconos';
 import { logotipo, monograma } from './marca';
@@ -43,7 +44,7 @@ const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Detalle', productos:
 // En una organización, la sección de scoring es la lista de sus empresas.
 const nombreSeccion = (s: Seccion, vista: Estado['vista']) => s === 'scoring' && vista === 'organizacion' ? 'Empresas' : NOMBRE_SECCION[s];
 
-export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; imprimir(): void; hilo(hs: Hilo[]): void }): Paginas {
+export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; desde(): string; imprimir(): void; hilo(hs: Hilo[]): void }): Paginas {
 	// La página: el escenario (el protagonista, fijo) y el cuerpo, que se desplaza debajo.
 	const raiz = h('main', { class: 'pagina', tabindex: '-1' });
 	const escenario = h('section', { class: 'escenario', 'aria-label': 'Dónde está y hacia dónde va' });
@@ -120,7 +121,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		temporizadorH = window.setTimeout(() => {
 			const d = datos!;
 			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
-			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
+			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, desde: cb.desde(), alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
 			pintarControles(d);
 			medirEscenario();
 			cb.alCambiarArena();
@@ -151,6 +152,17 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			quitar.addEventListener('click', () => { estadoUI.acciones.clear(); estadoUI.previa = null; pintarFicha(S.e); });
 			controles.append(quitar);
 		}
+		// Extender es un mando del horizonte, no una pestaña: vive aquí, junto a lo que dibuja, y
+		// la palabra no cambia nunca. Lo que cambia es si está pulsado.
+		if (cabeFijo()) {
+			const ext = h('button', { type: 'button', class: `ctrl-extender ${extendida ? 'activa' : ''}`, 'aria-pressed': String(extendida),
+				title: extendida
+					? 'El horizonte se desplaza con las secciones, que ocupan la pantalla entera. Púlsalo para dejarlo fijo arriba, siempre a la vista.'
+					: 'El horizonte se queda fijo arriba, siempre a la vista. Púlsalo para que se desplace con las secciones y estas ocupen la pantalla entera.' },
+				glifoExtender(extendida), 'Extender');
+			ext.addEventListener('click', alternarExtendida);
+			controles.append(ext);
+		}
 	}
 
 	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; cb.hilo([]); altoEscenario = 0; marcarHorizonte(); }
@@ -159,8 +171,9 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	function pintarMiga(e: Estado) {
 		vaciar(miga);
 		const pasos = h('span', { class: 'miga-pasos' });
-		const paso = (texto: string, accion: (() => void) | null, actual = false) => {
-			const b = h(accion ? 'button' : 'span', { class: `miga-paso ${actual ? 'actual' : ''}`, type: accion ? 'button' : undefined, 'aria-current': actual ? 'page' : undefined }, texto);
+		const paso = (texto: string, accion: (() => void) | null, actual = false, vuelta = false) => {
+			const b = h(accion ? 'button' : 'span', { class: `miga-paso ${actual ? 'actual' : ''} ${vuelta ? 'vuelta' : ''}`, type: accion ? 'button' : undefined, title: vuelta ? `Volver a ${texto} (Esc)` : undefined, 'aria-current': actual ? 'page' : undefined },
+				vuelta ? h('span', { class: 'miga-flecha', 'aria-hidden': 'true' }, '‹') : null, texto);
 			if (accion) b.addEventListener('click', accion);
 			pasos.append(b);
 		};
@@ -168,7 +181,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		if (e.vista === 'metodologia') paso('Metodología', null, true);
 		if (e.vista === 'financiacion') paso('Financiación', null, true);
 		if ((e.vista === 'organizacion' || e.vista === 'empresa') && e.sel) {
-			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion');
+			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion', e.vista === 'empresa');
 			if (e.vista === 'empresa' && e.emp) { sep(); paso(f.empresa(e.emp), null, true); }
 		}
 		miga.append(pasos, h('span', { class: 'hueco' }));
@@ -195,17 +208,10 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		// Con el horizonte desplazado fuera de la pantalla, el número sigue aquí y lleva de vuelta.
 		const m = datos?.mes;
 		if (m) {
-			const volver = h('button', { type: 'button', class: 'sec-volver', title: 'Volver arriba, al horizonte' },
+			const volver = h('button', { type: 'button', class: `sec-volver banda-${m.band}`, title: 'Volver arriba, al horizonte' },
 				h('span', { class: 'versalita' }, nombreBanda(man, m.band)), h('b', {}, f.score(m.shown)), reglaBanda(man, m.shown, m.band));
 			volver.addEventListener('click', subirAlHorizonte);
 			nav.insertBefore(volver, nav.querySelector('.reverso'));
-		}
-		if (cabeFijo()) {
-			const ext = h('button', { type: 'button', class: `sec-extender ${extendida ? 'activa' : ''}`,
-				title: extendida ? 'El horizonte vuelve a quedarse fijo arriba, siempre a la vista' : 'El horizonte se desplaza con las secciones, que ocupan la pantalla entera' },
-				glifoExtender(extendida), extendida ? 'Fijar el horizonte' : 'Extender');
-			ext.addEventListener('click', alternarExtendida);
-			nav.append(ext);
 		}
 		return nav;
 	}
@@ -274,7 +280,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		// El protagonista: número y horizonte, arriba y siempre a la vista.
 		escenario.hidden = false;
 		vaciar(escenario);
-		escenario.append(h('div', { class: `escenario-hoja ${d.kind}` }, cabecera(d, movil), h('div', { class: 'horizonte' }, controles, zonaHorizonte)));
+		escenario.append(h('div', { class: `escenario-hoja ${d.kind}` }, cabecera(d, movil, acc), h('div', { class: 'horizonte' }, controles, zonaHorizonte)));
 		const fijo = escenarioFijo();
 		raiz.classList.toggle('escenario-fijo', fijo);
 		vaciar(cuerpoP);
@@ -319,7 +325,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const bandas = man.bands.filter((b) => b.min > 0).map((b) => b.min / 1000);
 		placa(plano, (cj) => ({
 			tipo: 'flota', x: cj.x, y: cj.y, w: cj.w, h: cj.h,
-			puntos: conScore.map((x) => ({ x: x.mes!.shown / 1000, y: uY((x.mes!.verdict.delta3 ?? 0) / 10), r: 5.5, tono: x.mes!.band === 'critical' ? TONO.peligro : TONO.tinta, alfa: 0.9 })),
+			puntos: conScore.map((x) => ({ x: x.mes!.shown / 1000, y: uY((x.mes!.verdict.delta3 ?? 0) / 10), r: 5.5, tono: TONO_BANDA[x.mes!.band] ?? TONO.tinta, alfa: 0.9 })),
 			rejillaX: [0.2, 0.4, 0.6, 0.8].map((u) => ({ u, fuerte: bandas.some((b) => Math.abs(b - u) < 1e-6) })).concat(bandas.filter((b) => ![0.2, 0.4, 0.6, 0.8].some((u) => Math.abs(u - b) < 1e-6)).map((u) => ({ u, fuerte: true }))),
 			rejillaY: [-tope, -tope / 2, 0, tope / 2, tope].map((v) => ({ u: uY(v), fuerte: v === 0 })),
 		}));
@@ -348,7 +354,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			const tr = h('tr', { class: 'tocable', tabindex: '0' },
 				h('td', {}, h('b', {}, f.empresa(em.res.id))),
 				h('td', {}, em.res.role, h('span', { class: 'sub' }, em.res.inherits_liquidity ? 'hereda la liquidez del grupo' : em.res.treasury_class ?? '')),
-				h('td', { class: 'num' }, mes ? h('span', {}, h('b', {}, f.score(mes.shown)), ' ', h('span', { class: 'sub' }, nombreBanda(man, mes.band).toLowerCase())) : '—'),
+				h('td', { class: 'num' }, mes ? h('span', { class: `cel-banda banda-${mes.band}` }, h('b', {}, f.score(mes.shown)), ' ', h('span', { class: 'sub' }, nombreBanda(man, mes.band).toLowerCase())) : '—'),
 				h('td', {}, mes ? movimiento(mes) : 'sin datos'),
 				h('td', {}, mes ? granos3(mes.conf.label) : ''),
 				h('td', { class: 'mini-prods' }, ...(em.prod?.held ?? []).map((t) => iconoProducto(t.product, { tam: 18, titulo: true, sinFilete: true }))),
@@ -370,7 +376,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		], pares, cuerpotabla, { col: 2, dir: 1 });
 		const tabla = h('table', { class: 'tabla-sutil empresas' }, thead, cuerpotabla);
 		const hereda = g.companies.filter((x) => x.inherits_liquidity).length;
-		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, h('div', { class: 'tabla-caja' }, tabla), plano, hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
+		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, h('div', { class: 'tabla-caja' }, tabla), plano, hereda ? h('p', { class: 'nota' }, ...conCifras(`${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`, { que: 'Empresas cuya liquidez decide el grupo' })) : null);
 	}
 
 	// ─── Entrada: el monitor de la cartera ─────────────────
@@ -430,7 +436,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		if (hor) hoja.append(seccion('El futuro: la previsión del motor', validacion(hor)));
 		if (prod) {
 			const p = prod.portfolio;
-			hoja.append(seccion('Los productos', h('ul', { class: 'senales' }, ...Object.entries(p).map(([id, x]) => h('li', { class: 'prod-met' }, iconoProducto(id as never, { tam: 32 }), h('div', {}, h('b', {}, `${f.plural(x.companies, 'empresa', 'empresas')}`), ` en ${f.plural(x.groups, 'grupo', 'grupos')}: ${f.numero(x.declared)} declaradas por el banco, ${f.numero(x.inferred)} deducidas de sus movimientos`, h('p', { class: 'nota' }, (prod.rules[id] as { note?: string })?.note ?? '')))))));
+			hoja.append(seccion('Los productos', h('ul', { class: 'senales' }, ...Object.entries(p).map(([id, x]) => h('li', { class: 'prod-met' }, iconoProducto(id as never, { tam: 32 }), h('div', {}, h('b', {}, ...conCifras(`${f.plural(x.companies, 'empresa', 'empresas')}`, { que: 'Empresas con el producto' })), ...conCifras(` en ${f.plural(x.groups, 'grupo', 'grupos')}: ${f.numero(x.declared)} declaradas por el banco, ${f.numero(x.inferred)} deducidas de sus movimientos`, { que: 'De dónde sale que lo tienen' }), h('p', { class: 'nota' }, (prod.rules[id] as { note?: string })?.note ?? '')))))));
 		}
 		cb.alCambiarArena();
 	}
@@ -452,7 +458,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		hoja.append(h('header', { class: 'informe-cab' },
 			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
 			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
-		hoja.append(cabecera(d, false), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, alto: 240 }, true)));
+		hoja.append(cabecera(d, false, acc), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, alto: 240 }, true)));
 		for (const sec of SECCIONES) {
 			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, nombreSeccion(sec, e.vista)));
 			cuerpo.append(contenidoSeccion(d, sec, quieto, null, d.kind === 'group' && sec === 'scoring' ? flota(d) : null));
@@ -495,7 +501,7 @@ function validacion(ix: NonNullable<Awaited<ReturnType<typeof carga.horizontesIn
 	}
 	const cortes = v?.cortes ?? [];
 	if (cortes.length && v) {
-		caja.append(h('p', {}, `Validado fuera de muestra hasta ${f.plural(v.validado_hasta, 'mes', 'meses')}: en cada corte de ${f.mes(cortes[0])} a ${f.mes(cortes[cortes.length - 1])} se entrenó solo con lo anterior y se comparó con lo que pasó. Más allá, la arena se aclara y se marca «sin validar».`));
+		caja.append(h('p', {}, ...conCifras(`Validado fuera de muestra hasta ${f.plural(v.validado_hasta, 'mes', 'meses')}: en cada corte de ${f.mes(cortes[0])} a ${f.mes(cortes[cortes.length - 1])} se entrenó solo con lo anterior y se comparó con lo que pasó. Más allá, la arena se aclara y se marca «sin validar».`, { que: 'Hasta dónde está comprobada la previsión con lo que pasó después' })));
 	} else {
 		const viejo = ix as unknown as { calibration?: { eval_cut?: string; mae_median?: number; mae_naive?: number; h6?: { cov80?: number; n?: number } } };
 		const c = viejo.calibration;
@@ -503,7 +509,7 @@ function validacion(ix: NonNullable<Awaited<ReturnType<typeof carga.horizontesIn
 			const trozos = [`Prueba hacia atrás${c.eval_cut ? ` desde ${f.mes(c.eval_cut)}` : ''}, comparando con lo que pasó de verdad`];
 			if (c.mae_median != null && c.mae_naive != null) trozos.push(`: se equivoca ${f.numero(c.mae_median, 1)} puntos de media, frente a ${f.numero(c.mae_naive, 1)} de suponer que no cambia nada`);
 			if (c.h6?.cov80 != null) trozos.push(`; la franja del 80 % acierta el ${f.porcentaje(c.h6.cov80, 0)}${c.h6.n != null ? ` (${f.numero(c.h6.n)} casos)` : ''}`);
-			caja.append(h('p', {}, trozos.join(''), '.'));
+			caja.append(h('p', {}, ...conCifras(`${trozos.join('')}.`, { que: 'Prueba de la previsión contra lo que pasó de verdad' })));
 		} else {
 			caja.append(h('p', { class: 'aviso-datos' }, 'Este índice de horizontes no trae la validación en el formato que lee Rumbo.'));
 		}

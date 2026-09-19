@@ -37,6 +37,14 @@
   --muelle: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
+/* Las cuatro bandas del motor, cada una con su color: crítico rojo, vigilancia ámbar, estable azul,
+ * sólido verde. Quien pinte una banda hereda «--banda» (marcas y granos) y «--banda-t» (texto). */
+.banda-critical { --banda: var(--peligro); --banda-t: var(--peligro-t); --banda-s: var(--peligro-s); }
+.banda-watch { --banda: var(--aviso); --banda-t: var(--aviso-t); --banda-s: var(--aviso-s); }
+.banda-stable { --banda: var(--info); --banda-t: var(--info-t); --banda-s: var(--info-s); }
+.banda-solid { --banda: var(--exito); --banda-t: var(--exito-t); --banda-s: var(--exito-s); }
+.t-banda { color: var(--banda-t, var(--tinta-2)); }
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -107,7 +115,9 @@ body[data-vista='plano'] .barra::after, body[data-vista='tapiz'] .barra::after, 
 body[data-vista='organizacion'] .barra, body[data-vista='empresa'] .barra, body[data-vista='metodologia'] .barra { background: #fff; }
 .marca { display: flex; align-items: center; gap: 5px; color: var(--tinta); flex: none; border-radius: 10px; padding: 2px 4px 2px 0; }
 /* En la portada la marca no se repite: el logotipo grande del buscador ya es la marca. */
-body[data-vista='entrada'] .marca { visibility: hidden; }
+/* En la portada el nombre entero vive en la página, pero el monograma se queda en la cabecera,
+ * junto al botón de la mirada: la casa siempre firma. */
+body[data-vista='entrada'] .marca .logotipo, body[data-vista='entrada'] .marca-de { display: none; }
 .marca .monograma-arena { color: var(--tinta); margin: -4px -2px -4px -4px; }
 .marca .logotipo { margin-top: 5px; transition: color 160ms; }
 .marca:hover .logotipo { color: var(--info-t); }
@@ -702,6 +712,9 @@ body[data-vista="expediente"] .frase-linea {
 .deshacer:hover {
   color: var(--tinta);
 }
+.deshacer.abajo {
+  box-shadow: var(--sombra-3);
+}
 
 .ayuda {
   position: absolute;
@@ -1127,6 +1140,11 @@ body[data-vista='organizacion'] .barra-hueco, body[data-vista='empresa'] .barra-
 .miga-paso { color: var(--apagado); padding: 3px 1px; border-bottom: 1px solid transparent; transition: color 140ms, border-color 140ms; }
 button.miga-paso:hover { color: var(--tinta); border-bottom-color: var(--borde-2); }
 .miga-paso.actual { color: var(--tinta); }
+/* Volver a la organización desde una empresa: la flecha lo dice y el hueco es grande. */
+button.miga-paso.vuelta { color: var(--tinta-2); padding: 3px 8px 3px 6px; border-radius: 7px; border-bottom-color: transparent; }
+button.miga-paso.vuelta:hover { color: var(--tinta); background: var(--fondo-2); border-bottom-color: transparent; }
+.miga-flecha { color: var(--tenue); margin-right: 5px; }
+button.miga-paso.vuelta:hover .miga-flecha { color: var(--tinta); }
 .miga-sep { color: var(--tenue); font-size: 16px; }
 .miga-accion { font: 500 12.5px var(--sans); color: var(--apagado); padding: 6px 10px; border-radius: 10px; border: 1px solid var(--borde); white-space: nowrap; transition: color 140ms, border-color 140ms; }
 .miga-accion:hover { color: var(--tinta); border-color: var(--borde-2); }
@@ -1797,6 +1815,12 @@ body[data-vista="metodologia"] .regla {
 .le-banda b {
   font: 600 15px var(--serif);
 }
+.le-banda .versalita {
+  color: var(--banda-t, var(--tinta));
+}
+.le-banda.banda-critical b {
+  color: var(--peligro-t);
+}
 .le-sep {
   color: var(--tenue);
 }
@@ -1817,10 +1841,7 @@ body[data-vista="metodologia"] .regla {
   stroke-width: 0.8;
 }
 .regla-banda .rb-grano {
-  fill: var(--tinta);
-}
-.regla-banda .rb-grano.banda-critical {
-  fill: var(--peligro);
+  fill: var(--banda, var(--tinta));
 }
 .flecha-granos circle {
   fill: var(--tinta);
@@ -1837,11 +1858,26 @@ body[data-vista="metodologia"] .regla {
   fill: var(--exito);
 }
 .granos3 .lleno {
-  fill: var(--tinta);
+  fill: var(--conf, var(--tinta));
+}
+.granos3 .g1 {
+  opacity: 0.68;
+}
+.granos3 .g2 {
+  opacity: 0.84;
+}
+.granos3.conf-low {
+  --conf: var(--peligro);
+}
+.granos3.conf-medium {
+  --conf: var(--aviso-t);
+}
+.granos3.conf-high {
+  --conf: var(--exito-t);
 }
 .granos3 .vacio {
   fill: none;
-  stroke: var(--tenue);
+  stroke: var(--borde-2);
   stroke-width: 1;
 }
 
@@ -2529,53 +2565,132 @@ button.filtro-opcion[aria-pressed="true"] {
   color: var(--apagado);
 }
 
-/* Acciones: recomendaciones y avisos. */
+/* Acciones: recomendaciones y avisos. Cada acción es una fila de cuatro columnas (orden, qué hacer,
+   cómo va y qué suma) y la fila entera es el mando que la lleva al horizonte. */
 .recomendaciones {
   list-style: none;
   padding: 0;
   display: grid;
 }
+.rec-cab,
 .rec {
   display: grid;
-  grid-template-columns: 54px 1fr;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--borde);
-  transition: background 200ms;
+  grid-template-columns: 62px minmax(0, 1fr) 190px 104px;
+  gap: 18px;
+  align-items: start;
 }
+.rec-cab {
+  padding: 0 12px 6px;
+  border-bottom: 1px solid var(--borde-2);
+  font: 600 11.5px/1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+.rec-cab span {
+  white-space: nowrap;
+}
+.rec-cab .der {
+  text-align: right;
+}
+.rec {
+  position: relative;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--borde);
+  border-radius: 11px;
+  transition: background 160ms, box-shadow 160ms;
+}
+.rec[data-accion] {
+  cursor: pointer;
+}
+.rec[data-accion]:hover {
+  background: var(--fondo-3);
+}
+.rec:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: -2px;
+}
+/* Elegida: se marca con un filete en el canto, no con un fondo que tape la letra. */
 .rec.elegida {
-  background: linear-gradient(90deg, var(--info-s), rgba(255, 255, 255, 0) 70%);
+  background: color-mix(in srgb, var(--info-s) 55%, #fff);
+}
+.rec.elegida::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--info);
 }
 .rec-marca {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding-top: 1px;
+}
+/* La casilla de la casa: cuadrada, de tinta, con su tic dibujado. Nada del sistema operativo. */
+.rec-tick {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 1.5px solid var(--borde-2);
+  border-radius: 7px;
+  background: #fff;
   cursor: pointer;
-  padding-left: 4px;
-  align-self: start;
+  position: relative;
+  transition: border-color 120ms, background 120ms, box-shadow 120ms;
 }
-.rec-marca input {
-  accent-color: var(--info);
-  width: 15px;
-  height: 15px;
+.rec-tick:hover {
+  border-color: var(--info);
+  box-shadow: var(--sombra-1);
 }
-.rec-n {
-  font: italic 16px var(--serif);
+.rec-tick:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+.rec-tick:checked {
+  background: var(--info);
+  border-color: var(--info);
+}
+.rec-tick:checked::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 3.5px;
+  width: 6px;
+  height: 11px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.rec-orden {
+  font: italic 13px/1 var(--serif);
   color: var(--tenue);
+}
+.rec.elegida .rec-orden {
+  color: var(--info-t);
 }
 .rec-titulo {
   font: 600 17px/1.3 var(--serif);
+}
+.rec.elegida .rec-titulo {
+  color: var(--info-t);
 }
 .rec-texto {
   font-size: 13.5px;
   color: var(--tinta-2);
   margin-top: 3px;
   line-height: 1.45;
+  max-width: 62ch;
 }
 .rec-hechos {
   font-size: 12.5px;
   color: var(--apagado);
-  margin-top: 4px;
+  margin-top: 5px;
 }
 .rec-productos {
   display: flex;
@@ -2589,16 +2704,73 @@ button.filtro-opcion[aria-pressed="true"] {
   font-style: italic;
   color: var(--apagado);
 }
-.rec[data-estado="hecha"] .rec-titulo {
+/* Cómo va: el estado, y debajo si está puesta en el horizonte. */
+.rec-estado {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+}
+.rec-estado .desp-boton {
+  min-width: 140px;
+}
+/* Si se hace: los puntos que suma. */
+.rec-efecto {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  align-self: start;
+}
+.rec-efecto b {
+  font: 500 24px/1 var(--serif);
+  color: var(--info-t);
+}
+.rec-efecto span {
+  font-size: 12px;
+  color: var(--apagado);
+}
+.rec[data-estado='en curso'] .rec-titulo::after {
+  content: '·';
+  margin-left: 6px;
+  color: var(--info-t);
+}
+.rec[data-estado='hecha'] {
+  opacity: 0.6;
+}
+.rec[data-estado='hecha'] .rec-titulo {
   text-decoration: line-through;
   text-decoration-color: var(--tenue);
   color: var(--apagado);
 }
-.rec[data-estado="en curso"] .rec-n {
-  color: var(--info-t);
+.rec[data-estado='hecha'] .rec-efecto b {
+  color: var(--apagado);
 }
-.rec.nada .rec-titulo {
+.rec.nada .rec-titulo,
+.rec.vacia {
   font-style: italic;
+}
+.rec.nada,
+.rec.vacia {
+  cursor: default;
+}
+@media (max-width: 900px) {
+  .rec-cab {
+    display: none;
+  }
+  .rec {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .rec-estado,
+  .rec-efecto {
+    grid-column: 2;
+  }
+  .rec-efecto {
+    justify-items: start;
+    margin-top: 6px;
+  }
+  .rec-efecto b {
+    font-size: 20px;
+  }
 }
 .frase-horizonte {
   font: 400 18px/1.5 var(--serif);
@@ -2862,15 +3034,18 @@ button.filtro-opcion[aria-pressed="true"] {
 .entrada { display: grid; justify-items: center; text-align: center; padding-top: 10px; }
 .entrada-rosa { width: 170px; height: 170px; margin: 10px 0 8px; }
 .entrada-frase { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; justify-content: center; }
+/* El espejo mide el texto del campo sin verse: la raya de puntos vale lo que vale lo escrito. */
+.entrada-espejo { position: absolute; left: -9999px; top: 0; white-space: pre; visibility: hidden; pointer-events: none; }
 .entrada-rumbo { display: inline-flex; align-items: baseline; gap: 14px; color: var(--tinta); }
 .entrada-rumbo .logotipo { transform: translateY(3px); }
 .entrada-de { font: 400 40px var(--serif); color: var(--tinta-2); }
 .entrada-buscar {
   font: italic 400 40px var(--serif);
-  width: min(460px, 80vw);
+  width: 12ch;
+  max-width: 80vw;
   border: 0;
   border-bottom: 1.5px dashed var(--borde-2);
-  padding: 2px 4px;
+  padding: 2px 9px;
   outline: none;
   background: transparent;
   color: var(--tinta);
@@ -2879,6 +3054,8 @@ button.filtro-opcion[aria-pressed="true"] {
 .entrada-buscar:focus {
   border-bottom-color: var(--info);
 }
+/* Sin la cruz del sistema: rompe la letra y, con el campo a la medida, se come la última palabra. */
+.entrada-buscar::-webkit-search-cancel-button, .entrada-buscar::-webkit-search-decoration { display: none; }
 .entrada-buscar::placeholder {
   color: var(--tenue);
 }
@@ -3107,7 +3284,7 @@ button.filtro-opcion[aria-pressed="true"] {
 .informe-pie { margin-top: 30px; padding-top: 10px; border-top: 1px solid var(--borde); font-size: 10.5px; color: var(--apagado); }
 .informe-vacio { font: 18px/1.5 var(--serif); padding: 40px 0; }
 /* En papel no se toca nada: fuera los controles. */
-.informe .av-triaje, .informe .rec-estado, .informe .rec-marca input, .informe .as-enlace,
+.informe .av-triaje, .informe .rec-estado, .informe .rec-marca input, .informe .as-enlace, .informe .ctrl-extender,
 .informe .buscar-sutil, .informe .bandeja-pestanas, .informe .sec-marcas, .informe input { display: none !important; }
 .informe .escenarios { pointer-events: none; }
 .informe .g-etq.boya.h3, .informe .solo-pantalla, .informe .mon-mapas { display: none; }
@@ -3162,12 +3339,14 @@ body[data-vista='entrada'] .regla, body[data-vista='entrada'] .reproducir, body[
 .escenario-hoja .ficha-cab { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 16px; align-items: start; }
 .cab-circulo { position: relative; width: 168px; height: 168px; margin: 0 0 0 -10px; }
 .cab-circulo .cab-numeral { position: absolute; inset: 0; height: auto; }
-.cab-banda { position: absolute; left: 0; right: 0; bottom: 36px; text-align: center; font: italic 400 15px var(--serif); color: var(--tinta-2); }
-.cab-banda.banda-critical { color: var(--peligro-t); }
+.cab-banda { position: absolute; left: 0; right: 0; bottom: 36px; text-align: center; font: italic 400 15px var(--serif); color: var(--banda-t, var(--tinta-2)); }
 .cab-grupo { position: absolute; top: calc(100% + 8px); left: 0; right: 0; text-align: center; font: 500 12.5px var(--sans); color: var(--apagado); }
 .cab-texto { padding-top: 14px; }
 .cab-texto h1 { font: 600 30px/1.1 var(--serif); letter-spacing: -0.01em; }
 .cab-sub { color: var(--apagado); margin: 4px 0 8px; font-size: 13px; }
+/* El nombre de la organización, dentro de la ficha de una empresa: un clic y se sube. */
+.volver-grupo { font: inherit; color: var(--tinta-2); border-bottom: 1px solid var(--borde-2); padding: 0 0 1px; transition: color 140ms, border-color 140ms; }
+.volver-grupo:hover { color: var(--info-t); border-bottom-color: var(--info); }
 .cab-texto .linea-estado { font-size: 13px; }
 .cab-explica { display: grid; gap: 3px; font: 400 14.5px/1.4 var(--serif); color: var(--tinta-2); margin-top: 8px; }
 .cab-marca { display: inline-flex; align-items: center; gap: 7px; font-family: var(--sans); font-size: 12.5px; color: var(--apagado); }
@@ -3186,7 +3365,7 @@ body[data-vista='entrada'] .regla, body[data-vista='entrada'] .reproducir, body[
 body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .g-etq.eje-v { transform: translate(calc(-100% - 8px), -50%); width: auto; font-size: 11px; color: var(--apagado); }
 .g-etq.eje-titulo-v { transform: translate(calc(-100% - 8px), -34px); font: italic 12px var(--serif); color: var(--apagado); }
-.g-etq.eje-banda { transform: translate(8px, -50%); font: italic 12px var(--serif); color: var(--tenue); }
+.g-etq.eje-banda { transform: translate(8px, -50%); font: italic 12px var(--serif); color: var(--banda-t, var(--tenue)); opacity: 0.75; }
 .g-etq.eje-m { transform: translate(-50%, 9px); font-size: 11px; color: var(--apagado); }
 .g-etq.eje-m.fut { color: var(--tenue); }
 .g-etq.eje-hoy { top: 100%; transform: translate(-50%, 7px); display: inline-flex; align-items: center; gap: 5px; font: 600 11.5px var(--sans); color: var(--info-t); background: var(--papel); padding: 0 4px; }
@@ -3196,17 +3375,27 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .g-etq.zona-t.pasado { transform: translate(10px, -20px); }
 .g-etq.zona-t.con-acciones { color: var(--info-t); }
 .g-etq.zona-t.despues { transform: translate(4px, 0); font-size: 12px; color: var(--tenue); }
-.g-etq.referencia-tendencia { transform: translate(6px, -50%); font: italic 11.5px var(--serif); color: var(--tellme, #9d4bdd); pointer-events: auto; cursor: help; }
+/* El punto de una acción: a qué distancia se nota y con qué score. Va encima de su marca. */
+.g-hito-pto { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; border: 2px solid var(--info); background: var(--papel); pointer-events: none; z-index: 2; }
+.g-etq.hito-accion {
+	transform: translate(-50%, calc(-100% - 15px)); white-space: nowrap; font: 600 11.5px var(--sans); color: var(--info-t);
+	background: var(--papel); border: 1px solid var(--info-s); border-radius: 999px; padding: 1px 8px 2px;
+	font-variant-numeric: tabular-nums; pointer-events: auto; cursor: help; z-index: 2;
+}
+.g-etq.hito-accion.izq { transform: translate(calc(-100% + 10px), calc(-100% - 15px)); }
 .g-etq.sin-validar { transform: translate(-50%, -20px); font: italic 11.5px var(--serif); color: var(--tenue); pointer-events: auto; cursor: help; border-bottom: 1px dotted var(--borde-2); }
 .horizonte .grafico { margin-bottom: 58px; }
 .g-etq.alternativa { transform: translate(6px, -50%); pointer-events: auto; cursor: pointer; }
 .g-etq.alternativa.esc-drift { --c: #9d4bdd; }
 .g-etq.alternativa.esc-stress { --c: #b07016; }
+/* Con una acción marcada los tres casos siguen al borde: el que se mira, en firme. */
+.g-etq.alternativa.actual { --c: var(--tinta-2); font-style: normal; font-family: var(--sans); font-size: 11.5px; font-weight: 600; cursor: help; }
+.g-etq.alternativa.actual:hover { text-decoration: none; }
+/* El globo sigue al ratón: la posición la fija ficha.ts en píxeles de la caja del gráfico. */
 .g-lectura {
-	position: absolute; top: -24px; transform: translateX(-50%); white-space: nowrap; font-size: 12px; color: #fff; background: var(--tinta);
-	padding: 2px 8px; border-radius: 7px; opacity: 0; pointer-events: none; transition: opacity 100ms; z-index: 2; font-variant-numeric: tabular-nums;
+	position: absolute; top: 0; left: 0; white-space: nowrap; font-size: 12px; color: #fff; background: var(--tinta);
+	padding: 2px 8px; border-radius: 7px; opacity: 0; pointer-events: none; transition: opacity 100ms; z-index: 3; font-variant-numeric: tabular-nums;
 }
-.g-lectura.izq { transform: translateX(-100%); }
 .g-punto { position: absolute; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%; border: 2px solid var(--info); background: #fff; opacity: 0; pointer-events: none; }
 .grafico.leyendo .g-lectura, .grafico.leyendo .g-punto { opacity: 1; }
 
@@ -3214,7 +3403,11 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .hoja-ficha { max-width: none; padding: 0 44px 80px; }
 .sec-marcas { margin: 4px 0 6px; padding: 10px 0 0; gap: 2px; border-bottom: 1px solid var(--borde); background: var(--papel); }
 .sec-marca { padding: 6px 16px 9px; border-bottom: 2px solid transparent; margin-bottom: -1px; font: 500 15px var(--sans); }
-.sec-marca.reverso { margin-left: auto; font-size: 13.5px; color: var(--tenue); }
+/* Desglose y Conciliación se apartan a la derecha, pero se leen igual que las demás. */
+.sec-marca.reverso { margin-left: auto; }
+/* La banda escrita al lado de un número: la palabra con su color; el número, solo si es crítico. */
+.cel-banda .sub { color: var(--banda-t, var(--apagado)); }
+.cel-banda.banda-critical b { color: var(--peligro-t); }
 /* Con el horizonte fuera de la pantalla, el número sigue en las pestañas y lleva de vuelta arriba. */
 .sec-volver {
 	margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px 8px;
@@ -3222,12 +3415,15 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 }
 .pagina.horizonte-fuera .sec-volver { opacity: 1; visibility: visible; }
 .sec-volver:hover { color: var(--tinta); }
-.sec-volver .versalita { color: var(--apagado); }
+.sec-volver .versalita { color: var(--banda-t, var(--apagado)); }
 .sec-volver b { font: 600 15px var(--serif); }
-/* Extender: el horizonte se desplaza con las secciones y estas ocupan la pantalla entera. */
-.sec-extender { display: inline-flex; align-items: center; gap: 7px; margin-left: 16px; padding: 5px 10px 8px; font: 500 13px var(--sans); color: var(--tenue); }
-.sec-extender:hover, .sec-extender.activa { color: var(--tinta-2); }
-.sec-extender .glifo-extender .trazo { stroke: currentColor; }
+.sec-volver.banda-critical b { color: var(--peligro-t); }
+/* Extender: el horizonte se desplaza con las secciones y estas ocupan la pantalla entera.
+   Vive entre los mandos del horizonte y la palabra no cambia: lo que cambia es si está pulsado. */
+.ctrl-extender { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 5px; border: 1px solid var(--borde); border-radius: 999px; font: 500 12.5px var(--sans); color: var(--tenue); transition: color 160ms, border-color 160ms, background 160ms; }
+.ctrl-extender:hover { color: var(--tinta-2); border-color: var(--borde-2); }
+.ctrl-extender.activa { color: var(--info-t); border-color: var(--info-s); background: var(--info-s); }
+.ctrl-extender .glifo-extender .trazo { stroke: currentColor; }
 .seccion { grid-template-columns: 1fr; gap: 12px; padding: 20px 0 22px; }
 .sec-titulo { font: 600 20px/1.25 var(--serif); }
 .seccion .seccion { padding-top: 12px; }
@@ -3283,13 +3479,6 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .mz-leyenda span { display: inline-flex; align-items: center; gap: 6px; }
 
 /* Acciones: cada fila mueve el horizonte; pulsar la fila también la marca. */
-.rec { grid-template-columns: 54px minmax(0, 1fr) 90px; cursor: default; }
-.rec[data-accion] { cursor: pointer; }
-.rec:hover { background: linear-gradient(90deg, rgba(56, 120, 246, 0.06), rgba(255, 255, 255, 0) 70%); }
-.rec-efecto { display: grid; justify-items: end; align-self: start; }
-.rec-efecto b { font: 500 22px var(--serif); color: var(--info-t); }
-.rec-efecto span { font-size: 12px; color: var(--apagado); }
-.rec.elegida .rec-titulo { color: var(--info-t); }
 
 /* La validación de la previsión. */
 .validacion { display: grid; gap: 10px; }
@@ -4120,9 +4309,11 @@ body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina
 
 .mon-mov { color: var(--apagado); }
 
-.mon-campo { display: grid; justify-items: center; text-align: center; margin: 22px 0 6px; }
+.mon-campo { display: grid; justify-items: center; text-align: center; margin: 8px 0 20px; }
 
 .mon-pista { color: var(--apagado); font-size: 13px; max-width: 70ch; margin-top: 6px; }
+/* Pedir la vista con palabras, dentro del panel de la cartera. */
+.mon-pedir-caja { display: grid; justify-items: start; gap: 6px; margin: 14px 0 10px; }
 
 .mon-entendido { width: min(900px, 100%); text-align: left; margin-top: 8px; font-size: 14px; color: var(--tinta-2); }
 
@@ -4152,7 +4343,15 @@ body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina
 
 .mon-score { font: 500 17px var(--serif); text-align: right; }
 
-.mon-score.critico { color: var(--peligro-t); }
+.mon-score.banda-critical { color: var(--peligro-t); }
+.mon-cifra.banda-critical, .mon-grupo-score.banda-critical { color: var(--peligro-t); }
+.mon-cifra.banda-watch { color: var(--aviso-t); }
+.mon-cifra.banda-stable { color: var(--info-t); }
+.mon-cifra.banda-solid { color: var(--exito-t); }
+.mr-dato.banda-critical b { color: var(--peligro-t); }
+.mr-dato.banda-watch b { color: var(--aviso-t); }
+.mr-banda.t-banda b { color: var(--banda-t, var(--tinta)); }
+.mon-score.banda-watch { color: var(--aviso-t); }
 
 .mon-delta { font-size: 12px; color: var(--apagado); white-space: nowrap; }
 
@@ -4518,4 +4717,279 @@ body[data-modo='cfo'] .nota-datos { display: none; }
 @media screen and (max-width: 699px) {
 	.pt-fila, .pt-eje { grid-template-columns: 1fr 44px 60px; }
 	.pt-eje { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Las cifras de la prosa: mono, en el azul de lo que se toca, y con
+ * su procedencia a un paso. En tablas y ejes no: ahí ya están en su sitio.
+ * ═══════════════════════════════════════════════════════════════ */
+:root { --mono: ui-monospace, 'SF Mono', SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace; }
+.cifra {
+	font-family: var(--mono); font-size: 0.92em; font-variant-numeric: tabular-nums;
+	color: var(--info-t); white-space: nowrap; letter-spacing: -0.01em;
+}
+.cifra.tocable {
+	padding: 0 1px; border-radius: 4px; cursor: pointer;
+	border-bottom: 1px dotted var(--info); transition: background 120ms var(--salida);
+}
+.cifra.tocable:hover, .cifra.tocable:focus-visible { background: var(--info-s); }
+.nota-cifra {
+	position: fixed; z-index: 70; max-width: 300px; display: grid; gap: 2px; padding: 8px 11px;
+	background: var(--tinta); color: #fff; border-radius: 9px; box-shadow: var(--sombra-2);
+	font: 12.5px/1.35 var(--sans); pointer-events: none;
+}
+.nota-cifra b { font-weight: 600; }
+.nota-cifra-rastro { color: rgba(255, 255, 255, 0.72); font-variant-numeric: tabular-nums; }
+.nota-cifra-pie { color: rgba(255, 255, 255, 0.55); font-style: italic; }
+/* En papel, una cifra es solo un número: ni color de enlace ni subrayado. */
+.informe .cifra, .capa-informe .cifra { color: inherit; border-bottom: 0; background: none; }
+/* Rótulos del horizonte que no caben en una fila: el de seis meses baja, como en el móvil. */
+.grafico.boyas-escalonadas .g-etq.boya.h6 { transform: translate(-50%, 54px); }
+.horizonte .grafico.boyas-escalonadas { margin-bottom: 88px; }
+
+/* ═══════════════════════════════════════════════════════════════
+ * Los márgenes de la página: una sola medida para todo
+ * ═══════════════════════════════════════════════════════════════
+ * El margen lateral lo fijaba cada regla por su cuenta (44, 28, 16) y la geometría de la arena lo
+ * repetía en TypeScript. Ahora es una variable: la barra, la regla, el escenario y las secciones
+ * respiran lo mismo y nada toca el borde. `geometria.ts` lleva los mismos números para que la
+ * regla del tiempo caiga a plomo sobre el texto.
+ */
+:root { --pad-lateral: 64px; --aire-escenario: 34px; }
+@media screen and (max-width: 1099px) { :root { --pad-lateral: 40px; --aire-escenario: 28px; } }
+@media screen and (max-width: 699px) { :root { --pad-lateral: 20px; --aire-escenario: 20px; } }
+
+.barra { padding-left: var(--pad-lateral); padding-right: var(--pad-lateral); }
+.barra::after { left: var(--pad-lateral); right: var(--pad-lateral); }
+.ayuda { right: var(--pad-lateral); }
+.hoja-ficha, .entrada, .metodologia, .financiacion { padding-left: var(--pad-lateral); padding-right: var(--pad-lateral); }
+
+/* El escenario arranca con aire: la línea del tiempo termina arriba y el nombre de la entidad
+ * no se le pega. Es el hueco que pedía la ficha (grupo y empresa). */
+.escenario { padding: var(--aire-escenario) var(--pad-lateral) 0; }
+
+@media screen and (max-width: 699px) {
+	.ayuda { left: 12px; right: 12px; }
+	.pagina:not(.escenario-fijo) .escenario { padding-left: 0; padding-right: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Scoring: qué está pasando y por qué
+ * ═══════════════════════════════════════════════════════════════
+ * La pestaña que se abre primero explica el número antes de desmontarlo. Nada de cajas: prosa en
+ * serif, una cuenta que se lee de izquierda a derecha y un balance de pilares con el cero en medio.
+ */
+.sc-lead { font: 400 18px/1.55 var(--serif); color: var(--tinta); max-width: 78ch; }
+.sc-que-es { font: 400 15.5px/1.6 var(--serif); color: var(--tinta-2); max-width: 78ch; margin-top: 10px; }
+.sec-scoring .nota { font-size: 13px; color: var(--apagado); max-width: 82ch; margin-top: 10px; }
+
+/* La cuenta: punto de partida + pilares − penalización − tope = score. */
+.sc-cuenta {
+	display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
+	margin-top: 20px; padding: 16px 0 14px; border-top: 1px solid var(--borde); border-bottom: 1px solid var(--borde);
+}
+.sc-term { display: grid; gap: 1px; }
+.sc-term b { font: 500 24px/1 var(--serif); font-variant-numeric: tabular-nums; }
+.sc-term span { font-size: 12px; color: var(--apagado); }
+.sc-term.pos b { color: var(--exito-t); }
+.sc-term.neg b { color: var(--peligro-t); }
+.sc-term.cero b { color: var(--tenue); }
+.sc-term.total b { font-size: 30px; }
+.sc-op { font: 400 19px var(--serif); color: var(--tenue); align-self: center; }
+
+/* El balance de pilares: el cero en el centro, lo que aporta a la derecha y lo que resta a la izquierda. */
+.sc-bal { margin-top: 6px; }
+.sc-bal-eje { display: grid; grid-template-columns: 210px minmax(160px, 1fr) 84px; gap: 4px 18px; font: italic 12px var(--serif); color: var(--tenue); padding-bottom: 6px; }
+.sc-bal-eje-c { display: grid; grid-template-columns: 1fr 1fr; }
+.sc-bal-eje-c i { font-style: italic; text-align: center; }
+.sc-bal-fila {
+	display: grid; grid-template-columns: 210px minmax(160px, 1fr) 84px; gap: 4px 18px; align-items: center;
+	padding: 12px 0; border-bottom: 1px solid var(--borde); cursor: pointer; border-radius: 0;
+}
+.sc-bal-fila:hover { background: linear-gradient(90deg, var(--info-s), rgba(255, 255, 255, 0) 70%); }
+.sc-bal-fila.nulo { opacity: 0.6; }
+.sc-bal-nombre { font: 600 16px var(--serif); }
+.sc-bal-peso { display: block; font: 400 12px var(--sans); color: var(--apagado); }
+.sc-bal-barra { position: relative; height: 10px; }
+.sc-bal-cero { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--borde-2); }
+.sc-bal-tramo { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.sc-bal-tramo.pos { background: var(--tinta); }
+.sc-bal-tramo.neg { background: var(--peligro); }
+.sc-bal-cifra { text-align: right; font: 500 19px var(--serif); font-variant-numeric: tabular-nums; }
+.sc-bal-cifra.pos { color: var(--exito-t); }
+.sc-bal-cifra.neg { color: var(--peligro-t); }
+.sc-bal-cifra.nulo { font: italic 13px var(--serif); color: var(--tenue); }
+.sc-bal-nota { grid-column: 1 / -1; font-size: 13.5px; line-height: 1.5; color: var(--tinta-2); max-width: 86ch; }
+
+/* Qué está pasando: el sello del movimiento delante de la explicación. */
+.sc-mov { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: baseline; }
+.sc-mov-sello {
+	font: 500 12.5px var(--sans); letter-spacing: 0.02em; text-transform: lowercase; white-space: nowrap;
+	padding: 4px 11px; border-radius: 999px; background: var(--fondo-2); color: var(--tinta-2);
+}
+.sc-mov-sello.improving { background: var(--exito-s); color: var(--exito-t); }
+.sc-mov-sello.deteriorating { background: var(--peligro-s); color: var(--peligro-t); }
+.sc-avisos, .sc-limites { list-style: none; padding: 0; margin-top: 14px; display: grid; gap: 8px; }
+.sc-avisos li, .sc-limites li {
+	font-size: 14px; line-height: 1.5; color: var(--tinta-2);
+	padding-left: 16px; border-left: 2px solid var(--borde-2);
+}
+.sc-avisos li { cursor: pointer; }
+.sc-avisos li:hover { border-left-color: var(--info); color: var(--tinta); }
+
+/* Productos: lo recomendado encabeza la estantería. */
+.est-familia.recomendado, .est-familia.estante { font: 600 15px var(--sans); color: var(--tinta); padding-top: 26px; }
+.est-familia.recomendado { padding-top: 6px; color: var(--info-t); }
+.est-familia.estante { border-top: 1px solid var(--borde); margin-top: 14px; padding-top: 20px; color: var(--apagado); }
+.est-fila.destacada .inv-nombre { font-size: 18px; }
+
+@media screen and (max-width: 699px) {
+	.sc-lead { font-size: 16px; }
+	.sc-bal-eje { display: none; }
+	.sc-bal-fila { grid-template-columns: minmax(0, 1fr) 72px; }
+	.sc-bal-barra { grid-column: 1 / -1; }
+	.sc-mov { grid-template-columns: 1fr; gap: 8px; }
+	.sc-mov-sello { justify-self: start; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Las opciones de la frase: rejillas, no renglones
+ * ═══════════════════════════════════════════════════════════════
+ * El panel era una columna de cien renglones que se salía de la pantalla. Ahora cada familia de
+ * opciones es un bloque con su rótulo y su rejilla: el nombre corto arriba, la cifra debajo y en
+ * grande, y los meses como un calendario. Se comparan de un vistazo y casi todo cabe sin rodar.
+ */
+.panel-lista { padding: 8px 10px 12px; }
+.panel-seccion {
+	padding: 14px 4px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+	text-transform: uppercase; color: var(--tenue);
+}
+.panel-lista > .panel-seccion:first-child { padding-top: 6px; }
+.panel-rejilla { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 4px; }
+
+/* Los renglones que quedan (búsqueda, atajos sueltos) crecen: más aire y más cuerpo. */
+.opcion { padding: 11px 12px; font-size: 15.5px; border-radius: 12px; }
+.opcion-cifra {
+	font: 500 17px var(--serif); font-variant-numeric: tabular-nums; color: var(--tinta-2); margin-left: auto;
+}
+.opcion-detalle { font-size: 13px; color: var(--apagado); }
+.opcion.activa::after { margin-left: 8px; }
+
+/* La celda: el nombre arriba, la cifra grande debajo. Sin caja hasta que se toca. */
+.opcion.celda {
+	display: grid; align-content: start; justify-items: start; gap: 1px;
+	padding: 9px 11px 10px; border: 1px solid transparent; text-align: left;
+}
+.opcion.celda .glifo, .opcion.celda .icono-producto { margin-bottom: 2px; }
+.opcion.celda .opcion-texto { font: 600 14.5px/1.25 var(--sans); flex: none; }
+.opcion.celda .opcion-cifra { margin: 0; font-size: 23px; line-height: 1.1; color: var(--tinta); }
+.opcion.celda .opcion-detalle { font-size: 12px; line-height: 1.3; }
+.opcion.celda.marcada, .opcion.celda:focus-visible { background: var(--fondo-2); border-color: var(--borde); }
+.opcion.celda.activa { background: var(--info-s); border-color: var(--info); }
+.opcion.celda.activa .opcion-texto, .opcion.celda.activa .opcion-cifra { color: var(--info-t); }
+.opcion.celda.activa::after { display: none; }
+.opcion.celda:disabled { opacity: 0.5; }
+
+/* El calendario: solo el periodo, centrado y grande. */
+.panel-rejilla[style*='--cols: 6'] .opcion.celda,
+.panel-rejilla[style*='--cols: 4'] .opcion.celda:not(:has(.opcion-cifra)) {
+	min-height: 0; justify-items: center; text-align: center; padding: 11px 6px;
+}
+.panel-rejilla[style*='--cols: 6'] .opcion.celda .opcion-texto,
+.panel-rejilla[style*='--cols: 4'] .opcion.celda:not(:has(.opcion-cifra)) .opcion-texto {
+	font: 500 16px var(--serif); text-transform: none;
+}
+
+@media screen and (max-width: 699px) {
+	.panel-rejilla:not(.fija) { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+	.panel-rejilla:not(.fija) > .opcion { grid-column-start: auto; }
+	.panel-rejilla.fija > .opcion.celda { padding: 10px 2px; }
+	.opcion.celda .opcion-cifra { font-size: 21px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Las acciones: una columna por pregunta
+ * ═══════════════════════════════════════════════════════════════
+ * Era un párrafo con las cifras dentro y una línea de metadatos que repetía lo de la última
+ * columna. Ahora cada pregunta tiene la suya —qué hacer, de cuánto a cuánto, qué esfuerzo, cómo
+ * queda a seis meses y cuánto sube—, y las cifras se escriben grandes, que es lo que se compara.
+ */
+.rec-cab, .rec {
+	grid-template-columns: 58px minmax(0, 1fr) 96px 132px 92px 160px;
+	gap: 20px;
+	align-items: start;
+}
+.rec-cab .centro { text-align: center; }
+.rec { padding: 16px 12px; }
+
+.rec-titulo { font: 600 18px/1.25 var(--serif); }
+/* La palanca: de dónde sale y adónde llega, en cifras y en grande. */
+.rec-palanca { display: flex; align-items: baseline; gap: 9px; margin-top: 5px; }
+.rec-palanca b { font: 500 20px/1.1 var(--serif); color: var(--tinta-2); font-variant-numeric: tabular-nums; }
+.rec-palanca b.meta { color: var(--info-t); }
+.rec-palanca i { font-style: normal; color: var(--tenue); font-size: 15px; }
+.rec-texto { margin-top: 7px; max-width: 58ch; }
+.rec-productos { flex-wrap: wrap; margin-top: 8px; gap: 6px 10px; }
+.rec-pilar {
+	font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tenue);
+	padding-left: 10px; border-left: 1px solid var(--borde);
+}
+.rec-productos .propia { font-style: italic; color: var(--apagado); }
+
+/* Las tres columnas de cifras: el número arriba y el rótulo debajo, siempre igual. */
+.rec-esfuerzo, .rec-plazo { display: grid; justify-items: center; gap: 2px; text-align: center; align-self: start; }
+.rec-esfuerzo b { font: 500 19px/1.1 var(--serif); color: var(--tinta); }
+.rec-esfuerzo > span, .rec-plazo > span { font-size: 11.5px; color: var(--apagado); line-height: 1.25; }
+.rec-plazo b { font: 500 24px/1.1 var(--serif); font-variant-numeric: tabular-nums; color: var(--tinta); }
+.rec-plazo.seis > span { max-width: 150px; }
+.rec-efecto b { font-size: 26px; }
+.rec b.vacia { color: var(--tenue); }
+.rec.elegida .rec-plazo b, .rec.elegida .rec-efecto b { color: var(--info-t); }
+.rec-estado .desp-boton { min-width: 0; width: 100%; }
+
+@media screen and (max-width: 1099px) {
+	.rec-cab, .rec { grid-template-columns: 50px minmax(0, 1fr) 84px 116px 82px 140px; gap: 14px; }
+	.rec-titulo { font-size: 17px; }
+	.rec-palanca b { font-size: 18px; }
+	.rec-plazo b { font-size: 21px; }
+	.rec-efecto b { font-size: 22px; }
+}
+@media screen and (max-width: 900px) {
+	.rec-cab { display: none; }
+	.rec { grid-template-columns: 34px repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+	.rec-cuerpo { grid-column: 2 / -1; }
+	.rec-esfuerzo, .rec-plazo, .rec-efecto { justify-items: start; text-align: left; margin-top: 10px; }
+	.rec-esfuerzo { grid-column: 2; }
+	.rec-plazo { grid-column: 3; }
+	.rec-efecto { grid-column: 4; }
+	.rec-estado { grid-column: 2 / -1; margin-top: 10px; }
+	.rec-estado .desp-boton { width: auto; }
+}
+
+/* Lo que proponen las empresas del grupo: las mismas columnas que la tabla de arriba. */
+.acciones-empresas li, .acciones-empresas .ae-cab {
+	display: grid; grid-template-columns: minmax(0, 210px) minmax(0, 1fr) 190px 96px 84px; gap: 20px; align-items: baseline;
+}
+.acciones-empresas .ae-cab {
+	border-bottom: 1px solid var(--borde-2); padding-bottom: 6px;
+	font: 600 11.5px/1 var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--tenue);
+}
+.acciones-empresas .ae-cab:hover { background: none; }
+.acciones-empresas .ae-cab .centro { text-align: center; }
+.acciones-empresas .ae-cab .der { text-align: right; }
+.acciones-empresas .ae-palanca { font-variant-numeric: tabular-nums; color: var(--tinta-2); white-space: nowrap; }
+.acciones-empresas .ae-palanca i { font-style: normal; color: var(--tenue); margin: 0 6px; }
+.acciones-empresas .ae-palanca em { font-style: normal; color: var(--info-t); }
+.acciones-empresas .ae-esfuerzo { text-align: center; color: var(--apagado); }
+.acciones-empresas .ae-efecto {
+	text-align: right; font: 500 18px var(--serif); font-variant-numeric: tabular-nums; color: var(--info-t);
+}
+@media screen and (max-width: 1099px) {
+	.acciones-empresas li, .acciones-empresas .ae-cab { grid-template-columns: minmax(0, 170px) minmax(0, 1fr) 160px 80px 70px; gap: 14px; }
+}
+@media screen and (max-width: 900px) {
+	.acciones-empresas .ae-cab { display: none; }
+	.acciones-empresas li { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; }
+	.acciones-empresas .ae-titulo, .acciones-empresas .ae-palanca { grid-column: 1; }
+	.acciones-empresas .ae-esfuerzo, .acciones-empresas .ae-efecto { text-align: right; }
 }

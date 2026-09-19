@@ -10,15 +10,16 @@ import { TONO, type Hilo } from '../arena/arena';
 import type { Futuro, LineaSerie, PlacaSerie } from '../arena/placas';
 import { carga } from '../datos/carga';
 import type {
-	AccionM, AlertaM, EmpresaM, EmpresaResumenM, EscenarioM, EvidenciaM, GrupoM, HorizonteM, HorizontesPasadosM, Manifiesto, MesM,
+	AccionM, AlertaM, EmpresaM, EmpresaResumenM, EscenarioM, EvidenciaM, GrupoM, HorizonteM, HorizontesPasadosM, Manifiesto, MesM, PilarMesM,
 	ParametrosM, ProductosEmpresaM, ProductosGrupoM, TenenciaM,
 } from '../datos/contrato';
 import { estadosProductos, recomendaciones, type EstadoProducto } from '../datos/encaje';
 import { f, primeraMayuscula } from '../datos/formato';
 import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
-import { ESFUERZO, ESTADO_AVISO, explicacionAccion, lineaAvisoM, nombreBanda, nombrePilar, tituloAccion, voz } from '../datos/redaccion';
+import { ESFUERZO, ESTADO_AVISO, accionCorta, explicacionAccion, lineaAvisoM, movimiento, nombreBanda, nombrePilar, palancaDeAccion, tituloAccion, voz } from '../datos/redaccion';
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
+import { conCifras, type Origen } from './cifras';
 import { seguimientoAcciones } from './ejecuciones';
 import { iconoProducto } from './iconos';
 import { hilo, lineaEstado, llamadas, marcaBanco, seccion, sello, type Nudo } from './primitivos';
@@ -83,6 +84,9 @@ export async function cargarFicha(kind: 'company' | 'group', id: string, grupoId
 	};
 }
 
+/** Cada banda con su color, también en la arena: crítico rojo, vigilancia ámbar, estable azul, sólido verde. */
+export const TONO_BANDA: Record<string, number> = { critical: TONO.peligro, watch: TONO.aviso, stable: TONO.info, solid: TONO.exito };
+
 // ─── Nombres ─────────────────────────────────────────────────
 export const nombreEntidad = (kind: 'company' | 'group', id: string) => (kind === 'company' ? f.empresa(id) : f.grupo(id));
 const atributo = (d: DatosFicha, k: string) => d.ent.profile.find((a) => a.key === k)?.value ?? null;
@@ -134,9 +138,27 @@ export interface Acciones {
 	hilo(hs: Hilo[]): void;
 }
 
+/** De dónde sale lo que se dice de un pilar: fichero y filas de la evidencia de ese mes. */
+function origenPilar(d: DatosFicha, acc: Acciones, pilar: string | null, que?: string): Origen {
+	const filas = (d.evid?.months.find((x) => x.month === d.corte)?.rows ?? []).filter((r) => (pilar ? r.pillar === pilar : true));
+	const fichero = [...new Set(filas.map((r) => r.source_file))][0];
+	return {
+		que, mes: d.corte, pilar: pilar ? nombrePilar(d.man, pilar) : null, fichero,
+		filas: fichero ? filas.filter((r) => r.source_file === fichero).reduce((n, r) => n + (r.n_rows ?? 0), 0) || undefined : undefined,
+		ir: d.evid ? () => acc.irSeccion('conciliacion', undefined, { pilar }) : undefined,
+	};
+}
+
 // ─── 1. La cabecera: el número en su círculo ─────────────────
 
-export function cabecera(d: DatosFicha, movil: boolean): HTMLElement {
+/** Desde una empresa, volver a su organización: un paso atrás, siempre a la vista. */
+function botonVolver(nombre: string, ir: () => void): HTMLElement {
+	const b = h('button', { type: 'button', class: 'volver-grupo', title: `Volver a ${nombre} (Esc)` }, nombre);
+	b.addEventListener('click', ir);
+	return b;
+}
+
+export function cabecera(d: DatosFicha, movil: boolean, acc: Acciones): HTMLElement {
 	const nombre = nombreEntidad(d.kind, d.id);
 	const m = d.mes;
 	const grupo = d.kind === 'company' ? d.grupoMes : null;
@@ -149,35 +171,40 @@ export function cabecera(d: DatosFicha, movil: boolean): HTMLElement {
 		if (grupo) marcas.push({ v: grupo.shown / 10, tipo: 'grupo' });
 		placa(circulo, (c) => ({
 			tipo: 'numeral', x: c.x, y: c.y, h: c.h, texto: f.score(m.shown),
-			anillo: { cx: c.x + c.w / 2, cy: c.y + c.h / 2, r: Math.min(c.w, c.h) / 2 - 14, valor: m.shown / 10, bandas: d.man.bands.filter((b) => b.min > 0).map((b) => b.min / 10), tono: m.band === 'critical' ? TONO.peligro : TONO.tinta, marcas },
+			anillo: { cx: c.x + c.w / 2, cy: c.y + c.h / 2, r: Math.min(c.w, c.h) / 2 - 14, valor: m.shown / 10, bandas: d.man.bands.filter((b) => b.min > 0).map((b) => b.min / 10), tono: TONO_BANDA[m.band] ?? TONO.tinta, marcas },
 		}));
 		circulo.append(h('span', { class: `cab-banda banda-${m.band}` }, nombreBanda(d.man, m.band).toLowerCase()));
-		if (grupo) circulo.append(h('span', { class: 'cab-grupo' }, `Grupo ${f.score(grupo.shown)}`));
+		if (grupo) circulo.append(h('span', { class: 'cab-grupo' }, ...conCifras(`Grupo ${f.score(grupo.shown)}`, { que: 'Score del grupo en este mes', mes: d.corte, ir: () => acc.abrirGrupo(d.grupoId) })));
 		circulo.title = d.man.bands.map((b) => `${b.label} desde ${f.score(b.min)}`).join(' · ');
 	}
-	const sub: string[] = [];
-	if (d.kind === 'company') sub.push(`${(d.ent as EmpresaM).role} · ${f.grupo(d.grupoId)}`);
-	else sub.push(f.plural((d.ent as GrupoM).companies.length, 'empresa', 'empresas'));
+	const sub: (Node | string)[] = [];
+	if (d.kind === 'company') {
+		sub.push((d.ent as EmpresaM).role);
+		// El nombre de la organización es el camino de vuelta: desde una empresa se sube de un clic.
+		sub.push(d.kind === 'company' ? botonVolver(f.grupo(d.grupoId), () => acc.abrirGrupo(d.grupoId)) : f.grupo(d.grupoId));
+	} else sub.push(f.plural((d.ent as GrupoM).companies.length, 'empresa', 'empresas'));
 	const pais = atributo(d, 'country'); if (pais) sub.push(pais.replace(/\s*\([A-Z]{2}\)/, ''));
 	const sector = d.ent.context.industry?.label; if (sector) sub.push(sector);
+	const lineaSub = h('p', { class: 'cab-sub' });
+	sub.forEach((x, i) => { if (i) lineaSub.append(' · '); lineaSub.append(x); });
 	const cab = h('header', { class: 'ficha-cab' }, circulo,
 		h('div', { class: 'cab-texto' },
 			h('h1', {}, nombre),
-			h('p', { class: 'cab-sub' }, sub.join(' · ')),
+			lineaSub,
 			m ? lineaEstado(d.man, m, null, true) : h('p', { class: 'cab-vacio' }, `Sin datos en ${f.mes(d.corte)}.`),
-			m ? explicacion(d) : null));
+			m ? explicacion(d, acc) : null));
 	void movil;
 	return cab;
 }
 
 /** Lo que el número no dice solo: qué pesa más y con quién se compara (las marcas del círculo). */
-function explicacion(d: DatosFicha): HTMLElement {
+function explicacion(d: DatosFicha, acc: Acciones): HTMLElement {
 	const m = d.mes!;
 	const p = h('p', { class: 'cab-explica' });
 	const peor = [...m.pillars].filter((x) => x.score !== null).sort((a, b) => a.contrib - b.contrib)[0];
 	if (m.abstain) p.append(h('span', {}, `El motor se abstiene: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}`));
-	else if (peor && peor.contrib < 0) p.append(h('span', {}, `Lo que más resta: ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.numero(Math.abs(peor.contrib) / 10, 1)} puntos.`));
-	if (d.pares) p.append(h('span', { class: 'cab-marca pares' }, h('i', { 'aria-hidden': 'true' }), `las ${f.numero(d.pares.n)} de su tamaño: mediana ${f.score(d.pares.mediana)}`));
+	else if (peor && peor.contrib < 0) p.append(h('span', {}, ...conCifras(`Lo que más resta: ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.numero(Math.abs(peor.contrib) / 10, 1)} puntos.`, origenPilar(d, acc, peor.key, `Lo que resta el pilar de ${nombrePilar(d.man, peor.key).toLowerCase()} al score`))));
+	if (d.pares) p.append(h('span', { class: 'cab-marca pares' }, h('i', { 'aria-hidden': 'true' }), ...conCifras(`las ${f.numero(d.pares.n)} de su tamaño: mediana ${f.score(d.pares.mediana)}`, { que: `Mediana de las entidades del mismo tramo de tamaño (${d.pares.tamano})`, mes: d.corte })));
 	return p;
 }
 
@@ -193,6 +220,8 @@ export interface OpcionesGrafico {
 	/** Un pilar señalado desde la sección de scoring. */
 	pilar: string | null;
 	alto: number;
+	/** Primer mes del intervalo de la regla; vacío si la regla está en un mes suelto. */
+	desde?: string;
 	alHilo?: (hs: Hilo[]) => void;
 	/** Tocar la arena del futuro o una etiqueta elige el escenario más cercano. */
 	alElegir?: (e: OpcionesGrafico['escenario']) => void;
@@ -203,6 +232,8 @@ const ESCENARIOS: Escenario[] = ['base', 'drift', 'stress'];
 const NOMBRE_ESCENARIO = { base: 'Si todo sigue igual', drift: 'Si sigue al mismo ritmo', stress: 'Si se repite su peor trimestre' } as const;
 const CORTO_ESCENARIO = { base: 'todo igual', drift: 'mismo ritmo', stress: 'peor trimestre' } as const;
 const TONO_ESCENARIO = { base: TONO.tinta, drift: TONO.tellme, stress: TONO.ocre } as const;
+/** Cuánto tarda en notarse una acción, dicho como se dice. */
+const PLAZO = (m: number) => (m === 1 ? 'a un mes' : m === 12 ? 'a un año' : `a ${f.numero(m)} meses`);
 
 /**
  * Percentil de un escenario en el mes m (0 = el primero previsto). Los supuestos solo
@@ -225,7 +256,9 @@ const marcasEje = (lo: number, hi: number) => {
 /** El horizonte: un calendario fijo (todos los meses del bundle más doce) que cruza el mes de la regla. */
 export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo = false): HTMLElement {
 	const caja = h('div', { class: 'grafico', style: { height: `${o.alto}px` } });
-	const cal = [...d.man.months];
+	// El calendario empieza en el mes que dice la regla, así que elegir un intervalo acerca el gráfico.
+	const inicio = o.desde ? Math.max(0, d.man.months.indexOf(o.desde)) : 0;
+	const cal = d.man.months.slice(inicio);
 	const ultimoBundle = cal[cal.length - 1];
 	for (let k = 1; k <= 12; k++) { const [y, mm] = ultimoBundle.split('-').map(Number); const t = y * 12 + mm - 1 + k; cal.push(`${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`); }
 	const col = (iso: string) => cal.indexOf(iso);
@@ -258,6 +291,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		});
 	}
 	pasado = pasado.filter((q) => q[0] >= 0);
+	despues = despues.filter((q) => q[0] >= 0);
 
 	const futuros: Futuro[] = [];
 	const lineas: LineaSerie[] = [];
@@ -265,7 +299,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const etFuturo: { t: string; clase: string } = { t: '', clase: '' };
 	const boyas: { h: number; texto: string; titulo?: string }[] = [];
 	const HITOS = [3, 6, 12];
-	let referenciaTendencia: { col: number; value: number; texto: string } | null = null;
+	/** El punto de cada acción en el calendario: cuándo se nota y con qué score. */
+	const hitos: { col: number; v: number; texto: string; titulo: string }[] = [];
 	const alternativas: { texto: string; clase: string; v: number; k: Escenario }[] = [];
 	const validado = d.validado || 12;
 	const base = d.hor?.scenarios?.base;
@@ -277,27 +312,46 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		// La franja de la previsión y su mediana: una retícula regular en vez de la nube de trayectorias.
 		const abanico = (e: EscenarioM, tono: number, alfa: number): Futuro => ({ granos: [], tono, alfa, mediana: e.q.p50, franja: e.q, validado, hitos: HITOS });
 		if (accs.length) {
-			const tendencia = d.hor!.scenarios?.drift ?? base;
-			const tonoTendencia = tendencia === base ? TONO.apagado : TONO.tellme;
+			// La referencia es el caso que se está mirando, no siempre «si sigue al mismo ritmo»:
+			// comparar contra otro caso hacía leer como caída lo que solo era cambiar de supuesto.
+			const tendencia = d.hor!.scenarios![elegido] ?? base;
+			const tonoTendencia = TONO_ESCENARIO[elegido];
 			const p10 = 'p10' in tendencia.q ? tendencia.q.p10 : [];
 			const p90 = 'p90' in tendencia.q ? tendencia.q.p90 : [];
-			if (p10.length) lineas.push({ puntos: p10.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.45, punteada: true });
-			if (p90.length) lineas.push({ puntos: p90.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.45, punteada: true });
+			if (p10.length) lineas.push({ puntos: p10.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.4, punteada: true });
+			if (p90.length) lineas.push({ puntos: p90.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.4, punteada: true });
 			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...tendencia.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: tonoTendencia, alfa: 0.9, punteada: true });
+			// Los otros casos no desaparecen al marcar una acción: siguen dibujados, tenues, y los
+			// tres llevan su score a un año al borde derecho. Así se ve la acción contra todos.
+			for (const k of ESCENARIOS) {
+				const raw = d.hor!.scenarios![k];
+				if (!raw) continue;
+				if (k !== elegido) lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...raw.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: TONO_ESCENARIO[k], alfa: 0.38, punteada: true, grosor: 0.7 });
+				if (raw.q.p50[11] != null) alternativas.push({ texto: `${CORTO_ESCENARIO[k]} · ${f.score(raw.q.p50[11])}`, clase: `esc-${k} ${k === elegido ? 'actual' : ''}`, v: raw.q.p50[11] / 10, k });
+			}
 			const principal = accs.length === 1 ? accs[0] : accs.reduce((a, b) => (a.q.p50[5] > b.q.p50[5] ? a : b));
 			// La principal, con su franja; las demás marcadas, solo su mediana.
 			for (const a of accs) futuros.push(a === principal ? abanico(a, TONO.info, 0.72) : { granos: [], tono: TONO.info, alfa: 0.15, mediana: a.q.p50 });
-			const lag = Math.max(...accs.map((a) => a.lag_months));
+			// Cada acción tarda lo suyo en notarse: se marca el punto a esa distancia, con su score.
+			for (const a of accs) {
+				const lag = Math.min(Math.max(1, a.lag_months), a.q.p50.length);
+				const v = a.q.p50[lag - 1] / 10;
+				marcas.push([hoy + lag, v]);
+				const ficha = d.mes!.actions?.find((x) => x.id === a.id);
+				hitos.push({ col: hoy + lag, v, texto: `${PLAZO(lag)} · ${f.score(a.q.p50[lag - 1])}`, titulo: `${ficha ? tituloAccion(ficha) : a.id}: el motor la da por hecha en ${f.mes(cal[Math.min(cal.length - 1, hoy + lag)])}` });
+			}
+			// Varias juntas: el motor da una cifra combinada; se marca donde ya están todas hechas.
 			const ids = accs.map((a) => a.id).sort().join();
-			const cifra = accs.length === 1 ? accs[0].engine_new_score : d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids)?.new_score;
-			if (cifra !== undefined) marcas.push([hoy + lag, cifra / 10]);
-			const nombreReferencia = tendencia === base ? 'la referencia base' : 'la tendencia actual';
-			const ultimo = tendencia.q.p50.length - 1;
-			if (ultimo >= 0) referenciaTendencia = { col: hoy + ultimo + 1, value: tendencia.q.p50[ultimo] / 10, texto: tendencia === base ? 'referencia base' : 'tendencia actual' };
+			const combo = accs.length > 1 ? d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids)?.new_score : undefined;
+			if (combo !== undefined) {
+				const lag = Math.max(...accs.map((a) => Math.max(1, a.lag_months)));
+				marcas.push([hoy + lag, combo / 10]);
+				hitos.push({ col: hoy + lag, v: combo / 10, texto: `las ${accs.length} juntas · ${f.score(combo)}`, titulo: `Las ${accs.length} acciones marcadas, según el motor` });
+			}
 			for (const hz of HITOS) {
 				const k = hz - 1;
 				const dif = Math.round((principal.q.p50[k] - tendencia.q.p50[k]) / 10);
-				boyas.push({ h: hz, texto: `${f.score(tendencia.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana de ${nombreReferencia} → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
+				boyas.push({ h: hz, texto: `${f.score(tendencia.q.p50[k])} → ${f.score(principal.q.p50[k])}${dif === 0 ? '' : ` (${dif > 0 ? '+' : '−'}${Math.abs(dif)})`}`, titulo: `Sin hacer nada (${NOMBRE_ESCENARIO[elegido].toLowerCase()}) → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
 			}
 			etFuturo.t = o.previa?.length && !o.previa.every((x) => o.acciones.has(x)) ? 'vista previa · con esta acción' : accs.length > 1 ? `con ${accs.length} acciones` : 'con la acción marcada';
 			etFuturo.clase = 'con-acciones';
@@ -367,8 +421,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const eti = (clase: string, texto: string, x: string, y: string) => { const e = h('span', { class: `g-etq ${clase}` }, texto); e.style.left = x; e.style.top = y; caja.append(e); return e; };
 	const fmtV = (v: number) => (esScore ? f.numero(v) : unidad === 'EUR' ? f.eurosCorto(v) : unidad === 'ratio' ? f.ratio(v) : `${f.numero(v, Math.abs(v) < 10 ? 1 : 0)}`);
 	for (const v of rejilla) eti('eje-v', fmtV(v), '0', Y(v));
-	for (const b of d.man.bands) if (esScore && b.min > 0) eti('eje-banda', b.label.toLowerCase(), '100%', Y((b.min + (d.man.bands[d.man.bands.indexOf(b) + 1]?.min ?? 1000)) / 20));
-	if (esScore) eti('eje-banda', d.man.bands[0].label.toLowerCase(), '100%', Y(d.man.bands[1].min / 20));
+	for (const b of d.man.bands) if (esScore && b.min > 0) eti(`eje-banda banda-${b.key}`, b.label.toLowerCase(), '100%', Y((b.min + (d.man.bands[d.man.bands.indexOf(b) + 1]?.min ?? 1000)) / 20));
+	if (esScore) eti(`eje-banda banda-${d.man.bands[0].key}`, d.man.bands[0].label.toLowerCase(), '100%', Y(d.man.bands[1].min / 20));
 	eti('eje-titulo-v', esScore ? 'score' : unidad === 'EUR' ? 'euros' : unidad || 'valor', '0', '0');
 	// Con horizontes, el futuro se rotula con ellos y no con los meses: así no se pisan.
 	cal.forEach((m, i) => { if (Math.abs(i - hoy) > 3 && (i - hoy) % 3 === 0 && !(i > hoy && boyas.length)) eti(`eje-m ${i > hoy ? 'fut' : ''}`, f.mesCorto(m), X(i), '100%'); });
@@ -378,10 +432,6 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const zp = eti('zona-t pasado', 'lo que ha pasado', '0', '0'); void zp;
 	const zfFondo = h('div', { class: 'zona-futuro' }); zfFondo.style.left = `${((hoy + 1) / columnas) * 100}%`; caja.prepend(zfFondo);
 	if (etFuturo.t) { const zf = eti(`zona-t futuro ${etFuturo.clase}`, etFuturo.t, `${((hoy + 1) / columnas) * 100}%`, '0'); void zf; }
-	if (referenciaTendencia) {
-		const et = eti('referencia-tendencia', referenciaTendencia.texto, X(Math.min(columnas - 1, referenciaTendencia.col)), Y(referenciaTendencia.value));
-		et.title = 'Trayectoria de referencia para comparar la acción seleccionada.';
-	}
 	if (despues.length && esScore) eti('zona-t despues', 'lo que pasó después', X(Math.min(columnas - 1, hoy + 1)), '14px');
 	if (esScore && hayFuturo(d) && validado < 12) { const ev = eti('sin-validar', 'sin validar', X(hoy + validado + 1), '0'); ev.title = `La previsión está validada fuera de muestra hasta ${validado} meses. Más allá, el modelo no se ha podido comprobar con lo que pasó.`; }
 	// Los horizontes, todos a la vista y en una fila: cuándo y qué se espera (mediana · franja del 80 %).
@@ -390,13 +440,35 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		el.append(h('b', {}, b.h === 12 ? 'un año' : `${b.h} meses`), h('span', {}, b.texto));
 		el.title = [cal[hoy + b.h] ? f.mes(cal[hoy + b.h]) : '', b.titulo].filter(Boolean).join(' · ');
 	}
+	// Con una acción marcada los rótulos crecen («75 → 67 (−8)») y se pisan: entonces, y solo
+	// entonces, el de seis meses baja una fila.
+	if (boyas.length > 1) requestAnimationFrame(() => {
+		const els = [...caja.querySelectorAll<HTMLElement>('.g-etq.boya')].map((x) => x.getBoundingClientRect());
+		const chocan = els.some((r, i) => i > 0 && r.left < els[i - 1].right + 6);
+		caja.classList.toggle('boyas-escalonadas', chocan);
+	});
+	// El punto de cada acción: a qué distancia se nota y con qué score. Dos rótulos solo se apilan
+	// si además caen a la misma altura; si no, cada uno se queda sobre su punto.
+	const puestos: { col: number; v: number }[] = [];
+	for (const q of hitos) {
+		const n = puestos.filter((x) => x.col === q.col && Math.abs(x.v - q.v) < 9).length;
+		puestos.push({ col: q.col, v: q.v });
+		const x = X(Math.min(columnas - 1, q.col)), y = Y(q.v);
+		const pto = h('span', { class: 'g-hito-pto', 'aria-hidden': 'true' });
+		pto.style.left = x; pto.style.top = y;
+		caja.append(pto);
+		const et = eti(`hito-accion ${q.col > columnas - 4 ? 'izq' : ''}`, q.texto, x, y);
+		et.style.marginTop = `${-n * 18}px`;
+		et.title = q.titulo;
+	}
 	let ultimoY = -Infinity;
 	for (const a of alternativas.sort((x, y) => y.v - x.v)) {
 		const yPx = Math.max((1 - (a.v - lo) / (hi - lo)) * o.alto, ultimoY + 14);
 		ultimoY = yPx;
 		const et = eti(`alternativa ${a.clase}`, a.texto, X(hoy + 12), `${yPx}px`);
-		et.title = `${NOMBRE_ESCENARIO[a.k]}: a un año, entre ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p10', 11))} y ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p90', 11))}. Toca para verlo definido.`;
-		if (o.alElegir) et.addEventListener('click', (ev) => { ev.stopPropagation(); o.alElegir!(a.k); });
+		const actual = a.clase.includes('actual');
+		et.title = `${NOMBRE_ESCENARIO[a.k]}${actual ? ', el caso que estás mirando' : ''}: a un año, sin hacer nada, entre ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p10', 11))} y ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p90', 11))}.${actual ? '' : ' Toca para verlo definido.'}`;
+		if (o.alElegir && !actual) et.addEventListener('click', (ev) => { ev.stopPropagation(); o.alElegir!(a.k); });
 	}
 	if (o.alElegir && alternativas.length) {
 		caja.classList.add('elegible');
@@ -441,9 +513,15 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			else texto += ' · sin previsión';
 		} else texto += v !== null ? ` · ${fmtV(v)}` : ' · sin dato';
 		lectura.textContent = texto;
-		lectura.style.left = `${((c + 0.5) / columnas) * 100}%`;
-		lectura.classList.toggle('izq', c > columnas * 0.6);
+		// El globo va debajo y a la derecha del ratón, donde no tapa lo que se está mirando.
+		// Solo se aparta cuando no cabe: arriba si el ratón está muy abajo, a la izquierda si
+		// se sale por el borde derecho.
 		caja.classList.add('leyendo');
+		const px = ev.clientX - r.left, py = ev.clientY - r.top;
+		const anchoG = lectura.offsetWidth, altoG = lectura.offsetHeight;
+		const cabeDebajo = py + 18 + altoG <= r.height;
+		lectura.style.top = `${cabeDebajo ? py + 18 : Math.max(-altoG - 4, py - 12 - altoG)}px`;
+		lectura.style.left = `${Math.max(0, px + 14 + anchoG <= r.width ? px + 14 : px - 14 - anchoG)}px`;
 		if (v !== null) { punto.style.left = `${((c + 0.5) / columnas) * 100}%`; punto.style.top = `${(1 - (v - lo) / (hi - lo)) * 100}%`; punto.hidden = false; } else punto.hidden = true;
 		o.alHilo?.([{ x0: x, y0: r.top - 2, x1: x, y1: r.bottom, tono: TONO.info }]);
 	};
@@ -457,9 +535,193 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 export function seccionScoring(d: DatosFicha, acc: Acciones, flota: HTMLElement | null): HTMLElement {
 	const raiz = h('div', { class: 'sec-scoring' });
 	if (!d.mes) { raiz.append(h('p', { class: 'vacio' }, `${nombreEntidad(d.kind, d.id)} no tiene datos en ${f.mes(d.corte)}. Su primer mes es ${f.mes(d.ent.first_month)}.`)); return raiz; }
+	// En una organización esta pestaña se llama «Empresas»: la lista manda y la explicación del
+	// score viene después. En una empresa, la explicación es la pestaña entera.
 	if (flota) raiz.append(flota);
+	raiz.append(queEsElNumero(d, acc), balancePilares(d, acc));
+	const pasa = queEstaPasando(d, acc);
+	if (pasa) raiz.append(pasa);
+	const limita = queLoLimita(d);
+	if (limita) raiz.append(limita);
+	const cambia = queLoCambiaria(d, acc);
+	if (cambia) raiz.append(cambia);
 	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver hilo entero en Desglose'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
 	return raiz;
+}
+
+// ─── Scoring · qué está pasando y por qué ────────────────────
+/** Los textos del glosario del motor ya traen su punto final: encadenarlos deja dos seguidos. */
+const sinPunto = (s: string) => s.trim().replace(/\.+$/, '');
+
+// La pestaña que se abre primero tiene que contestar tres preguntas en el orden en que se hacen:
+// qué es este número, qué lo empuja y qué lo frena, y qué ha cambiado. El Desglose sigue siendo el
+// reverso auditable (la partitura, la cascada y las curvas); aquí se cuenta, no se audita.
+
+/** Qué significa el número: su banda, cuánto falta para la siguiente, la cuenta y la confianza. */
+function queEsElNumero(d: DatosFicha, acc: Acciones): HTMLElement {
+	const m = d.mes!;
+	const banda = d.man.bands.find((b) => b.key === m.band);
+	const arriba = d.man.bands.filter((b) => b.min > m.shown).sort((a, b) => a.min - b.min)[0];
+	const abajo = [...d.man.bands].filter((b) => b.min <= m.shown && b.key !== m.band).sort((a, b) => b.min - a.min)[0];
+	const quien = nombreEntidad(d.kind, d.id);
+
+	const primera = h('p', { class: 'sc-lead' },
+		...conCifras(`${quien} saca ${f.score(m.shown)} sobre 100 en ${f.mes(d.corte)}.`, { que: 'Score del mes', mes: d.corte }),
+		' ',
+		...conCifras(banda ? `Eso es ${banda.label.toLowerCase()}, la banda que empieza en ${f.score(banda.min)}.` : 'Sin banda.', { que: 'Banda del motor', mes: d.corte }),
+		' ',
+		...(arriba
+			? conCifras(`Le faltan ${f.scoreDec(arriba.min - m.shown)} puntos para ${arriba.label.toLowerCase()}.`, { que: `Distancia hasta la banda ${arriba.label.toLowerCase()}` })
+			: [h('span', {}, 'Es la banda más alta del motor.')]),
+		abajo && banda ? ' ' : null,
+		...(abajo && banda ? conCifras(`Le quedan ${f.scoreDec(m.shown - banda.min)} puntos de margen antes de caer a ${abajo.label.toLowerCase()}.`, { que: `Margen hasta caer a la banda ${abajo.label.toLowerCase()}` }) : []));
+
+	const segunda = h('p', { class: 'sc-que-es' },
+		`El score resume ${f.plural(m.pillars.length, 'pilar de tesorería', 'pilares de tesorería')} medidos sobre los extractos del banco y las facturas del ERP: `,
+		m.pillars.map((p) => nombrePilar(d.man, p.key).toLowerCase()).join(', '),
+		'. No es un rating de crédito ni una probabilidad de impago: dice cómo se gobierna la caja este mes.');
+
+	// La cuenta entera en una línea: de dónde parte, qué suman los pilares y qué le quitan.
+	const suma = m.pillars.reduce((s, p) => s + p.contrib, 0);
+	const termino = (valor: string, que: string, clase = '') => h('span', { class: `sc-term ${clase}` }, h('b', {}, valor), h('span', {}, que));
+	const operador = (s: string) => h('span', { class: 'sc-op', 'aria-hidden': 'true' }, s);
+	const cuenta = h('div', { class: 'sc-cuenta', 'aria-label': `Cuenta del score: punto de partida ${f.scoreDec(m.base)}, pilares ${f.delta(suma)}, penalización ${f.delta(-m.penalty)}, tope ${f.delta(-m.cap.amount)}, score ${f.scoreDec(m.shown)}` },
+		termino(f.scoreDec(m.base), 'punto de partida'),
+		operador(suma >= 0 ? '+' : '−'), termino(f.scoreDec(Math.abs(suma)), suma >= 0 ? voz('lo que aportan sus pilares', 'lo que aportan tus pilares') : voz('lo que restan sus pilares', 'lo que restan tus pilares'), suma >= 0 ? 'pos' : 'neg'),
+		operador('−'), termino(f.scoreDec(m.penalty), 'penalización', m.penalty > 0 ? 'neg' : 'cero'),
+		operador('−'), termino(f.scoreDec(m.cap.amount), 'tope', m.cap.amount > 0 ? 'neg' : 'cero'),
+		operador('='), termino(f.scoreDec(m.shown), 'score', 'total'));
+
+	const CONF: Record<string, string> = { high: 'alta', medium: 'media', low: 'baja' };
+	const conf = h('p', { class: 'nota' }, ...conCifras(
+		`La confianza es ${CONF[m.conf.label] ?? m.conf.label} (${f.porcentaje(m.conf.value, 0)}): ${f.plural(m.months_observed, 'mes observado', 'meses observados')}, ${f.porcentaje(m.conf.coverage, 0)} de cobertura y ${f.porcentaje(m.conf.quality, 0)} de calidad. No entra en la cuenta: dice cuánto fiarse del número.`,
+		{ que: 'Confianza del mes', mes: d.corte, ir: () => acc.irSeccion('conciliacion') }));
+
+	return seccion(voz('Qué dice este número', 'Qué dice tu número'), primera, segunda, cuenta, conf);
+}
+
+/** El porqué: qué pilar empuja, cuál frena y cuánto, sobre un eje que parte de cero. */
+function balancePilares(d: DatosFicha, acc: Acciones): HTMLElement {
+	const m = d.mes!;
+	const conDato = m.pillars.filter((p) => p.score !== null);
+	const empujan = conDato.filter((p) => p.contrib > 0);
+	const frenan = conDato.filter((p) => p.contrib < 0);
+	const sinDato = m.pillars.length - conDato.length;
+	const mejor = [...empujan].sort((a, b) => b.contrib - a.contrib)[0];
+	const peor = [...frenan].sort((a, b) => a.contrib - b.contrib)[0];
+
+	const cuantos = (n: number, uno: string, varios: string) => (n === 0 ? `ninguno ${uno}` : f.plural(n, uno, varios));
+	const partes = [`De ${f.plural(m.pillars.length, 'pilar', 'pilares')}, ${cuantos(empujan.length, 'empuja', 'empujan')} y ${cuantos(frenan.length, 'frena', 'frenan')}`];
+	if (sinDato) partes.push(`${f.plural(sinDato, 'se queda sin dato', 'se quedan sin dato')}`);
+	let frase = `${partes.join('; ')}.`;
+	if (mejor) frase += ` El que más aporta es ${nombrePilar(d.man, mejor.key).toLowerCase()}, ${f.delta(mejor.contrib)}.`;
+	if (peor) frase += ` El que más resta es ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.delta(peor.contrib)}.`;
+	const resumen = h('p', { class: 'sc-lead' }, ...conCifras(frase, { que: 'Aportación de cada pilar al score', mes: d.corte }));
+
+	const tope = Math.max(1, ...m.pillars.map((p) => Math.abs(p.contrib)));
+	const lista = h('div', { class: 'sc-bal' });
+	lista.append(h('div', { class: 'sc-bal-eje', 'aria-hidden': 'true' }, h('span', {}), h('span', { class: 'sc-bal-eje-c' }, h('i', {}, 'resta'), h('i', {}, 'aporta')), h('span', {})));
+	// De lo que más empuja a lo que más frena; los pilares sin dato, siempre al final.
+	const rango = (p: PilarMesM) => (p.score === null ? -Infinity : p.contrib);
+	for (const p of [...m.pillars].sort((a, b) => rango(b) - rango(a))) {
+		const nulo = p.score === null;
+		const ancho = (Math.abs(p.contrib) / tope) * 50;
+		const barra = h('div', { class: 'sc-bal-barra' }, h('i', { class: 'sc-bal-cero', 'aria-hidden': 'true' }),
+			nulo ? null : h('i', { class: `sc-bal-tramo ${p.contrib < 0 ? 'neg' : 'pos'}`, style: p.contrib < 0 ? { right: '50%', width: `${ancho}%` } : { left: '50%', width: `${ancho}%` } }));
+		const fila = h('div', { class: `sc-bal-fila tocable ${nulo ? 'nulo' : ''}`, tabindex: '0', title: 'Pasa por encima para verlo en el horizonte; clic para su evidencia' },
+			h('div', { class: 'sc-bal-nombre' }, nombrePilar(d.man, p.key), h('span', { class: 'sc-bal-peso' }, `${f.porcentaje(p.w_eff, 0)} del peso`)),
+			barra,
+			h('div', { class: `sc-bal-cifra ${nulo ? 'nulo' : p.contrib < 0 ? 'neg' : p.contrib > 0 ? 'pos' : ''}` }, nulo ? 'sin dato' : f.delta(p.contrib)),
+			h('p', { class: 'sc-bal-nota' }, ...conCifras(p.note ?? '', origenPilar(d, acc, p.key, `Lo que mide el pilar de ${nombrePilar(d.man, p.key).toLowerCase()}`))));
+		const ir = () => acc.irSeccion('conciliacion', undefined, { pilar: p.key });
+		fila.addEventListener('click', ir);
+		fila.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
+		if (!nulo) {
+			fila.addEventListener('pointerenter', () => acc.horizonte.pilar(p.key));
+			fila.addEventListener('pointerleave', () => acc.horizonte.pilar(null));
+			fila.addEventListener('focus', () => acc.horizonte.pilar(p.key));
+			fila.addEventListener('blur', () => acc.horizonte.pilar(null));
+		}
+		lista.append(fila);
+	}
+	const pie = h('p', { class: 'nota' }, 'Cada pilar puntúa de 0 a 100 y aporta según su peso, contado desde el punto de partida del motor. Las barras y las curvas de cada pilar están en Desglose.');
+	return seccion('Qué lo empuja y qué lo frena', resumen, lista, pie);
+}
+
+/** Qué ha cambiado: el veredicto del motor dicho en palabras, con su tamaño y su persistencia. */
+function queEstaPasando(d: DatosFicha, acc: Acciones): HTMLElement | null {
+	const m = d.mes!;
+	const v = m.verdict;
+	if (!v.available) {
+		return seccion('Qué está pasando', h('p', { class: 'sc-lead' }, `Este mes no hay veredicto de movimiento${v.reason ? `: ${sinPunto(d.man.glossary.reasons[v.reason] ?? v.reason)}.` : '.'}`),
+			h('p', { class: 'nota' }, 'El motor compara con el mes de hace tres y necesita historia suficiente; sin ella prefiere callarse a inventar una tendencia.'));
+	}
+	const sube = v.direction === 'improving';
+	const partes: string[] = [];
+	if (v.direction === 'perimeter_shift') partes.push('El perímetro ha cambiado: entran o salen empresas, así que el score de este mes no se compara con el de hace tres.');
+	else if (v.direction === 'stable') partes.push(v.delta3 === null || Math.abs(v.delta3) < 5
+		? `Se mantiene: el score es el de hace tres meses${v.compared_to ? `, ${f.mes(v.compared_to)}` : ''}.`
+		: `Se mantiene: ${f.delta(v.delta3)} puntos en tres meses${v.compared_to ? `, frente a ${f.mes(v.compared_to)}` : ''}.`);
+	else partes.push(`${sube ? 'Sube' : 'Baja'} ${f.scoreDec(Math.abs(v.delta3 ?? 0))} puntos en tres meses${v.compared_to ? `, frente a ${f.mes(v.compared_to)}` : ''}.`);
+	// La comparación con el vaivén normal solo dice algo si el movimiento existe: «0 veces lo
+	// habitual» es ruido delante de un mes que no se ha movido.
+	if (v.sigma !== null && v.delta3_sigma !== null && Math.abs(v.delta3_sigma) >= 0.1) partes.push(`Su vaivén normal es de ${f.scoreDec(v.sigma)} puntos, así que el movimiento es ${f.numero(Math.abs(v.delta3_sigma), 1)} veces lo habitual.`);
+	if (v.nature === 'structural') partes.push(`Es un movimiento confirmado, no un bache${v.detected_since ? `: se ve desde ${f.mes(v.detected_since)}` : ''}.`);
+	else if (v.nature === 'bump') partes.push('Es un bache, no un cambio de fondo.');
+	else if (v.nature === 'shock_pending') partes.push(`Es un golpe todavía por confirmar${v.shock_month ? `, de ${f.mes(v.shock_month)}` : ''}: hacen falta más meses para saber si se queda.`);
+	if (v.persistence_months > 1) partes.push(`Lleva ${f.plural(v.persistence_months, 'mes', 'meses')} en la misma dirección.`);
+	if (v.pillars_moved.length) {
+		const ps = v.pillars_moved.map((k) => nombrePilar(d.man, k).toLowerCase());
+		partes.push(`Lo ${ps.length > 1 ? 'mueven' : 'mueve'} ${ps.length > 1 ? `${ps.slice(0, -1).join(', ')} y ${ps[ps.length - 1]}` : ps[0]}.`);
+	}
+
+	const p = h('p', { class: 'sc-lead' }, ...conCifras(partes.join(' '), { que: 'Veredicto del mes', mes: d.corte }));
+	const avisos = d.ent.alerts.filter((a) => a.month === d.corte && a.state === 'fired');
+	const lista = avisos.length
+		? h('ul', { class: 'sc-avisos' }, ...avisos.slice(0, 4).map((a) => {
+			const li = h('li', {}, lineaAvisoM(a, d.man, null));
+			li.addEventListener('click', () => acc.irBandeja());
+			return li;
+		}))
+		: null;
+	return seccion('Qué está pasando', h('div', { class: 'sc-mov' }, h('span', { class: `sc-mov-sello ${v.direction}` }, movimiento(m)), p), lista);
+}
+
+/** Lo que recorta el número aunque los pilares digan otra cosa: topes, penalización, compuertas. */
+function queLoLimita(d: DatosFicha): HTMLElement | null {
+	const m = d.mes!;
+	const puntos: string[] = [];
+	if (m.abstain) puntos.push(`El motor se abstiene: ${sinPunto(d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason)}. Para volver a puntuar, ${sinPunto(m.abstain.unlock).charAt(0).toLowerCase()}${sinPunto(m.abstain.unlock).slice(1)}.`);
+	if (m.cap.amount > 0) puntos.push(`Un tope recorta ${f.scoreDec(m.cap.amount)} puntos${m.cap.rule ? `: ${sinPunto(d.man.glossary.caps[m.cap.rule] ?? m.cap.rule)}.` : '.'}`);
+	for (const regla of m.cap.fired.filter((x) => x !== m.cap.rule)) puntos.push(`${sinPunto(d.man.glossary.caps[regla] ?? regla)}.`);
+	if (m.penalty > 0) puntos.push(`El pilar más débil penaliza ${f.scoreDec(m.penalty)} puntos: el motor no deja que una media buena tape un pilar hundido.`);
+	// Las compuertas que ya se leen como frase de un pilar no se repiten: ahí están en su sitio.
+	const notas = new Set(m.pillars.map((p) => sinPunto(p.note ?? '')).filter(Boolean));
+	for (const g of [...new Set(m.pillars.flatMap((p) => p.gates))]) {
+		const t = sinPunto(d.man.glossary.gates[g] ?? g);
+		if (!notas.has(t)) puntos.push(`${t}.`);
+	}
+	// Si el motor ya se abstiene por el feed, no hace falta repetirlo con otras palabras.
+	if (!m.feed_live && !m.abstain) puntos.push('Los datos del banco no están al día: lo que se ve puede haber envejecido.');
+	if (m.perimeter_changed) puntos.push('El perímetro ha cambiado este mes: entran o salen empresas.');
+	for (const fl of m.flags) puntos.push(`${sinPunto(d.man.glossary.flags[fl] ?? fl)}.`);
+	const unicos = [...new Set(puntos)];
+	if (!unicos.length) return null;
+	return seccion('Qué lo está limitando', h('ul', { class: 'sc-limites' }, ...unicos.map((x) => h('li', {}, ...conCifras(x, { que: 'Límite del motor', mes: d.corte })))));
+}
+
+/** El puente a Acciones: cuánto hay en juego, sin repetir la pestaña entera. */
+function queLoCambiaria(d: DatosFicha, acc: Acciones): HTMLElement | null {
+	const m = d.mes!;
+	const accs = m.actions ?? [];
+	if (!accs.length) return null;
+	const mejor = accs.reduce((a, b) => (b.uplift_tenths > a.uplift_tenths ? b : a));
+	const juntas = m.actions_combined;
+	const frase = `El motor mide ${f.plural(accs.length, 'acción', 'acciones')} sobre este mes. La que más mueve es «${tituloAccion(mejor)}»: ${f.delta(mejor.uplift_tenths)} puntos, ${ESFUERZO[mejor.effort]}.`
+		+ (juntas && accs.length > 1 ? ` Todas juntas dejarían el score en ${f.score(juntas.new_score)}.` : '');
+	const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver las acciones');
+	b.addEventListener('click', () => acc.irSeccion('acciones'));
+	return seccion('Qué lo cambiaría', h('p', { class: 'sc-lead' }, ...conCifras(frase, { que: 'Efecto que el motor mide para las acciones del mes', mes: d.corte })), b);
 }
 
 /** La partitura de pilares: qué puntúa cada uno y qué aporta al score. Vive en el tab Desglose. */
@@ -482,7 +744,7 @@ export function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
 			h('div', { class: 'pt-score' }, p.score === null ? 'sin dato' : f.score(p.score)),
 			barra,
 			h('div', { class: `pt-aporta ${p.contrib < 0 ? 'neg' : p.contrib > 0 ? 'pos' : ''}` }, p.score === null ? '' : f.delta(p.contrib)),
-			h('p', { class: 'pt-nota' }, p.note ?? ''));
+			h('p', { class: 'pt-nota' }, ...conCifras(p.note ?? '', origenPilar(d, acc, p.key, `Lo que mide el pilar de ${nombrePilar(d.man, p.key).toLowerCase()}`))));
 		const ir = () => acc.irSeccion('conciliacion', undefined, { pilar: p.key });
 		fila.addEventListener('click', ir);
 		fila.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
@@ -562,16 +824,26 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 	const es = estados(d);
 	if (!d.prodE) raiz.append(h('p', { class: 'aviso-datos' }, 'Falta products/ para esta empresa.'));
 	const estante = h('div', { class: 'estanteria' });
+	// Lo que esta empresa necesita va primero, delante de las familias: quien abre Productos viene
+	// a saber qué ofrecerle, no a repasar el catálogo. Lo recomendado es lo que encaja hoy y lo que
+	// ya tiene pero el motor pide ampliar o usar más; manda la subida de score que promete.
+	const recomendado = (e: EstadoProducto) => e.estado === 'encaja' || (e.estado === 'tiene' && !!e.forma);
+	const orden = (e: EstadoProducto) => PRODUCTOS.findIndex((p) => p.id === e.id);
+	const primeros = es.filter(recomendado).sort((a, b) => (b.accion?.uplift_tenths ?? -1) - (a.accion?.uplift_tenths ?? -1) || orden(a) - orden(b));
+	const resto = es.filter((e) => !recomendado(e));
 	let familia = '';
-	for (const e of es) {
+	for (const e of primeros.length ? [...primeros, ...resto] : es) {
 		const p = producto(e.id);
-		if (p.familia !== familia) { familia = p.familia; estante.append(h('h3', { class: 'est-familia' }, FAMILIAS[p.familia].nombre)); }
+		const enCabeza = primeros.includes(e);
+		if (enCabeza && !familia) { familia = 'recomendado'; estante.append(h('h3', { class: 'est-familia recomendado' }, voz('Lo que le encajaría ahora', 'Lo que te conviene ahora'))); }
+		if (!enCabeza && primeros.length && familia === 'recomendado') { familia = ''; estante.append(h('h3', { class: 'est-familia estante' }, 'El resto de la estantería')); }
+		if (!enCabeza && p.familia !== familia) { familia = p.familia; estante.append(h('h3', { class: 'est-familia' }, FAMILIAS[p.familia].nombre)); }
 		const t = tenenciaDe(d).find((x) => x.product === e.id);
-		const fila = h('div', { class: `est-fila inv-item estado-${e.estado}` });
+		const fila = h('div', { class: `est-fila inv-item estado-${e.estado} ${enCabeza ? 'destacada' : ''}` });
 		const estadoT = e.estado === 'tiene' ? (t?.source === 'movimientos' ? voz('deducido de sus movimientos', 'deducido de tus movimientos') : 'contratado') : e.estado === 'encaja' ? voz('le encajaría', 'te conviene') : e.estado === 'bloqueado' ? 'hoy no' : 'no consta';
 		const cuerpo = h('div', { class: 'est-cuerpo' }, h('div', { class: 'est-cab' }, h('span', { class: 'inv-nombre' }, p.nombre), h('span', { class: 'est-estado' }, estadoT)));
 		if (t) cuerpo.append(contratos(t));
-		if (e.estado === 'encaja' || e.estado === 'bloqueado' || e.forma) cuerpo.append(h('p', { class: 'est-motivo' }, e.bloqueo ?? e.motivo));
+		if (e.estado === 'encaja' || e.estado === 'bloqueado' || e.forma) cuerpo.append(h('p', { class: 'est-motivo' }, ...conCifras(e.bloqueo ?? e.motivo, origenPilar(d, acc, e.accion?.pillar ?? null, 'Por qué el motor lo pide'))));
 		const efecto = h('div', { class: 'est-efecto' });
 		if (e.accion && e.estado !== 'bloqueado') {
 			const ha = d.hor?.actions?.find((a) => a.id === e.accion!.id);
@@ -669,13 +941,11 @@ function productosGrupo(d: DatosFicha, acc: Acciones): HTMLElement {
 
 // ─── Sección · Acciones ───────────────────────────────────────
 
-function efectoAccion(d: DatosFicha, a?: AccionM): string | null {
-	if (!a) return null;
-	const partes = [`${f.delta(a.uplift_tenths)} puntos según el motor`];
-	const ha = d.hor?.actions?.find((x) => x.id === a.id);
-	const hb = d.hor?.scenarios?.base;
-	if (ha && hb && hayFuturo(d)) partes.push(`a seis meses, ${f.score(ha.q.p50[5])} en vez de ${f.score(hb.q.p50[5])}`);
-	return partes.join(' · ');
+/** Cuánto tarda en notarse una acción, en meses. La cifra y la curva están en el horizonte. */
+function mesesAccion(d: DatosFicha, a?: AccionM): number | null {
+	const ha = a && d.hor?.actions?.find((x) => x.id === a.id);
+	if (!ha || !hayFuturo(d)) return null;
+	return Math.max(1, ha.lag_months);
 }
 
 export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
@@ -685,33 +955,64 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const recs = recomendaciones({ mes: m, man: d.man, tenencia: tenenciaDe(d), perfil: d.ent.profile, papel: d.kind === 'company' ? (d.ent as EmpresaM).role : null, heredaLiquidez: d.kind === 'company' ? (d.ent as EmpresaM).inherits_liquidity : false });
 	const sel = acc.horizonte.elegidas();
 	const lista = h('ol', { class: 'recomendaciones' });
+	// Una columna por pregunta: qué hacer, de cuánto a cuánto, cuánto cuesta, cómo queda y cuánto sube.
+	const cabezaLista = h('div', { class: 'rec-cab', 'aria-hidden': 'true' },
+		h('span', {}, 'Ver'), h('span', {}, 'Qué hacer'), h('span', { class: 'centro' }, 'Esfuerzo'), h('span', { class: 'centro' }, 'Se nota'), h('span', { class: 'der' }, 'Sube'), h('span', {}, 'Seguimiento'));
 	const seguimiento = seguimientoAcciones(d, () => acc.horizonte.elegidas());
 	recs.forEach((r, i) => {
 		const a = r.accion;
-		const marca = h('input', { type: 'checkbox', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
-		const fijarMarca = (v: boolean) => { marca.checked = v; acc.horizonte.alternar(a.id, v); li.classList.toggle('elegida', v); seguimiento.actualizarBoton(); };
+		// La casilla es lo primero de la fila y es lo que la lleva al horizonte. Es una casilla de verdad
+		// (teclado, lectores de pantalla), pero dibujada por nosotros, no la del sistema operativo.
+		const marca = h('input', { type: 'checkbox', class: 'rec-tick', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
+		const fijarMarca = (v: boolean) => {
+			marca.checked = v;
+			acc.horizonte.alternar(a.id, v);
+			li.classList.toggle('elegida', v);
+			seguimiento.actualizarBoton();
+		};
 		marca.addEventListener('change', () => fijarMarca(marca.checked));
-		const prods = r.productos.map((p) => iconoProducto(p, { tam: 24, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
+		marca.addEventListener('click', (ev) => ev.stopPropagation());
+		const verSeguimiento = h('button', { type: 'button', class: 'miga-accion' }, 'Ver seguimiento');
+		verSeguimiento.addEventListener('click', (ev) => { ev.stopPropagation(); seguimiento.raiz.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+		const prods = r.productos.map((p) => iconoProducto(p, { tam: 26, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
+		const pal = palancaDeAccion(a);
+		const meses = mesesAccion(d, a);
 		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id },
-			h('label', { class: 'rec-marca' }, marca, h('span', { class: 'rec-n' }, String(i + 1))),
+			h('span', { class: 'rec-marca' }, marca, h('span', { class: 'rec-orden', 'aria-hidden': 'true' }, String(i + 1))),
 			h('div', { class: 'rec-cuerpo' },
-				h('div', { class: 'rec-titulo' }, tituloAccion(a)),
-				h('p', { class: 'rec-texto' }, r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a)),
-				h('p', { class: 'rec-hechos' }, efectoAccion(d, a) ?? '', ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
-				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
-			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')));
+				h('div', { class: 'rec-titulo' }, accionCorta(a)),
+				// La palanca, en cifras y grande: de dónde sale y adónde tiene que llegar.
+				h('div', { class: 'rec-palanca', title: tituloAccion(a) },
+					h('b', {}, ...conCifras(pal.de, origenPilar(d, acc, a.pillar, 'Dónde está hoy la palanca'))),
+					h('i', { 'aria-hidden': 'true' }, '→'),
+					h('b', { class: 'meta' }, ...conCifras(pal.hasta, origenPilar(d, acc, a.pillar, 'Adónde tiene que llegar')))),
+				h('p', { class: 'rec-texto' }, ...conCifras(r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a), origenPilar(d, acc, a.pillar, 'Lo que hace falta para llegar al objetivo'))),
+				h('p', { class: 'rec-productos' },
+					...prods,
+					prods.length ? h('span', {}, r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : null,
+					r.propia && !prods.length ? h('span', { class: 'propia' }, r.propia) : null,
+					h('span', { class: 'rec-pilar' }, nombrePilar(d.man, a.pillar).toLowerCase()))),
+			h('div', { class: 'rec-esfuerzo' }, h('b', {}, a.effort)),
+			h('div', { class: 'rec-plazo' }, meses === null ? h('b', { class: 'vacia' }, '—') : h('b', {}, f.numero(meses)),
+				h('span', {}, meses === null ? 'sin previsión' : meses === 1 ? 'mes' : 'meses')),
+			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
+			h('div', { class: 'rec-estado' }, verSeguimiento));
 		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija — también al pulsar la fila.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
-		li.addEventListener('click', (e) => { if ((e.target as Element).closest('.rec-marca')) return; fijarMarca(!marca.checked); });
+		li.addEventListener('click', (e) => { if ((e.target as Element).closest('.rec-estado')) return; fijarMarca(!marca.checked); });
 		lista.append(li);
 	});
 	const base = d.hor?.scenarios?.base;
 	if (base && hayFuturo(d)) {
 		const peor = base.cross && base.cross.dir === 'down';
-		const nada = h('li', { class: 'rec nada' }, h('span', { class: 'rec-marca' }, h('span', { class: 'rec-n' }, '—')),
+		const nada = h('li', { class: 'rec nada' }, h('span', { class: 'rec-marca' }, h('span', { class: 'rec-orden', 'aria-hidden': 'true' }, '—')),
 			h('div', { class: 'rec-cuerpo' }, h('div', { class: 'rec-titulo' }, 'No hacer nada'),
-				h('p', { class: 'rec-hechos' }, `a seis meses, entre ${f.score(base.q.p10[5])} y ${f.score(base.q.p90[5])}; lo más probable, ${f.score(base.q.p50[5])}`, peor && base.cross!.prob !== null ? ` · ${f.porcentaje(base.cross!.prob, 0)} de pasar a ${nombreBanda(d.man, base.cross!.to).toLowerCase()} hacia ${f.mes(base.cross!.month)}` : '')));
+				peor && base.cross!.prob !== null ? h('p', { class: 'rec-texto' }, `${f.porcentaje(base.cross!.prob, 0)} de pasar a ${nombreBanda(d.man, base.cross!.to).toLowerCase()} hacia ${f.mes(base.cross!.month)}.`) : null),
+			h('div', { class: 'rec-esfuerzo' }, h('b', { class: 'vacia' }, '—')),
+			h('div', { class: 'rec-plazo seis' }, h('b', {}, f.score(base.q.p50[5])), h('span', {}, `a seis meses · entre ${f.score(base.q.p10[5])} y ${f.score(base.q.p90[5])}`)),
+			h('div', { class: 'rec-efecto' }, h('b', { class: 'vacia' }, '—'), h('span', {}, 'puntos')),
+			h('div', { class: 'rec-estado' }));
 		nada.addEventListener('pointerenter', () => acc.horizonte.previa([]));
 		nada.addEventListener('pointerleave', () => acc.horizonte.previa(null));
 		lista.append(nada);
@@ -723,7 +1024,7 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		h('div', {}, h('p', { class: 'nota' }, 'Elige qué acciones vas a llevar a cabo. Antes de ejecutarlas podrás revisar los bancos, las acciones y la financiación en una confirmación. Las marcas también permiten comparar su efecto estimado en el gráfico.'), h('p', { class: 'nota' }, 'La puesta en marcha registra la decisión del equipo; no ordena pagos ni solicita financiación.'), seguimiento.mensaje),
 		seguimiento.boton,
 	);
-	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), cabeceraAcciones, lista));
+	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), cabeceraAcciones, recs.length ? cabezaLista : null, lista));
 	raiz.append(seguimiento.raiz);
 	if (d.kind === 'group') raiz.append(seccion(voz('Lo que proponen sus empresas', 'Lo que puede hacer cada una de tus empresas'), accionesEmpresas(d, acc)));
 	return raiz;
@@ -733,9 +1034,19 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 function accionesEmpresas(d: DatosFicha, acc: Acciones): HTMLElement {
 	const filas = d.empresas.flatMap((em) => (em.ent?.months.find((m) => m.month === d.corte)?.actions ?? []).map((a) => ({ em, a })));
 	filas.sort((x, y) => y.a.uplift_tenths - x.a.uplift_tenths);
+	// Las mismas columnas que la tabla de arriba, para que se lean igual: qué hacer, de cuánto a
+	// cuánto, qué esfuerzo y cuánto sube. «En la empresa» sobraba en cada renglón: la empresa ya va delante.
 	const lista = h('ul', { class: 'acciones-empresas' });
+	if (filas.length) lista.append(h('li', { class: 'ae-cab', 'aria-hidden': 'true' },
+		h('span', {}, 'Empresa'), h('span', {}, 'Qué hacer'), h('span', {}, 'De cuánto a cuánto'), h('span', { class: 'centro' }, 'Esfuerzo'), h('span', { class: 'der' }, 'Sube')));
 	for (const { em, a } of filas.slice(0, 12)) {
-		const li = h('li', { class: 'tocable', tabindex: '0' }, h('b', {}, f.empresa(em.res.id)), h('span', { class: 'ae-titulo' }, tituloAccion(a)), h('span', { class: 'ae-efecto' }, `${f.delta(a.uplift_tenths)} en la empresa · ${ESFUERZO[a.effort]}`));
+		const pal = palancaDeAccion(a);
+		const li = h('li', { class: 'tocable', tabindex: '0', title: tituloAccion(a) },
+			h('b', {}, f.empresa(em.res.id)),
+			h('span', { class: 'ae-titulo' }, accionCorta(a)),
+			h('span', { class: 'ae-palanca' }, pal.de, h('i', { 'aria-hidden': 'true' }, '→'), h('em', {}, pal.hasta)),
+			h('span', { class: 'ae-esfuerzo' }, a.effort),
+			h('span', { class: 'ae-efecto' }, f.delta(a.uplift_tenths)));
 		const ir = () => acc.abrirEmpresa(em.res.id);
 		li.addEventListener('click', ir);
 		li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });

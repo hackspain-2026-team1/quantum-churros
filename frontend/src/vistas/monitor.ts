@@ -20,6 +20,7 @@ import {
 } from '../datos/monitorCartera';
 import { producto, PRODUCTOS } from '../datos/productos';
 import { claveDeMirada } from '../datos/redaccion';
+import { conCifras } from './cifras';
 import { cola, h, vaciar } from './dom';
 import { desplegable } from './desplegable';
 import { logotipo } from './marca';
@@ -94,9 +95,10 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	const pie = h('p', { class: 'entrada-lema' });
 	const masAbajo = h('button', { type: 'button', class: 'mon-mas-abajo' }, h('span', {}, ctx.cfo() ? 'Piden atención, avisos y tus empresas' : 'Piden atención, avisos y la cartera'), h('span', { class: 'mon-flecha', 'aria-hidden': 'true' }, '↓'));
 	masAbajo.addEventListener('click', () => columnas.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-	// Primero el monitor y luego lo que se busca; con un filtro puesto, la cartera sube por encima.
-	raiz.append(cabeza, columnas, campo, vistaSec, pie, masAbajo);
-	const colocar = () => raiz.insertBefore(columnas, Object.values(est.filtros).some(Boolean) ? pie : campo);
+	// El buscador va dentro de la cabeza, pegado a la rosa: es lo primero que se mira y lo primero
+	// que se usa. Con un filtro puesto, la cartera sube por encima de las columnas.
+	raiz.append(cabeza, columnas, vistaSec, pie, masAbajo);
+	const colocar = () => raiz.insertBefore(columnas, Object.values(est.filtros).some(Boolean) ? pie : vistaSec);
 	// La pista se va en cuanto se baja un poco (la página se desplaza dentro de su contenedor).
 	requestAnimationFrame(() => {
 		const cont = raiz.parentElement;
@@ -142,7 +144,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		}
 		const cifra = (texto: string, fl: FiltrosM | null, titulo?: string) => {
 			if (!fl) return h('span', {}, texto);
-			const b = h('button', { type: 'button', class: 'mon-cifra', title: titulo ?? 'Quedarse con estas' }, texto);
+			const b = h('button', { type: 'button', class: `mon-cifra ${fl.banda ? `banda-${fl.banda}` : ''}`, title: titulo ?? 'Quedarse con estas' }, texto);
 			b.addEventListener('click', () => filtrar(fl));
 			return b;
 		};
@@ -178,8 +180,12 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				: h('h1', { class: 'mon-titulo' }, 'La cartera en ', h('span', { class: 'mon-mes' }, f.mes(ctx.corte()))),
 			gr ? cabezaGrupo(gr) : h('p', { class: 'mon-cuantas' }, `${f.plural(r.total, uno, varias)}${est.unidad === 'empresas' ? ` de ${f.plural(c.groups.length, 'organización', 'organizaciones')}` : ''}`),
 			lineaBandas, lineaMes, mapas);
-		cabeza.append(...(reducido() ? [] : [rosaCaja]), estado);
+		const buscando = document.activeElement === entrada ? [entrada.selectionStart ?? 0, entrada.selectionEnd ?? 0] : null;
+		cabeza.append(...(reducido() ? [] : [rosaCaja]), campo, estado);
 		cabeza.classList.toggle('mon-cabeza-sola', reducido());
+		ajustarEntrada();
+		requestAnimationFrame(ajustarEntrada);
+		if (buscando) { entrada.focus(); entrada.setSelectionRange(buscando[0], buscando[1]); }
 	}
 
 	/** El titular del CFO: dónde está su grupo, cómo se ha movido y dónde estará en seis meses. */
@@ -191,20 +197,37 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		const abrirFicha = h('button', { type: 'button', class: 'as-enlace' }, 'Ver la ficha del grupo');
 		abrirFicha.addEventListener('click', () => ctx.abrirGrupo(g.id));
 		return h('p', { class: 'mon-cuantas mon-grupo' },
-			h('b', { class: `mon-grupo-score ${m?.band === 'critical' ? 'critico' : ''}` }, m?.shown != null ? f.score(m.shown) : '—'),
-			m?.band ? h('span', {}, ` ${nombreBandaM(c, m.band).toLowerCase()}`) : null,
+			h('b', { class: `mon-grupo-score ${m?.band ? `banda-${m.band}` : ''}` }, m?.shown != null ? f.score(m.shown) : '—'),
+			m?.band ? h('span', { class: `t-banda banda-${m.band}` }, ` ${nombreBandaM(c, m.band).toLowerCase()}`) : null,
 			d3 !== null ? h('span', { class: 'mon-mov' }, ` · ${d3 >= 0 ? '+' : '−'}${f.numero(Math.abs(Math.round(d3 / 10)))} en tres meses`) : null,
 			hz?.p50_h6 != null ? h('span', { class: 'mon-mov' }, ` · a seis meses, ${f.score(hz.p50_h6)}`) : null,
 			h('span', { class: 'mon-mov' }, ` · ${f.plural(g.n_companies, 'empresa', 'empresas')} `), abrirFicha);
 	}
 
 	// ─── El campo: una organización o una vista ─────────────
-	const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: cfo() ? '¿qué empresa?' : '¿qué organización?', 'aria-label': cfo() ? 'Buscar una de tus empresas o pedir una vista' : 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off' }) as HTMLInputElement;
+	const entrada = h('input', { class: 'entrada-buscar', type: 'text', placeholder: cfo() ? '¿qué empresa?' : '¿qué organización?', 'aria-label': cfo() ? 'Buscar una de tus empresas o pedir una vista' : 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off' }) as HTMLInputElement;
+	// La línea de puntos vale lo que vale lo escrito (o lo que se ofrece): un espejo invisible mide el
+	// texto con la letra del propio campo y el campo toma esa anchura. Así «rumbo de …» queda
+	// centrado de verdad, en vez de arrastrar una raya vacía hacia la derecha.
+	const espejo = h('span', { class: 'entrada-espejo', 'aria-hidden': 'true' });
+	const ajustarEntrada = () => {
+		const cs = getComputedStyle(entrada);
+		for (const k of ['fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'letterSpacing'] as const) espejo.style[k] = cs[k];
+		espejo.textContent = entrada.value || entrada.placeholder;
+		const texto = espejo.getBoundingClientRect().width;
+		// Sin dibujar todavía (o sin la letra cargada) no se mide: ya se volverá a medir.
+		if (!texto) return;
+		const relleno = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+		// La cursiva vuela por la derecha: sin ese aire se corta la última letra.
+		entrada.style.width = `${Math.min(Math.ceil(texto + relleno + 12), Math.round(innerWidth * 0.8))}px`;
+	};
+	// La letra cambia las medidas al cargarse: se remide cuando llega.
+	void document.fonts?.ready.then(ajustarEntrada);
 	const resultados = h('ul', { class: 'entrada-resultados', role: 'listbox' });
 	const entendido = h('div', { class: 'mon-entendido', role: 'status' });
 	let peticion: AbortController | null = null;
 	// La segunda línea: «dile qué quieres ver», con su propio campo y ejemplos que se pueden tocar.
-	const pedirCampo = h('input', { class: 'mon-pedir-campo', type: 'search', placeholder: 'o dile qué quieres ver…', 'aria-label': cfo() ? 'Dile qué quieres ver de tus empresas' : 'Dile qué quieres ver de la cartera', autocomplete: 'off' }) as HTMLInputElement;
+	const pedirCampo = h('input', { class: 'mon-pedir-campo', type: 'search', placeholder: 'dile qué quieres ver…', 'aria-label': cfo() ? 'Dile qué quieres ver de tus empresas' : 'Dile qué quieres ver de la cartera', autocomplete: 'off' }) as HTMLInputElement;
 	const pedirBoton = h('button', { type: 'button', class: 'mon-pedir-boton' }, 'Ver');
 	const ejemplos = h('p', { class: 'mon-ejemplos' });
 	for (const ej of cfo()
@@ -218,8 +241,10 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	pedirCampo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') lanzar(); });
 	pedirBoton.addEventListener('click', lanzar);
 	campo.append(
-		h('div', { class: 'entrada-frase' }, h('span', { class: 'entrada-rumbo' }, logotipo(ctx.esMovil() ? 34 : 50, 'Rumbo'), h('span', { class: 'entrada-de' }, 'de')), entrada),
-		resultados,
+		h('div', { class: 'entrada-frase' }, h('span', { class: 'entrada-rumbo' }, logotipo(ctx.esMovil() ? 34 : 50, 'Rumbo'), h('span', { class: 'entrada-de' }, 'de')), entrada, espejo),
+		resultados);
+	// Pedir la vista con palabras es otro mando de la lista, y vive con ella: dentro del panel.
+	const pedirCaja = h('div', { class: 'mon-pedir-caja' },
 		h('div', { class: 'mon-pedir' }, h('span', { class: 'mon-pedir-grano', 'aria-hidden': 'true' }), pedirCampo, pedirBoton),
 		ejemplos, entendido);
 
@@ -235,7 +260,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			const numE = Number(q.replace(/^empresa\s*/, ''));
 			const suyas = todas('empresas').filter((e) => (Number.isFinite(numE) && numE > 0 && Number(e.id.split('_')[1]) === numE) || (q.length >= 3 && normal(`${e.nombre} empresa ${Number(e.id.split('_')[1])}`).includes(q))).slice(0, 6);
 			for (const e of suyas) {
-				const li = h('li', { role: 'option', tabindex: '0', class: 'tocable' }, h('b', {}, e.nombre), h('span', { class: 'sub' }, [e.tamano, e.band ? nombreBandaM(c, e.band) : null].filter(Boolean).join(' · ')), h('span', { class: 'res-score' }, f.score(e.shown)));
+				const li = h('li', { role: 'option', tabindex: '0', class: 'tocable' }, h('b', {}, e.nombre), h('span', { class: `sub ${e.band ? `t-banda banda-${e.band}` : ''}` }, [e.tamano, e.band ? nombreBandaM(c, e.band) : null].filter(Boolean).join(' · ')), h('span', { class: 'res-score' }, f.score(e.shown)));
 				li.addEventListener('click', () => abrir(e));
 				li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') abrir(e); });
 				resultados.append(li);
@@ -253,7 +278,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			resultados.append(li);
 		}
 	};
-	entrada.addEventListener('input', buscar);
+	entrada.addEventListener('input', () => { ajustarEntrada(); buscar(); });
 	entrada.addEventListener('keydown', (ev) => {
 		if (ev.key !== 'Enter') return;
 		const texto = entrada.value.trim();
@@ -370,9 +395,9 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			const li = h('li', { class: `tocable nivel-${e.nivel}`, tabindex: '0' },
 				h('span', { class: 'mon-puesto' }, i === null ? '' : String(i + 1)),
 				h('b', { class: 'mon-nombre' }, nombreEnt(e)),
-				h('span', { class: `mon-score ${e.band === 'critical' ? 'critico' : ''}` }, f.score(e.shown)),
+				h('span', { class: `mon-score ${e.band ? `banda-${e.band}` : ''}` }, f.score(e.shown)),
 				h('span', { class: `mon-delta ${(e.delta1 ?? 0) < 0 ? 'baja' : (e.delta1 ?? 0) > 0 ? 'sube' : ''}` }, e.delta1 === null || Math.round(e.delta1 / 10) === 0 ? '' : `${e.delta1 < 0 ? '▼' : '▲'}${f.deltaEntero(e.delta1)}`),
-				h('span', { class: 'at-texto' }, motivo),
+				h('span', { class: 'at-texto' }, ...conCifras(motivo, { que: `Por qué ${nombreEnt(e)} pide atención`, mes: ctx.corte(), ir: () => abrir(e) })),
 				movil ? null : cola(e.serie.slice(-24), 88, 20));
 			li.addEventListener('click', () => abrir(e));
 			li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') abrir(e); });
@@ -491,6 +516,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	let observador: ResizeObserver | null = null;
 	function pintarVista() {
 		colocar();
+		// La caja de pedir se saca y se vuelve a poner en cada repintado: el cursor de quien escribe no.
+		const escribiendo = document.activeElement === pedirCampo ? [pedirCampo.selectionStart ?? 0, pedirCampo.selectionEnd ?? 0] : null;
 		vaciar(vistaSec);
 		observador?.disconnect();
 		lienzoActual = null;
@@ -498,9 +525,11 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		vistaSec.append(
 			h('header', { class: 'mon-vista-cab' }, h('h2', {}, cfo() ? 'Tus empresas' : 'La cartera')),
 			barra(),
+			pedirCaja,
 			h('div', { class: 'mon-frase-fila' }, h('p', { class: 'mon-frase' }, descripcion()), acciones()),
 			misVistas() ?? '',
 		);
+		if (escribiendo) { pedirCampo.focus(); pedirCampo.setSelectionRange(escribiendo[0], escribiendo[1]); }
 		if (!vis.length) {
 			vistaSec.append(h('p', { class: 'vacio-monitor' }, 'Ninguna pasa estos filtros. Quita alguno tocando su ×.'));
 			return;
@@ -600,7 +629,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				vis.slice(0, datos.filas).forEach((e, i) => {
 					const y = g.y0 + (i + 0.5) * g.fila;
 					et(g.x0 - 10, y, 'mr-nombre', movil ? e.nombre.replace(/^(Grupo|Empresa) /, '') : e.nombre);
-					et(g.x1 + 10, y, 'mr-dato', h('b', {}, f.score(e.shown)), e.delta1 !== null && Math.round(e.delta1 / 10) !== 0 ? h('span', { class: e.delta1 < 0 ? 'baja' : 'sube' }, ` ${f.deltaEntero(e.delta1)}`) : '');
+					et(g.x1 + 10, y, `mr-dato ${e.band ? `banda-${e.band}` : ''}`, h('b', {}, f.score(e.shown)), e.delta1 !== null && Math.round(e.delta1 / 10) !== 0 ? h('span', { class: e.delta1 < 0 ? 'baja' : 'sube' }, ` ${f.deltaEntero(e.delta1)}`) : '');
 				});
 				// El eje, de 0 a 100, con las fronteras de banda.
 				for (const s of [0, 20, 40, 60, 80, 100]) et(g.x0 + (s / 100) * (g.x1 - g.x0), g.y1 + 6, 'mr-eje x', String(s));
@@ -614,7 +643,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 					const entran = lista.filter((e) => e.prevBand && e.prevBand !== b).length;
 					const salen = vis.filter((e) => e.prevBand === b && e.band !== b).length;
 					const x = g.x0 + (bi + 0.5) * g.colW;
-					const b1 = et(x, alto - m.b + 6, 'mr-banda', h('b', {}, `${nombreBandaM(c, b)} · ${f.numero(lista.length)}`), h('span', {}, `${f.numero(entran)} entran · ${f.numero(salen)} salen`));
+					const b1 = et(x, alto - m.b + 6, `mr-banda t-banda banda-${b}`, h('b', {}, `${nombreBandaM(c, b)} · ${f.numero(lista.length)}`), h('span', {}, `${f.numero(entran)} entran · ${f.numero(salen)} salen`));
 					b1.addEventListener('click', () => filtrar({ banda: b }));
 				});
 				break;
@@ -645,8 +674,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				if (antes) et(g.x0, 0, 'mr-cab izq', f.mes(antes));
 				et(g.x1, 0, 'mr-cab der', f.mes(ahora));
 				for (const b of BANDAS) {
-					if (g[`in_${b}`]) et(g.x0 - 10, g[`i_${b}`], 'mr-nombre', `${nombreBandaM(c, b)} · ${f.numero(g[`in_${b}`])}`);
-					if (g[`dn_${b}`]) et(g.x1 + 10, g[`d_${b}`], 'mr-dato', `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`);
+					if (g[`in_${b}`]) et(g.x0 - 10, g[`i_${b}`], `mr-nombre t-banda banda-${b}`, `${nombreBandaM(c, b)} · ${f.numero(g[`in_${b}`])}`);
+					if (g[`dn_${b}`]) et(g.x1 + 10, g[`d_${b}`], `mr-dato t-banda banda-${b}`, `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`);
 				}
 				const cambian = vis.filter((e) => e.band && e.prevBand && e.band !== e.prevBand);
 				const bajan = cambian.filter((e) => BANDAS.indexOf(e.band!) < BANDAS.indexOf(e.prevBand!)).length;
@@ -668,8 +697,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				et(g.x1, 0, 'mr-cab der', 'dentro de seis meses');
 				const ocupado: number[] = [];
 				for (const b of BANDAS) {
-					if (g[`in_${b}`]) et(g.x0 - 10, g[`i_${b}`], 'mr-nombre', `${nombreBandaM(c, b)} · ${f.numero(g[`in_${b}`])}`);
-					if (g[`dn_${b}`]) { et(g.x1 + 10, g[`d_${b}`], 'mr-dato', `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`); ocupado.push(g[`d_${b}`]); }
+					if (g[`in_${b}`]) et(g.x0 - 10, g[`i_${b}`], `mr-nombre t-banda banda-${b}`, `${nombreBandaM(c, b)} · ${f.numero(g[`in_${b}`])}`);
+					if (g[`dn_${b}`]) { et(g.x1 + 10, g[`d_${b}`], `mr-dato t-banda banda-${b}`, `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`); ocupado.push(g[`d_${b}`]); }
 				}
 				// Las que van hacia crítico, con nombre donde acaba su cinta y sin pisar los rótulos de banda.
 				const riesgo = vis.filter((e) => e.band !== 'critical' && (e.hz?.pCritico ?? 0) >= 0.5 && g[`fin:${e.id}`] !== undefined).sort((a, b) => (b.hz!.pCritico ?? 0) - (a.hz!.pCritico ?? 0)).slice(0, 10).sort((a, b) => g[`fin:${a.id}`] - g[`fin:${b.id}`]);
@@ -708,7 +737,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 					h('thead', {}, h('tr', {}, ordenable('#', 'gravedad'), h('th', {}, esEmp ? 'Empresa' : 'Organización'), ordenable('Score', 'score', 'num'), ordenable('Mes', 'cambio', 'num'), ordenable('3 meses', 'cambio3', 'num'), h('th', {}, 'Banda'), h('th', {}, 'Por qué'), ordenable('A 6 meses', 'horizonte', 'num'), ordenable('Avisos', 'avisos', 'num'), ctx.esMovil() ? null : h('th', {}, 'Dos años'))),
 					h('tbody', {}, ...vis.slice(0, tope).map((e, i) => h('tr', { class: e.band === 'critical' ? 'fila-critica' : '' },
 						h('td', { class: 'num tenue' }, String(i + 1)), celdaEnt(e), h('td', { class: 'num' }, h('b', {}, f.score(e.shown))), delta(e.delta1), delta(e.delta3),
-						h('td', {}, e.band ? nombreBandaM(c, e.band).toLowerCase() : '—', e.prevBand && e.band && e.prevBand !== e.band ? h('span', { class: 'sub' }, ` (era ${nombreBandaM(c, e.prevBand).toLowerCase()})`) : ''),
+						h('td', {}, e.band ? h('span', { class: `t-banda banda-${e.band}` }, nombreBandaM(c, e.band).toLowerCase()) : '—', e.prevBand && e.band && e.prevBand !== e.band ? h('span', { class: 'sub' }, ` (era ${nombreBandaM(c, e.prevBand).toLowerCase()})`) : ''),
 						h('td', { class: 'por-que' }, e.nivel <= 4 ? e.motivo : e.sube ?? ''),
 						h('td', { class: 'num' }, e.hz?.p50 != null ? `${f.score(e.hz.p50)}${e.hz.pCritico ? ` · ${f.porcentaje(e.hz.pCritico, 0)}` : ''}` : '—'),
 						h('td', { class: 'num' }, String(e.avisos.filter((a) => a.state === 'fired').length || '')),

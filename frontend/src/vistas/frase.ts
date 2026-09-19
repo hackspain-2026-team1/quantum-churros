@@ -23,12 +23,24 @@ interface Opcion {
 	accion?: () => void;
 	seccion?: string;
 	texto: string;
+	/** Apunte corto y gris: qué hace la opción o a qué periodo corresponde. */
 	detalle?: string;
+	/** Cuántos caen dentro: se escribe grande, es la cifra que se compara de un vistazo. */
+	cifra?: string;
+	/** El nombre largo, cuando `texto` se ha recortado para que quepa en la rejilla. */
+	titulo?: string;
+	/** Columnas de la sección a la que pertenece. 1 (o nada) la deja como lista. */
+	cols?: number;
+	/** Columna fija dentro de la rejilla: en el calendario, enero cae siempre en la primera. */
+	columna?: number;
 	q: Consulta;
 	activa?: boolean;
 	glifo?: Element;
 	desactivada?: boolean;
 }
+
+/** Ancho del panel según lo que enseña: las rejillas necesitan sitio; una búsqueda, no. */
+const ANCHO_PANEL: Record<Hueco, number> = { quien: 880, cuando: 620, escala: 680, agregado: 480, frente: 640, orden: 580, escritura: 460 };
 
 export interface Frase {
 	raiz: HTMLElement;
@@ -42,6 +54,10 @@ export interface Frase {
 
 const mayuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const UNIDAD: Record<Escala, string> = { mes: 'mes', trimestre: 'trimestre', cuatrimestre: 'cuatrimestre', semestre: 'semestre', anio: 'año' };
+/** El nombre del movimiento recortado para la rejilla; el largo se queda en el `title`. */
+const CORTO_MOVIMIENTO: Record<string, string> = {
+	deterioro: 'Deterioro', mejora: 'Mejora', confirmar: 'Por confirmar', bache: 'Bache', critica: 'En crítico', avisos: 'Con avisos',
+};
 
 export interface AccionesFrase { volver: () => void; abrirGrupo: (id: string) => void; orden: () => string[] }
 
@@ -163,19 +179,21 @@ export function crearFrase(c: Cartera, S: Almacen, ctxDe: (q: Consulta) => Conte
 					}
 					break;
 				}
-				if (q.filtros.length) o.push({ seccion: 'Afinar', texto: 'Quitar el último filtro', detalle: n(q.filtros.slice(0, -1)), q: con(q.filtros.slice(0, -1)) });
-				o.push({ seccion: 'Todos', texto: 'Toda la cartera', detalle: n([]), q: con([]), activa: !q.filtros.length });
-				for (const z of ZONAS) o.push({ seccion: 'Por zona del plano', texto: mayuscula(z.plural.replace(/^que /, '')), detalle: n([{ tipo: 'zona', v: z.id }]), q: con([{ tipo: 'zona', v: z.id }]), activa: igual(q.filtros, [{ tipo: 'zona', v: z.id }]) });
-				for (const m of MOVIMIENTOS) o.push({ seccion: 'Por lo que les ha pasado', texto: m.nombre, detalle: n([{ tipo: 'mov', v: m.id }]), q: con([{ tipo: 'mov', v: m.id }]), activa: igual(q.filtros, [{ tipo: 'mov', v: m.id }]) });
-				for (const p of PRODUCTOS) o.push({ seccion: 'Por producto que les encaja', texto: p.nombre, glifo: iconoProducto(p.id, { tam: 22, titulo: false }), detalle: n([{ tipo: 'producto', v: p.id }]), q: con([{ tipo: 'producto', v: p.id }]), activa: igual(q.filtros, [{ tipo: 'producto', v: p.id }]) });
+				// Cada familia de filtros es una rejilla: el nombre corto arriba y cuántos caen debajo,
+				// en grande. Se comparan de un vistazo, sin leer una lista de cien renglones.
+				if (q.filtros.length) o.push({ texto: 'Quitar el último filtro', cifra: n(q.filtros.slice(0, -1)), q: con(q.filtros.slice(0, -1)) });
+				o.push({ texto: 'Toda la cartera', cifra: n([]), q: con([]), activa: !q.filtros.length });
+				for (const z of ZONAS) o.push({ seccion: 'Zona', cols: 4, texto: mayuscula(z.plural.replace(/^que /, '')), detalle: z.explica, cifra: n([{ tipo: 'zona', v: z.id }]), q: con([{ tipo: 'zona', v: z.id }]), activa: igual(q.filtros, [{ tipo: 'zona', v: z.id }]) });
+				for (const m of MOVIMIENTOS) o.push({ seccion: 'Movimiento', cols: 3, texto: CORTO_MOVIMIENTO[m.id] ?? m.nombre, titulo: m.nombre, cifra: n([{ tipo: 'mov', v: m.id }]), q: con([{ tipo: 'mov', v: m.id }]), activa: igual(q.filtros, [{ tipo: 'mov', v: m.id }]) });
+				for (const p of PRODUCTOS) o.push({ seccion: 'Producto que encaja', cols: 4, texto: p.nombre, glifo: iconoProducto(p.id, { tam: 26, titulo: false }), cifra: n([{ tipo: 'producto', v: p.id }]), q: con([{ tipo: 'producto', v: p.id }]), activa: igual(q.filtros, [{ tipo: 'producto', v: p.id }]) });
 				const sectores = [...new Set(c.groups.map((g) => g.industry).filter(Boolean))] as string[];
 				sectores.sort((a, b) => cuantos(ctx, [{ tipo: 'sector', v: b }]) - cuantos(ctx, [{ tipo: 'sector', v: a }]));
-				for (const s of sectores) o.push({ seccion: 'Por sector', texto: s, detalle: n([{ tipo: 'sector', v: s }]), q: con([{ tipo: 'sector', v: s }]), activa: igual(q.filtros, [{ tipo: 'sector', v: s }]) });
+				for (const s of sectores) o.push({ seccion: 'Sector', cols: 3, texto: s, cifra: n([{ tipo: 'sector', v: s }]), q: con([{ tipo: 'sector', v: s }]), activa: igual(q.filtros, [{ tipo: 'sector', v: s }]) });
 				for (const [cod, nombre] of Object.entries(PAISES)) {
 					const k = cuantos(ctx, [{ tipo: 'pais', v: cod }]);
-					if (k) o.push({ seccion: 'Por país', texto: nombre, detalle: String(k), q: con([{ tipo: 'pais', v: cod }]), activa: igual(q.filtros, [{ tipo: 'pais', v: cod }]) });
+					if (k) o.push({ seccion: 'País', cols: 4, texto: nombre, cifra: String(k), q: con([{ tipo: 'pais', v: cod }]), activa: igual(q.filtros, [{ tipo: 'pais', v: cod }]) });
 				}
-				for (const [t, nombre] of [['Grande', 'Grandes'], ['Mediana', 'Medianos'], ['Pequeña', 'Pequeños'], ['Micro', 'Micro']]) if (cuantos(ctx, [{ tipo: 'tamano', v: t }]) || t !== 'Micro') o.push({ seccion: 'Por tamaño', texto: nombre, detalle: n([{ tipo: 'tamano', v: t }]), q: con([{ tipo: 'tamano', v: t }]), activa: igual(q.filtros, [{ tipo: 'tamano', v: t }]) });
+				for (const [t, nombre] of [['Grande', 'Grandes'], ['Mediana', 'Medianos'], ['Pequeña', 'Pequeños'], ['Micro', 'Micro']]) if (cuantos(ctx, [{ tipo: 'tamano', v: t }]) || t !== 'Micro') o.push({ seccion: 'Tamaño', cols: 4, texto: nombre, cifra: n([{ tipo: 'tamano', v: t }]), q: con([{ tipo: 'tamano', v: t }]), activa: igual(q.filtros, [{ tipo: 'tamano', v: t }]) });
 				break;
 			}
 			case 'cuando': {
@@ -185,27 +203,38 @@ export function crearFrase(c: Cartera, S: Almacen, ctxDe: (q: Consulta) => Conte
 				const unidad = UNIDAD[q.escala];
 				const nAnio = Math.max(1, Math.round(12 / escalaDe(q.escala).meses));
 				const es = (d: number, hh: number) => q.desde === d && q.hasta === hh;
-				o.push({ seccion: 'Rápido', texto: `El último ${unidad}`, detalle: ps[ult].corta + (ps[ult].estado !== 'completo' ? ` (${ps[ult].estado})` : ''), q: { ...q, desde: ult, hasta: ult }, activa: es(ult, ult) });
-				if (ultimoCerrado !== ult) o.push({ seccion: 'Rápido', texto: `El último ${unidad} cerrado`, detalle: ps[ultimoCerrado].corta, q: { ...q, desde: ultimoCerrado, hasta: ultimoCerrado }, activa: es(ultimoCerrado, ultimoCerrado) });
-				if (q.escala !== 'anio') { const d = Math.max(0, ult - nAnio + 1); o.push({ seccion: 'Rápido', texto: 'El último año', detalle: `de ${ps[d].corta} a ${ps[ult].corta}`, q: { ...q, desde: d, hasta: ult }, activa: es(d, ult) }); }
-				o.push({ seccion: 'Rápido', texto: 'Toda la historia', detalle: `de ${ps[0].corta} a ${ps[ult].corta}`, q: { ...q, desde: 0, hasta: ult }, activa: es(0, ult) });
+				const atajo = { seccion: 'Atajos', cols: 2 };
+				o.push({ ...atajo, texto: `El último ${unidad}`, detalle: ps[ult].corta + (ps[ult].estado !== 'completo' ? ` (${ps[ult].estado})` : ''), q: { ...q, desde: ult, hasta: ult }, activa: es(ult, ult) });
+				if (ultimoCerrado !== ult) o.push({ ...atajo, texto: `El último ${unidad} cerrado`, detalle: ps[ultimoCerrado].corta, q: { ...q, desde: ultimoCerrado, hasta: ultimoCerrado }, activa: es(ultimoCerrado, ultimoCerrado) });
+				if (q.escala !== 'anio') { const d = Math.max(0, ult - nAnio + 1); o.push({ ...atajo, texto: 'El último año', detalle: `de ${ps[d].corta} a ${ps[ult].corta}`, q: { ...q, desde: d, hasta: ult }, activa: es(d, ult) }); }
+				o.push({ ...atajo, texto: 'Toda la historia', detalle: `de ${ps[0].corta} a ${ps[ult].corta}`, q: { ...q, desde: 0, hasta: ult }, activa: es(0, ult) });
 				const visita = leerVisita();
 				if (visita !== null) {
 					const pv = ps.findIndex((p) => p.meses.includes(visita));
-					if (pv >= 0 && pv < ult) o.push({ seccion: 'Rápido', texto: 'Desde tu última visita', detalle: ps[pv].corta, q: { ...q, desde: pv, hasta: ult }, activa: es(pv, ult) });
+					if (pv >= 0 && pv < ult) o.push({ ...atajo, texto: 'Desde tu última visita', detalle: ps[pv].corta, q: { ...q, desde: pv, hasta: ult }, activa: es(pv, ult) });
 				}
-				for (const p of [...ps].reverse()) o.push({ seccion: `${p.anio}`, texto: mayuscula(p.larga), detalle: p.estado !== 'completo' ? p.estado : undefined, q: { ...q, desde: p.i, hasta: p.i }, activa: es(p.i, p.i) });
+				// Un calendario, no una lista: el año es el rótulo y sus periodos van en rejilla, del
+				// primero al último, como se leen. Cada celda dice «sep», «T3» o «2025»: nada más.
+				if (q.escala === 'anio') {
+					for (const p of ps) o.push({ seccion: 'Años', cols: 6, texto: p.corta, titulo: mayuscula(p.larga), detalle: p.estado !== 'completo' ? p.estado : undefined, q: { ...q, desde: p.i, hasta: p.i }, activa: es(p.i, p.i) });
+				} else {
+					const cols = q.escala === 'mes' ? 6 : 4;
+					const anios = [...new Set(ps.map((p) => p.anio))].sort((a, b) => b - a);
+					// Cada periodo cae siempre en su columna: enero a la izquierda, diciembre a la derecha.
+					// El primer año de la ventana empieza con los huecos vacíos, y eso ya cuenta algo.
+					for (const anio of anios) for (const p of ps.filter((x) => x.anio === anio)) o.push({ seccion: String(anio), cols, columna: ((p.orden - 1) % cols) + 1, texto: p.corta.replace(/\s+\d{2}$/, ''), titulo: mayuscula(p.larga), detalle: p.estado !== 'completo' ? p.estado : undefined, q: { ...q, desde: p.i, hasta: p.i }, activa: es(p.i, p.i) });
+				}
 				break;
 			}
 			case 'escala': {
-				for (const esc of ESCALAS) o.push({ seccion: 'Ver', texto: mayuscula(esc.frase), glifo: glifoMuescas(esc.muescas), q: conEscala(c, q, esc.id as Escala), activa: q.escala === esc.id });
-				o.push({ seccion: 'Cómo se resume cada periodo', texto: 'Al cierre', detalle: 'el score del último mes', q: { ...q, agregado: 'cierre' }, activa: q.agregado === 'cierre', desactivada: q.escala === 'mes' });
-				o.push({ seccion: 'Cómo se resume cada periodo', texto: 'De media', detalle: 'la media de sus meses', q: { ...q, agregado: 'media' }, activa: q.agregado === 'media', desactivada: q.escala === 'mes' });
+				for (const esc of ESCALAS) o.push({ cols: 5, texto: esc.nombre, titulo: mayuscula(esc.frase), glifo: glifoMuescas(esc.muescas), q: conEscala(c, q, esc.id as Escala), activa: q.escala === esc.id });
+				o.push({ seccion: 'Cada periodo', cols: 2, texto: 'Al cierre', detalle: 'el score de su último mes', q: { ...q, agregado: 'cierre' }, activa: q.agregado === 'cierre', desactivada: q.escala === 'mes' });
+				o.push({ seccion: 'Cada periodo', cols: 2, texto: 'De media', detalle: 'la media de sus meses', q: { ...q, agregado: 'media' }, activa: q.agregado === 'media', desactivada: q.escala === 'mes' });
 				break;
 			}
 			case 'agregado': {
-				o.push({ texto: 'Al cierre', detalle: 'el score del último mes del periodo', q: { ...q, agregado: 'cierre' }, activa: q.agregado === 'cierre' });
-				o.push({ texto: 'De media', detalle: 'la media de los meses del periodo', q: { ...q, agregado: 'media' }, activa: q.agregado === 'media' });
+				o.push({ cols: 2, texto: 'Al cierre', detalle: 'el score de su último mes', q: { ...q, agregado: 'cierre' }, activa: q.agregado === 'cierre' });
+				o.push({ cols: 2, texto: 'De media', detalle: 'la media de sus meses', q: { ...q, agregado: 'media' }, activa: q.agregado === 'media' });
 				break;
 			}
 			case 'frente': {
@@ -213,15 +242,15 @@ export function crearFrase(c: Cartera, S: Almacen, ctxDe: (q: Consulta) => Conte
 				const ant = ps[ctx.pHasta.i - 1];
 				const anio = periodoAnioAnterior(ps, ctx.pHasta);
 				const f = (v: Frente) => ({ ...q, frente: v });
-				o.push({ texto: 'Sin comparar', detalle: 'las flechas salen de «desde»', q: f('nada'), activa: q.frente === 'nada' });
-				o.push({ texto: 'Frente al periodo anterior', detalle: ant ? ant.corta : 'no hay', q: f('anterior'), activa: q.frente === 'anterior', desactivada: !ant });
-				o.push({ texto: 'Frente al mismo periodo del año pasado', detalle: anio ? anio.corta : 'fuera de la ventana', q: f('anio'), activa: q.frente === 'anio', desactivada: !anio });
-				o.push({ texto: 'Frente a su primer mes en la plataforma', detalle: 'cada grupo, el suyo', q: f('alta'), activa: q.frente === 'alta' });
+				o.push({ cols: 2, texto: 'Sin comparar', detalle: 'las flechas salen de «desde»', q: f('nada'), activa: q.frente === 'nada' });
+				o.push({ cols: 2, texto: 'El periodo anterior', titulo: 'Frente al periodo anterior', detalle: ant ? ant.corta : 'no hay', q: f('anterior'), activa: q.frente === 'anterior', desactivada: !ant });
+				o.push({ cols: 2, texto: 'El año pasado', titulo: 'Frente al mismo periodo del año pasado', detalle: anio ? anio.corta : 'fuera de la ventana', q: f('anio'), activa: q.frente === 'anio', desactivada: !anio });
+				o.push({ cols: 2, texto: 'Su primer mes', titulo: 'Frente a su primer mes en la plataforma', detalle: 'cada grupo, el suyo', q: f('alta'), activa: q.frente === 'alta' });
 				break;
 			}
 			case 'orden': {
 				const f = (v: Orden) => ({ ...q, orden: v });
-				for (const [v, t] of [['score', 'Por score, los más altos arriba'], ['ritmo', 'Por ritmo, los que más caen arriba'], ['alerta', 'Por su primer aviso'], ['tamano', 'Por tamaño']] as [Orden, string][]) o.push({ texto: t, q: f(v), activa: q.orden === v });
+				for (const [v, t, d] of [['score', 'Score', 'los más altos arriba'], ['ritmo', 'Ritmo', 'los que más caen arriba'], ['alerta', 'Primer aviso', 'el más antiguo arriba'], ['tamano', 'Tamaño', 'los más grandes arriba']] as [Orden, string, string][]) o.push({ cols: 2, texto: t, detalle: d, q: f(v), activa: q.orden === v });
 				break;
 			}
 			case 'escritura': {
@@ -237,7 +266,7 @@ export function crearFrase(c: Cartera, S: Almacen, ctxDe: (q: Consulta) => Conte
 		const unGrupo = nq.filtros.length === 1 && nq.filtros[0].tipo === 'grupo' ? (nq.filtros[0].v as string) : null;
 		// Un grupo concreto se abre directamente en su expediente.
 		if (unGrupo) return { seccion: p.tipo, texto: `Abrir el ${p.texto.replace(/^el /, '')}`, q, accion: () => acc.abrirGrupo(unGrupo) };
-		return { seccion: p.tipo, texto: p.texto, detalle: p.tipo === 'Quién' ? String(cuantos(ctx, nq.filtros)) : undefined, q: nq };
+		return { seccion: p.tipo, texto: p.texto, cifra: p.tipo === 'Quién' ? String(cuantos(ctx, nq.filtros)) : undefined, q: nq };
 	}
 
 	// ─── Panel ──────────────────────────────────────────────
@@ -328,24 +357,64 @@ export function crearFrase(c: Cartera, S: Almacen, ctxDe: (q: Consulta) => Conte
 		return h('div', { class: 'panel-buscar-caja' }, inp);
 	}
 
+	/** Las opciones seguidas que comparten sección son un bloque: una lista o una rejilla. */
+	function bloques(): { titulo: string; cols: number; items: { o: Opcion; i: number }[] }[] {
+		const out: { titulo: string; cols: number; items: { o: Opcion; i: number }[] }[] = [];
+		opciones.forEach((o, i) => {
+			const clave = o.seccion ?? '';
+			const ult = out[out.length - 1];
+			if (!ult || ult.titulo !== clave || ult.cols !== (o.cols ?? 1)) out.push({ titulo: clave, cols: o.cols ?? 1, items: [] });
+			out[out.length - 1].items.push({ o, i });
+		});
+		return out;
+	}
+
 	function pintarLista(lista: HTMLElement) {
 		vaciar(lista);
 		if (!opciones.length) {
 			lista.append(h('div', { class: 'panel-vacio' }, h('p', {}, `No reconozco «${escrito}».`), h('p', { class: 'panel-pista' }, 'Prueba con «se tuercen», «T2», «factoring», «42», «trimestres» o «año pasado».')));
 			return;
 		}
-		let seccion = '';
-		opciones.forEach((o, i) => {
-			if (o.seccion && o.seccion !== seccion) { seccion = o.seccion; lista.append(h('div', { class: 'panel-seccion' }, seccion)); }
-			const b = h('button', { class: `opcion ${o.activa ? 'activa' : ''} ${i === marcada ? 'marcada' : ''}`, type: 'button', role: 'option', 'aria-selected': String(!!o.activa), disabled: o.desactivada || undefined },
-				o.glifo ?? null, h('span', { class: 'opcion-texto' }, o.texto), o.detalle ? h('span', { class: 'opcion-detalle' }, o.detalle) : null);
-			b.addEventListener('mouseenter', () => { marcada = i; marcar(); if (!o.desactivada && !o.accion) S.previsualizar(o.q); });
-			b.addEventListener('focus', () => { marcada = i; marcar(); if (!o.desactivada && !o.accion) S.previsualizar(o.q); });
-			b.addEventListener('click', (ev) => { ev.stopPropagation(); elegir(i); });
-			lista.append(b);
-		});
+		for (const bl of bloques()) {
+			if (bl.titulo) lista.append(h('div', { class: 'panel-seccion' }, bl.titulo));
+			// Un calendario tiene la columna fija (enero a la izquierda) y no se recoloca en el móvil:
+			// se marca para que la hoja lo respete en vez de repartir las celdas a su aire.
+			const fija = bl.items.some(({ o }) => o.columna);
+			const caja = bl.cols > 1 ? h('div', { class: `panel-rejilla ${fija ? 'fija' : ''}` }) : lista;
+			if (bl.cols > 1) { caja.style.setProperty('--cols', String(bl.cols)); lista.append(caja); }
+			for (const { o, i } of bl.items) caja.append(botonOpcion(o, i, bl.cols > 1));
+		}
 		lista.onmouseleave = () => { if (abierto !== 'escritura' && !escrito) S.previsualizar(null); };
 	}
+
+	function botonOpcion(o: Opcion, i: number, celda: boolean): HTMLButtonElement {
+		const b = h('button', {
+			class: `opcion ${celda ? 'celda' : ''} ${o.activa ? 'activa' : ''} ${i === marcada ? 'marcada' : ''}`,
+			type: 'button', role: 'option', 'aria-selected': String(!!o.activa),
+			title: o.titulo ?? undefined, 'aria-label': o.titulo ?? undefined,
+			disabled: o.desactivada || undefined,
+		},
+			o.glifo ?? null,
+			h('span', { class: 'opcion-texto' }, o.texto),
+			o.cifra ? h('span', { class: 'opcion-cifra' }, o.cifra) : null,
+			o.detalle ? h('span', { class: 'opcion-detalle' }, o.detalle) : null);
+		if (celda && o.columna) b.style.gridColumnStart = String(o.columna);
+		b.addEventListener('mouseenter', () => { marcada = i; marcar(); if (!o.desactivada && !o.accion) S.previsualizar(o.q); });
+		b.addEventListener('focus', () => { marcada = i; marcar(); if (!o.desactivada && !o.accion) S.previsualizar(o.q); });
+		b.addEventListener('click', (ev) => { ev.stopPropagation(); elegir(i); });
+		return b;
+	}
+
+	/** Moverse por la rejilla: los lados saltan de celda; arriba y abajo, de fila entera. */
+	function mover(paso: number): number {
+		let i = marcada;
+		for (let n = 0; n < opciones.length; n++) {
+			i = (i + paso + opciones.length) % opciones.length;
+			if (!opciones[i].desactivada) return i;
+		}
+		return marcada;
+	}
+	const filaDe = (i: number) => opciones[i]?.cols ?? 1;
 
 	function marcar() {
 		const bs = panel.querySelectorAll<HTMLElement>('.opcion');
@@ -359,7 +428,9 @@ export function crearFrase(c: Cartera, S: Almacen, ctxDe: (q: Consulta) => Conte
 		panel.classList.toggle('hoja', movil);
 		if (movil) { Object.assign(panel.style, { left: '', top: '', width: '', maxHeight: '' }); return; }
 		const ref = (fichaAbierta ?? linea).getBoundingClientRect();
-		const ancho = Math.min(400, innerWidth - 32);
+		// Las rejillas piden sitio; una búsqueda escrita se queda estrecha, que es una lista.
+		const pedido = abierto === 'quien' && escrito ? 460 : ANCHO_PANEL[abierto];
+		const ancho = Math.min(pedido, innerWidth - 32);
 		const x = Math.max(16, Math.min(ref.left, innerWidth - ancho - 16));
 		Object.assign(panel.style, { left: `${x}px`, top: `${ref.bottom + 8}px`, width: `${ancho}px`, maxHeight: `${Math.max(220, innerHeight - ref.bottom - 32)}px` });
 	}
@@ -368,15 +439,14 @@ export function crearFrase(c: Cartera, S: Almacen, ctxDe: (q: Consulta) => Conte
 	function tecla(ev: KeyboardEvent): boolean {
 		if (abierto && abierto !== 'escritura') {
 			if (ev.key === 'Escape') { ev.preventDefault(); cerrar(); return true; }
-			if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+			if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp' || ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') {
 				ev.preventDefault();
-				const d = ev.key === 'ArrowDown' ? 1 : -1;
-				let i = marcada;
-				for (let n = 0; n < opciones.length; n++) { i = (i + d + opciones.length) % opciones.length; if (!opciones[i].desactivada) break; }
-				marcada = i;
-				(panel.querySelectorAll<HTMLElement>('.opcion')[i])?.focus({ preventScroll: true });
+				const vertical = ev.key === 'ArrowDown' || ev.key === 'ArrowUp';
+				const signo = ev.key === 'ArrowDown' || ev.key === 'ArrowRight' ? 1 : -1;
+				marcada = mover(signo * (vertical ? filaDe(marcada) : 1));
+				(panel.querySelectorAll<HTMLElement>('.opcion')[marcada])?.focus({ preventScroll: true });
 				marcar();
-				S.previsualizar(opciones[i].q);
+				S.previsualizar(opciones[marcada].q);
 				return true;
 			}
 			if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); elegir(marcada); return true; }

@@ -66,7 +66,17 @@ comprobar('los datos son los del motor', (await p.$eval('.nota-datos', (x) => x.
 await hasta(p, () => document.querySelectorAll('.atencion li.tocable').length > 0);
 comprobar('«las que piden atención hoy» sale de los datos', (await p.$$('.atencion li.tocable')).length > 0);
 comprobar('la portada no lleva regla ni reloj de arena', await p.evaluate(() => getComputedStyle(document.querySelector('.reproducir')).display === 'none' && getComputedStyle(document.querySelector('.regla')).display === 'none'));
-comprobar('la portada lleva la rosa de los vientos y no repite la marca en la cabecera', await p.evaluate(() => !!document.querySelector('.entrada-rosa[data-placa]') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'hidden'));
+comprobar('la portada lleva la rosa de los vientos y, en la cabecera, solo el monograma', await p.evaluate(() => !!document.querySelector('.entrada-rosa[data-placa]') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'visible' && getComputedStyle(document.querySelector('.barra .marca .logotipo')).display === 'none'));
+comprobar('el buscador va pegado a la rosa, dentro de la cabeza', await p.evaluate(() => { const c = document.querySelector('.mon-cabeza > .mon-campo'); const r = document.querySelector('.mon-rosa'); return !!c && !!r && c.getBoundingClientRect().top >= r.getBoundingClientRect().bottom - 1; }));
+comprobar('la línea de puntos del buscador mide lo que se escribe', await p.evaluate(async () => {
+	const i = document.querySelector('.entrada-buscar');
+	const vacio = i.getBoundingClientRect().width;
+	i.value = 'Grupo'; i.dispatchEvent(new Event('input'));
+	await new Promise((r) => requestAnimationFrame(r));
+	const escrito = i.getBoundingClientRect().width;
+	i.value = ''; i.dispatchEvent(new Event('input'));
+	return vacio > 200 && escrito > 60 && escrito < vacio - 40;
+}));
 // ─── 1b. El monitor ───────────────────────────────────────
 {
 	const pf = await leer(p, `${DATOS}portfolio.json`);
@@ -99,8 +109,12 @@ comprobar('la portada lleva la rosa de los vientos y no repite la marca en la ca
 	const nEmp = await p.$eval('.mon-cuantas', (x) => x.textContent);
 	comprobar('el monitor cambia a empresas', /empresas/.test(nEmp), nEmp);
 	await p.click('.mon-unidad button[data-valor="organizaciones"]'); await esperar(300);
+	// El desplegable de la casa se cuelga del documento: no lo recorta ni lo tapa nada.
+	await p.click('.mon-vista .desp-boton'); await esperar(300);
+	comprobar('el desplegable se pinta por encima de todo', await p.evaluate(() => { const l = document.querySelector('.desp-lista:not([hidden])'); if (!l || l.parentElement !== document.body) return false; const c = l.getBoundingClientRect(); const e = document.elementFromPoint(c.x + c.width / 2, c.y + 12); return !!e?.closest('.desp-lista'); }));
+	await p.keyboard.press('Escape'); await esperar(250);
 	// «Dile qué quieres ver»: palabras al instante y Jev (grabado) después.
-	comprobar('«dile qué quieres ver» está a la vista, con ejemplos', await p.evaluate(() => { const c = document.querySelector('.mon-pedir-campo'); const r = c?.getBoundingClientRect(); return !!r && r.width > 200 && document.querySelectorAll('.mon-ejemplos .ejemplo').length >= 3; }));
+	comprobar('«dile qué quieres ver» vive con la lista, dentro del panel, y con sus ejemplos', await p.evaluate(() => { const c = document.querySelector('.mon-vista .mon-pedir-caja .mon-pedir-campo'); const r = c?.getBoundingClientRect(); return !!r && r.width > 200 && document.querySelectorAll('.mon-vista .mon-ejemplos .ejemplo').length >= 3; }));
 	await p.type('.mon-pedir-campo', 'las organizaciones grandes que se tuercen, en tabla');
 	await p.keyboard.press('Enter');
 	await hasta(p, () => /Jev,/.test(document.querySelector('.mon-entendido')?.textContent ?? ''));
@@ -212,7 +226,21 @@ comprobar('la gráfica tiene sus ejes: score de 0 a 100 y los meses', await p.ev
 }
 // Los horizontes y los supuestos, siempre a la vista: nada se esconde tras un botón.
 comprobar('los tres horizontes se rotulan a la vez', (await p.$$('.escenario .g-etq.boya')).length === 3);
-if (await p.$('.esc-drift')) comprobar('«qué pasaría si» se dibuja siempre como línea, aparte de la previsión', (await p.$$('.escenario .g-etq.alternativa')).length === (await p.$$('.escenario .esc.leyenda')).length);
+// Cada caso del mando tiene su trazo en la gráfica: el que se mira, dibujado; los demás, rotulados
+// al borde con su score. Con una acción marcada tampoco desaparecen: entonces están los tres.
+if (await p.$('.esc-drift')) {
+	const casos = (await p.$$('.escenario .esc')).length;
+	const conAccion = !!(await p.$('.escenario .zona-t.con-acciones'));
+	const rotulos = (await p.$$('.escenario .g-etq.alternativa')).length;
+	comprobar('«qué pasaría si» se dibuja siempre como línea, aparte de la previsión', rotulos === (conAccion ? casos : casos - 1), `${rotulos} rótulos · ${casos} casos${conAccion ? ' · con una acción marcada' : ''}`);
+	if (conAccion) comprobar('con una acción marcada se sigue leyendo el score de cada caso', await p.$$eval('.escenario .g-etq.alternativa', (xs) => xs.every((x) => /\d/.test(x.textContent))));
+}
+// La acción marca su punto en la gráfica, a la distancia en que se nota y con su score.
+{
+	const hitos = await p.$$eval('.escenario .g-etq.hito-accion', (xs) => xs.map((x) => x.textContent));
+	comprobar('la acción marca su punto a su distancia temporal, con el score', hitos.length > 0 && hitos.every((t) => /^(a (un mes|un año|\d+ meses)|las \d+ juntas) · \d/.test(t)), hitos.join(' · '));
+	comprobar('cada punto marcado lleva su grano en la gráfica', (await p.$$('.escenario .g-hito-pto')).length === hitos.length);
+}
 // La regla en un mes pasado: toda la aplicación lo dice y el horizonte enseña lo que se preveía entonces.
 await p.evaluate(() => document.activeElement?.blur());
 await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft');

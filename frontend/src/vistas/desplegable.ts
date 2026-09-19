@@ -51,7 +51,7 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 		type: 'button', class: `desp-boton ${o.clase ?? ''}`, id: `${id}-b`,
 		role: 'combobox', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${id}-l`, 'aria-label': o.etiqueta,
 	}, texto, h('span', { class: 'desp-punta', 'aria-hidden': 'true' }));
-	const lista = h('div', { class: 'desp-lista', id: `${id}-l`, role: 'listbox', 'aria-label': o.etiqueta, hidden: true });
+	const lista = h('div', { class: 'desp-lista', id: `${id}-l`, role: 'listbox', 'aria-label': o.etiqueta });
 	const raiz = h('div', { class: 'desp' }, boton, lista);
 
 	const indiceDe = (v: V) => o.opciones.findIndex((x) => x.valor === v);
@@ -68,6 +68,7 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 			const b = h('button', {
 				type: 'button', id: `${id}-o${i}`, class: `desp-opcion ${op.valor === valor ? 'activa' : ''} ${i === marcada ? 'marcada' : ''}`,
 				role: 'option', 'aria-selected': String(op.valor === valor), disabled: op.desactivada || undefined, tabindex: '-1',
+				style: { '--i': String(Math.min(i, 8)) },
 			}, h('span', { class: 'desp-opcion-texto' }, op.texto), op.detalle ? h('span', { class: 'desp-opcion-detalle' }, op.detalle) : null);
 			b.addEventListener('click', () => elegir(i));
 			b.addEventListener('pointermove', () => marcar(i));
@@ -81,8 +82,7 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 		marcada = Math.max(0, Math.min(o.opciones.length - 1, i));
 		for (const [j, el] of [...lista.children].entries()) el.classList.toggle('marcada', j === marcada);
 		boton.setAttribute('aria-activedescendant', `${id}-o${marcada}`);
-		const opcion = lista.children[marcada] as HTMLElement | undefined;
-		if (opcion) lista.scrollTop = Math.max(0, opcion.offsetTop - lista.clientHeight + opcion.offsetHeight);
+		(lista.children[marcada] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
 	}
 
 	function abrir() {
@@ -90,23 +90,45 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 		abierto = true;
 		marcada = Math.max(0, indiceDe(valor));
 		pintarLista();
+		// La lista se cuelga del documento, no del sitio donde está el botón: así se pinta por encima
+		// de todo y no la recorta ninguna caja con desbordamiento oculto ni la tapa nada.
+		document.body.append(lista);
 		lista.hidden = false;
+		// La lista ya no cuelga del componente: su estado abierto va en ella misma, o la animación
+		// (que se escribió cuando era hija) no llegaría a aplicarse nunca.
+		lista.classList.add('abierta');
 		boton.setAttribute('aria-expanded', 'true');
 		raiz.classList.add('abierto');
-		// Si no cabe por abajo, se despliega hacia arriba.
-		const caja = boton.getBoundingClientRect();
-		lista.classList.toggle('arriba', caja.bottom + lista.offsetHeight + 12 > innerHeight && caja.top > lista.offsetHeight);
-		const opcion = lista.children[marcada] as HTMLElement | undefined;
-		if (opcion) lista.scrollTop = Math.max(0, opcion.offsetTop - lista.clientHeight + opcion.offsetHeight);
+		colocarLista();
+		(lista.children[marcada] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
 		addEventListener('pointerdown', fuera, true);
 		addEventListener('resize', cerrarSuelto);
-		addEventListener('scroll', cerrarSuelto, true);
+		// El scroll se escucha un fotograma después: si el botón venía fuera de vista, el navegador
+		// desplaza para enseñarlo y ese mismo desplazamiento cerraría la lista recién abierta.
+		requestAnimationFrame(() => { if (abierto) addEventListener('scroll', cerrarSuelto, true); });
+	}
+
+	/** Bajo el botón, o encima si no cabe; y siempre dentro de la pantalla. */
+	function colocarLista() {
+		const c = boton.getBoundingClientRect();
+		lista.style.minWidth = `${Math.round(c.width)}px`;
+		const alto = lista.offsetHeight;
+		const arriba = c.bottom + alto + 12 > innerHeight && c.top > alto;
+		lista.classList.toggle('arriba', arriba);
+		lista.style.top = arriba ? '' : `${Math.round(c.bottom + 5)}px`;
+		lista.style.bottom = arriba ? `${Math.round(innerHeight - c.top + 5)}px` : '';
+		const ancho = lista.offsetWidth;
+		lista.style.left = `${Math.round(Math.max(8, Math.min(c.left, innerWidth - ancho - 8)))}px`;
 	}
 
 	function cerrar(devolverFoco = false) {
 		if (!abierto) return;
 		abierto = false;
 		lista.hidden = true;
+		lista.classList.remove('abierta');
+		// De vuelta a su sitio: así el componente se clona entero (el informe) y no deja nada suelto.
+		lista.removeAttribute('style');
+		raiz.append(lista);
 		boton.setAttribute('aria-expanded', 'false');
 		boton.setAttribute('aria-activedescendant', '');
 		raiz.classList.remove('abierto');
@@ -116,11 +138,9 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 		if (devolverFoco) boton.focus();
 	}
 
-	const fuera = (ev: Event) => { if (!raiz.contains(ev.target as Node)) cerrar(); };
-	const cerrarSuelto = (ev: Event) => {
-		if (ev.type === 'scroll' && ev.target instanceof Node && raiz.contains(ev.target)) return;
-		cerrar();
-	};
+	const fuera = (ev: Event) => { const t = ev.target as Node; if (!raiz.contains(t) && !lista.contains(t)) cerrar(); };
+	// Moverse dentro de la lista no la cierra; moverse por detrás de ella, sí.
+	const cerrarSuelto = (ev?: Event) => { if (ev?.target instanceof Node && lista.contains(ev.target)) return; cerrar(); };
 
 	function elegir(i: number) {
 		const op = o.opciones[i];
@@ -141,7 +161,8 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 			return marcar(marcada + (k === 'ArrowDown' ? 1 : -1));
 		}
 		if (!abierto) return;
-		if (k === 'Escape') { ev.preventDefault(); return cerrar(true); }
+		// Con la lista abierta, las teclas son suyas: Esc la cierra y no sube de nivel en la página.
+		if (k === 'Escape') { ev.preventDefault(); ev.stopPropagation(); return cerrar(true); }
 		if (k === 'Home') { ev.preventDefault(); return marcar(0); }
 		if (k === 'End') { ev.preventDefault(); return marcar(o.opciones.length - 1); }
 		if (k === 'Tab') return cerrar();
