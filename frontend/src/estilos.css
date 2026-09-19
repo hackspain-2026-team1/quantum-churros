@@ -2565,53 +2565,132 @@ button.filtro-opcion[aria-pressed="true"] {
   color: var(--apagado);
 }
 
-/* Acciones: recomendaciones y avisos. */
+/* Acciones: recomendaciones y avisos. Cada acción es una fila de cuatro columnas (orden, qué hacer,
+   cómo va y qué suma) y la fila entera es el mando que la lleva al horizonte. */
 .recomendaciones {
   list-style: none;
   padding: 0;
   display: grid;
 }
+.rec-cab,
 .rec {
   display: grid;
-  grid-template-columns: 54px 1fr;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--borde);
-  transition: background 200ms;
+  grid-template-columns: 62px minmax(0, 1fr) 190px 104px;
+  gap: 18px;
+  align-items: start;
 }
+.rec-cab {
+  padding: 0 12px 6px;
+  border-bottom: 1px solid var(--borde-2);
+  font: 600 11.5px/1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+.rec-cab span {
+  white-space: nowrap;
+}
+.rec-cab .der {
+  text-align: right;
+}
+.rec {
+  position: relative;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--borde);
+  border-radius: 11px;
+  transition: background 160ms, box-shadow 160ms;
+}
+.rec[data-accion] {
+  cursor: pointer;
+}
+.rec[data-accion]:hover {
+  background: var(--fondo-3);
+}
+.rec:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: -2px;
+}
+/* Elegida: se marca con un filete en el canto, no con un fondo que tape la letra. */
 .rec.elegida {
-  background: linear-gradient(90deg, var(--info-s), rgba(255, 255, 255, 0) 70%);
+  background: color-mix(in srgb, var(--info-s) 55%, #fff);
+}
+.rec.elegida::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--info);
 }
 .rec-marca {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding-top: 1px;
+}
+/* La casilla de la casa: cuadrada, de tinta, con su tic dibujado. Nada del sistema operativo. */
+.rec-tick {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 1.5px solid var(--borde-2);
+  border-radius: 7px;
+  background: #fff;
   cursor: pointer;
-  padding-left: 4px;
-  align-self: start;
+  position: relative;
+  transition: border-color 120ms, background 120ms, box-shadow 120ms;
 }
-.rec-marca input {
-  accent-color: var(--info);
-  width: 15px;
-  height: 15px;
+.rec-tick:hover {
+  border-color: var(--info);
+  box-shadow: var(--sombra-1);
 }
-.rec-n {
-  font: italic 16px var(--serif);
+.rec-tick:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+.rec-tick:checked {
+  background: var(--info);
+  border-color: var(--info);
+}
+.rec-tick:checked::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 3.5px;
+  width: 6px;
+  height: 11px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.rec-orden {
+  font: italic 13px/1 var(--serif);
   color: var(--tenue);
+}
+.rec.elegida .rec-orden {
+  color: var(--info-t);
 }
 .rec-titulo {
   font: 600 17px/1.3 var(--serif);
+}
+.rec.elegida .rec-titulo {
+  color: var(--info-t);
 }
 .rec-texto {
   font-size: 13.5px;
   color: var(--tinta-2);
   margin-top: 3px;
   line-height: 1.45;
+  max-width: 62ch;
 }
 .rec-hechos {
   font-size: 12.5px;
   color: var(--apagado);
-  margin-top: 4px;
+  margin-top: 5px;
 }
 .rec-productos {
   display: flex;
@@ -2625,16 +2704,73 @@ button.filtro-opcion[aria-pressed="true"] {
   font-style: italic;
   color: var(--apagado);
 }
-.rec[data-estado="hecha"] .rec-titulo {
+/* Cómo va: el estado, y debajo si está puesta en el horizonte. */
+.rec-estado {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+}
+.rec-estado .desp-boton {
+  min-width: 140px;
+}
+/* Si se hace: los puntos que suma. */
+.rec-efecto {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  align-self: start;
+}
+.rec-efecto b {
+  font: 500 24px/1 var(--serif);
+  color: var(--info-t);
+}
+.rec-efecto span {
+  font-size: 12px;
+  color: var(--apagado);
+}
+.rec[data-estado='en curso'] .rec-titulo::after {
+  content: '·';
+  margin-left: 6px;
+  color: var(--info-t);
+}
+.rec[data-estado='hecha'] {
+  opacity: 0.6;
+}
+.rec[data-estado='hecha'] .rec-titulo {
   text-decoration: line-through;
   text-decoration-color: var(--tenue);
   color: var(--apagado);
 }
-.rec[data-estado="en curso"] .rec-n {
-  color: var(--info-t);
+.rec[data-estado='hecha'] .rec-efecto b {
+  color: var(--apagado);
 }
-.rec.nada .rec-titulo {
+.rec.nada .rec-titulo,
+.rec.vacia {
   font-style: italic;
+}
+.rec.nada,
+.rec.vacia {
+  cursor: default;
+}
+@media (max-width: 900px) {
+  .rec-cab {
+    display: none;
+  }
+  .rec {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .rec-estado,
+  .rec-efecto {
+    grid-column: 2;
+  }
+  .rec-efecto {
+    justify-items: start;
+    margin-top: 6px;
+  }
+  .rec-efecto b {
+    font-size: 20px;
+  }
 }
 .frase-horizonte {
   font: 400 18px/1.5 var(--serif);
@@ -3330,13 +3466,6 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .mz-leyenda span { display: inline-flex; align-items: center; gap: 6px; }
 
 /* Acciones: cada fila mueve el horizonte; pulsar la fila también la marca. */
-.rec { grid-template-columns: 54px minmax(0, 1fr) 90px; cursor: default; }
-.rec[data-accion] { cursor: pointer; }
-.rec:hover { background: linear-gradient(90deg, rgba(56, 120, 246, 0.06), rgba(255, 255, 255, 0) 70%); }
-.rec-efecto { display: grid; justify-items: end; align-self: start; }
-.rec-efecto b { font: 500 22px var(--serif); color: var(--info-t); }
-.rec-efecto span { font-size: 12px; color: var(--apagado); }
-.rec.elegida .rec-titulo { color: var(--info-t); }
 
 /* La validación de la previsión. */
 .validacion { display: grid; gap: 10px; }
@@ -4575,4 +4704,137 @@ body[data-modo='cfo'] .nota-datos { display: none; }
 @media screen and (max-width: 699px) {
 	.pt-fila, .pt-eje { grid-template-columns: 1fr 44px 60px; }
 	.pt-eje { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Las cifras de la prosa: mono, en el azul de lo que se toca, y con
+ * su procedencia a un paso. En tablas y ejes no: ahí ya están en su sitio.
+ * ═══════════════════════════════════════════════════════════════ */
+:root { --mono: ui-monospace, 'SF Mono', SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace; }
+.cifra {
+	font-family: var(--mono); font-size: 0.92em; font-variant-numeric: tabular-nums;
+	color: var(--info-t); white-space: nowrap; letter-spacing: -0.01em;
+}
+.cifra.tocable {
+	padding: 0 1px; border-radius: 4px; cursor: pointer;
+	border-bottom: 1px dotted var(--info); transition: background 120ms var(--salida);
+}
+.cifra.tocable:hover, .cifra.tocable:focus-visible { background: var(--info-s); }
+.nota-cifra {
+	position: fixed; z-index: 70; max-width: 300px; display: grid; gap: 2px; padding: 8px 11px;
+	background: var(--tinta); color: #fff; border-radius: 9px; box-shadow: var(--sombra-2);
+	font: 12.5px/1.35 var(--sans); pointer-events: none;
+}
+.nota-cifra b { font-weight: 600; }
+.nota-cifra-rastro { color: rgba(255, 255, 255, 0.72); font-variant-numeric: tabular-nums; }
+.nota-cifra-pie { color: rgba(255, 255, 255, 0.55); font-style: italic; }
+/* En papel, una cifra es solo un número: ni color de enlace ni subrayado. */
+.informe .cifra, .capa-informe .cifra { color: inherit; border-bottom: 0; background: none; }
+/* Rótulos del horizonte que no caben en una fila: el de seis meses baja, como en el móvil. */
+.grafico.boyas-escalonadas .g-etq.boya.h6 { transform: translate(-50%, 54px); }
+.horizonte .grafico.boyas-escalonadas { margin-bottom: 88px; }
+
+/* ═══════════════════════════════════════════════════════════════
+ * Los márgenes de la página: una sola medida para todo
+ * ═══════════════════════════════════════════════════════════════
+ * El margen lateral lo fijaba cada regla por su cuenta (44, 28, 16) y la geometría de la arena lo
+ * repetía en TypeScript. Ahora es una variable: la barra, la regla, el escenario y las secciones
+ * respiran lo mismo y nada toca el borde. `geometria.ts` lleva los mismos números para que la
+ * regla del tiempo caiga a plomo sobre el texto.
+ */
+:root { --pad-lateral: 64px; --aire-escenario: 34px; }
+@media screen and (max-width: 1099px) { :root { --pad-lateral: 40px; --aire-escenario: 28px; } }
+@media screen and (max-width: 699px) { :root { --pad-lateral: 20px; --aire-escenario: 20px; } }
+
+.barra { padding-left: var(--pad-lateral); padding-right: var(--pad-lateral); }
+.barra::after { left: var(--pad-lateral); right: var(--pad-lateral); }
+.ayuda { right: var(--pad-lateral); }
+.hoja-ficha, .entrada, .metodologia, .financiacion { padding-left: var(--pad-lateral); padding-right: var(--pad-lateral); }
+
+/* El escenario arranca con aire: la línea del tiempo termina arriba y el nombre de la entidad
+ * no se le pega. Es el hueco que pedía la ficha (grupo y empresa). */
+.escenario { padding: var(--aire-escenario) var(--pad-lateral) 0; }
+
+@media screen and (max-width: 699px) {
+	.ayuda { left: 12px; right: 12px; }
+	.pagina:not(.escenario-fijo) .escenario { padding-left: 0; padding-right: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Scoring: qué está pasando y por qué
+ * ═══════════════════════════════════════════════════════════════
+ * La pestaña que se abre primero explica el número antes de desmontarlo. Nada de cajas: prosa en
+ * serif, una cuenta que se lee de izquierda a derecha y un balance de pilares con el cero en medio.
+ */
+.sc-lead { font: 400 18px/1.55 var(--serif); color: var(--tinta); max-width: 78ch; }
+.sc-que-es { font: 400 15.5px/1.6 var(--serif); color: var(--tinta-2); max-width: 78ch; margin-top: 10px; }
+.sec-scoring .nota { font-size: 13px; color: var(--apagado); max-width: 82ch; margin-top: 10px; }
+
+/* La cuenta: punto de partida + pilares − penalización − tope = score. */
+.sc-cuenta {
+	display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
+	margin-top: 20px; padding: 16px 0 14px; border-top: 1px solid var(--borde); border-bottom: 1px solid var(--borde);
+}
+.sc-term { display: grid; gap: 1px; }
+.sc-term b { font: 500 24px/1 var(--serif); font-variant-numeric: tabular-nums; }
+.sc-term span { font-size: 12px; color: var(--apagado); }
+.sc-term.pos b { color: var(--exito-t); }
+.sc-term.neg b { color: var(--peligro-t); }
+.sc-term.cero b { color: var(--tenue); }
+.sc-term.total b { font-size: 30px; }
+.sc-op { font: 400 19px var(--serif); color: var(--tenue); align-self: center; }
+
+/* El balance de pilares: el cero en el centro, lo que aporta a la derecha y lo que resta a la izquierda. */
+.sc-bal { margin-top: 6px; }
+.sc-bal-eje { display: grid; grid-template-columns: 210px minmax(160px, 1fr) 84px; gap: 4px 18px; font: italic 12px var(--serif); color: var(--tenue); padding-bottom: 6px; }
+.sc-bal-eje-c { display: grid; grid-template-columns: 1fr 1fr; }
+.sc-bal-eje-c i { font-style: italic; text-align: center; }
+.sc-bal-fila {
+	display: grid; grid-template-columns: 210px minmax(160px, 1fr) 84px; gap: 4px 18px; align-items: center;
+	padding: 12px 0; border-bottom: 1px solid var(--borde); cursor: pointer; border-radius: 0;
+}
+.sc-bal-fila:hover { background: linear-gradient(90deg, var(--info-s), rgba(255, 255, 255, 0) 70%); }
+.sc-bal-fila.nulo { opacity: 0.6; }
+.sc-bal-nombre { font: 600 16px var(--serif); }
+.sc-bal-peso { display: block; font: 400 12px var(--sans); color: var(--apagado); }
+.sc-bal-barra { position: relative; height: 10px; }
+.sc-bal-cero { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--borde-2); }
+.sc-bal-tramo { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.sc-bal-tramo.pos { background: var(--tinta); }
+.sc-bal-tramo.neg { background: var(--peligro); }
+.sc-bal-cifra { text-align: right; font: 500 19px var(--serif); font-variant-numeric: tabular-nums; }
+.sc-bal-cifra.pos { color: var(--exito-t); }
+.sc-bal-cifra.neg { color: var(--peligro-t); }
+.sc-bal-cifra.nulo { font: italic 13px var(--serif); color: var(--tenue); }
+.sc-bal-nota { grid-column: 1 / -1; font-size: 13.5px; line-height: 1.5; color: var(--tinta-2); max-width: 86ch; }
+
+/* Qué está pasando: el sello del movimiento delante de la explicación. */
+.sc-mov { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: baseline; }
+.sc-mov-sello {
+	font: 500 12.5px var(--sans); letter-spacing: 0.02em; text-transform: lowercase; white-space: nowrap;
+	padding: 4px 11px; border-radius: 999px; background: var(--fondo-2); color: var(--tinta-2);
+}
+.sc-mov-sello.improving { background: var(--exito-s); color: var(--exito-t); }
+.sc-mov-sello.deteriorating { background: var(--peligro-s); color: var(--peligro-t); }
+.sc-avisos, .sc-limites { list-style: none; padding: 0; margin-top: 14px; display: grid; gap: 8px; }
+.sc-avisos li, .sc-limites li {
+	font-size: 14px; line-height: 1.5; color: var(--tinta-2);
+	padding-left: 16px; border-left: 2px solid var(--borde-2);
+}
+.sc-avisos li { cursor: pointer; }
+.sc-avisos li:hover { border-left-color: var(--info); color: var(--tinta); }
+
+/* Productos: lo recomendado encabeza la estantería. */
+.est-familia.recomendado, .est-familia.estante { font: 600 15px var(--sans); color: var(--tinta); padding-top: 26px; }
+.est-familia.recomendado { padding-top: 6px; color: var(--info-t); }
+.est-familia.estante { border-top: 1px solid var(--borde); margin-top: 14px; padding-top: 20px; color: var(--apagado); }
+.est-fila.destacada .inv-nombre { font-size: 18px; }
+
+@media screen and (max-width: 699px) {
+	.sc-lead { font-size: 16px; }
+	.sc-bal-eje { display: none; }
+	.sc-bal-fila { grid-template-columns: minmax(0, 1fr) 72px; }
+	.sc-bal-barra { grid-column: 1 / -1; }
+	.sc-mov { grid-template-columns: 1fr; gap: 8px; }
+	.sc-mov-sello { justify-self: start; }
 }

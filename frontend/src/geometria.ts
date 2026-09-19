@@ -31,7 +31,9 @@ export const alturas = (W: number) => ({ barra: W < 700 ? 52 : 64, regla: W < 70
 export function marco(W: number, H: number, fraseAbajo: number, conLateral: boolean): Marco {
 	const movil = W < 700;
 	const estrecho = W < 1100;
-	const pad = movil ? 16 : estrecho ? 28 : 44;
+	// El mismo margen lateral que la hoja HTML (`--pad-lateral` en estilos.css): la regla del
+	// tiempo y la arena caen a plomo sobre el texto, y nada toca el borde de la pantalla.
+	const pad = movil ? 20 : estrecho ? 40 : 64;
 	const lateralW = conLateral && !estrecho ? Math.min(360, Math.round(W * 0.26)) : 0;
 	const contenidoW = W - pad * 2 - (lateralW ? lateralW + 36 : 0);
 	const A = alturas(W);

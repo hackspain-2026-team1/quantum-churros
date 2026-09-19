@@ -51,7 +51,7 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 		type: 'button', class: `desp-boton ${o.clase ?? ''}`, id: `${id}-b`,
 		role: 'combobox', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': `${id}-l`, 'aria-label': o.etiqueta,
 	}, texto, h('span', { class: 'desp-punta', 'aria-hidden': 'true' }));
-	const lista = h('div', { class: 'desp-lista', id: `${id}-l`, role: 'listbox', 'aria-label': o.etiqueta, hidden: true });
+	const lista = h('div', { class: 'desp-lista', id: `${id}-l`, role: 'listbox', 'aria-label': o.etiqueta });
 	const raiz = h('div', { class: 'desp' }, boton, lista);
 
 	const indiceDe = (v: V) => o.opciones.findIndex((x) => x.valor === v);
@@ -68,6 +68,7 @@ export function desplegable<V extends string = string>(o: OpcionesDesplegable<V>
 			const b = h('button', {
 				type: 'button', id: `${id}-o${i}`, class: `desp-opcion ${op.valor === valor ? 'activa' : ''} ${i === marcada ? 'marcada' : ''}`,
 				role: 'option', 'aria-selected': String(op.valor === valor), disabled: op.desactivada || undefined, tabindex: '-1',
+				style: { '--i': String(Math.min(i, 8)) },
 			}, h('span', { class: 'desp-opcion-texto' }, op.texto), op.detalle ? h('span', { class: 'desp-opcion-detalle' }, op.detalle) : null);
 			b.addEventListener('click', () => elegir(i));
 			b.addEventListener('pointermove', () => marcar(i));

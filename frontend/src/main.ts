@@ -178,6 +178,8 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 		irCartera: (v) => S.fijar({ vista: v ?? S.e.cartera }, true),
 		esMovil: () => M.movil,
 		corte: () => c.months[ctxDe(S.e.q).corte],
+		// Solo cuando la regla abre un intervalo: con un mes suelto, el gráfico enseña toda la historia.
+		desde: () => (S.e.q.desde < S.e.q.hasta ? c.months[ctxDe(S.e.q).primerMes] : ''),
 		imprimir: () => imprimir(),
 		hilo: (hs) => arena.hilos(hs),
 	}) : null;
@@ -204,7 +206,7 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 	void capaExp;
 
 	ayuda.append(h('h2', {}, 'Cómo se usa'), h('p', {}, 'La frase de arriba dice lo que ves. Toca cualquier trozo para cambiarlo, o escribe en cualquier parte.'));
-	for (const [k, d] of [['1 2 3 4', 'Scoring, productos, acciones y técnico (en una organización o una empresa)'], ['← → en una ficha', 'El mes que se mira'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
+	for (const [k, d] of [['1 2 3 4 5', 'Scoring, acciones, productos, desglose y conciliación (en una organización o una empresa)'], ['← → en una ficha', 'El mes que se mira'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
 		ayuda.append(h('div', { class: 'ayuda-fila' }, h('span', { class: 'ayuda-tecla' }, k), h('span', {}, d)));
 	botonAyuda.addEventListener('click', () => ayuda.classList.toggle('ver'));
 
@@ -215,7 +217,7 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 		const A = alturas(ancho);
 		const barraAlto = A.barra + A.regla;
 		frase.raiz.style.top = `${barraAlto + (ancho < 700 ? 2 : 6)}px`;
-		const pad = ancho < 700 ? 16 : ancho < 1100 ? 28 : 44;
+		const pad = ancho < 700 ? 20 : ancho < 1100 ? 40 : 64; // el mismo de geometria.ts y --pad-lateral
 		frase.raiz.style.left = `${pad}px`;
 		frase.raiz.style.right = `${pad}px`;
 		const abajo = frase.raiz.getBoundingClientRect().bottom || barraAlto + 80;

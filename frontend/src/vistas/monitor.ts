@@ -20,6 +20,7 @@ import {
 } from '../datos/monitorCartera';
 import { producto, PRODUCTOS } from '../datos/productos';
 import { claveDeMirada } from '../datos/redaccion';
+import { conCifras } from './cifras';
 import { cola, h, vaciar } from './dom';
 import { desplegable } from './desplegable';
 import { logotipo } from './marca';
@@ -393,7 +394,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				h('b', { class: 'mon-nombre' }, nombreEnt(e)),
 				h('span', { class: `mon-score ${e.band ? `banda-${e.band}` : ''}` }, f.score(e.shown)),
 				h('span', { class: `mon-delta ${(e.delta1 ?? 0) < 0 ? 'baja' : (e.delta1 ?? 0) > 0 ? 'sube' : ''}` }, e.delta1 === null || Math.round(e.delta1 / 10) === 0 ? '' : `${e.delta1 < 0 ? '▼' : '▲'}${f.deltaEntero(e.delta1)}`),
-				h('span', { class: 'at-texto' }, motivo),
+				h('span', { class: 'at-texto' }, ...conCifras(motivo, { que: `Por qué ${nombreEnt(e)} pide atención`, mes: ctx.corte(), ir: () => abrir(e) })),
 				movil ? null : cola(e.serie.slice(-24), 88, 20));
 			li.addEventListener('click', () => abrir(e));
 			li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') abrir(e); });
