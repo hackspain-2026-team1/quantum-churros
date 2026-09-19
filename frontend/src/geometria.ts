@@ -25,24 +25,30 @@ export interface Marco {
 
 export const N_MESES = 24;
 
+/** Alto de la cabecera y de la regla, que va pegada debajo: el tiempo es del marco y lo gobierna todo. */
+export const alturas = (W: number) => ({ barra: W < 700 ? 52 : 64, regla: W < 700 ? 54 : 60 });
+
 export function marco(W: number, H: number, fraseAbajo: number, conLateral: boolean): Marco {
 	const movil = W < 700;
 	const estrecho = W < 1100;
 	const pad = movil ? 16 : estrecho ? 28 : 44;
 	const lateralW = conLateral && !estrecho ? Math.min(360, Math.round(W * 0.26)) : 0;
 	const contenidoW = W - pad * 2 - (lateralW ? lateralW + 36 : 0);
-	const reglaH = movil ? 96 : 116;
-	const regla = { x: pad, y: H - reglaH - (movil ? 6 : 12), w: contenidoW, h: reglaH };
-	const margen = movil ? 58 : 96; // hueco a la izquierda del tiempo para las etiquetas
+	const A = alturas(W);
+	const regla = { x: pad, y: A.barra, w: contenidoW, h: A.regla };
+	const margen = movil ? 58 : 96; // hueco a la izquierda del tiempo: el reloj de arena
 	const tiempoX = pad + margen;
 	const tiempoW = contenidoW - margen - (movil ? 4 : 10);
 	const tiempo = { x: tiempoX, w: tiempoW, celda: tiempoW / N_MESES };
 	const arriba = fraseAbajo + (movil ? 16 : 26);
-	const sedimento = { x: pad + (movil ? 30 : 48), y: regla.y - 30, w: contenidoW - (movil ? 30 : 48), h: 18 };
+	const sedimento = { x: pad + (movil ? 30 : 48), y: H - (movil ? 30 : 36), w: contenidoW - (movil ? 30 : 48), h: 18 };
 	const zona = { x: pad + (movil ? 30 : 48), y: arriba, w: contenidoW - (movil ? 30 : 48), h: Math.max(160, sedimento.y - 10 - arriba) };
 	const lateral = lateralW ? { x: W - pad - lateralW, y: arriba - 4, w: lateralW, h: H - arriba - 16 } : null;
 	return { W, H, movil, estrecho, pad, zona, tiempo, regla, sedimento, lateral };
 }
+
+/** Altura de la línea de la regla dentro de su caja. */
+export const baseRegla = (m: Marco) => m.regla.y + (m.movil ? 22 : 24);
 
 /** Borde izquierdo y centro de la celda de un mes. */
 export const xCeldaMes = (m: Marco, k: number) => m.tiempo.x + k * m.tiempo.celda;

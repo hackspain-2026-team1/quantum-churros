@@ -359,65 +359,54 @@ export interface ProductosIndiceM {
   groups: Record<string, Partial<Record<ProductoId, number>>>;
 }
 
-// ─── Horizontes (rumbo-horizons-v1) ─────────────────────────
-export interface CuantilesM {
-  p10: number[];
-  p25: number[];
-  p50: number[];
-  p75: number[];
-  p90: number[];
-}
+// ─── Horizontes (rumbo-horizons-v2): la previsión que entrena el motor (xray_engine.forecast) ──
+export interface CuantilesM { p10: number[]; p25: number[]; p50: number[]; p75: number[]; p90: number[] }
 export type ProbBandas = Partial<Record<Banda, number>>;
+export interface CruceM { dir?: 'up' | 'down'; to: Banda; month: string; prob: number | null }
 export interface EscenarioM {
-  q: CuantilesM;
-  bands: { h3?: ProbBandas; h6?: ProbBandas; h12?: ProbBandas };
-  cross: { to: Banda; month: string; prob: number } | null;
-  grains: [number, number][];
+	q: CuantilesM;
+	bands: { h3?: ProbBandas; h6?: ProbBandas; h12?: ProbBandas };
+	cross: CruceM | null;
+	grains: [number, number][];
 }
+/** «Qué pasaría si»: extrapolaciones explícitas, solo con su mediana. */
+export interface SupuestoM { q: { p50: number[] }; cross: CruceM | null; what_if: true; worst_quarter?: number }
 export interface HorizonteM {
-  schema: "rumbo-horizons-v1";
-  entity_id: string;
-  entity_kind: "group" | "company";
-  group_id?: string;
-  cut: string;
-  bundle_id: string;
-  params_hash: string;
-  months: string[];
-  shown_at_cut: number | null;
-  scenarios: {
-    base: EscenarioM;
-    drift?: EscenarioM;
-    stress?: EscenarioM;
-  } | null;
-  reason?: string;
-  actions?: (EscenarioM & {
-    id: string;
-    pillar: Pilar;
-    lag_months: number;
-    engine_new_score: number;
-    consistency_ok: boolean;
-  })[];
-  combos?: { ids: string[]; new_score: number }[];
-  method?: Record<string, unknown>;
+	schema: 'rumbo-horizons-v2';
+	entity_id: string;
+	entity_kind: 'group' | 'company';
+	group_id?: string;
+	cut: string;
+	bundle_id: string;
+	params_hash: string;
+	months: string[];
+	shown_at_cut: number | null;
+	model?: { version: string; trained_until: string };
+	scenarios: { base: EscenarioM; drift?: SupuestoM; stress?: SupuestoM } | null;
+	reason_code?: string;
+	actions?: (EscenarioM & { id: string; pillar: Pilar; lag_months: number; engine_new_score: number; in_bundle: boolean })[];
+	combos?: { ids: string[]; new_score: number }[];
+	explain_h6?: { variable: string; points: number }[];
 }
+/** El futuro visto desde cada corte pasado, con un modelo entrenado solo con lo anterior. */
+export interface HorizontesPasadosM {
+	schema: 'rumbo-horizons-pasados-v2';
+	entity_id: string;
+	bundle_id: string;
+	cuts: Record<string, { months: string[]; shown_at_cut: number; q: CuantilesM; grains: [number, number][]; trained_until: string }>;
+}
+export interface ValidacionH { n: number; error_mediana: number; error_sin_cambio: number; error_media_12: number; acierta_50: number; acierta_80: number }
 export interface HorizontesIndiceM {
-  schema: "rumbo-horizons-index-v1";
-  cut: string;
-  bundle_id: string;
-  generated_at: string;
-  method: Record<string, unknown>;
-  calibration: Record<string, unknown>;
-  checks: Record<string, string>;
-  entities: Record<
-    string,
-    {
-      kind: "group" | "company";
-      p50_h6: number | null;
-      p_critical_h6: number | null;
-      cross: { to: Banda; month: string; prob: number } | null;
-      shown_at_cut: number | null;
-    }
-  >;
+	schema: 'rumbo-horizons-index-v2';
+	cut: string;
+	bundle_id: string;
+	generated_at: string;
+	model: { version: string; type: string; target: string; features: string[]; horizons: number[]; train_pairs: Record<string, number>; lags: Record<string, number>; what_if: Record<string, string> };
+	validation: { cortes: string[]; por_horizonte: Record<string, ValidacionH>; validado_hasta: number; corte_de_referencia?: { corte: string; horizontes: number[]; n: number; error_mediana: number; error_sin_cambio: number; acierta_80: number } };
+	coefficients: Record<string, Record<string, number>>;
+	checks: Record<string, string>;
+	past_cuts: string[];
+	entities: Record<string, { kind: 'group' | 'company'; p50_h6: number | null; p_critical_h6: number | null; cross: CruceM | null; shown_at_cut: number | null }>;
 }
 
 // ─── Índice de entidades e identidades ficticias ──────────

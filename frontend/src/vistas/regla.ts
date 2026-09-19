@@ -4,7 +4,7 @@
 
 import { ESCALAS, conEscala, type Consulta, type Contexto, type Filtro } from '../datos/consulta';
 import { esMejora, type Cartera } from '../datos/modelo';
-import type { Almacen, Estado } from '../estado';
+import { esPagina, type Almacen, type Estado } from '../estado';
 import { avisosPorPeriodo, gruposDeLaRegla } from '../arena/escenas';
 import { tramo, type Marco } from '../geometria';
 import { h, vaciar } from './dom';
@@ -28,7 +28,10 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 	const reproducir = h('button', { class: 'reproducir', type: 'button', 'aria-label': 'Reproducir (espacio)', title: 'Reproducir (espacio)' }, relojArena());
 	const modoBtn = h('button', { class: 'modo', type: 'button' });
 	const visitaEl = h('button', { class: 'visita', type: 'button', title: 'Ver lo que ha cambiado desde tu última visita' });
-	raiz.append(zonas, ventana, asaDesde, asaHasta, etiquetas, escala, visitaEl, nota);
+	// Mirando un mes pasado, toda la aplicación lo dice, y se vuelve a hoy de un toque.
+	const viaje = h('button', { class: 'regla-viaje', type: 'button' });
+	raiz.append(zonas, ventana, asaDesde, asaHasta, etiquetas, escala, visitaEl, viaje, nota);
+	viaje.addEventListener('click', () => { const q = S.confirmado.q; const ult = actual ? actual.ctx.periodos.length - 1 : q.hasta; S.consulta({ ...q, desde: esPagina(S.e.vista) ? Math.min(q.desde, ult) : Math.max(0, ult - (q.hasta - q.desde)), hasta: ult }); });
 	document.getElementById('app')!.append(reproducir, modoBtn);
 	reproducir.addEventListener('click', () => alternarPlay());
 	modoBtn.addEventListener('click', () => cambiarModo());
@@ -47,14 +50,17 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 		actual = { e, ctx, M };
 		const R = M.regla;
 		Object.assign(raiz.style, { left: `${R.x}px`, top: `${R.y}px`, width: `${R.w}px`, height: `${R.h}px` });
-		Object.assign(reproducir.style, { left: `${R.x}px`, top: `${R.y + (M.movil ? 18 : 22)}px` });
-		Object.assign(modoBtn.style, { left: `${R.x - 4}px`, top: `${R.y + (M.movil ? 70 : 76)}px` });
+		Object.assign(reproducir.style, { left: `${R.x - 6}px`, top: `${R.y + (M.movil ? 4 : 6)}px` });
+		Object.assign(modoBtn.style, { left: `${R.x + 30}px`, top: `${R.y + (M.movil ? 12 : 14)}px` });
+		const pagina = esPagina(e.vista);
+		raiz.classList.toggle('en-pagina', pagina);
+		modoBtn.hidden = pagina || M.movil;
 		reproducir.classList.toggle('sonando', e.reproduciendo);
 		reproducir.setAttribute('aria-pressed', String(e.reproduciendo));
 		modoBtn.textContent = modo() === 'avanza' ? 'la ventana avanza' : 'acumula';
 		modoBtn.title = modo() === 'avanza' ? 'Al reproducir, la ventana entera avanza. Clic para acumular.' : 'Al reproducir, «desde» se queda fijo. Clic para que avance la ventana.';
 		const x = (px: number) => px - R.x;
-		const base = M.movil ? 40 : 46;
+		const base = M.movil ? 22 : 24;
 
 		// Etiquetas de los periodos, sin que se pisen.
 		vaciar(etiquetas);
@@ -75,7 +81,7 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 			const dentro = p.i >= ctx.pDesde.i && p.i <= ctx.pHasta.i;
 			const el = h('span', { class: `regla-etq ${dentro ? 'dentro' : ''} ${p.estado !== 'completo' ? 'incompleto' : ''} ${p.i > ctx.pHasta.i ? 'futuro' : ''}` }, p.corta);
 			el.style.left = `${x(t.xc)}px`;
-			el.style.top = `${base + (M.movil ? 26 : 30)}px`;
+			el.style.top = `${base + 14}px`;
 			etiquetas.append(el);
 		}
 
@@ -104,7 +110,7 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 		for (const p of ctx.periodos) {
 			const t = tramo(M, p.meses);
 			const z = h('div', { class: `regla-zona ${p.i > ctx.pHasta.i ? 'futuro' : ''}` });
-			Object.assign(z.style, { left: `${x(t.x0)}px`, width: `${t.w}px`, top: '0px', height: `${base + 24}px` });
+			Object.assign(z.style, { left: `${x(t.x0)}px`, width: `${t.w}px`, top: '0px', height: `${R.h}px` });
 			z.addEventListener('pointermove', (ev) => mostrarNota(ev, p.i, mejoras[p.i], deterioros[p.i], lista));
 			z.addEventListener('pointerleave', () => nota.classList.remove('ver'));
 			z.addEventListener('click', (ev) => clicPeriodo(ev, p.i, ev.offsetY < base ? 'mejora' : 'deterioro', mejoras[p.i], deterioros[p.i]));
@@ -114,6 +120,14 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 		// La ventana y sus asas.
 		const tA = tramo(M, ctx.pDesde.meses), tB = tramo(M, ctx.pHasta.meses);
 		Object.assign(ventana.style, { left: `${x(tA.x0)}px`, width: `${tB.x1 - tA.x0}px`, top: `${base - 9}px`, height: '18px' });
+		ventana.hidden = pagina;
+		asaDesde.hidden = pagina;
+		asaHasta.title = pagina ? 'Hoy: arrastra para ver la ficha en otro mes' : '';
+		asaHasta.setAttribute('aria-label', pagina ? 'Mes que se mira' : 'Hasta');
+		const ult = ctx.periodos.length - 1;
+		viaje.hidden = ctx.pHasta.i >= ult;
+		viaje.textContent = `Viendo ${ctx.pHasta.larga} · volver a hoy`;
+		document.body.dataset.viaje = ctx.pHasta.i < ult ? '1' : '';
 		Object.assign(asaDesde.style, { left: `${x(tA.x0)}px`, top: `${base - 16}px` });
 		Object.assign(asaHasta.style, { left: `${x(tB.x1)}px`, top: `${base - 16}px` });
 		asaDesde.setAttribute('aria-valuetext', ctx.pDesde.larga);
@@ -131,7 +145,7 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 			visitaEl.hidden = false;
 			visitaEl.textContent = 'tu última visita';
 			visitaEl.dataset.mes = String(visita);
-			Object.assign(visitaEl.style, { left: `${x(t.xc)}px`, top: `${base - 44}px` });
+			Object.assign(visitaEl.style, { left: `${x(t.xc)}px`, top: `${base - 30}px` });
 		} else visitaEl.hidden = true;
 	}
 
@@ -142,16 +156,18 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 		vaciar(nota);
 		const deEste = lista.filter((x) => x.pi === pi);
 		nota.append(h('div', { class: 'nota-cab' }, p.larga.charAt(0).toUpperCase() + p.larga.slice(1)));
-		if (!deEste.length) nota.append(h('div', { class: 'nota-linea tenue' }, pi > ctx.pHasta.i ? 'Todavía no ha pasado.' : 'Sin movimientos confirmados.'));
+		if (esPagina(actual.e.vista)) { nota.append(h('div', { class: 'nota-pie' }, 'Clic para ver la ficha en este mes.')); }
+		else if (!deEste.length) nota.append(h('div', { class: 'nota-linea tenue' }, pi > ctx.pHasta.i ? 'Todavía no ha pasado.' : 'Sin movimientos confirmados.'));
 		for (const a of deEste.slice(0, 7)) nota.append(h('div', { class: `nota-linea ${esMejora(a.kind as never) ? 'sube' : 'baja'}` }, lineaAviso(c.groups[a.gi], a as never)));
 		if (deEste.length > 7) nota.append(h('div', { class: 'nota-linea tenue' }, `y ${deEste.length - 7} más`));
-		if (nMej || nDet) nota.append(h('div', { class: 'nota-pie' }, `Clic arriba para las ${nMej} mejoras, abajo para los ${nDet} deterioros.`));
+		if (esPagina(actual.e.vista)) { /* ya dicho */ }
+		else if (nMej || nDet) nota.append(h('div', { class: 'nota-pie' }, `Clic arriba para las ${nMej} mejoras, abajo para los ${nDet} deterioros.`));
 		else nota.append(h('div', { class: 'nota-pie' }, 'Clic para ver este periodo.'));
 		const r = raiz.getBoundingClientRect();
 		nota.classList.add('ver');
 		const ancho = nota.offsetWidth;
 		const xx = Math.max(0, Math.min(ev.clientX - r.left - ancho / 2, r.width - ancho));
-		Object.assign(nota.style, { left: `${xx}px`, bottom: `${r.height - 6}px` });
+		Object.assign(nota.style, { left: `${xx}px`, top: `${r.height + 4}px` });
 	}
 
 	function clicPeriodo(ev: MouseEvent, pi: number, lado: 'mejora' | 'deterioro', nMej: number, nDet: number) {
@@ -163,6 +179,8 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 			S.consulta({ ...q, desde: Math.min(q.desde, pi), hasta: Math.max(q.hasta, pi) });
 			return;
 		}
+		// En una ficha, la regla solo mueve el mes que se mira.
+		if (esPagina(actual.e.vista)) { S.consulta({ ...q, desde: Math.min(q.desde, pi), hasta: pi }); return; }
 		const n = lado === 'mejora' ? nMej : nDet;
 		const filtros: Filtro[] = q.filtros.filter((f) => f.tipo !== 'mov');
 		if (n) filtros.push({ tipo: 'mov', v: lado });
@@ -213,7 +231,7 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 	}
 	const ultimoP = () => (actual ? actual.ctx.periodos.length - 1 : 0);
 	arrastrar(asaDesde, (pi, q) => ({ ...q, desde: Math.min(pi, q.hasta) }));
-	arrastrar(asaHasta, (pi, q) => ({ ...q, hasta: Math.max(pi, q.desde) }));
+	arrastrar(asaHasta, (pi, q) => (actual && esPagina(actual.e.vista) ? { ...q, desde: Math.min(q.desde, pi), hasta: pi } : { ...q, hasta: Math.max(pi, q.desde) }));
 	arrastrar(ventana, (_pi, q, d) => {
 		const largo = q.hasta - q.desde;
 		const hasta = Math.max(largo, Math.min(ultimoP(), q.hasta + d));
