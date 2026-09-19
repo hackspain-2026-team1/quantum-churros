@@ -4,13 +4,18 @@
 //     (lo medido en el corte contra lo medido en los meses posteriores);
 //   derecha · los tres pasos: bancos conectados, acciones, financiación por
 //     banco (tasa del banco cuando consta, si no estimación de mercado marcada).
-// Generar propuesta la guarda con trazabilidad (id, fecha, entidad, corte,
-// hash del bundle) y el documento pasa a ser el informe final. Entrega: PDF
-// por impresión del navegador o mailto (el envío lo hace el usuario).
+// Enviar reporte por mail la guarda con trazabilidad (id, fecha, entidad,
+// corte, hash del bundle), abre el correo del usuario y deja el informe
+// final. El PDF es la misma hoja por impresión del navegador.
 
 import { carga } from "../datos/carga";
 import { f } from "../datos/formato";
-import type { FacturaVencidaM, InvoicesDueM, SerieM } from "../datos/contrato";
+import type {
+  FacturaVencidaM,
+  FinanciacionM,
+  InvoicesDueM,
+  SerieM,
+} from "../datos/contrato";
 import {
   bancosConectados,
   fuentesDe,
@@ -20,9 +25,10 @@ import {
 } from "../datos/ofertas";
 import {
   borrarPropuesta,
-  correoPropuesta,
-  guardarPropuesta,
+  enviarPropuestaPorMail,
+  instrumentosDelMes,
   nuevaPropuestaId,
+  sincronizarPropuestas,
   todasLasPropuestas,
   type AccionElegida,
   type FinanciacionElegida,
@@ -43,6 +49,9 @@ import {
 import { fuenteTexto } from "../datos/tasas";
 import { h, vaciar } from "./dom";
 import type { Acciones, DatosFicha } from "./ficha";
+
+const nombreDe = (kind: "company" | "group", id: string) =>
+  kind === "company" ? f.empresa(id) : f.grupo(id);
 
 const CONFIANZA: Record<string, string> = {
   high: "alta",
@@ -85,18 +94,66 @@ function fuentesDeFicha(d: DatosFicha): FuentesBanco {
   );
 }
 
+function accionesDe(
+  m: NonNullable<DatosFicha["mes"]>,
+  sel: Set<string>,
+): AccionElegida[] {
+  return (m.actions ?? [])
+    .filter((a) => sel.has(a.id))
+    .map((a) => ({
+      id: a.id,
+      pillar: a.pillar,
+      title: tituloAccion(a),
+      uplift_tenths: a.uplift_tenths,
+      new_score_tenths: a.new_score_tenths,
+      current: a.current,
+      target: a.target,
+      unit: a.unit,
+    }));
+}
+
+function financiacionDe(
+  instrumentos: readonly FinanciacionM[],
+  bancos: Record<string, string[]>,
+  fuentes: FuentesBanco,
+): FinanciacionElegida[] {
+  const filas: FinanciacionElegida[] = [];
+  for (const x of instrumentos) {
+    const elegidos = bancos[x.id] ?? [];
+    if (!elegidos.length) continue;
+    const ofertas = ofertasBanco(x.kind, fuentes);
+    for (const bank of elegidos) {
+      const oferta = ofertas.find((o) => o.bank === bank) ?? null;
+      filas.push({
+        id: x.id,
+        kind: x.kind,
+        title: x.title,
+        amount: x.amount,
+        uplift_tenths: x.uplift_tenths,
+        bank,
+        rate: oferta?.oferta_tasa ?? null,
+        rate_type: oferta?.rate_type ?? null,
+        rate_fuente: oferta?.oferta_fuente ?? null,
+      });
+    }
+  }
+  return filas;
+}
+
 /** La estimación del plan: cada cifra es del motor; la suma puede solaparse y se marca como tal. */
 function estimacionPlan(
   m: NonNullable<DatosFicha["mes"]>,
-  acciones: Set<string>,
-  bancos: Record<string, string | null>,
+  acciones: AccionElegida[],
+  financiacion: FinanciacionElegida[],
 ): number {
-  const deAcciones = (m.actions ?? [])
-    .filter((a) => acciones.has(a.id))
-    .reduce((t, a) => t + a.uplift_tenths, 0);
-  const deFinanciacion = (m.financing ?? [])
-    .filter((x) => bancos[x.id])
-    .reduce((t, x) => t + x.uplift_tenths, 0);
+  const deAcciones = acciones.reduce((t, a) => t + a.uplift_tenths, 0);
+  const nativos = new Set((m.financing ?? []).map((x) => x.id));
+  const vistos = new Set<string>();
+  const deFinanciacion = financiacion.reduce((t, x) => {
+    if (!nativos.has(x.id) || vistos.has(x.id)) return t;
+    vistos.add(x.id);
+    return t + x.uplift_tenths;
+  }, 0);
   return Math.min(1000, m.shown + deAcciones + deFinanciacion);
 }
 
@@ -125,32 +182,19 @@ function paso(
 }
 
 function tarjetaBanco(b: BancoConectado): HTMLElement {
-  const lineas = b.productos.length
-    ? b.productos.map((p) =>
-        h(
-          "p",
-          { class: "propuesta-banco-producto" },
-          p.producto,
-          p.granted !== null
-            ? h("span", {}, ` · ${f.eurosCorto(p.granted)}`)
-            : "",
-          // el tipo de un crédito ya contratado es un hecho, no una oferta
-          p.credito && p.rate !== null
-            ? h(
-                "span",
-                { class: "propuesta-banco-tipo" },
-                `· tipo actual ${f.numero(p.rate, 2)} % ${p.rate_type === "variable" ? "variable" : "fijo"}`,
-              )
-            : "",
-        ),
-      )
-    : [
-        h(
-          "p",
-          { class: "propuesta-banco-producto" },
-          "sin productos contratados",
-        ),
-      ];
+  const creditos = b.productos.filter((p) => p.credito);
+  const resumen = creditos.length
+    ? creditos
+        .slice(0, 2)
+        .map((p) =>
+          p.rate !== null
+            ? `${p.producto} ${f.puntosPorcentaje(p.rate, 2)}`
+            : p.producto,
+        )
+        .join(" · ")
+    : b.productos.length
+      ? b.productos[0].producto
+      : "sin productos contratados";
   return h(
     "div",
     { class: "propuesta-banco" },
@@ -170,11 +214,10 @@ function tarjetaBanco(b: BancoConectado): HTMLElement {
       "p",
       { class: "propuesta-nota" },
       b.cuentas
-        ? `${b.cuentas} ${b.cuentas === 1 ? "cuenta" : "cuentas"} conectadas`
+        ? f.plural(b.cuentas, "cuenta conectada", "cuentas conectadas")
         : "sin cuentas conectadas",
-      b.otorga ? "" : " · no consta que otorgue financiación",
+      creditos.length > 2 ? ` · ${resumen} · +${creditos.length - 2}` : ` · ${resumen}`,
     ),
-    ...lineas,
   );
 }
 
@@ -183,18 +226,20 @@ type Oferta = ReturnType<typeof ofertasBanco>[number];
 function filaOferta(
   x: { id: string },
   oferta: Oferta,
-  elegido: string | null,
-  alElegir: (bank: string) => void,
+  elegidos: string[],
+  alElegir: (bank: string, on: boolean) => void,
 ): HTMLElement {
   const marca = h("input", {
-    type: "radio",
+    type: "checkbox",
     name: x.id,
-    checked: elegido === oferta.bank,
+    checked: elegidos.includes(oferta.bank),
   }) as HTMLInputElement;
-  marca.addEventListener("change", () => alElegir(oferta.bank));
+  marca.addEventListener("change", () => alElegir(oferta.bank, marca.checked));
   return h(
     "label",
-    { class: "propuesta-oferta" },
+    {
+      class: `propuesta-oferta${elegidos.includes(oferta.bank) ? " elegida" : ""}`,
+    },
     h("span", { class: "propuesta-oferta-marca" }, marca),
     h(
       "span",
@@ -205,7 +250,9 @@ function filaOferta(
         { class: "propuesta-nota" },
         oferta.tieneProducto
           ? "Ya le da este producto a la entidad"
-          : "Trabaja con la entidad",
+          : oferta.soloCuentas
+            ? "Solo tiene cuentas: se ofrece con estimación de mercado"
+            : "Trabaja con la entidad",
       ),
     ),
     h(
@@ -215,7 +262,7 @@ function filaOferta(
         ? h(
             "span",
             { class: "propuesta-titulo" },
-            `${f.numero(oferta.oferta_tasa, 2)} %`,
+            f.puntosPorcentaje(oferta.oferta_tasa, 2),
           )
         : h("span", { class: "propuesta-titulo" }, "—"),
       oferta.oferta_fuente
@@ -302,7 +349,7 @@ function bloqueFacturas(
     );
   const tabla = h(
     "table",
-    { class: "informe-tabla" },
+    { class: "tabla-sutil" },
     h(
       "thead",
       {},
@@ -322,9 +369,9 @@ function bloqueFacturas(
       h(
         "tr",
         {},
-        h("td", {}, x.counterparty_id ?? "—"),
-        h("td", {}, x.due_date),
-        h("td", { class: "num" }, `${x.days_overdue} días`),
+        h("td", {}, f.contraparte(x.counterparty_id)),
+        h("td", {}, f.fecha(x.due_date)),
+        h("td", { class: "num" }, f.dias(x.days_overdue)),
         h("td", { class: "num" }, f.eurosCorto(x.amount)),
       ),
     );
@@ -421,14 +468,14 @@ async function construirInforme(
       "header",
       { class: "informe-cabecera" },
       h("p", { class: "versalita" }, "Rumbo · Embat · informe al cliente"),
-      h("h1", {}, `Plan de mejora de ${d.id}`),
+      h("h1", {}, `Plan de mejora de ${nombreDe(d.kind, d.id)}`),
       h(
         "p",
         { class: "informe-sub" },
         `${d.kind === "company" ? "Empresa" : "Organización"} · corte ${f.mes(plan.corte)} · ${
           p
-            ? `propuesta ${p.id} del ${p.fecha.slice(0, 10)}`
-            : "borrador, aún sin generar"
+            ? `propuesta ${p.id} del ${f.fecha(p.fecha)}`
+            : "borrador, aún sin enviar"
         }`,
       ),
     ),
@@ -536,10 +583,19 @@ async function construirInforme(
           "p",
           { class: "informe-item" },
           h("b", {}, x.title),
-          x.bank ? ` · con ${x.bank}` : "",
+          x.bank ? ` · con ${x.bank}` : " · banco a convenir",
           x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : "",
           x.rate !== null
-            ? ` · ${f.numero(x.rate, 2)} % ${x.rate_fuente ? `(${fuenteTexto(x.rate_fuente)})` : ""}`
+            ? ` · ${f.puntosPorcentaje(x.rate, 2)} ${x.rate_type === "variable" ? "variable" : "fijo"}`
+            : "",
+          x.rate_fuente
+            ? h(
+                "span",
+                {
+                  class: `propuesta-badge ${x.rate_fuente === "banco" ? "propuesta-badge-banco" : "propuesta-badge-mercado"}`,
+                },
+                fuenteTexto(x.rate_fuente),
+              )
             : "",
         ),
       ),
@@ -586,21 +642,31 @@ export function abrirPropuesta(
   acc: Acciones,
 ): void {
   document.querySelectorAll(".panel-propuesta").forEach((n) => n.remove());
-  const bancos: Record<string, string | null> = {};
+  const bancos: Record<string, string[]> = {};
   const fuentes = fuentesDeFicha(d);
+  void sincronizarPropuestas(d.id);
   const fondo = h("div", { class: "panel-propuesta" });
   (document.querySelector("#app") ?? document.body).append(fondo);
 
   const m = d.mes;
+  const instrumentos = m
+    ? instrumentosDelMes(
+        m.financing,
+        d.kind === "group"
+          ? d.empresas.map(
+              (e) => e.ent?.months.find((x) => x.month === d.corte)?.financing,
+            )
+          : [],
+      )
+    : [];
   let pestaña: Pestaña = "documento";
   let modo: ModoDoc = { tipo: "borrador" };
 
-  // — Barra superior.
-  const botonEntrega = h(
-    "div",
-    { class: "propuesta-entrega", hidden: "true" },
-    h("button", { type: "button", "data-pdf": "" }, "Descargar PDF"),
-    h("button", { type: "button", "data-mail": "" }, "Enviar por mail"),
+  // — Barra superior: PDF siempre, mail vive en el pie del editor.
+  const botonPdf = h(
+    "button",
+    { type: "button", class: "boton-propuesta", "data-pdf": "" },
+    "Descargar PDF",
   );
   const cabecera = h(
     "header",
@@ -609,15 +675,19 @@ export function abrirPropuesta(
       "div",
       {},
       h("p", { class: "versalita" }, "Propuesta al cliente"),
-      h("h2", {}, `${d.id} · ${m ? f.mes(m.month) : f.mes(d.corte)}`),
+      h(
+        "h2",
+        {},
+        `${nombreDe(d.kind, d.id)} · ${m ? f.mes(m.month) : f.mes(d.corte)}`,
+      ),
     ),
-    h("div", { class: "propuesta-cabecera-acciones" }, botonEntrega),
+    h("div", { class: "propuesta-cabecera-acciones propuesta-entrega" }, botonPdf),
   );
   const cerrar = h(
     "button",
     {
       type: "button",
-      class: "boton-sutil",
+      class: "propuesta-cerrar",
       "aria-label": "Cerrar la propuesta",
     },
     "Cerrar",
@@ -654,7 +724,7 @@ export function abrirPropuesta(
     zonaDoc,
   );
 
-  // — Derecha: los tres pasos + resumen + generar.
+  // — Derecha: los tres pasos + resumen + envío.
   const colEdit = h("div", { class: "propuesta-col propuesta-col-editor" });
   const zonaResumen = h("div", { class: "propuesta-resumen" });
   const listaPropuestas = h("div", { class: "propuesta-grupo" });
@@ -682,7 +752,6 @@ export function abrirPropuesta(
 
   const pintarDocumento = async (p: PropuestaGuardada | null) => {
     if (!m) return;
-    botonEntrega.hidden = p === null;
     zonaDoc.replaceChildren(
       h("p", { class: "propuesta-nota" }, "Preparando el documento…"),
     );
@@ -696,44 +765,22 @@ export function abrirPropuesta(
       : {
           corte: d.corte,
           score_actual_tenths: m.shown,
-          acciones: (m.actions ?? [])
-            .filter((a) => sel.has(a.id))
-            .map((a) => ({
-              id: a.id,
-              pillar: a.pillar,
-              title: tituloAccion(a),
-              uplift_tenths: a.uplift_tenths,
-              new_score_tenths: a.new_score_tenths,
-              current: a.current,
-              target: a.target,
-              unit: a.unit,
-            })),
-          financiacion: (m.financing ?? [])
-            .filter((x) => bancos[x.id])
-            .map((x) => {
-              const oferta =
-                ofertasBanco(x.kind, fuentes).find(
-                  (o) => o.bank === bancos[x.id],
-                ) ?? null;
-              return {
-                id: x.id,
-                kind: x.kind,
-                title: x.title,
-                amount: x.amount,
-                uplift_tenths: x.uplift_tenths,
-                bank: bancos[x.id],
-                rate: oferta?.oferta_tasa ?? null,
-                rate_type: oferta?.rate_type ?? null,
-                rate_fuente: oferta?.oferta_fuente ?? null,
-              };
-            }),
+          acciones: accionesDe(m, sel),
+          financiacion: financiacionDe(instrumentos, bancos, fuentes),
         };
     zonaDoc.replaceChildren(await construirInforme(d, plan, p));
   };
 
   const pintarHistorial = () => {
+    void sincronizarPropuestas(d.id).then(() => {
+      if (pestaña !== "historial") return;
+      dibujarHistorial();
+    });
+    dibujarHistorial();
+  };
+
+  const dibujarHistorial = () => {
     vaciar(zonaDoc);
-    botonEntrega.hidden = true;
     const hechas = todasLasPropuestas().filter((p) => p.entidad === d.id);
     const zona = h("div", { class: "propuesta-historial" });
     if (!hechas.length) {
@@ -741,7 +788,7 @@ export function abrirPropuesta(
         h(
           "p",
           { class: "vacio" },
-          "Todavía no se generó ninguna propuesta para esta entidad. Elegí acciones a la derecha y generá la primera.",
+          "Todavía no se envió ninguna propuesta para esta entidad. Elegí acciones a la derecha y enviá la primera por mail.",
         ),
       );
       zonaDoc.append(zona);
@@ -772,7 +819,7 @@ export function abrirPropuesta(
           h(
             "p",
             { class: "propuesta-nota" },
-            `${p.fecha.slice(0, 16).replace("T", " ")} · ${resumenEstado}`,
+            `${f.fecha(p.fecha)} · ${resumenEstado}`,
           ),
           seg.conMeses && seg.scoreAhora !== null
             ? h(
@@ -787,12 +834,12 @@ export function abrirPropuesta(
           { class: "propuesta-hecha-botones" },
           h(
             "button",
-            { type: "button", class: "boton-sutil", "data-ver": p.id },
+            { type: "button", class: "boton-propuesta", "data-ver": p.id },
             "Ver",
           ),
           h(
             "button",
-            { type: "button", class: "boton-sutil", "data-borrar": p.id },
+            { type: "button", class: "boton-peligro", "data-borrar": p.id },
             "Borrar",
           ),
         ),
@@ -811,24 +858,53 @@ export function abrirPropuesta(
     zonaDoc.append(zona);
   };
 
-  // — Resumen con cifras grandes + generar.
+  // — Resumen con cifras + enviar por mail.
   const zonaCifras = h("div", { class: "propuesta-resumen-cifras-zona" });
-  const botonGenerar = h(
+  const avisoPie = h("p", { class: "propuesta-aviso", hidden: "true" });
+  const botonMail = h(
     "button",
-    { type: "button", class: "boton-primario", "data-generar": "" },
-    "Generar propuesta",
+    { type: "button", class: "boton-propuesta", "data-mail": "" },
+    "Enviar reporte por mail",
   );
-  botonGenerar.addEventListener("click", () => {
-    void generar();
-  });
+  botonMail.addEventListener("click", () => enviar());
   zonaResumen.append(
     zonaCifras,
-    h("div", { class: "propuesta-botones" }, botonGenerar),
+    avisoPie,
+    h("div", { class: "propuesta-botones" }, botonMail),
   );
+  const planActual = () => {
+    if (!m) return { acciones: [] as AccionElegida[], financiacion: [] as FinanciacionElegida[] };
+    return {
+      acciones: accionesDe(m, sel),
+      financiacion: financiacionDe(instrumentos, bancos, fuentes),
+    };
+  };
   const repintarResumen = () => {
     if (!m) return;
-    const total = estimacionPlan(m, sel, bancos);
+    const { acciones, financiacion } = planActual();
+    const hayPlan = acciones.length + financiacion.length > 0;
+    botonMail.disabled = !hayPlan;
+    avisoPie.hidden = hayPlan;
+    avisoPie.textContent = hayPlan
+      ? ""
+      : "Marcá al menos una acción o una financiación para enviar el reporte.";
     vaciar(zonaCifras);
+    if (!hayPlan) {
+      zonaCifras.append(
+        h(
+          "div",
+          { class: "propuesta-resumen-cifras" },
+          h("span", { class: "propuesta-resumen-score" }, f.score(m.shown)),
+        ),
+        h(
+          "p",
+          { class: "propuesta-nota" },
+          "Score de este mes. El efecto del plan aparece cuando elegís acciones o un banco.",
+        ),
+      );
+      return;
+    }
+    const total = estimacionPlan(m, acciones, financiacion);
     zonaCifras.append(
       h(
         "div",
@@ -854,39 +930,15 @@ export function abrirPropuesta(
     );
   };
 
-  const generar = async () => {
+  const enviar = () => {
     if (!m) return;
-    const elegidas = (m.actions ?? [])
-      .filter((a) => sel.has(a.id))
-      .map((a) => ({
-        id: a.id,
-        pillar: a.pillar,
-        title: tituloAccion(a),
-        uplift_tenths: a.uplift_tenths,
-        new_score_tenths: a.new_score_tenths,
-        current: a.current,
-        target: a.target,
-        unit: a.unit,
-      }));
-    const financiacion = (m.financing ?? [])
-      .filter((x) => bancos[x.id])
-      .map((x) => {
-        const oferta =
-          ofertasBanco(x.kind, fuentes).find((o) => o.bank === bancos[x.id]) ??
-          null;
-        return {
-          id: x.id,
-          kind: x.kind,
-          title: x.title,
-          amount: x.amount,
-          uplift_tenths: x.uplift_tenths,
-          bank: bancos[x.id],
-          rate: oferta?.oferta_tasa ?? null,
-          rate_type: oferta?.rate_type ?? null,
-          rate_fuente: oferta?.oferta_fuente ?? null,
-        };
-      });
-    if (!elegidas.length && !financiacion.length) return;
+    const { acciones, financiacion } = planActual();
+    if (!acciones.length && !financiacion.length) {
+      avisoPie.hidden = false;
+      avisoPie.textContent =
+        "Marcá al menos una acción o una financiación para enviar el reporte.";
+      return;
+    }
     const p: PropuestaGuardada = {
       id: nuevaPropuestaId(),
       fecha: new Date().toISOString(),
@@ -896,23 +948,16 @@ export function abrirPropuesta(
       corte: d.corte,
       bundle_id: d.man.bundle_id,
       score_actual_tenths: m.shown,
-      acciones: elegidas,
+      acciones,
       financiacion,
     };
-    guardarPropuesta(p);
+    enviarPropuestaPorMail(p);
     modo = { tipo: "final", p };
     pestaña = "documento";
     pintar();
   };
 
-  botonEntrega
-    .querySelector("[data-pdf]")!
-    .addEventListener("click", () => window.print());
-  botonEntrega.querySelector("[data-mail]")!.addEventListener("click", () => {
-    if (modo.tipo !== "final") return;
-    const { asunto, cuerpo } = correoPropuesta(modo.p);
-    window.location.href = `mailto:?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
-  });
+  botonPdf.addEventListener("click", () => window.print());
 
   // — Montaje.
   fondo.append(
@@ -942,20 +987,12 @@ export function abrirPropuesta(
     paso(
       1,
       "Tus bancos conectados",
-      "Dónde tiene la organización sus cuentas y productos. El sello «ya te financia» marca a los bancos con un crédito contratado: solo ellos aparecen en la financiación.",
-      h(
-        "div",
-        { class: "propuesta-bancos" },
-        ...(conectados.length
-          ? conectados.map(tarjetaBanco)
-          : [
-              h(
-                "p",
-                { class: "vacio" },
-                "El fichero no declara bancos para esta entidad.",
-              ),
-            ]),
-      ),
+      conectados.length
+        ? `${f.plural(conectados.length, "banco conectado", "bancos conectados")}. El sello «ya te financia» marca a los que ya le dan crédito.`
+        : "El fichero no declara bancos para esta entidad.",
+      conectados.length
+        ? h("div", { class: "propuesta-bancos" }, ...conectados.map(tarjetaBanco))
+        : h("p", { class: "vacio" }, "El fichero no declara bancos para esta entidad."),
     ),
   );
 
@@ -1001,7 +1038,7 @@ export function abrirPropuesta(
             h(
               "span",
               { class: "propuesta-nota" },
-              `${explicacionAccion(a)} · esfuerzo ${ESFUERZO[a.effort]}`,
+              `${explicacionAccion(a)} · ${ESFUERZO[a.effort]}`,
             ),
           ),
           h(
@@ -1024,58 +1061,80 @@ export function abrirPropuesta(
     paso(
       3,
       "Financiación: el banco que la otorga",
-      "Solo los instrumentos que el motor recomienda este mes, con el monto calculado. Se ofrecen los bancos que ya financian a la entidad, con su tasa (o estimación de mercado marcada).",
+      "Cada instrumento del motor, con los bancos conectados. Marcá uno o varios; la tasa es la del banco o una estimación de mercado.",
       cajaFinanciacion,
     ),
   );
+  const nativos = new Set((m.financing ?? []).map((x) => x.id));
   const repintarFinanciacion = () => {
     vaciar(cajaFinanciacion);
-    for (const x of m.financing ?? []) {
-      if (!(x.id in bancos)) {
-        const primeras = ofertasBanco(x.kind, fuentes);
-        bancos[x.id] = primeras.length ? primeras[0].bank : null; // la mejor opción ya viene marcada
-      }
+    for (const x of instrumentos) {
+      if (!(x.id in bancos)) bancos[x.id] = [];
       const ofertas = ofertasBanco(x.kind, fuentes);
-      const ninguna = h("input", {
-        type: "radio",
-        name: x.id,
-        checked: bancos[x.id] === null,
-      }) as HTMLInputElement;
-      const alElegir = (bank: string | null) => {
-        bancos[x.id] = bank;
+      const elegidos = bancos[x.id] ?? [];
+      const alCambiar = () => {
         repintarResumen();
-        // tocar la elección vuelve el documento al borrador en vivo
         modo = { tipo: "borrador" };
         if (pestaña === "documento") void pintarDocumento(null);
       };
-      ninguna.addEventListener("change", () => alElegir(null));
-      const filas: HTMLElement[] = [
-        h(
-          "label",
-          { class: "propuesta-oferta" },
-          h("span", { class: "propuesta-oferta-marca" }, ninguna),
+      const lista = h("div", { class: "propuesta-ofertas" });
+      const ninguna = h("input", {
+        type: "checkbox",
+        name: `${x.id}-ninguno`,
+        checked: elegidos.length === 0,
+      }) as HTMLInputElement;
+      ninguna.addEventListener("change", () => {
+        bancos[x.id] = [];
+        vaciar(lista);
+        pintarFilas();
+        alCambiar();
+      });
+      const pintarFilas = () => {
+        const actual = bancos[x.id] ?? [];
+        ninguna.checked = actual.length === 0;
+        vaciar(lista);
+        lista.append(
           h(
-            "span",
-            { class: "propuesta-oferta-banco" },
+            "label",
+            {
+              class: `propuesta-oferta${actual.length === 0 ? " elegida" : ""}`,
+            },
+            h("span", { class: "propuesta-oferta-marca" }, ninguna),
             h(
               "span",
-              { class: "propuesta-titulo" },
-              "Ninguno de tus bancos lo ofrece: Embat lo licita",
+              { class: "propuesta-oferta-banco" },
+              h(
+                "span",
+                { class: "propuesta-titulo" },
+                "Ninguno de tus bancos: Embat lo licita",
+              ),
             ),
-          ),
-          h("span", { class: "propuesta-oferta-tasa" }, ""),
-        ),
-      ];
-      for (const o of ofertas)
-        filas.push(filaOferta(x, o, bancos[x.id], (bank) => alElegir(bank)));
-      if (!ofertas.length)
-        filas[0].replaceWith(
-          h(
-            "p",
-            { class: "propuesta-nota" },
-            "La entidad no tiene bancos en el fichero: Embat lo licita.",
+            h("span", { class: "propuesta-oferta-tasa" }, ""),
           ),
         );
+        for (const o of ofertas)
+          lista.append(
+            filaOferta(x, o, actual, (bank, on) => {
+              const set = new Set(bancos[x.id] ?? []);
+              if (on) set.add(bank);
+              else set.delete(bank);
+              bancos[x.id] = [...set];
+              pintarFilas();
+              alCambiar();
+            }),
+          );
+        if (!ofertas.length) {
+          vaciar(lista);
+          lista.append(
+            h(
+              "p",
+              { class: "propuesta-nota" },
+              "La entidad no tiene bancos en el fichero: Embat lo licita.",
+            ),
+          );
+        }
+      };
+      pintarFilas();
       cajaFinanciacion.append(
         h(
           "div",
@@ -1083,14 +1142,14 @@ export function abrirPropuesta(
           h(
             "p",
             { class: "propuesta-titulo" },
-            `${x.title}${x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : ""} · ${f.delta(x.uplift_tenths)}`,
+            `${x.title}${x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : ""}${nativos.has(x.id) ? ` · ${f.delta(x.uplift_tenths)}` : " · efecto en las empresas"}`,
           ),
           h("p", { class: "propuesta-nota" }, x.detail),
-          ...filas,
+          lista,
         ),
       );
     }
-    if (!(m.financing ?? []).length)
+    if (!instrumentos.length)
       cajaFinanciacion.append(
         h(
           "p",

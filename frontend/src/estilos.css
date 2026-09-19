@@ -2720,7 +2720,7 @@ button.miga-paso:hover {
 }
 .rec {
   display: grid;
-  grid-template-columns: 54px 1fr auto;
+  grid-template-columns: 54px 1fr;
   gap: 12px;
   padding: 14px 0;
   border-bottom: 1px solid var(--borde);
@@ -3397,18 +3397,24 @@ button.miga-paso:hover {
 
 /* ─── Propuesta al cliente (sección Acciones) ─────────────────── */
 
-/* El botón que abre la propuesta, en la cabecera de «Qué hacer». */
+/* Misma pieza que «boton-detalle»: radio 12, tinta, sombra. */
 .boton-propuesta,
 .boton-primario {
-  font: 600 14px var(--sans);
-  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
   background: var(--tinta);
-  border-radius: 999px;
-  padding: 9px 18px;
+  color: #fff;
+  font: 500 13.5px var(--sans);
+  box-shadow: var(--sombra-3);
   cursor: pointer;
-  transition:
-    background 140ms,
-    transform 140ms;
+  border: 0;
+  white-space: nowrap;
+  transition: transform 160ms var(--salida), background 140ms;
 }
 .boton-propuesta:hover,
 .boton-primario:hover {
@@ -3416,7 +3422,41 @@ button.miga-paso:hover {
 }
 .boton-propuesta:active,
 .boton-primario:active {
-  transform: translateY(1px);
+  transform: scale(0.97);
+}
+.boton-propuesta:disabled,
+.boton-primario:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.boton-peligro {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font: 500 13.5px var(--sans);
+  color: var(--peligro-t);
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  cursor: pointer;
+}
+.boton-peligro:hover {
+  background: var(--peligro-s);
+  border-color: var(--peligro);
+}
+.propuesta-cerrar {
+  font: 500 13px var(--sans);
+  color: var(--apagado);
+  padding: 4px 2px;
+  border-bottom: 1px solid transparent;
+}
+.propuesta-cerrar:hover {
+  color: var(--tinta);
+  border-bottom-color: var(--borde-2);
 }
 
 /* El panel, en pantalla completa: el documento a la izquierda, el editor a la derecha. */
@@ -3493,7 +3533,8 @@ button.miga-paso:hover {
   overflow-y: auto;
   display: grid;
   gap: 16px;
-  padding: 16px 18px;
+  padding: 16px 18px 28px;
+  align-content: start;
 }
 
 /* Pestañas del documento (vista previa / historial). */
@@ -3508,10 +3549,10 @@ button.miga-paso:hover {
   padding: 6px 0;
 }
 .propuesta-pestana {
-  font: 600 13px var(--sans);
+  font: 500 13px var(--sans);
   color: var(--tinta-2);
-  padding: 7px 14px;
-  border-radius: 999px;
+  padding: 6px 12px;
+  border-radius: 10px;
   cursor: pointer;
   transition:
     background 140ms,
@@ -3540,19 +3581,17 @@ button.miga-paso:hover {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
+}
+.propuesta-aviso {
+  font-size: 13px;
+  color: var(--peligro-t);
 }
 .propuesta-entrega {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-}
-.propuesta-entrega button,
-.propuesta-cabecera .boton-sutil {
-  border: 1px solid var(--borde-2);
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 13px;
-  background: var(--fondo);
+  align-items: center;
 }
 .propuesta-historial {
   display: grid;
@@ -3581,11 +3620,11 @@ button.miga-paso:hover {
   gap: 6px;
   flex-wrap: wrap;
 }
-.propuesta-hecha .boton-sutil {
-  border: 1px solid var(--borde-2);
-  border-radius: 999px;
-  padding: 5px 12px;
-  font-size: 12.5px;
+.propuesta-hecha .boton-propuesta,
+.propuesta-hecha .boton-peligro {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
 }
 .seguimiento-score {
   color: var(--tinta-2);
@@ -3618,11 +3657,11 @@ button.miga-paso:hover {
   max-width: 760px;
   margin: 0 auto;
   background: #fff;
-  color: #1c1e24;
+  color: var(--tinta);
   padding: 34px 40px;
   display: grid;
   gap: 18px;
-  font: 15px/1.55 var(--cuerpo, Georgia);
+  font: 400 15px/1.55 var(--sans);
   border: 1px solid var(--borde);
   border-radius: 12px;
 }
@@ -3664,6 +3703,10 @@ button.miga-paso:hover {
 }
 .informe-item {
   margin: 2px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
 }
 .informe-aviso {
   margin: 2px 0;
@@ -3700,27 +3743,8 @@ button.miga-paso:hover {
   font-size: 12px;
   color: #555a66;
 }
-.informe-tabla {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.informe-tabla th {
-  text-align: left;
-  font-size: 11.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.informe .tabla-sutil th {
   color: #555a66;
-  border-bottom: 1px solid #e3e1da;
-  padding: 4px 6px;
-}
-.informe-tabla td {
-  padding: 5px 6px;
-  border-bottom: 1px solid #efede7;
-}
-.informe-tabla .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 
 /* El seguimiento de una propuesta guardada. */
@@ -3773,6 +3797,12 @@ button.miga-paso:hover {
   .informe * {
     visibility: visible;
   }
+  .propuesta-cabecera,
+  .propuesta-pestanas,
+  .propuesta-col-editor,
+  .propuesta-entrega {
+    display: none !important;
+  }
   .panel-propuesta,
   .propuesta-hoja,
   .propuesta-cuerpo,
@@ -3799,6 +3829,7 @@ button.miga-paso:hover {
     border-radius: 0;
     box-shadow: none;
     margin: 0;
+    padding: 0;
   }
 }
 
@@ -3826,16 +3857,20 @@ button.miga-paso:hover {
 }
 .propuesta-bancos {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
 }
 .propuesta-banco {
   border: 1px solid var(--borde);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 10px;
+  padding: 8px 10px;
   background: #fff;
   display: grid;
-  gap: 3px;
+  gap: 2px;
 }
 .propuesta-banco-cabeza {
   display: flex;
@@ -3905,17 +3940,31 @@ button.miga-paso:hover {
   gap: 6px;
   background: #fff;
 }
+.propuesta-ofertas {
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  display: grid;
+}
 .propuesta-oferta {
   display: grid;
   grid-template-columns: 22px 1fr auto;
   gap: 10px;
   align-items: center;
+  border: 1px solid transparent;
   border-top: 1px solid var(--borde);
-  padding: 8px 0;
+  border-radius: 10px;
+  padding: 8px 8px;
+  margin: 0 -8px;
   cursor: pointer;
 }
 .propuesta-oferta:first-of-type {
-  border-top: 0;
+  border-top-color: transparent;
+}
+.propuesta-oferta.elegida {
+  border-color: var(--tinta);
+  background: var(--fondo-3);
+  box-shadow: var(--sombra-1);
 }
 .propuesta-oferta-banco {
   display: grid;

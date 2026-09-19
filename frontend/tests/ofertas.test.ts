@@ -69,22 +69,24 @@ describe("ofertasBanco", () => {
       "Banco A",
       "Banco C",
       "Banco D",
+      "Banco E",
     ]);
     expect(ofertas[0].tieneProducto).toBe(true);
     expect(ofertas[2].tieneProducto).toBe(false);
+    expect(ofertas[4].soloCuentas).toBe(true);
+    expect(ofertas[4].oferta_fuente).toBe("mercado");
   });
 
-  test("un banco que solo guarda cuentas no se ofrece como prestamista", () => {
-    const ofertas = ofertasBanco("factoring", fuentes());
-    expect(ofertas.map((o) => o.bank)).not.toContain("Banco E");
-    // solo cuentas y ningún crédito: no hay a quién ofrecer
-    expect(
-      ofertasBanco("line", {
-        tenencias: [],
-        otras: [],
-        bancos: { "Banco Solo": 3 },
-      }),
-    ).toEqual([]);
+  test("un banco que solo guarda cuentas también se ofrece, con estimación de mercado", () => {
+    const solo = ofertasBanco("line", {
+      tenencias: [],
+      otras: [],
+      bancos: { "Banco Solo": 3 },
+    });
+    expect(solo).toHaveLength(1);
+    expect(solo[0].bank).toBe("Banco Solo");
+    expect(solo[0].soloCuentas).toBe(true);
+    expect(solo[0].oferta_fuente).toBe("mercado");
   });
 
   test("a igual producto, ordena por tasa creciente cuando consta", () => {
@@ -118,6 +120,7 @@ describe("ofertasBanco", () => {
     expect(ofertasBanco("factoring", f).map((o) => o.bank)).toEqual([
       "Grande",
       "Chico",
+      "Zeta",
     ]);
   });
 

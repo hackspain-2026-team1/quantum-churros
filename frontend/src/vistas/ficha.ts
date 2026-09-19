@@ -1334,25 +1334,6 @@ function productosGrupo(d: DatosFicha, acc: Acciones): HTMLElement {
 
 // ─── Sección III · Acciones ───────────────────────────────────
 
-const CLAVE_ESTADOS = "rumbo.acciones.v1";
-type EstadoAccion = "propuesta" | "en curso" | "hecha";
-function leerEstados(): Record<string, EstadoAccion> {
-  try {
-    return JSON.parse(localStorage.getItem(CLAVE_ESTADOS) ?? "{}");
-  } catch {
-    return {};
-  }
-}
-function guardarEstado(clave: string, e: EstadoAccion) {
-  const t = leerEstados();
-  t[clave] = e;
-  try {
-    localStorage.setItem(CLAVE_ESTADOS, JSON.stringify(t));
-  } catch {
-    /* sin almacenamiento: vale para la sesión */
-  }
-}
-
 export function seccionAcciones(
   d: DatosFicha,
   sel: Set<string>,
@@ -1395,10 +1376,8 @@ export function seccionAcciones(
 
   // Recomendaciones del motor + «no hacer nada».
   const lista = h("ol", { class: "recomendaciones" });
-  const estadosG = leerEstados();
   recs.forEach((r, i) => {
     const a = r.accion;
-    const clave = `${d.id}:${d.corte}:${a.id}`;
     const marca = h("input", {
       type: "checkbox",
       checked: sel.has(a.id),
@@ -1409,21 +1388,6 @@ export function seccionAcciones(
       else sel.delete(a.id);
       li.classList.toggle("elegida", marca.checked);
       repintar();
-    });
-    const estadoSel = h(
-      "select",
-      { class: "sel-sutil", "aria-label": "Estado de la acción" },
-      ...(["propuesta", "en curso", "hecha"] as EstadoAccion[]).map((x) =>
-        h(
-          "option",
-          { value: x, selected: (estadosG[clave] ?? "propuesta") === x },
-          x,
-        ),
-      ),
-    );
-    estadoSel.addEventListener("change", () => {
-      guardarEstado(clave, estadoSel.value as EstadoAccion);
-      li.dataset.estado = estadoSel.value;
     });
     const efecto = efectoAccion(d, a);
     const prods = r.productos.map((p) =>
@@ -1438,7 +1402,6 @@ export function seccionAcciones(
       "li",
       {
         class: `rec ${sel.has(a.id) ? "elegida" : ""}`,
-        "data-estado": estadosG[clave] ?? "propuesta",
       },
       h(
         "label",
@@ -1481,7 +1444,6 @@ export function seccionAcciones(
             ? h("p", { class: "rec-productos propia" }, r.propia)
             : null,
       ),
-      h("div", { class: "rec-estado" }, estadoSel),
     );
     lista.append(li);
   });

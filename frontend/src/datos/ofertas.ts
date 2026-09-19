@@ -1,10 +1,8 @@
 // Ofertas de financiación por banco: un ranking determinista de los bancos con
 // los que la organización ya trabaja, para que el usuario de Embat elija a quién
-// proponerle cada instrumento. Nada se inventa: la tasa sale de los datos cuando
-// consta (casi siempre solo para préstamos) y si no, la oferta dice «sin tasa
-// publicada». Solo se ofrece un banco si consta que ya financia a la entidad (un
-// producto de crédito contratado); un banco que solo guarda cuentas no se ofrece
-// como prestamista. El motor solo aporta el instrumento y el monto.
+// proponerle cada instrumento. Entran todos los bancos conectados: si ya
+// financian, se usa su tipo cuando consta; si solo tienen cuentas, la tasa es
+// la estimación de mercado marcada. El motor solo aporta el instrumento y el monto.
 
 import type {
   FinanciacionM,
@@ -27,6 +25,8 @@ export interface OfertaBanco {
   /** La tasa de la oferta: la real del banco, o la estimación de mercado marcada. */
   oferta_tasa: number | null;
   oferta_fuente: FuenteTasa | null;
+  /** true si solo constan cuentas (depósitos, ahorro) y ningún crédito. */
+  soloCuentas: boolean;
 }
 
 export interface FuentesBanco {
@@ -71,12 +71,39 @@ function bancosPrestamistas(fuentes: FuentesBanco): Set<string> {
   return prestamistas;
 }
 
+function vacia(bank: string): OfertaBanco {
+  return {
+    bank,
+    tieneProducto: false,
+    rate: null,
+    rate_type: null,
+    granted: null,
+    outstanding: null,
+    oferta_tasa: null,
+    oferta_fuente: null,
+    soloCuentas: true,
+  };
+}
+
+function mejorTasa(
+  actual: OfertaBanco,
+  rate: number | null,
+  granted: number | null,
+): boolean {
+  if (rate !== null && actual.rate === null) return true;
+  if (rate !== null && actual.rate !== null && rate < actual.rate) return true;
+  return (
+    actual.rate === null &&
+    rate === null &&
+    (granted ?? 0) > (actual.granted ?? 0)
+  );
+}
+
 /**
- * Los bancos a los que ofrecer el instrumento, de mejor a peor opción: solo
- * bancos que ya financian a la entidad (así la oferta descansa en una relación
- * real). Primero los que ya le dan ese producto (por tasa creciente cuando
- * consta, y concedido decreciente), después el resto. Determinista: los empates
- * por nombre.
+ * Los bancos a los que ofrecer el instrumento: todos los conectados, de mejor
+ * a peor. Primero los que ya dan ese producto, después el resto de
+ * prestamistas, al final los que solo tienen cuentas (con estimación de
+ * mercado). Determinista: empates por nombre.
  */
 export function ofertasBanco(
   kind: FinanciacionM["kind"],
@@ -84,107 +111,68 @@ export function ofertasBanco(
 ): OfertaBanco[] {
   const producto = PRODUCTO_POR_KIND[kind];
   const prestamistas = bancosPrestamistas(fuentes);
-  const exactos = new Map<string, OfertaBanco>();
-  const resto = new Map<string, OfertaBanco>();
-
-  const anotar = (
-    mapa: Map<string, OfertaBanco>,
-    bank: string,
-    rate: number | null,
-    rate_type: string | null,
-    granted: number | null,
-    outstanding: number | null,
-  ) => {
-    const anterior = mapa.get(bank);
-    if (
-      !anterior ||
-      (rate !== null && anterior.rate === null) ||
-      (rate !== null && anterior.rate !== null && rate < anterior.rate) ||
-      (anterior.rate === null &&
-        rate === null &&
-        (granted ?? 0) > (anterior.granted ?? 0))
-    ) {
-      mapa.set(bank, {
-        bank,
-        tieneProducto: true,
-        rate,
-        rate_type,
-        granted,
-        outstanding,
-        oferta_tasa: null,
-        oferta_fuente: null,
-      });
-    }
+  const porBanco = new Map<string, OfertaBanco>();
+  const visto = (bank: string): OfertaBanco => {
+    if (!porBanco.has(bank)) porBanco.set(bank, vacia(bank));
+    return porBanco.get(bank)!;
   };
 
+  for (const nombre of Object.keys(fuentes.bancos)) {
+    const b = bancoDe(nombre);
+    if (b) visto(b);
+  }
   for (const tenencia of fuentes.tenencias) {
     const es = tenencia.product === producto;
+    const credito = PRODUCTOS_DE_CREDITO.has(tenencia.product);
     for (const item of tenencia.items) {
       const b = bancoDe(item.bank);
-      if (!b || !prestamistas.has(b)) continue;
-      if (es)
-        anotar(
-          exactos,
-          b,
-          item.rate,
-          item.rate_type,
-          item.granted,
-          item.outstanding,
-        );
-      else if (!resto.has(b))
-        resto.set(b, {
-          bank: b,
-          tieneProducto: false,
-          rate: null,
-          rate_type: null,
-          granted: null,
-          outstanding: null,
-          oferta_tasa: null,
-          oferta_fuente: null,
-        });
+      if (!b) continue;
+      const o = visto(b);
+      if (credito) o.soloCuentas = false;
+      if (
+        es &&
+        mejorTasa(o, item.rate, item.granted)
+      ) {
+        o.tieneProducto = true;
+        o.soloCuentas = false;
+        o.rate = item.rate;
+        o.rate_type = item.rate_type;
+        o.granted = item.granted;
+        o.outstanding = item.outstanding;
+      }
     }
   }
   for (const otra of fuentes.otras) {
     const b = bancoDe(otra.bank);
-    if (!b || !prestamistas.has(b) || exactos.has(b)) continue;
+    if (!b) continue;
+    const o = visto(b);
+    o.soloCuentas = false;
     if (
       kind === "restructure" &&
-      ES_PRESTAMO.test(`${otra.type} ${otra.type_label}`)
-    )
-      anotar(
-        exactos,
-        b,
-        otra.rate,
-        otra.rate_type,
-        otra.granted,
-        otra.outstanding,
-      );
-    else if (!resto.has(b))
-      resto.set(b, {
-        bank: b,
-        tieneProducto: false,
-        rate: null,
-        rate_type: null,
-        granted: null,
-        outstanding: null,
-        oferta_tasa: null,
-        oferta_fuente: null,
-      });
+      ES_PRESTAMO.test(`${otra.type} ${otra.type_label}`) &&
+      mejorTasa(o, otra.rate, otra.granted)
+    ) {
+      o.tieneProducto = true;
+      o.rate = otra.rate;
+      o.rate_type = otra.rate_type;
+      o.granted = otra.granted;
+      o.outstanding = otra.outstanding;
+    }
   }
+  for (const bank of prestamistas) visto(bank).soloCuentas = false;
 
-  const conOferta = (o: OfertaBanco): OfertaBanco => {
-    const oferta = tasaPara(kind, o.rate, o.rate_type);
-    return {
-      ...o,
-      oferta_tasa: oferta?.tasa ?? null,
-      oferta_fuente: oferta?.fuente ?? null,
-    };
-  };
-  return [...exactos.values(), ...resto.values()]
-    .map(conOferta)
+  return [...porBanco.values()]
+    .map((o) => {
+      const oferta = tasaPara(kind, o.rate, o.rate_type);
+      return {
+        ...o,
+        oferta_tasa: oferta?.tasa ?? null,
+        oferta_fuente: oferta?.fuente ?? null,
+      };
+    })
     .sort((a, b) => {
       if (a.tieneProducto !== b.tieneProducto) return a.tieneProducto ? -1 : 1;
-      // el dato real siempre rankea antes que la estimación de mercado
+      if (a.soloCuentas !== b.soloCuentas) return a.soloCuentas ? 1 : -1;
       const pesoFuente = (o: OfertaBanco) =>
         o.oferta_fuente === "banco" ? 0 : o.oferta_fuente === "mercado" ? 1 : 2;
       if (pesoFuente(a) !== pesoFuente(b)) return pesoFuente(a) - pesoFuente(b);

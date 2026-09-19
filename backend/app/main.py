@@ -19,6 +19,7 @@ from .models import (
     Entity,
     IndustryClassificationRead,
 )
+from .proposals import delete_proposal, get_proposal, list_proposals, upsert_proposal
 
 engine = create_engine(settings.require_database_url(), pool_pre_ping=True)
 
@@ -163,3 +164,35 @@ def get_industry_distribution(dataset_hash: str | None = None) -> dict[str, int]
 @app.get("/api/v1/scores/{entity_id}")
 def get_scores(entity_id: str) -> list[dict[str, object]]:
     return read_entity_scores(settings.scores_path, entity_id)
+
+
+@app.get("/api/v1/proposals")
+def get_proposals(entity_id: str | None = None) -> list[dict[str, object]]:
+    with Session(engine) as session:
+        return list_proposals(session, entity_id)
+
+
+@app.get("/api/v1/proposals/{proposal_id}")
+def get_proposal_by_id(proposal_id: str) -> dict[str, object]:
+    with Session(engine) as session:
+        payload = get_proposal(session, proposal_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    return payload
+
+
+@app.post("/api/v1/proposals")
+def post_proposal(body: dict[str, object]) -> dict[str, object]:
+    required = ("id", "entidad", "grupoId", "kind", "corte", "bundle_id", "score_actual_tenths")
+    if any(key not in body for key in required):
+        raise HTTPException(status_code=422, detail="Missing proposal fields")
+    with Session(engine) as session:
+        return upsert_proposal(session, body)
+
+
+@app.delete("/api/v1/proposals/{proposal_id}")
+def remove_proposal(proposal_id: str) -> dict[str, str]:
+    with Session(engine) as session:
+        if not delete_proposal(session, proposal_id):
+            raise HTTPException(status_code=404, detail="Proposal not found")
+    return {"status": "deleted"}
