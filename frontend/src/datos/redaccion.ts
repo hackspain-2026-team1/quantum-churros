@@ -75,6 +75,27 @@ export function tituloAccion(a: AccionM): string {
 	}
 }
 
+/**
+ * El nombre de la acción sin sus cifras. En la tabla de acciones, de cuánto a cuánto va la palanca
+ * tiene columna propia: repetirlo dentro del título es leerlo dos veces.
+ */
+export function accionCorta(a: AccionM): string {
+	switch (palanca(a)) {
+		case 'liquidity-buffer': return 'Subir el colchón de caja';
+		case 'collections-speed': return a.target <= 0.5 ? voz('Cobrar al vencimiento', 'Cobrar al vencimiento') : voz('Cobrar antes a sus clientes', 'Cobrar antes a tus clientes');
+		case 'payments-punctuality': return a.target <= 0.5 ? 'Pagar al vencimiento' : 'Pagar antes a proveedores';
+		case 'activity-coverage': return 'Que los cobros cubran los pagos';
+		case 'debt-burden': return 'Bajar el peso de la deuda';
+		default: return a.title;
+	}
+}
+
+/** De cuánto a cuánto tiene que ir la palanca, con su unidad y lista para escribirse grande. */
+export function palancaDeAccion(a: AccionM): { de: string; hasta: string } {
+	const u = (v: number) => (a.unit === 'días' ? f.dias(Math.max(0, v)) : a.unit === '%' ? f.puntosPorcentaje(v) : `${f.ratio(v)} ×`);
+	return { de: u(a.current), hasta: u(a.target) };
+}
+
 /** Una frase que explica el porqué y el cuánto. */
 export function explicacionAccion(a: AccionM): string {
 	const imp = importes(a);

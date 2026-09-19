@@ -4851,3 +4851,145 @@ body[data-modo='cfo'] .nota-datos { display: none; }
 	.sc-mov { grid-template-columns: 1fr; gap: 8px; }
 	.sc-mov-sello { justify-self: start; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+ * Las opciones de la frase: rejillas, no renglones
+ * ═══════════════════════════════════════════════════════════════
+ * El panel era una columna de cien renglones que se salía de la pantalla. Ahora cada familia de
+ * opciones es un bloque con su rótulo y su rejilla: el nombre corto arriba, la cifra debajo y en
+ * grande, y los meses como un calendario. Se comparan de un vistazo y casi todo cabe sin rodar.
+ */
+.panel-lista { padding: 8px 10px 12px; }
+.panel-seccion {
+	padding: 14px 4px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+	text-transform: uppercase; color: var(--tenue);
+}
+.panel-lista > .panel-seccion:first-child { padding-top: 6px; }
+.panel-rejilla { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 4px; }
+
+/* Los renglones que quedan (búsqueda, atajos sueltos) crecen: más aire y más cuerpo. */
+.opcion { padding: 11px 12px; font-size: 15.5px; border-radius: 12px; }
+.opcion-cifra {
+	font: 500 17px var(--serif); font-variant-numeric: tabular-nums; color: var(--tinta-2); margin-left: auto;
+}
+.opcion-detalle { font-size: 13px; color: var(--apagado); }
+.opcion.activa::after { margin-left: 8px; }
+
+/* La celda: el nombre arriba, la cifra grande debajo. Sin caja hasta que se toca. */
+.opcion.celda {
+	display: grid; align-content: start; justify-items: start; gap: 1px;
+	padding: 9px 11px 10px; border: 1px solid transparent; text-align: left;
+}
+.opcion.celda .glifo, .opcion.celda .icono-producto { margin-bottom: 2px; }
+.opcion.celda .opcion-texto { font: 600 14.5px/1.25 var(--sans); flex: none; }
+.opcion.celda .opcion-cifra { margin: 0; font-size: 23px; line-height: 1.1; color: var(--tinta); }
+.opcion.celda .opcion-detalle { font-size: 12px; line-height: 1.3; }
+.opcion.celda.marcada, .opcion.celda:focus-visible { background: var(--fondo-2); border-color: var(--borde); }
+.opcion.celda.activa { background: var(--info-s); border-color: var(--info); }
+.opcion.celda.activa .opcion-texto, .opcion.celda.activa .opcion-cifra { color: var(--info-t); }
+.opcion.celda.activa::after { display: none; }
+.opcion.celda:disabled { opacity: 0.5; }
+
+/* El calendario: solo el periodo, centrado y grande. */
+.panel-rejilla[style*='--cols: 6'] .opcion.celda,
+.panel-rejilla[style*='--cols: 4'] .opcion.celda:not(:has(.opcion-cifra)) {
+	min-height: 0; justify-items: center; text-align: center; padding: 11px 6px;
+}
+.panel-rejilla[style*='--cols: 6'] .opcion.celda .opcion-texto,
+.panel-rejilla[style*='--cols: 4'] .opcion.celda:not(:has(.opcion-cifra)) .opcion-texto {
+	font: 500 16px var(--serif); text-transform: none;
+}
+
+@media screen and (max-width: 699px) {
+	.panel-rejilla:not(.fija) { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+	.panel-rejilla:not(.fija) > .opcion { grid-column-start: auto; }
+	.panel-rejilla.fija > .opcion.celda { padding: 10px 2px; }
+	.opcion.celda .opcion-cifra { font-size: 21px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Las acciones: una columna por pregunta
+ * ═══════════════════════════════════════════════════════════════
+ * Era un párrafo con las cifras dentro y una línea de metadatos que repetía lo de la última
+ * columna. Ahora cada pregunta tiene la suya —qué hacer, de cuánto a cuánto, qué esfuerzo, cómo
+ * queda a seis meses y cuánto sube—, y las cifras se escriben grandes, que es lo que se compara.
+ */
+.rec-cab, .rec {
+	grid-template-columns: 58px minmax(0, 1fr) 96px 132px 92px 160px;
+	gap: 20px;
+	align-items: start;
+}
+.rec-cab .centro { text-align: center; }
+.rec { padding: 16px 12px; }
+
+.rec-titulo { font: 600 18px/1.25 var(--serif); }
+/* La palanca: de dónde sale y adónde llega, en cifras y en grande. */
+.rec-palanca { display: flex; align-items: baseline; gap: 9px; margin-top: 5px; }
+.rec-palanca b { font: 500 20px/1.1 var(--serif); color: var(--tinta-2); font-variant-numeric: tabular-nums; }
+.rec-palanca b.meta { color: var(--info-t); }
+.rec-palanca i { font-style: normal; color: var(--tenue); font-size: 15px; }
+.rec-texto { margin-top: 7px; max-width: 58ch; }
+.rec-productos { flex-wrap: wrap; margin-top: 8px; gap: 6px 10px; }
+.rec-pilar {
+	font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tenue);
+	padding-left: 10px; border-left: 1px solid var(--borde);
+}
+.rec-productos .propia { font-style: italic; color: var(--apagado); }
+
+/* Las tres columnas de cifras: el número arriba y el rótulo debajo, siempre igual. */
+.rec-esfuerzo, .rec-plazo { display: grid; justify-items: center; gap: 2px; text-align: center; align-self: start; }
+.rec-esfuerzo b { font: 500 19px/1.1 var(--serif); color: var(--tinta); }
+.rec-esfuerzo > span, .rec-plazo > span { font-size: 11.5px; color: var(--apagado); line-height: 1.25; }
+.rec-plazo b { font: 500 24px/1.1 var(--serif); font-variant-numeric: tabular-nums; color: var(--tinta); }
+.rec-plazo.seis > span { max-width: 150px; }
+.rec-efecto b { font-size: 26px; }
+.rec b.vacia { color: var(--tenue); }
+.rec.elegida .rec-plazo b, .rec.elegida .rec-efecto b { color: var(--info-t); }
+.rec-estado .desp-boton { min-width: 0; width: 100%; }
+
+@media screen and (max-width: 1099px) {
+	.rec-cab, .rec { grid-template-columns: 50px minmax(0, 1fr) 84px 116px 82px 140px; gap: 14px; }
+	.rec-titulo { font-size: 17px; }
+	.rec-palanca b { font-size: 18px; }
+	.rec-plazo b { font-size: 21px; }
+	.rec-efecto b { font-size: 22px; }
+}
+@media screen and (max-width: 900px) {
+	.rec-cab { display: none; }
+	.rec { grid-template-columns: 34px repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+	.rec-cuerpo { grid-column: 2 / -1; }
+	.rec-esfuerzo, .rec-plazo, .rec-efecto { justify-items: start; text-align: left; margin-top: 10px; }
+	.rec-esfuerzo { grid-column: 2; }
+	.rec-plazo { grid-column: 3; }
+	.rec-efecto { grid-column: 4; }
+	.rec-estado { grid-column: 2 / -1; margin-top: 10px; }
+	.rec-estado .desp-boton { width: auto; }
+}
+
+/* Lo que proponen las empresas del grupo: las mismas columnas que la tabla de arriba. */
+.acciones-empresas li, .acciones-empresas .ae-cab {
+	display: grid; grid-template-columns: minmax(0, 210px) minmax(0, 1fr) 190px 96px 84px; gap: 20px; align-items: baseline;
+}
+.acciones-empresas .ae-cab {
+	border-bottom: 1px solid var(--borde-2); padding-bottom: 6px;
+	font: 600 11.5px/1 var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--tenue);
+}
+.acciones-empresas .ae-cab:hover { background: none; }
+.acciones-empresas .ae-cab .centro { text-align: center; }
+.acciones-empresas .ae-cab .der { text-align: right; }
+.acciones-empresas .ae-palanca { font-variant-numeric: tabular-nums; color: var(--tinta-2); white-space: nowrap; }
+.acciones-empresas .ae-palanca i { font-style: normal; color: var(--tenue); margin: 0 6px; }
+.acciones-empresas .ae-palanca em { font-style: normal; color: var(--info-t); }
+.acciones-empresas .ae-esfuerzo { text-align: center; color: var(--apagado); }
+.acciones-empresas .ae-efecto {
+	text-align: right; font: 500 18px var(--serif); font-variant-numeric: tabular-nums; color: var(--info-t);
+}
+@media screen and (max-width: 1099px) {
+	.acciones-empresas li, .acciones-empresas .ae-cab { grid-template-columns: minmax(0, 170px) minmax(0, 1fr) 160px 80px 70px; gap: 14px; }
+}
+@media screen and (max-width: 900px) {
+	.acciones-empresas .ae-cab { display: none; }
+	.acciones-empresas li { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; }
+	.acciones-empresas .ae-titulo, .acciones-empresas .ae-palanca { grid-column: 1; }
+	.acciones-empresas .ae-esfuerzo, .acciones-empresas .ae-efecto { text-align: right; }
+}

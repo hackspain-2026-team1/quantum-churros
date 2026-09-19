@@ -4,6 +4,37 @@ Registro de lo que se hace en `frontend/`, en qué orden y por qué. Lo lleva el
 
 ---
 
+## 20 de septiembre de 2026, las opciones y las acciones en columnas
+
+Lo mismo para las dos listas que quedaban en renglones: organizarlas, ponerlas en columnas, agrandar lo que se compara y quitar texto.
+
+### Las opciones de la frase (`src/vistas/frase.ts`)
+
+El panel era una columna de cien renglones que se salía de la pantalla. Ahora cada familia es un bloque con su rótulo y su rejilla, y el panel se ensancha según lo que enseña (880 px en «quién», 620 en «cuándo», 680 en la escala).
+
+- **Quién**: zona en cuatro columnas, movimiento en tres, producto en cuatro (con su grabado), sector, país y tamaño. El nombre corto arriba y **cuántos caen debajo, en grande**. Los rótulos pierden el «Por…»: `Zona`, `Movimiento`, `Producto que encaja`, `Sector`, `País`, `Tamaño`.
+- **Cuándo**: un **calendario**, no una lista. Los veinticuatro meses caben de una vez, seis por fila, cada uno en su columna fija —enero a la izquierda, diciembre a la derecha—, así que el primer año de la ventana empieza con los huecos vacíos y eso ya cuenta algo. Cada celda dice «sep», «T3» o «2025»: nada más.
+- **Escala**: las cinco en una fila, con su glifo; debajo, `Al cierre` y `De media` en dos.
+- **Frente a** y **orden**: dos por dos, con el nombre corto y el apunte debajo.
+- **Teclado**: los lados saltan de celda y arriba y abajo, de fila entera.
+- En el móvil, la hoja reparte las rejillas a dos columnas, salvo el calendario, que conserva sus seis.
+
+### Las acciones (`seccionAcciones` en `src/vistas/ficha.ts`)
+
+Era un párrafo con las cifras dentro y una línea de metadatos que repetía lo de la última columna. Ahora hay **una columna por pregunta**: qué hacer · esfuerzo · se nota · sube · cómo va.
+
+- El título pierde sus cifras (`accionCorta`) y la palanca sale aparte, en grande: **61 días → 117 días** (`palancaDeAccion`).
+- «Se nota» es una columna con su cifra: los meses que tarda en notarse, según el motor. La comparación con y sin la acción vive en el horizonte, donde se puso el día anterior.
+- Fuera la línea de metadatos: el esfuerzo, el efecto y el pilar ya están en su sitio.
+- «No hacer nada» ocupa las mismas columnas: su mediana a seis meses y su franja.
+- «Lo que proponen sus empresas» pasa a las mismas cinco columnas, y deja de repetir «en la empresa · esfuerzo alto» en cada renglón.
+
+### Pruebas
+
+`bun run check`, `bun test` (31 de 31) y el recorrido, **61 de 61**.
+
+---
+
 ## 20 de septiembre de 2026, el horizonte contesta: dónde cae la acción y contra qué se compara
 
 Cinco cosas pedidas mirando la gráfica y las pestañas.
@@ -36,6 +67,7 @@ Contado eso en la gráfica, la ficha de cada acción se limpia: fuera «+5,4 pun
 ### Pruebas
 
 `bun run check`, `bun test` (31 de 31) y el recorrido, **58 de 58**. La comprobación de «qué pasaría si» estaba muerta: comparaba contra `.esc.leyenda`, una clase que ya no existe, así que daba 0 = 0 con una acción marcada. Ahora cuenta los casos de verdad y se le suman dos comprobaciones nuevas, las del punto de la acción.
+
 
 ---
 
