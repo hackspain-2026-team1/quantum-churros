@@ -13,7 +13,7 @@ of the LAST LIVE month L, verbatim:
 
   copied from L : branch, pillar_scores, weights_effective, level_weighted,
                   penalty, cap_adjustment, caps_fired, base, contributions,
-                  score, band
+                  score, band, size_band
   kept from t   : month, months_observed, months_since_perimeter_change,
                   level (own level, penalty and caps off), feed_live = False,
                   confidence, confidence_parts, confidence_label, flags
@@ -65,7 +65,7 @@ from .contracts import (
 )
 from .params import load_params
 from .pillars import compute_pillars
-from .trajectory import trajectory
+from .trajectory import trajectories
 
 # Deprecated alias kept for older readers of the score run metadata.
 MODEL_VERSION = ENGINE_VERSION
@@ -83,6 +83,7 @@ CARRIED_FIELDS: tuple[str, ...] = (
     "contributions",
     "score",
     "band",
+    "size_band",
 )
 
 
@@ -128,24 +129,29 @@ def score_entity(
     ``rows`` belong to a single entity; ``group_rows`` (companies only) maps a
     month to the row of the owning group. Stale months are carried forward from
     the last live month (module docstring); the trajectory reads the final
-    parts, carried months included.
+    parts, carried months included, in one forward pass: the verdict of a
+    month never depends on later ones.
     """
+    ordered = sorted(rows, key=lambda item: item.month)
     history: list[ScoreParts] = []
-    months: list[EntityMonth] = []
-    last_live: EntityMonth | None = None
-    for row in sorted(rows, key=lambda item: item.month):
+    shown: list[Mapping[str, PillarResult]] = []
+    last_live: int | None = None
+    for row in ordered:
         group_row = group_rows.get(row.month) if group_rows else None
         pillars = compute_pillars(row, params, group_row)
-        parts = aggregate(pillars, row, params)
+        parts = aggregate(pillars, row, params, group_row)
         if not parts.feed_live and last_live is not None:
-            parts = carry_forward(parts, last_live.parts)
-            pillars = carried_pillars(last_live.pillars)
+            parts = carry_forward(parts, history[last_live])
+            pillars = carried_pillars(shown[last_live])
+        elif parts.feed_live:
+            last_live = len(history)
         history.append(parts)
-        month = EntityMonth(row, pillars, parts, trajectory(history, params))
-        months.append(month)
-        if parts.feed_live:
-            last_live = month
-    return months
+        shown.append(pillars)
+    verdicts = trajectories(history, params)
+    return [
+        EntityMonth(row, pillars, parts, verdict)
+        for row, pillars, parts, verdict in zip(ordered, shown, history, verdicts)
+    ]
 
 
 def score_panel(panel: pl.DataFrame, params: Params) -> list[EntityMonth]:
@@ -222,6 +228,7 @@ def build_snapshot(
         month=row.month,
         score=_bounded(parts.score),
         band=parts.band,
+        size_band=parts.size_band,
         level=parts.level,
         base=parts.base,
         pillars=_by_pillar(parts.pillar_scores),
@@ -281,16 +288,38 @@ def snapshots_frame(snapshots: Sequence[EntitySnapshot]) -> pl.DataFrame:
     return pl.DataFrame(records, schema=SNAPSHOT_SCHEMA)
 
 
-def classify_industry(input_dir: Path) -> dict[str, IndustryClassification]:
+def _by_entity(months: Sequence[EntityMonth]) -> list[list[EntityMonth]]:
+    """Months of each entity, entities sorted by (entity_kind, entity_id)."""
+    found: dict[tuple[str, str], list[EntityMonth]] = defaultdict(list)
+    for month in months:
+        found[(month.row.entity_kind, month.row.entity_id)].append(month)
+    return [found[key] for key in sorted(found)]
+
+
+def score_frame(months: Sequence[EntityMonth], params: Params, dataset_hash: str) -> pl.DataFrame:
+    """``score_panel`` output -> ``SNAPSHOT_SCHEMA`` frame, month-on-month deltas included."""
+    snapshots: list[EntitySnapshot] = []
+    for entity_months in _by_entity(months):
+        previous = None
+        for month in entity_months:
+            snapshots.append(build_snapshot(month, previous, params, dataset_hash))
+            previous = month
+    return snapshots_frame(snapshots)
+
+
+def classify_industry(source: Path | io.Tables) -> dict[str, IndustryClassification]:
     """Industry archetype per company, for the profile cards.
 
-    Context only: when its reader fails on a folder the cards lose the
-    attribute and every score is still produced.
+    ``source`` is the ``io.Tables`` already in memory (no second parse of the
+    CSVs) or a folder. Context only: when the classifier fails the cards lose
+    the attribute and every score is still produced.
     """
     try:
-        from .industry_classifier import classify_dataset
+        from .industry_classifier import classify_dataset, classify_tables
 
-        return {item.entity_id: item for item in classify_dataset(Path(input_dir))[1]}
+        if isinstance(source, io.Tables):
+            return classify_tables(source)
+        return {item.entity_id: item for item in classify_dataset(Path(source))[1]}
     except Exception:  # noqa: BLE001 - nothing in the number depends on this reader
         return {}
 
@@ -309,25 +338,29 @@ def score_dataset(
     """
     params = params if params is not None else load_params()
     tables = io.load_tables(Path(input_dir), cache_dir)
+    return score_tables(tables, params, industry_override=industry_override)
+
+
+def score_tables(
+    tables: io.Tables,
+    params: Params,
+    *,
+    industry_override: Mapping[str, IndustryClassification] | None = None,
+) -> ScoreResult:
+    """``score_dataset`` from tables already in memory: clean -> panel ->
+    pillars -> aggregate -> carry forward -> trajectory -> alerts -> profiles,
+    for groups and companies, every month of the window."""
     clean = cleaning.clean(tables, params)
     panel = panel_module.build_panel(clean, params)
     months = score_panel(panel, params)
 
-    snapshots: list[EntitySnapshot] = []
     alerts: list[Alert] = []
-    by_entity: dict[tuple[str, str], list[EntityMonth]] = defaultdict(list)
-    for month in months:
-        by_entity[(month.row.entity_kind, month.row.entity_id)].append(month)
-    for _, entity_months in sorted(by_entity.items()):
-        previous = None
-        for month in entity_months:
-            snapshots.append(build_snapshot(month, previous, params, tables.dataset_hash))
-            previous = month
+    for entity_months in _by_entity(months):
         alerts.extend(build_alerts(entity_months, params))
 
-    industry = industry_override if industry_override is not None else classify_industry(input_dir)
+    industry = industry_override if industry_override is not None else classify_industry(tables)
     return ScoreResult(
-        snapshots=snapshots_frame(snapshots),
+        snapshots=score_frame(months, params, tables.dataset_hash),
         panel=panel,
         months=tuple(months),
         alerts=tuple(alerts),
@@ -339,12 +372,42 @@ def score_dataset(
 
 
 _FLAT_EXCLUDED = ("drivers", "series", "trajectory", "delta_parts", "gates")
+# First columns of the CSV views: the answer, then how it was reached.
+FLAT_LEADING: tuple[str, ...] = (
+    "entity_id",
+    "month",
+    "score",
+    "band",
+    "direction",
+    "nature",
+    "confidence",
+    "abstained",
+    *(f"pillars_{key}" for key in PILLAR_KEYS),
+)
 
 
 def flat_scores(snapshots: pl.DataFrame, entity_kind: str) -> pl.DataFrame:
-    """CSV-friendly view of one entity kind: structs unnested with a prefix,
-    lists joined with ``|``, nested detail columns dropped."""
-    frame = snapshots.filter(pl.col("entity_kind") == entity_kind).drop(_FLAT_EXCLUDED)
+    """CSV-friendly view of one entity kind: ``FLAT_LEADING`` first, structs
+    unnested with a prefix, lists joined with ``|``, nested detail columns
+    dropped but for the trajectory call (``direction``, ``nature``,
+    ``horizon``, ``delta3``, ``drift_points``)."""
+    verdict = pl.col("trajectory").struct
+    frame = (
+        snapshots.filter(pl.col("entity_kind") == entity_kind)
+        .with_columns(
+            verdict.field("direction").alias("direction"),
+            verdict.field("nature").alias("nature"),
+            verdict.field("horizon").alias("horizon"),
+            verdict.field("delta3").alias("delta3"),
+            verdict.field("drift_points").alias("drift_points"),
+        )
+        .drop(_FLAT_EXCLUDED)
+    )
+    frame = _unnest(frame)
+    return frame.select(*FLAT_LEADING, pl.exclude(FLAT_LEADING))
+
+
+def _unnest(frame: pl.DataFrame) -> pl.DataFrame:
     for name, dtype in frame.schema.items():
         if isinstance(dtype, pl.Struct):
             renamed = [
@@ -359,7 +422,8 @@ def flat_scores(snapshots: pl.DataFrame, entity_kind: str) -> pl.DataFrame:
 
 def write_outputs(result: ScoreResult, out_dir: Path) -> dict[str, Path]:
     """Writes ``scores.parquet`` (both kinds, every month), ``scores_groups.csv``,
-    ``scores_companies.csv`` and ``alerts.parquet`` under ``out_dir``."""
+    ``scores_companies.csv``, ``alerts.parquet`` and ``panel.parquet`` (the
+    facts behind the scores) under ``out_dir``."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = {
@@ -367,8 +431,10 @@ def write_outputs(result: ScoreResult, out_dir: Path) -> dict[str, Path]:
         "groups": out_dir / "scores_groups.csv",
         "companies": out_dir / "scores_companies.csv",
         "alerts": out_dir / "alerts.parquet",
+        "panel": out_dir / "panel.parquet",
     }
     result.snapshots.write_parquet(paths["scores"])
+    result.panel.write_parquet(paths["panel"])
     flat_scores(result.snapshots, "group").write_csv(paths["groups"])
     flat_scores(result.snapshots, "company").write_csv(paths["companies"])
     alert_records = [asdict(alert) for alert in result.alerts]
@@ -392,6 +458,7 @@ ALERT_SCHEMA: dict[str, Any] = {
 __all__ = [
     "ALERT_SCHEMA",
     "CARRIED_FIELDS",
+    "FLAT_LEADING",
     "ENGINE_VERSION",
     "FEATURE_VERSION",
     "MODEL_VERSION",
@@ -402,8 +469,10 @@ __all__ = [
     "classify_industry",
     "flat_scores",
     "score_dataset",
+    "score_frame",
     "score_entity",
     "score_panel",
+    "score_tables",
     "snapshots_frame",
     "write_outputs",
 ]

@@ -9,13 +9,8 @@ import sys
 from pathlib import Path
 
 import polars as pl
-import pytest
 from xray_engine.export import export_bundle
 from xray_engine.scoring import score_dataset
-
-pytestmark = pytest.mark.xfail(
-    raises=NotImplementedError, strict=False, reason="engine modules are stubs"
-)
 
 
 def _tree_hash(folder: Path) -> str:
@@ -58,8 +53,6 @@ def _predict(data: Path, out: Path, threads: str | None) -> None:
         "--export-dir", str(out / "bundle"), "--cache-dir", str(out / "cache"),
     ]
     done = subprocess.run(command, env=env, capture_output=True, text=True, check=False)
-    if done.returncode != 0 and "NotImplementedError" in done.stderr:
-        raise NotImplementedError("predict still reaches a stub")
     assert done.returncode == 0, done.stderr[-2000:]
 
 

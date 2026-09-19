@@ -85,6 +85,27 @@ def test_structural_calls_alert_once_and_shocks_never(score_parts, params) -> No
     ]
 
 
+def test_a_slow_drift_alerts_on_its_first_month_with_its_own_words(score_parts, params) -> None:
+    since = score_parts.month_add(START, 7)
+    drift = Trajectory(available=True, reason=None, direction="deteriorating", nature="structural",
+                       delta3=-2.4, sigma=2.0, delta3_sigma=-1.2, persistence_months=1,
+                       detected_since=since, horizon="long", drift_points=-9.64, drift_months=12,
+                       pillars_moved=("liquidity",))
+    months = [_month(score_parts, params, index) for index in range(7)]
+    months.append(_month(score_parts, params, 7, verdict=drift))
+    months.append(_month(score_parts, params, 8, verdict=replace(drift, persistence_months=2)))
+    alerts = build_alerts(months, params)
+    assert _summary(alerts) == [("2025-08", "deterioration_structural", "fired")]
+    assert alerts[0].detail == (
+        "El score acumula una caída de 9,6 puntos en 12 meses: una deriva lenta y sostenida; "
+        "se mueven: liquidez."
+    )
+    up = replace(drift, direction="improving", drift_points=11.0, horizon="both", pillars_moved=())
+    rising = build_alerts([*months[:7], _month(score_parts, params, 7, verdict=up)], params)
+    assert rising[0].kind == "improvement_structural"
+    assert rising[0].detail == "El score acumula una subida de 11,0 puntos en 12 meses: una mejora lenta y sostenida."
+
+
 def test_cap_alert_follows_the_binding_rule(score_parts, params) -> None:
     capped = dict(cap_adjustment=5.0, caps_fired=("negative_liquidity", "weak_payments"))
     other = dict(cap_adjustment=3.0, caps_fired=("weak_payments",))

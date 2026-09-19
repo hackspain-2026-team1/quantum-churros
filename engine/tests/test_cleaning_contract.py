@@ -11,11 +11,6 @@ import pytest
 from xray_engine import cleaning, io
 from xray_engine.contracts import FLOW_CLASSES
 
-pytestmark = pytest.mark.xfail(
-    raises=NotImplementedError, strict=False, reason="io and cleaning are stubs"
-)
-
-
 @pytest.fixture(scope="module")
 def clean(synthetic, params, tmp_path_factory) -> cleaning.CleanTables:
     tables = io.load_tables(synthetic.path, tmp_path_factory.mktemp("clean-cache"))

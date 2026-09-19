@@ -1,16 +1,18 @@
 """The static bundle honours ``contracts/xray-export-v1.schema.json``.
 
-Two subjects: the synthetic fixture the web app is built against (checked now)
-and the output of ``export_bundle`` (pending until ``export.py`` exists).
+Two subjects: the synthetic fixture the web app is built against and the
+output of ``export_bundle`` on the synthetic dataset.
 """
 
 from __future__ import annotations
 
 import csv
 import json
+import random
 import shutil
 import typing
 from dataclasses import fields
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,14 +27,19 @@ from bundle_contract import (
     identity_gap,
     load_schema,
 )
+from typer.testing import CliRunner
 from xray_engine import contracts
+from xray_engine.alerts import build_alerts
+from xray_engine.cli import app
 from xray_engine.contracts import IndustryClassification
-from xray_engine.export import BUNDLE_SCHEMA, export_bundle
-from xray_engine.scoring import score_dataset
-
-pending = pytest.mark.xfail(
-    raises=NotImplementedError, strict=False, reason="export.py is a stub"
+from xray_engine.export import (
+    BUNDLE_SCHEMA,
+    TRUTH_TEXTS,
+    export_bundle,
+    export_from_result,
+    round_preserving_sum,
 )
+from xray_engine.scoring import score_dataset, score_entity
 
 
 def _entity_files(bundle_dir: Path) -> list[tuple[str, dict]]:
@@ -188,7 +195,6 @@ def exported(synthetic, params, tmp_path_factory) -> SimpleNamespace:
     return SimpleNamespace(result=result, manifest=manifest, path=root / "bundle", company=company)
 
 
-@pending
 def test_export_validates_against_the_schema(exported) -> None:
     assert check_bundle(exported.path) == []
     written = json.loads((exported.path / "manifest.json").read_text(encoding="utf-8"))
@@ -203,7 +209,6 @@ def test_export_validates_against_the_schema(exported) -> None:
     assert company["context"]["industry"]["slug"] == "wholesale"
 
 
-@pending
 def test_integer_identity_holds_for_every_group_month(exported) -> None:
     checked = _assert_integer_identity(exported.path)
     snapshots = exported.result.snapshots
@@ -220,7 +225,6 @@ def test_integer_identity_holds_for_every_group_month(exported) -> None:
     assert group_months == snapshots.filter(pl.col("entity_kind") == "group").height > 0
 
 
-@pending
 def test_export_never_leaks_a_raw_description(exported, synthetic) -> None:
     with (synthetic.path / "transactions.csv").open(newline="", encoding="utf-8") as handle:
         descriptions = {
@@ -235,10 +239,134 @@ def test_export_never_leaks_a_raw_description(exported, synthetic) -> None:
         assert not leaked, (path.name, leaked[:3])
 
 
-@pending
 @pytest.mark.dataset
 def test_real_export_follows_the_contract(real_data_dir, params, tmp_path) -> None:
     result = score_dataset(real_data_dir, params, cache_dir=tmp_path / "cache")
     export_bundle(result, tmp_path / "bundle")
     assert check_bundle(tmp_path / "bundle") == []
     assert _assert_integer_identity(tmp_path / "bundle") == result.snapshots.height
+
+
+# --------------------------------------------------------------------------
+# rounding, determinism, glossary, receipt
+# --------------------------------------------------------------------------
+
+
+def test_round_preserving_sum_keeps_the_total_and_stays_within_one_unit() -> None:
+    import random
+
+    assert round_preserving_sum([], 0.0) == []
+    assert round_preserving_sum([61.0, 0.0, -0.0], 61.0) == [610, 0, 0]
+    assert round_preserving_sum([0.33, 0.33, 0.34], 1.0) == [3, 3, 4]
+    # floors 644, -83, -24, -60, 0 miss 2 tenths: they go to the remainders .7 and .6
+    assert round_preserving_sum([64.43, -8.26, -2.34, -5.93, 0.0], 47.9) == [644, -83, -23, -59, 0]
+    rng = random.Random(7)
+    for _ in range(2000):
+        parts = [rng.uniform(40, 80)] + [rng.uniform(-15, 15) for _ in range(rng.randint(0, 5))]
+        parts += [-rng.choice([0.0, rng.uniform(0, 22)]), -rng.choice([0.0, rng.uniform(0, 30)])]
+        total = sum(parts)
+        rounded = round_preserving_sum(parts, total)
+        assert all(type(value) is int for value in rounded)
+        assert sum(rounded) == round(total * 10)
+        assert all(abs(value - part * 10) < 1 for value, part in zip(rounded, parts))
+        assert rounded[-1] <= 0 and rounded[-2] <= 0
+        assert [value for value, part in zip(rounded, parts) if part == 0] in ([], [0], [0, 0])
+
+
+def test_bundle_id_is_deterministic_across_two_exports(exported, tmp_path) -> None:
+    again = export_bundle(exported.result, tmp_path / "again")
+    assert again["bundle_id"] == exported.manifest["bundle_id"] == bundle_id(tmp_path / "again")
+    first = {p.relative_to(exported.path).as_posix(): p.read_bytes() for p in exported.path.rglob("*.json")}
+    second = {p.relative_to(tmp_path / "again").as_posix(): p.read_bytes() for p in (tmp_path / "again").rglob("*.json")}
+    assert first == second
+    # exporting over a previous bundle leaves no stale file behind
+    (tmp_path / "again" / "groups" / "GROUP_STALE.json").write_text("{}", encoding="utf-8")
+    assert export_bundle(exported.result, tmp_path / "again")["bundle_id"] == again["bundle_id"]
+    assert check_bundle(tmp_path / "again") == []
+    # generated_at is an input, never the clock; it does not enter the bundle id
+    stamped = export_bundle(exported.result, tmp_path / "stamped", generated_at="2026-09-19T10:00:00Z")
+    assert stamped["generated_at"] == "2026-09-19T10:00:00Z"
+    assert stamped["bundle_id"] == again["bundle_id"]
+    assert again["generated_at"] == exported.result.window.as_of.isoformat()
+
+
+def test_glossary_explains_every_code_the_engine_can_emit(exported) -> None:
+    glossary = exported.manifest["glossary"]
+    assert set(contracts.PILLAR_GATES) <= set(glossary["gates"])
+    assert set(contracts.SCORE_FLAGS) <= set(glossary["flags"])
+    assert set(contracts.CAP_KEYS) <= set(glossary["caps"])
+    reasons = {*contracts.ABSTAIN_REASONS, *contracts.SUPPRESSION_REASONS, *contracts.TRAJECTORY_REASONS}
+    assert reasons <= set(glossary["reasons"])
+    used = {"gates": set(), "flags": set(), "caps": set(), "reasons": set()}
+    for _, entity in _entity_files(exported.path):
+        for entry in entity["months"]:
+            used["flags"] |= set(entry["flags"])
+            used["caps"] |= set(entry["cap"]["fired"])
+            used["gates"] |= {gate for pillar in entry["pillars"] for gate in pillar["gates"]}
+            used["reasons"] |= {entry["verdict"]["reason"], (entry["abstain"] or {}).get("reason")} - {None}
+            assert not (entry["abstain"] and entry["verdict"]["available"]), (entity["id"], entry["month"])
+    for section, codes in used.items():
+        missing = codes - set(glossary[section])
+        assert not missing, (section, missing)
+        assert not [code for code in codes if glossary[section][code].startswith("Código del motor")]
+
+
+def test_company_truth_follows_the_liquidity_inheritance(exported, synthetic) -> None:
+    companies = {entity["id"]: entity for kind, entity in _entity_files(exported.path) if kind == "company"}
+    for entity in companies.values():
+        if entity["inherits_liquidity"]:
+            assert entity["truth"].startswith(TRUTH_TEXTS["swept"])
+    for _, entity in _entity_files(exported.path):
+        assert len(entity["profile"]) in (0, len(contracts.PROFILE_KEYS))
+    # archetypes: swept subsidiary, treasury centre, captive company funded by the group
+    swept = companies[synthetic.swept_company_id]
+    assert swept["inherits_liquidity"] and swept["truth"] == TRUTH_TEXTS["swept"]
+    assert "inherited_from_group" in swept["months"][-1]["pillars"][0]["gates"]
+    assert companies[synthetic.treasury_company_id]["truth"] == TRUTH_TEXTS["treasury_centre"]
+    captive = companies[synthetic.no_external_revenue_company_id]["truth"]
+    assert TRUTH_TEXTS["group_funded"] in captive and TRUTH_TEXTS["no_external_revenue"] in captive
+    assert any(entity["truth"] is None for entity in companies.values())
+    # the group file repeats the head of each company file
+    for _, group in ((k, e) for k, e in _entity_files(exported.path) if k == "group"):
+        for item in group["companies"]:
+            assert item["truth"] == companies[item["id"]]["truth"]
+    evidence = [json.loads(p.read_text(encoding="utf-8")) for p in (exported.path / "evidence").glob("*.json")]
+    assert len(evidence) == len(_entity_files(exported.path))
+    assert any(row["pillar"] is not None for item in evidence for month in item["months"] for row in month["rows"])
+
+
+def test_receipt_is_minimal_without_validation_and_maps_a_validation_report(exported, tmp_path) -> None:
+    minimal = json.loads((exported.path / "receipt.json").read_text(encoding="utf-8"))
+    assert minimal["checks"] == []
+    zero = [item for item in minimal["signals"] if item["weight"] == 0]
+    assert {"industry", "customer_concentration", "seasonality"} <= {item["name"] for item in zero}
+    assert all(item["why"] for item in minimal["signals"])
+
+    report = {
+        "dataset_hash": exported.result.dataset_hash,
+        "params_hash": exported.result.params.sha256,
+        "engine_version": contracts.ENGINE_VERSION,
+        "isolation": {"pass": True, "n": 6, "max_abs_diff": 0.0, "tol": 1e-9},
+        "additivity": {"pass": False, "max_abs_gap": 0.2},
+        "injection": {"pass": None, "delay_distribution": {"1": 3, "2": 5}, "false_alert_rate": 0.01},
+    }
+    path = tmp_path / "validation.json"
+    path.write_text(json.dumps(report), encoding="utf-8")
+    export_from_result(exported.result, tmp_path / "with-receipt", validation_path=path)
+    assert check_bundle(tmp_path / "with-receipt") == []
+    checks = {
+        item["key"]: item
+        for item in json.loads((tmp_path / "with-receipt" / "receipt.json").read_text(encoding="utf-8"))["checks"]
+    }
+    assert checks["isolation"]["status"] == "pass" and checks["additivity"]["status"] == "fail"
+    assert checks["injection"]["status"] == "info" and len(checks["injection"]["bars"]) == 2
+    assert checks["determinism"]["status"] == "not_run"
+
+    # a report about another dataset is never shown as this bundle's receipt
+    export_bundle(exported.result, tmp_path / "foreign", receipt={**report, "dataset_hash": "other"})
+    assert check_bundle(tmp_path / "foreign") == []
+    foreign = json.loads((tmp_path / "foreign" / "receipt.json").read_text(encoding="utf-8"))["checks"]
+    assert {item["status"] for item in foreign} == {"not_run"}
+    # no report on disk: minimal receipt
+    export_from_result(exported.result, tmp_path / "none", validation_path=tmp_path / "missing.json")
+    assert json.loads((tmp_path / "none" / "receipt.json").read_text(encoding="utf-8"))["checks"] == []

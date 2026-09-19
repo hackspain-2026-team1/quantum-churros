@@ -160,8 +160,15 @@ def test_punctuality_is_as_of_dbt_with_gates(row, params) -> None:
     assert gates(ap_stamped_share=0.9, ap_n=3, ap_neff=1.0) == (
         "stamped_regime", "few_invoices", "low_effective_n",
     )
+    # an ERP that never records payments: open invoices are no signal
+    assert gates(ap_aged_n=20, ap_aged_open_n=16) == ("erp_never_settles",)
+    assert gates(ap_aged_n=300, ap_aged_open_n=300, ap_n=3) == ("few_invoices", "erp_never_settles")
+    for aged, still_open in ((19, 19), (20, 15), (0, 0)):
+        assert pillar_payments(replace(row, ap_aged_n=aged, ap_aged_open_n=still_open), params).score is not None
+    assert pillar_collections(replace(row, ap_aged_n=50, ap_aged_open_n=50), params).score == collections.score
     nothing = dict(ap_n=0, ap_neff=None, ap_days_beyond_terms=None, ap_stamped_share=None, ap_open_share=None)
     assert gates(**nothing) == ("no_invoices",)
+    assert gates(**nothing, ap_aged_n=50, ap_aged_open_n=50) == ("no_invoices",)
     assert pillar_payments(replace(row, ap_n=10, ap_neff=5.0, ap_stamped_share=0.49), params).score is not None
     # AP and AR never mix
     assert pillar_collections(replace(row, **nothing), params).score == collections.score
@@ -195,14 +202,15 @@ def test_activity_is_the_mean_of_coverage_and_momentum(row, params) -> None:
 def test_debt_is_burden_and_absence_is_not_imputed(row, params) -> None:
     result = pillar_debt(row, params)
     assert result.inputs["burden"] == pytest.approx(0.05)
-    assert result.score == pytest.approx(62.5, abs=TOL)  # halfway 0.02 -> 75 and 0.08 -> 50
+    on_the_table = 75.0 - 25.0 * (0.05 - 0.01) / (0.08 - 0.01)  # between 0.01 -> 75 and 0.08 -> 50
+    assert result.score == pytest.approx(on_the_table, abs=TOL)
     assert pillar_debt(replace(row, debt_service_sum_12m_w=0.0), params).score == 100.0
     assert pillar_debt(replace(row, debt_service_sum_12m_w=6_000.0), params).score == 0.0
 
     none = pillar_debt(replace(row, has_debt_products=False, debt_service_sum_12m_w=0.0), params)
     assert none.score is None and none.gates == ("no_debt",)  # not a neutral 75
     unlisted = pillar_debt(replace(row, has_debt_products=False), params)
-    assert unlisted.score == pytest.approx(62.5, abs=TOL)  # service without a product still counts
+    assert unlisted.score == pytest.approx(on_the_table, abs=TOL)  # service without a product still counts
     young = pillar_debt(replace(row, months_in_12m_window=5), params)
     assert young.score is None and young.gates == ("short_history",)
     assert pillar_debt(replace(row, months_in_12m_window=6), params).score is not None

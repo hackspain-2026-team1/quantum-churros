@@ -594,13 +594,14 @@ def test_real_aggregates_are_coherent(real, params) -> None:
     assert dbt["stamped_share"].is_between(0, 1).all() and measured["open_share"].is_between(0, 1 + 1e-9).all()
     empty = dbt.filter(pl.col("n") == 0)
     assert empty.select(pl.col("days_beyond_terms", "neff", "open_share").is_null().all()).row(0) == (True,) * 3
+    # windows add up; ``n`` need not: the zero-terms regime is decided per entity and side
     members = (
         dbt.filter(pl.col("entity_kind") == "company")
         .group_by(pl.col("group_id").alias("entity_id"), "side", "month")
-        .agg(pl.col("n_all").sum(), pl.col("n").sum())
+        .agg(pl.col("n_all").sum())
         .sort("entity_id", "side", "month")
     )
-    groups = dbt.filter(pl.col("entity_kind") == "group").select("entity_id", "side", "month", "n_all", "n")
+    groups = dbt.filter(pl.col("entity_kind") == "group").select("entity_id", "side", "month", "n_all")
     assert members.equals(groups.sort("entity_id", "side", "month"))
 
 

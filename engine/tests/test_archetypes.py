@@ -9,10 +9,6 @@ import pytest
 from xray_engine.contracts import CARRIED_GATE, SIZE_BANDS
 from xray_engine.scoring import score_dataset
 
-pytestmark = pytest.mark.xfail(
-    raises=NotImplementedError, strict=False, reason="engine modules are stubs"
-)
-
 
 @pytest.fixture(scope="module")
 def run(synthetic, params, tmp_path_factory):

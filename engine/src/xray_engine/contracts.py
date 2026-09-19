@@ -33,6 +33,7 @@ EntityKind = Literal["group", "company"]
 Direction = Literal["improving", "stable", "deteriorating", "perimeter_shift"]
 Trend = Literal["improving", "stable", "deteriorating"]  # v1 readers
 Nature = Literal["structural", "shock_pending", "bump"]
+Horizon = Literal["short", "long", "both"]
 AlertKind = Literal[
     "deterioration_structural",
     "improvement_structural",
@@ -123,6 +124,7 @@ PILLAR_GATES: tuple[str, ...] = (
     "stamped_regime",
     "few_invoices",
     "low_effective_n",
+    "erp_never_settles",
     "no_external_revenue",
     "short_history",
     "no_base",
@@ -240,6 +242,7 @@ GATE_TEXTS: dict[str, str] = {
     "stamped_regime": "Las fechas de las facturas las estampa el ERP: no miden puntualidad.",
     "few_invoices": "Menos de 10 facturas con fechas reales en la ventana.",
     "low_effective_n": "El importe se concentra en muy pocas facturas: la media ponderada no es fiable.",
+    "erp_never_settles": "El ERP no registra los pagos: casi todas las facturas vencidas hace 3 a 12 meses siguen abiertas.",
     "no_external_revenue": "Todos los cobros son movimientos internos del grupo.",
     "short_history": "Historia insuficiente para calcular este pilar.",
     "no_base": "No hay meses de comparación con las mismas cuentas.",
@@ -265,7 +268,7 @@ FLAG_TEXTS: dict[str, str] = {
 }
 CAP_TEXTS: dict[str, str] = {
     "negative_liquidity": "Caja más líneas disponibles en negativo 3 de los últimos 6 meses: score máximo 40.",
-    "weak_payments": "Pagos a proveedores por debajo de 25: score máximo 50.",
+    "weak_payments": "Pagos a proveedores por debajo de 40 (más de 60 días sobre el vencimiento): score máximo 50.",
 }
 REASON_TEXTS: dict[str, str] = {
     "stale_feed": "Feed bancario sin datos recientes.",
@@ -307,6 +310,7 @@ class Anchors:
 class SizeBandParams:
     upper_bounds_eur: tuple[float, ...]  # annualised op inflow; one bound per band but the last
     window_months: int  # trailing months that are annualised
+    hold_months: int  # a new band is adopted once it has held this many months in a row
 
 
 @dataclass(frozen=True)
@@ -340,6 +344,11 @@ class InvoiceParams:
     min_invoices: int  # non-stamped invoices in the window
     min_effective_n: float  # Kish n of the value weights
     stamped_share_max: float  # at or above it the date regime is not scorable
+    # share of the zero-terms invoices settled by month end that are stamped; at or
+    # above it every zero-terms invoice of the entity-side counts as stamped that month
+    zero_terms_stamped_share: float
+    never_settles_min_aged: int  # aged invoices needed to tell whether the ERP records payments
+    never_settles_open_share: float  # aged invoices still open at or above it: not scorable
 
 
 @dataclass(frozen=True)
@@ -422,6 +431,12 @@ class TrajectoryParams:
     min_scored_months: int
     perimeter_shift_share: float  # new_perimeter_inflow_share_3m above it
     perimeter_shift_window_months: int
+    # slow-drift detector: Theil-Sen slope of the monthly score over the last
+    # h = min(long_horizon, comparable live months) months, times h
+    long_horizon: int
+    long_min_months: int
+    long_threshold: float  # points
+    long_sigma_mult: float  # times the own sigma
 
 
 @dataclass(frozen=True)
@@ -588,7 +603,8 @@ class PanelRow:
         "first month of the entity / operating inflow of t-2..t; None without inflow", None
     )
     size_band: str | None = _col(
-        pl.String, "-", "micro | small | medium | large from op_in_sum_12m_w * 12 / months_in_12m_window", None
+        pl.String, "-", "micro | small | medium | large from op_in_sum_12m_w * 12 / months_in_12m_window; "
+        "sticky: a new band is adopted after size_bands.hold_months months in a row", None
     )
 
     # live-feed gate
@@ -604,19 +620,21 @@ class PanelRow:
 
     # cash and revolving lines, back-rolled per product and per month
     cash_month_end: float | None = _col(
-        pl.Float64, "EUR", "back-rolled balance of cash products at month end; None without any anchor", None
+        pl.Float64, "EUR", "back-rolled balance at month end of the cash accounts in perimeter (first booked "
+        "row <= month; an account without booked rows is never read); None without any anchor", None
     )
     cash_intra_month_min: float | None = _col(
         pl.Float64, "EUR", "minimum over the days of month of the summed daily cash", None
     )
     headroom: float = _col(
-        pl.Float64, "EUR", "sum over anchored lines of max(0, |granted| - drawn) at month end", 0.0
+        pl.Float64, "EUR", "sum over anchored lines of max(0, |granted| - drawn) at month end; a line is a "
+        "facility of its company and counts from the first booked month of that company, whatever its own rows", 0.0
     )
     headroom_at_min: float = _col(
         pl.Float64, "EUR", "same sum on the first day that reaches cash_intra_month_min", 0.0
     )
     granted: float = _col(
-        pl.Float64, "EUR", "sum of |granted| over revolving lines in perimeter (snapshot, assumed constant)", 0.0
+        pl.Float64, "EUR", "sum of |granted| over revolving lines of the members in perimeter (snapshot, assumed constant)", 0.0
     )
     drawn: float = _col(
         pl.Float64, "EUR", "sum of drawn balances (>= 0) of anchored revolving lines at month end", 0.0
@@ -624,7 +642,7 @@ class PanelRow:
     n_cash_products: int = _col(
         pl.Int64, "count", "cash products in perimeter with a usable balance anchor", 0
     )
-    n_credit_lines: int = _col(pl.Int64, "count", "revolving lines in perimeter", 0)
+    n_credit_lines: int = _col(pl.Int64, "count", "revolving lines of the members in perimeter", 0)
     neg_liquidity_months_6m: int = _col(
         pl.Int64, "months", "months of t-5..t with cash_month_end + headroom < 0", 0
     )
@@ -638,7 +656,7 @@ class PanelRow:
         pl.Boolean, "flag", "company whose cash is swept to the group (LiquidityParams rule); False for groups", False
     )
     cash_share_of_group: float | None = _col(
-        pl.Float64, "share", "company cash_month_end / group cash_month_end; None for groups", None
+        pl.Float64, "share", "company cash_month_end / group cash_month_end, clipped to [0, 1]; None for groups and without positive group cash", None
     )
     zero_balance_account_share: float | None = _col(
         pl.Float64, "share", "cash accounts classified zero-balance over t-11..t / cash accounts", None
@@ -672,7 +690,8 @@ class PanelRow:
     months_in_12m_window: int = _col(pl.Int64, "months", "observed months inside t-11..t", 0)
     op_in_lfl_recent_mean: float | None = _col(
         pl.Float64, "EUR", "mean monthly op_in over t-2..t on accounts with booked rows in both t-2..t and "
-        "t-8..t-3; months winsorised over t-8..t; None without such accounts", None
+        "t-8..t-3 that were already reporting on the first observed month of t-8..t-3; months winsorised "
+        "over t-8..t; None without such accounts", None
     )
     op_in_lfl_prior_mean: float | None = _col(
         pl.Float64, "EUR", "same accounts and cap, mean over the observed months of t-8..t-3", None
@@ -708,13 +727,19 @@ class PanelRow:
         "t - due, each invoice clipped to clip_days", None
     )
     ap_stamped_share: float | None = _col(
-        pl.Float64, "share", "AP invoices in the window with due == issue and settle == due / AP invoices in the window", None
+        pl.Float64, "share", "AP invoices in the window with due == issue and settle == due (every zero-terms "
+        "invoice under the zero-terms regime of the month) / AP invoices in the window", None
     )
     ap_open_share: float | None = _col(
         pl.Float64, "share", "AP window value still open at month end / ap_amount", None
     )
     ap_open: float = _col(pl.Float64, "EUR", "AP open at month end", 0.0)
     ap_overdue: float = _col(pl.Float64, "EUR", "AP open and past due at month end", 0.0)
+    ap_aged_n: int = _col(
+        pl.Int64, "invoices", "AP invoices due 90-365 days before month end, stamped rows excluded "
+        "(input of the erp_never_settles gate)", 0
+    )
+    ap_aged_open_n: int = _col(pl.Int64, "invoices", "... of which still open at month end", 0)
     ar_n: int = _col(pl.Int64, "invoices", "AR invoices in the window, stamped rows excluded", 0)
     ar_neff: float | None = _col(
         pl.Float64, "invoices", "Kish effective n of the AR value weights", None
@@ -724,13 +749,16 @@ class PanelRow:
         pl.Float64, "days", "value-weighted AR days beyond terms, same recipe as AP", None
     )
     ar_stamped_share: float | None = _col(
-        pl.Float64, "share", "AR invoices in the window with due == issue and settle == due / AR invoices in the window", None
+        pl.Float64, "share", "AR invoices in the window with due == issue and settle == due (every zero-terms "
+        "invoice under the zero-terms regime of the month) / AR invoices in the window", None
     )
     ar_open_share: float | None = _col(
         pl.Float64, "share", "AR window value still open at month end / ar_amount", None
     )
     ar_open: float = _col(pl.Float64, "EUR", "AR open at month end", 0.0)
     ar_overdue: float = _col(pl.Float64, "EUR", "AR open and past due at month end", 0.0)
+    ar_aged_n: int = _col(pl.Int64, "invoices", "AR invoices due 90-365 days before month end, stamped rows excluded", 0)
+    ar_aged_open_n: int = _col(pl.Int64, "invoices", "... of which still open at month end", 0)
 
     # data quality, booked rows of t-11..t
     dash_share: float | None = _col(
@@ -845,6 +873,9 @@ class ScoreParts:
     abstained: bool  # the number is still emitted; alerts are not fired
     abstain_reason: str | None  # one of ABSTAIN_REASONS
     unlock_hint: str | None  # Spanish; what would lift the abstention
+    # size band behind the liquidity table (the one of the group when the
+    # liquidity is inherited); part of the explanation block, copied when carried
+    size_band: str | None = None
 
 
 @dataclass(frozen=True)
@@ -877,6 +908,9 @@ class Trajectory:
     pillars_moved: tuple[str, ...] = ()
     persistence_months: int = 0  # consecutive months with the current improving / deteriorating direction
     detected_since: date | None = None  # first month of that run
+    horizon: Horizon | None = None  # which horizon makes the call; None without a call
+    drift_points: float | None = None  # Theil-Sen slope x drift_months; None when not measurable
+    drift_months: int | None = None  # months behind drift_points (long_min_months..long_horizon)
 
 
 @dataclass(frozen=True)
@@ -976,6 +1010,7 @@ class EntitySnapshot(BaseModel):
     entity_kind: EntityKind = "company"
     group_id: str | None = None
     band: str | None = None
+    size_band: str | None = None
     level: float | None = None
     base: float | None = None
     pillars: dict[str, float | None] = Field(default_factory=dict)
@@ -1023,6 +1058,7 @@ SNAPSHOT_SCHEMA: dict[str, Any] = {
     "month": pl.Date,
     "score": pl.Float64,
     "band": pl.String,
+    "size_band": pl.String,
     "level": pl.Float64,
     "base": pl.Float64,
     "pillars": _PILLAR_STRUCT,
@@ -1067,6 +1103,9 @@ SNAPSHOT_SCHEMA: dict[str, Any] = {
             "pillars_moved": pl.List(pl.String),
             "persistence_months": pl.Int64,
             "detected_since": pl.Date,
+            "horizon": pl.String,
+            "drift_points": pl.Float64,
+            "drift_months": pl.Int64,
         }
     ),
     "gates": pl.Struct({key: pl.List(pl.String) for key in PILLAR_KEYS}),

@@ -12,10 +12,6 @@ from xray_engine.scoring import score_dataset, score_entity
 TOL = 1e-9
 KEYS = ["entity_kind", "entity_id", "month"]
 
-pytestmark = pytest.mark.xfail(
-    raises=NotImplementedError, strict=False, reason="engine modules are stubs"
-)
-
 
 @pytest.fixture(scope="module")
 def full_run(synthetic, params, tmp_path_factory):

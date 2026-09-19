@@ -194,9 +194,15 @@ def _caps_holding(
 
 
 def aggregate(
-    pillars: Mapping[str, PillarResult], row: PanelRow, p: Params
+    pillars: Mapping[str, PillarResult],
+    row: PanelRow,
+    p: Params,
+    group_row: PanelRow | None = None,
 ) -> ScoreParts:
     """One entity-month -> ``ScoreParts`` (see the module identities).
+
+    ``group_row`` is the row ``compute_pillars`` received; it only names the
+    ``size_band`` behind an inherited liquidity.
 
     Caps (live feed only; the lowest ceiling binds, ``caps_fired`` lists every
     rule that holds, strictest first):
@@ -210,6 +216,9 @@ def aggregate(
     p.bands)``. ``abstained``, ``abstain_reason`` and ``unlock_hint`` come from
     ``abstention``; ``flags`` from ``score_flags``. ``weights_effective`` and
     ``contributions`` list the available pillars in ``PILLAR_KEYS`` order.
+    ``size_band`` is the band whose liquidity table was read: the one of
+    ``group_row`` when the liquidity is ``inherited_from_group``, else the one
+    of ``row``.
     """
     available = _available(pillars)
     medians = p.reference.medians
@@ -237,6 +246,9 @@ def aggregate(
 
     confidence = confidence_parts(pillars, row, p, feed_live)
     reason, hint = abstention(pillars, row, p, feed_live)
+    liquidity = pillars.get("liquidity")
+    inherited = liquidity is not None and "inherited_from_group" in liquidity.gates
+    banded = group_row if inherited and group_row is not None else row
     return ScoreParts(
         month=row.month,
         months_observed=row.months_observed or 0,
@@ -262,6 +274,7 @@ def aggregate(
         abstained=reason is not None,
         abstain_reason=reason,
         unlock_hint=hint,
+        size_band=banded.size_band,
     )
 
 

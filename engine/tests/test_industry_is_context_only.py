@@ -83,7 +83,6 @@ def test_no_score_input_mentions_industry(params) -> None:
     assert not [name for name in PANEL_COLUMNS if "industry" in name or "sector" in name]
 
 
-@pytest.mark.xfail(raises=NotImplementedError, strict=False, reason="engine modules are stubs")
 def test_permuting_industry_labels_changes_no_score(synthetic, params, tmp_path) -> None:
     base = score_dataset(synthetic.path, params, cache_dir=tmp_path / "cache")
     labels = ["software", "manufacturing", "healthcare", "energy_utilities"]

@@ -8,8 +8,6 @@ import polars as pl
 import pytest
 from xray_engine import io
 
-pytestmark = pytest.mark.xfail(raises=NotImplementedError, strict=False, reason="io is a stub")
-
 REAL_RECORDS = {"transactions": 2_556_437, "invoices": 897_894}
 
 

@@ -36,18 +36,27 @@ def test_hand_set_values_follow_the_spec(params) -> None:
     assert params.anchors["liquidity"].points == (
         (0.0, 0.0), (13.0, 35.0), (27.0, 60.0), (62.0, 85.0), (180.0, 100.0),
     )
+    # Paydex scale at both ends: 30 days early is 100, 20 days early is 90
     assert params.anchors["payments"].points == params.anchors["collections"].points == (
-        (-10.0, 100.0), (0.0, 80.0), (15.0, 70.0), (30.0, 50.0), (60.0, 40.0), (90.0, 30.0),
+        (-30.0, 100.0), (-20.0, 90.0), (0.0, 80.0), (15.0, 70.0), (30.0, 50.0), (60.0, 40.0), (90.0, 30.0),
     )
+    assert params.anchors["payments"].points[0][0] == params.invoices.clip_days[0]
+    # calibration review: only the saturating ends moved (0.70 -> 0.50, 1.25 -> 1.50)
     assert params.anchors["activity_coverage"].points == (
-        (0.70, 0.0), (0.85, 25.0), (0.95, 45.0), (1.00, 60.0), (1.10, 80.0), (1.25, 100.0),
+        (0.50, 0.0), (0.85, 25.0), (0.95, 45.0), (1.00, 60.0), (1.10, 80.0), (1.50, 100.0),
     )
+    # calibration review: top anchor 1.5 -> 1.75
     assert params.anchors["activity_momentum"].points == (
-        (0.4, 0.0), (0.6, 20.0), (0.8, 45.0), (1.0, 70.0), (1.2, 85.0), (1.5, 100.0),
+        (0.4, 0.0), (0.6, 20.0), (0.8, 45.0), (1.0, 70.0), (1.2, 85.0), (1.75, 100.0),
     )
+    # calibration review: 75 points at 1% of the inflow (was 2%)
     assert params.anchors["debt_burden"].points == (
-        (0.0, 100.0), (0.02, 75.0), (0.08, 50.0), (0.25, 25.0), (0.60, 0.0),
+        (0.0, 100.0), (0.01, 75.0), (0.08, 50.0), (0.25, 25.0), (0.60, 0.0),
     )
+    # domain points the review never moves
+    assert params.anchors["activity_coverage"](1.0) == 60.0
+    assert params.anchors["activity_momentum"](1.0) == 70.0
+    assert params.anchors["debt_burden"](0.0) == 100.0
     liquidity = params.liquidity
     assert (liquidity.month_end_weight, liquidity.intra_min_weight) == (0.6, 0.4)
     assert (liquidity.outflow_window_months, liquidity.outflow_fallback_months) == (3, 12)
@@ -68,7 +77,8 @@ def test_hand_set_values_follow_the_spec(params) -> None:
     caps = params.caps
     assert (caps.negative_liquidity_ceiling, caps.weak_payments_ceiling) == (40.0, 50.0)
     assert (caps.negative_liquidity_min_months, caps.negative_liquidity_window_months) == (3, 6)
-    assert caps.weak_payments_threshold == 25.0
+    assert caps.weak_payments_threshold == 40.0  # reachable: more than 60 days beyond terms
+    assert params.anchors["payments"](60.0) == 40.0 and params.anchors["payments"](90.0) < 40.0
     assert dict(params.bands) == {"critical": 0.0, "watch": 40.0, "stable": 60.0, "solid": 80.0}
     feed = params.live_feed
     assert (feed.threshold, feed.recent_months, feed.base_from_months, feed.base_to_months) == (0.5, 3, 12, 4)
@@ -80,6 +90,8 @@ def test_hand_set_values_follow_the_spec(params) -> None:
     assert (trajectory.sigma_floor, trajectory.structural_consecutive_months) == (2.0, 2)
     assert (trajectory.min_scored_months, trajectory.bump_revert_months) == (6, 2)
     assert (trajectory.perimeter_shift_share, trajectory.perimeter_shift_window_months) == (0.2, 3)
+    assert (trajectory.long_horizon, trajectory.long_min_months) == (12, 6)
+    assert (trajectory.long_threshold, trajectory.long_sigma_mult) == (8.0, 2.0)
     assert params.alerts.critical_score == 35.0
     profile = params.profile
     assert (profile.concentration_top1_share, profile.concentration_min_months,
@@ -104,19 +116,38 @@ def test_amended_away_parameters_are_gone(params) -> None:
     assert not hasattr(params.caps, "lines_drawn_ceiling")
 
 
-def test_placeholders_are_flagged_as_not_fitted(params) -> None:
-    assert params.fitted is False and params.fitted_on is None
-    assert dict(params.reference.medians) == {key: 60.0 for key in PILLAR_KEYS}
-    assert params.reference.fitted is False
+def test_the_reference_is_fitted_and_frozen(params) -> None:
+    assert params.fitted is True and params.reference.fitted is True
+    assert isinstance(params.fitted_on, str) and len(params.fitted_on) == 64  # dataset hash
+    medians = params.reference.medians
+    assert set(medians) == set(PILLAR_KEYS)
+    assert all(40.0 <= medians[key] <= 85.0 for key in PILLAR_KEYS)
+    assert all(round(value, 2) == value for value in medians.values())
     liquidity = params.liquidity
-    assert liquidity.band_anchors_fitted is False and set(liquidity.band_anchors) == set(SIZE_BANDS)
-    absolute = params.anchors["liquidity"]
+    assert liquidity.band_anchors_fitted is True and set(liquidity.band_anchors) == set(SIZE_BANDS)
     for table in liquidity.band_anchors.values():
         assert table.points[0] == (0.0, 0.0)
         assert tuple(y for _, y in table.points[1:]) == liquidity.band_scores
-        # until fit-reference runs, a band table is the absolute curve
-        for days in (-5.0, 0.0, 3.0, 5.6, 10.0, 20.0, 45.0, 100.0, 180.0, 400.0):
-            assert table(days) == pytest.approx(absolute(days), abs=1e-9)
+        days = [x for x, _ in table.points]
+        assert all(after - before >= 1.0 for before, after in zip(days, days[1:]))
+    # measured size gradient: the smallest band holds more days of buffer at the median
+    median_days = {band: liquidity.band_anchors[band].points[3][0] for band in SIZE_BANDS}
+    assert median_days["micro"] > median_days["large"]
+
+
+def test_segmented_switch_falls_back_to_the_absolute_curve(params, panel_rows) -> None:
+    """``segmented=false`` is the team switch: every band reads the absolute table."""
+    import random
+
+    from xray_engine.pillars import liquidity_anchors
+
+    flat = dataclasses.replace(params, liquidity=dataclasses.replace(params.liquidity, segmented=False))
+    row = panel_rows.random(random.Random(3))
+    for band in (*SIZE_BANDS, None):
+        banded = dataclasses.replace(row, size_band=band)
+        assert liquidity_anchors(banded, flat) == (params.anchors["liquidity"], False)
+        expected = params.liquidity.band_anchors[band] if band else params.anchors["liquidity"]
+        assert liquidity_anchors(banded, params) == (expected, band is not None)
 
 
 def test_dash_rules_are_the_high_precision_table(params) -> None:

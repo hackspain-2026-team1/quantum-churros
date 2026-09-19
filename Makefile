@@ -3,6 +3,7 @@
 COMPOSE := docker compose -f compose.yaml -f compose.dev.yaml
 XRAY_DATA ?= data/raw
 XRAY_BUNDLE ?= frontend/static/data/v1
+XRAY_OUT ?= artifacts
 
 .PHONY: dev
 dev: ## Build and start the complete development stack
@@ -48,19 +49,19 @@ fit-reference: ## Measure and freeze params/reference_v1.json from XRAY_DATA
 	uv run --package xray-engine xray-score fit-reference $(XRAY_DATA) --out params/reference_v1.json
 
 .PHONY: predict
-predict: ## Score every group and company of XRAY_DATA into artifacts/
-	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out artifacts
+predict: ## Score every group and company of XRAY_DATA (any folder with the 8 CSVs) into XRAY_OUT
+	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out $(XRAY_OUT)
 
 .PHONY: score
 score: predict ## Alias of predict
 
 .PHONY: validate
-validate: ## Run the label-free validation suite and write artifacts/validation.json
-	uv run --package xray-engine xray-score validate $(XRAY_DATA) --out artifacts/validation.json
+validate: ## Run the label-free validation suite and write XRAY_OUT/validation.json
+	uv run --package xray-engine xray-score validate $(XRAY_DATA) --out $(XRAY_OUT)/validation.json
 
 .PHONY: export
 export: ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE
-	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out artifacts --export-dir $(XRAY_BUNDLE)
+	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out $(XRAY_OUT) --export-dir $(XRAY_BUNDLE)
 
 .PHONY: db-migrate
 db-migrate: ## Apply pending Alembic migrations

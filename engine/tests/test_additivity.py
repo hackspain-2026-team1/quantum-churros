@@ -10,6 +10,7 @@ import itertools
 import random
 from dataclasses import replace
 
+import polars as pl
 import pytest
 from xray_engine.aggregate import aggregate, delta_parts
 from xray_engine.contracts import (
@@ -25,6 +26,7 @@ from xray_engine.contracts import (
 )
 from xray_engine.export import round_preserving_sum
 from xray_engine.pillars import compute_pillars
+from xray_engine.scoring import score_dataset
 
 TOL = 1e-9
 N_ROWS = 2_000
@@ -146,13 +148,13 @@ def test_penalty_and_the_two_caps(panel_rows, params) -> None:
     )
     assert blind.caps_fired == ()
 
-    late_payer = _fixed(liquidity=90.0, payments=24.9, collections=90.0, activity=90.0, debt=90.0)
+    late_payer = _fixed(liquidity=90.0, payments=39.9, collections=90.0, activity=90.0, debt=90.0)
     capped = aggregate(late_payer, row, params)
     assert capped.caps_fired == ("weak_payments",) and capped.score == pytest.approx(50.0, abs=TOL)
     both = aggregate(late_payer, replace(row, neg_liquidity_months_6m=4), params)
     assert both.caps_fired == ("negative_liquidity", "weak_payments")  # strictest first
     assert both.score == pytest.approx(40.0, abs=TOL)
-    on_the_line = _fixed(liquidity=90.0, payments=25.0, collections=90.0, activity=90.0, debt=90.0)
+    on_the_line = _fixed(liquidity=90.0, payments=40.0, collections=90.0, activity=90.0, debt=90.0)
     assert aggregate(on_the_line, row, params).caps_fired == ()
 
     # a cap only removes what is above its ceiling
@@ -286,7 +288,70 @@ def test_delta_identity_needs_the_base_term(panel_rows, params) -> None:
     assert still.score == 0.0 and still.base == 0.0
 
 
-@pytest.mark.xfail(raises=NotImplementedError, strict=False, reason="export is a stub")
+def _residuals(snapshots: pl.DataFrame) -> pl.DataFrame:
+    """Per snapshot: what the explanation leaves unexplained, level and delta."""
+    def total(struct: pl.Expr) -> pl.Expr:
+        return pl.sum_horizontal([struct.struct.field(key).fill_null(0.0) for key in PILLAR_KEYS])
+
+    change = pl.col("delta_parts")
+    return snapshots.select(
+        "entity_kind", "branch", "feed_live", "carried_from", "score", "penalty", "cap_adjustment",
+        "abstained",
+        (
+            pl.col("score") - (pl.col("base") + total(pl.col("contributions"))
+                               - pl.col("penalty") - pl.col("cap_adjustment"))
+        ).abs().alias("residual"),
+        (
+            pl.col("base") + total(pl.col("contributions")) - total(
+                pl.struct([
+                    (pl.col("weights_effective").struct.field(key) * pl.col("pillars").struct.field(key)).alias(key)
+                    for key in PILLAR_KEYS
+                ])
+            )
+        ).abs().alias("weighted_residual"),
+        total(pl.col("weights_effective")).alias("weight_sum"),
+        (
+            pl.col("delta") - (change.struct.field("base") + total(change.struct.field("contributions"))
+                               - change.struct.field("penalty") - change.struct.field("cap_adjustment"))
+        ).abs().alias("delta_residual"),
+        change.is_not_null().alias("has_delta"),
+    )
+
+
+def _assert_identity_on_a_run(snapshots: pl.DataFrame) -> pl.DataFrame:
+    found = _residuals(snapshots)
+    assert found.height == snapshots.height > 0
+    assert found["residual"].max() < TOL  # score = base + contributions - penalty - cap
+    assert found.filter(pl.col("has_delta"))["delta_residual"].max() < TOL  # with the delta_base term
+    scored = found.filter(pl.col("branch") != BRANCH_NONE)
+    assert scored["weighted_residual"].max() < TOL  # base + contributions = sum(w_ef * P)
+    assert (scored["weight_sum"] - 1.0).abs().max() < TOL
+    # nothing observable: the reference level, no weights, always abstained
+    empty = found.filter(pl.col("branch") == BRANCH_NONE)
+    assert (empty["weight_sum"] == 0.0).all() and empty["abstained"].all()
+    assert found["score"].is_between(0.0, 100.0).all()
+    assert (found["penalty"] >= 0.0).all() and (found["cap_adjustment"] >= 0.0).all()
+    return found
+
+
+def test_identity_on_every_synthetic_row(synthetic, params, tmp_path) -> None:
+    result = score_dataset(synthetic.path, params, cache_dir=tmp_path / "cache")
+    found = _assert_identity_on_a_run(result.snapshots)
+    assert set(found["entity_kind"]) == {"group", "company"}
+    assert found["carried_from"].is_not_null().any()  # carried months keep the identity too
+
+
+@pytest.mark.dataset
+def test_identity_on_every_real_row(real_data_dir, params) -> None:
+    result = score_dataset(real_data_dir, params)
+    found = _assert_identity_on_a_run(result.snapshots)
+    assert set(found["entity_kind"]) == {"group", "company"}
+    assert found.height > 20_000 and found["branch"].n_unique() > 10
+    assert found["carried_from"].is_not_null().any() and (found["penalty"] > 0).any()
+    assert (found["cap_adjustment"] > 0).any()
+    assert (found["branch"] == BRANCH_NONE).any()  # the empty branch is exercised on real rows
+
+
 def test_tenths_sum_exactly_as_integers(panel_rows, params) -> None:
     rng = random.Random(15)
     for _ in range(500):

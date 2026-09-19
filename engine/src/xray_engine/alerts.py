@@ -37,6 +37,13 @@ DETAIL_TEMPLATES: dict[str, str] = {
     "improvement_structural": (
         "El score sube {points} puntos frente a {compared} y la mejora se mantiene {run} meses seguidos{moved}."
     ),
+    # slow drift: the long horizon makes the call
+    "deterioration_structural_long": (
+        "El score acumula una caída de {points} puntos en {months} meses: una deriva lenta y sostenida{moved}."
+    ),
+    "improvement_structural_long": (
+        "El score acumula una subida de {points} puntos en {months} meses: una mejora lenta y sostenida{moved}."
+    ),
     "level_critical": "El score ({score}) baja de {critical} puntos con el feed bancario activo.",
     "cap_fired": "{rule} Resta {points} puntos.",
     "stale_feed": "No llegan movimientos bancarios recientes: se mantiene el score de {carried}.",
@@ -58,12 +65,20 @@ def _conditions(item: EntityMonth, p: Params) -> dict[str, tuple[str, bool, str]
         detail = ""
         if holds:
             labels = ", ".join(PILLAR_LABELS[key].lower() for key in verdict.pillars_moved)
-            detail = DETAIL_TEMPLATES[kind].format(
-                points=format_es(abs(verdict.delta3 or 0.0), 1),
-                compared=f"{verdict.compared_to:%Y-%m}" if verdict.compared_to else "tres meses antes",
-                run=verdict.persistence_months,
-                moved=f"; se mueven: {labels}" if labels else "",
-            )
+            moved = f"; se mueven: {labels}" if labels else ""
+            if verdict.horizon in ("long", "both") and verdict.drift_points is not None:
+                detail = DETAIL_TEMPLATES[f"{kind}_long"].format(
+                    points=format_es(abs(verdict.drift_points), 1),
+                    months=verdict.drift_months,
+                    moved=moved,
+                )
+            else:
+                detail = DETAIL_TEMPLATES[kind].format(
+                    points=format_es(abs(verdict.delta3 or 0.0), 1),
+                    compared=f"{verdict.compared_to:%Y-%m}" if verdict.compared_to else "tres meses antes",
+                    run=verdict.persistence_months,
+                    moved=moved,
+                )
         found[kind] = (kind, holds, detail)
     critical = parts.score < p.alerts.critical_score
     found["level_critical"] = (
@@ -106,7 +121,8 @@ def build_alerts(months: Sequence[EntityMonth], p: Params) -> list[Alert]:
     Conditions, evaluated per month:
       deterioration_structural / improvement_structural: trajectory direction
         deteriorating / improving with ``nature == "structural"``; emitted on
-        the first structural month of the run. ``perimeter_shift`` never alerts;
+        the first structural month of the run (the detail names the drift
+        when the long horizon makes the call). ``perimeter_shift`` never alerts;
       level_critical: ``score < critical_score`` on a live feed; first month of
         each spell below the threshold;
       cap_fired: ``cap_adjustment > 0`` on a live feed; first month of each

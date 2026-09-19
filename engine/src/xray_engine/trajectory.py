@@ -5,6 +5,12 @@ only, so a verdict never changes when later months arrive. ``history`` holds
 the final ``ScoreParts`` of one entity, carried months included; their score is
 the last live one, so a stale spell is a flat segment. ``trajectories`` gives
 the verdict of every month in one forward pass.
+
+Two horizons make the call. The short one compares month t with month
+``t - horizon_months``; the long one (slow-drift detector) fits a Theil-Sen
+slope to the live months of the last ``long_horizon`` months that are measured
+like month t, so a drift of under a point a month, which never reaches the
+short threshold, is still seen.
 """
 
 from __future__ import annotations
@@ -39,6 +45,9 @@ def _like_for_like(now: ScoreParts, then: ScoreParts, p: Params) -> float | None
         keys = [key for key in keys if key != "activity"]
     if (_INHERITED in now.flags) != (_INHERITED in then.flags):
         # own cash at one end, the cash of the group at the other
+        keys = [key for key in keys if key != "liquidity"]
+    if p.liquidity.segmented and now.size_band != then.size_band:
+        # another size band reads another liquidity table
         keys = [key for key in keys if key != "liquidity"]
     if keys == _available(now) == _available(then):
         return None
@@ -81,6 +90,45 @@ def own_sigma(history: Sequence[ScoreParts], p: Params) -> float:
     return max(cfg.sigma_floor, math.sqrt(variance))
 
 
+def _theil_sen(points: Sequence[tuple[int, float]]) -> float:
+    """Median of the pairwise slopes (mean of the two middle ones when even)."""
+    slopes = sorted(
+        (y1 - y0) / (x1 - x0)
+        for index, (x0, y0) in enumerate(points)
+        for x1, y1 in points[index + 1:]
+    )
+    middle = len(slopes) // 2
+    return slopes[middle] if len(slopes) % 2 else (slopes[middle - 1] + slopes[middle]) / 2.0
+
+
+def _drift(
+    history: Sequence[ScoreParts], position: int, p: Params
+) -> tuple[float, int, ScoreParts] | None:
+    """(drift points, months, first month used) of the long window, or None.
+
+    The window holds the live months of ``t - long_horizon + 1 .. t`` measured
+    like month t (``_like_for_like`` is None), and stops at the latest month
+    flagged ``perimeter_shift``: months before it describe another perimeter.
+    With at least ``long_min_months`` of them, ``months`` = calendar months
+    from the first one used to t and ``drift = Theil-Sen slope * months``.
+    """
+    cfg = p.trajectory
+    now = history[position]
+    oldest = _shift(now.month, 1 - cfg.long_horizon)
+    used: list[ScoreParts] = [now]
+    for item in reversed(history[:position]):
+        if item.month < oldest or "perimeter_shift" in item.flags:
+            break
+        if item.feed_live and _like_for_like(now, item, p) is None:
+            used.append(item)
+    if len(used) < cfg.long_min_months:
+        return None
+    used.reverse()
+    points = [(item.month.year * 12 + item.month.month, item.score) for item in used]
+    months = points[-1][0] - points[0][0] + 1
+    return _theil_sen(points) * months, months, used[0]
+
+
 def _verdict(
     history: Sequence[ScoreParts],
     position: int,
@@ -106,20 +154,33 @@ def _verdict(
         verdicts[item].nature == "bump" and verdicts[item].shock_month == compared
         for item in range(base + 1, position)
     )
-    direction = "stable"
-    if "perimeter_shift" in now.flags:
-        direction = "perimeter_shift"
-    elif not echo and abs(delta3) >= threshold:
+    shifted = "perimeter_shift" in now.flags
+    short = None
+    if not shifted and not echo and abs(delta3) >= threshold:
         own = _like_for_like(now, then, p)
         if own is None or (own * delta3 > 0 and abs(own) >= threshold):
-            direction = "improving" if delta3 > 0 else "deteriorating"
+            short = "improving" if delta3 > 0 else "deteriorating"
+    long = None
+    drift = None if shifted else _drift(history, position, p)
+    if drift is not None and abs(drift[0]) >= max(cfg.long_threshold, cfg.long_sigma_mult * sigma):
+        long = "improving" if drift[0] > 0 else "deteriorating"
 
+    direction, horizon = "stable", None
+    if shifted:
+        direction = "perimeter_shift"
+    elif long is not None:  # the long horizon wins a conflict
+        direction, horizon = long, "both" if short == long else "long"
+    elif short is not None:
+        direction, horizon = short, "short"
+
+    # what moved: against t - horizon, or against the start of the long window
+    reference, sign = (drift[2], drift[0]) if horizon == "long" else (then, delta3)
     moved = tuple(
         key
         for key in _available(now)
-        if then.pillar_scores.get(key) is not None
-        and abs(now.pillar_scores[key] - then.pillar_scores[key]) >= cfg.pillar_move_points
-        and (now.pillar_scores[key] - then.pillar_scores[key]) * delta3 > 0
+        if reference.pillar_scores.get(key) is not None
+        and abs(now.pillar_scores[key] - reference.pillar_scores[key]) >= cfg.pillar_move_points
+        and (now.pillar_scores[key] - reference.pillar_scores[key]) * sign > 0
     )
     common = dict(
         available=True,
@@ -130,6 +191,9 @@ def _verdict(
         delta3_sigma=delta3 / sigma,
         compared_to=compared,
         pillars_moved=moved,
+        horizon=horizon,
+        drift_points=drift[0] if drift is not None else None,
+        drift_months=drift[1] if drift is not None else None,
     )
 
     if direction in _CALLS:
@@ -138,7 +202,7 @@ def _verdict(
             if history[item].month != _shift(first, -1) or verdicts[item].direction != direction:
                 break
             run, first = run + 1, history[item].month
-        if run < cfg.structural_consecutive_months:
+        if horizon == "short" and run < cfg.structural_consecutive_months:
             return Trajectory(
                 **common, nature="shock_pending", shock_pending=True, shock_month=first,
                 persistence_months=run, detected_since=first,
@@ -183,31 +247,43 @@ def trajectory(history: Sequence[ScoreParts], p: Params) -> Trajectory:
     ``delta3_sigma = delta3 / sigma``, ``compared_to = t - horizon`` and
     ``pillars_moved`` = pillars available at both ends whose score moved at
     least ``pillar_move_points`` in the direction of ``delta3`` (descriptive).
-    Direction, first rule that applies:
-      ``perimeter_shift`` when month t carries the flag ``perimeter_shift``
-        (accounts connected in the last three months bring too much of the
-        inflow): no improvement or deterioration call, nature None;
-      stable when ``compared_to`` is the ``shock_month`` of an earlier ``bump``
-        verdict: a spike that reverted is not a base to compare against, so it
-        leaves no echo three months later;
-      improving / deteriorating when ``|delta3| >= max(min_delta_points,
-        min_sigma_multiple * sigma)``; else stable.
+    ``perimeter_shift`` when month t carries the flag ``perimeter_shift``
+    (accounts connected in the last three months bring too much of the inflow):
+    no improvement or deterioration call on either horizon, nature None.
+    Short horizon: improving / deteriorating when ``|delta3| >=
+    max(min_delta_points, min_sigma_multiple * sigma)``; never when
+    ``compared_to`` is the ``shock_month`` of an earlier ``bump`` verdict (a
+    spike that reverted is not a base to compare against, so it leaves no echo
+    three months later).
     Like-for-like guard on that call: when the two ends are not measured the
     same way (a pillar is available at one end only; the activity momentum
     came online in between, i.e. ``months_observed`` crossed
     ``activity.min_months_observed``; the flag ``inherited_from_group`` is on
-    one end only), the pillars that are comparable at both ends, with the
-    nominal weights renormalised over them, must move in the same direction by
-    at least the same threshold; else stable. A pillar that appears, drops out
-    or changes its source moves the level, not the health of the entity.
+    one end only; ``size_band`` differs, so liquidity reads another table),
+    the pillars that are comparable at both ends, with the nominal weights
+    renormalised over them, must move in the same direction by at least the
+    same threshold; else no call. A pillar that appears, drops out or changes
+    its source moves the level, not the health of the entity.
+    Long horizon (``_drift``): ``drift_points`` = Theil-Sen slope of the score
+    over the live months of the last ``long_horizon`` months measured like
+    month t, after the latest ``perimeter_shift`` month, times ``drift_months``
+    (calendar months covered); needs ``long_min_months`` such months. It calls
+    improving / deteriorating when ``|drift_points| >= max(long_threshold,
+    long_sigma_mult * sigma)``. The guard is built in: months measured another
+    way never enter the fit.
+    ``direction`` is the call of either horizon, the long one on a conflict,
+    else stable; ``horizon`` = ``short`` | ``long`` | ``both`` (None without a
+    call). ``pillars_moved`` compares with the first month of the long window
+    when only the long horizon calls.
     ``persistence_months`` counts the consecutive months, ending at t, with the
     same improving / deteriorating direction (0 otherwise); past verdicts are
     those of the prefixes of ``history``. ``detected_since`` is the first month
     of that run.
-    Nature on an improving / deteriorating month: ``shock_pending`` while the
-    run is shorter than ``structural_consecutive_months`` (``shock_pending=
-    True``, ``shock_month`` = first month of the run), ``structural`` from
-    there on. On a stable month: ``bump`` when a month of the last
+    Nature on an improving / deteriorating month: ``structural`` when the long
+    horizon calls; on a short-only call ``shock_pending`` while the run is
+    shorter than ``structural_consecutive_months`` (``shock_pending=True``,
+    ``shock_month`` = first month of the run), ``structural`` from there on.
+    On a stable month: ``bump`` when a month of the last
     ``bump_revert_months`` was ``shock_pending`` and the score has since undone
     at least ``bump_revert_fraction`` of the ``delta3`` of that month
     (``shock_month`` = that month); else None.

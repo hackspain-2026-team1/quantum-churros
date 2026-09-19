@@ -4,6 +4,14 @@ Every figure of month t is read at the end of t: a payment dated after t does
 not exist yet, so the invoice is still open and ages until t. ``status`` and
 ``pending_amount`` are snapshots and only decide whether ``payment_date`` is a
 real settlement. AP and AR are aggregated apart and never averaged.
+
+Zero-terms regime. Some ERPs write no payment terms (due == issuance) and
+stamp the settlement on the same day. Their open invoices carry no real date
+yet, so they would age as overdue until the stamp arrives. Per entity, side
+and month: when at least ``invoices.zero_terms_stamped_share`` of the
+zero-terms invoices settled by month end are stamped, every zero-terms invoice
+of that entity and side counts as stamped for that month. The share only reads
+settlements dated up to month end.
 """
 
 from __future__ import annotations
@@ -45,11 +53,11 @@ _KEY_COLUMNS: dict[str, pl.DataType] = {
 DBT_COLUMNS: dict[str, pl.DataType] = {
     **_KEY_COLUMNS,
     "n_all": pl.Int64,  # invoices in the window, stamped and fx-excluded included
-    "n": pl.Int64,  # invoices behind the average: not stamped, with an FX rate
+    "n": pl.Int64,  # invoices behind the average: not stamped (row or regime), with an FX rate
     "neff": pl.Float64,  # Kish effective n of the EUR weights; null when n == 0
     "amount": pl.Float64,  # EUR, sum of the weights
     "days_beyond_terms": pl.Float64,  # value-weighted; null when n == 0
-    "stamped_share": pl.Float64,  # stamped rows / n_all
+    "stamped_share": pl.Float64,  # stamped rows, zero-terms rows under the regime included / n_all
     "open_share": pl.Float64,  # weight still open at month end / amount; null when n == 0
 }
 
@@ -81,6 +89,7 @@ _INVOICE = "invoice"
 _PAID = "paid"
 _CANCELLED = "cancel"
 _SORT_KEY = ("entity_kind", "entity_id", "side", "month")
+_ENTITIES = (("company", "company_id"), ("group", "group_id"))
 _AS_OF_INPUTS = (
     "company_id", "group_id", "side", "due_date", "settled_date", "amount_cents", "fx_rate",
     "fx_excluded", "terms_days", "stamped",
@@ -169,14 +178,52 @@ def _due_between(
     )
 
 
-def _per_entity(rows: pl.DataFrame, *aggregations: pl.Expr) -> pl.DataFrame:
-    # the same aggregation over every company and over every group (members pooled)
+def _zero_terms_regimes(
+    invoices: pl.DataFrame, months: Sequence[date], params: Params
+) -> dict[str, pl.DataFrame]:
+    """Per entity kind, the (entity, side, month) under the zero-terms regime.
+
+    Reads the zero-terms invoices settled by the end of the month, whatever
+    their due date: the regime is a habit of the ERP, not of the window.
+    """
+    share = params.invoices.zero_terms_stamped_share
+    settled = invoices.filter((pl.col("terms_days") == 0) & pl.col("settled_date").is_not_null()).select(
+        "company_id", "group_id", "side", "stamped",
+        pl.col("settled_date").dt.truncate("1mo").alias("settled_month"),
+    )
+    targets = pl.DataFrame({"month": sorted(set(months))}, schema={"month": pl.Date})
+    found = {}
+    for kind, entity in _ENTITIES:
+        counts = settled.filter(pl.col(entity).is_not_null()).group_by(entity, "side", "settled_month").agg(
+            pl.len().alias("settled_n"), pl.col("stamped").sum().alias("stamped_n")
+        )
+        found[kind] = (
+            counts.join(targets, how="cross")
+            .filter(pl.col("settled_month") <= pl.col("month"))
+            .group_by(entity, "side", "month")
+            .agg(pl.col("settled_n").sum(), pl.col("stamped_n").sum())
+            .filter(pl.col("stamped_n") >= share * pl.col("settled_n"))
+            .select(entity, "side", "month", pl.lit(True).alias("zero_terms_regime"))
+        )
+    return found
+
+
+def _per_entity(
+    rows: pl.DataFrame, regimes: dict[str, pl.DataFrame], *aggregations: pl.Expr
+) -> pl.DataFrame:
+    # the same aggregation over every company and over every group (members pooled);
+    # ``as_stamped``: stamped row, or zero-terms row of an entity-side under the regime
+    as_stamped = pl.col("stamped") | (
+        (pl.col("terms_days") == 0) & pl.col("zero_terms_regime").fill_null(False)
+    )
     return pl.concat(
         rows.filter(pl.col(entity).is_not_null())
+        .join(regimes[kind], on=[entity, "side", "month"], how="left", maintain_order="left")
+        .with_columns(as_stamped.alias("as_stamped"))
         .group_by(pl.col(entity).alias("entity_id"), "group_id", "side", "month")
         .agg(*aggregations)
         .with_columns(pl.lit(kind).alias("entity_kind"))
-        for kind, entity in (("company", "company_id"), ("group", "group_id"))
+        for kind, entity in _ENTITIES
     )
 
 
@@ -190,7 +237,6 @@ def _as_of_aggregates(invoices: pl.DataFrame, months: Sequence[date], params: Pa
     month_end = pl.col("month").dt.month_end()
     settled = _settled_by_month_end()
     rows = _due_between(invoices, months, 0, params.invoices.window_days).with_columns(
-        (~pl.col("stamped") & ~pl.col("fx_excluded") & pl.col("fx_rate").is_not_null()).alias("scored"),
         settled.alias("settled"),
         (pl.col("amount_cents") / 100 * pl.col("fx_rate")).alias("weight"),
         pl.when(settled)
@@ -201,7 +247,8 @@ def _as_of_aggregates(invoices: pl.DataFrame, months: Sequence[date], params: Pa
         .clip(low, high)
         .alias("days"),
     )
-    scored, weight = pl.col("scored"), pl.col("weight")
+    scored = ~pl.col("as_stamped") & ~pl.col("fx_excluded") & pl.col("fx_rate").is_not_null()
+    weight = pl.col("weight")
     late_paid = pl.col("settled") & (pl.col("settled_date") > pl.col("due_date"))
     open_overdue = ~pl.col("settled") & (pl.col("due_date") < month_end)
     zero_terms = pl.col("terms_days") == 0
@@ -219,9 +266,10 @@ def _as_of_aggregates(invoices: pl.DataFrame, months: Sequence[date], params: Pa
     return (
         _per_entity(
             rows,
+            _zero_terms_regimes(invoices, months, params),
             pl.len().cast(pl.Int64).alias("n_all"),
             scored.sum().cast(pl.Int64).alias("n"),
-            pl.col("stamped").sum().alias("stamped_n"),
+            pl.col("as_stamped").sum().alias("stamped_n"),
             weight.filter(scored).sum().alias("amount"),
             (weight * pl.col("days")).filter(scored).sum().alias("weighted_days"),
             (weight * weight).filter(scored).sum().alias("squared_weights"),
@@ -252,7 +300,9 @@ def days_beyond_terms_as_of(
     ``invoices`` follows ``CLEAN_INVOICE_COLUMNS``; ``months`` are first days of
     complete months. For month t with month end T, per entity and side:
       window: ``due_date`` in (T - ``invoices.window_days``, T];
-      stamped rows only count in ``n_all`` and ``stamped_share``;
+      stamped rows, and every zero-terms row while the entity-side is under the
+      zero-terms regime (module docstring), only count in ``n_all`` and
+      ``stamped_share``;
       fx-excluded rows only count in ``n_all``;
       every other row: ``days = settled_date - due_date`` when
       ``settled_date <= T``, else ``T - due_date`` (open, still ageing), clipped
@@ -280,16 +330,19 @@ def window_evidence_as_of(
     that invoice is open at T, never late-paid. ``zero_terms_*`` count rows
     with ``due_date == issuance_date``: the ERP holds no payment terms for
     them, so their days run from issuance. ``aged_*`` look at the not stamped
-    invoices due in (T - 365 days, T - ``window_days``]: an entity with nearly
-    all of them open at T has an ERP that does not record payments.
+    invoices (row or regime) due in (T - 365 days, T - ``window_days``]: an
+    entity with nearly all of them open at T has an ERP that does not record
+    payments (gate ``erp_never_settles``: ``aged_n >=
+    invoices.never_settles_min_aged`` and ``aged_open_n >=
+    invoices.never_settles_open_share * aged_n``).
     """
-    older = _due_between(
-        invoices.filter(~pl.col("stamped")), months, params.invoices.window_days, _AGED_DAYS
-    )
+    older = _due_between(invoices, months, params.invoices.window_days, _AGED_DAYS)
+    dated = ~pl.col("as_stamped")
     aged = _per_entity(
         older,
-        pl.len().cast(pl.Int64).alias("aged_n"),
-        (~_settled_by_month_end()).sum().cast(pl.Int64).alias("aged_open_n"),
+        _zero_terms_regimes(invoices, months, params),
+        dated.sum().cast(pl.Int64).alias("aged_n"),
+        (dated & ~_settled_by_month_end()).sum().cast(pl.Int64).alias("aged_open_n"),
     ).drop("group_id")
     frame = (
         _as_of_aggregates(invoices, months, params)

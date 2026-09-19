@@ -241,6 +241,10 @@ def _punctuality(key: str, side: str, party: str, row: PanelRow, p: Params) -> P
             gates.append("few_invoices")
         if not _known(neff) or neff < cfg.min_effective_n:
             gates.append("low_effective_n")
+        aged = getattr(row, f"{side}_aged_n") or 0
+        still_open = getattr(row, f"{side}_aged_open_n") or 0
+        if aged >= cfg.never_settles_min_aged and still_open >= cfg.never_settles_open_share * aged:
+            gates.append("erp_never_settles")
         if not gates and not _known(days):
             gates.append("no_invoices")  # inconsistent row: nothing to measure
     score = None if gates else p.anchors[key](days)
@@ -274,7 +278,10 @@ def pillar_payments(row: PanelRow, p: Params) -> PillarResult:
     with every gate that applies, in this order: ``stamped_regime``
     (``ap_stamped_share >= stamped_share_max``), ``few_invoices``
     (``ap_n < min_invoices``), ``low_effective_n`` (``ap_neff`` None or
-    ``< min_effective_n``). Never a neutral value.
+    ``< min_effective_n``), ``erp_never_settles`` (``ap_aged_n >=
+    never_settles_min_aged`` and ``ap_aged_open_n >= never_settles_open_share *
+    ap_aged_n``: the ERP does not record payments, open invoices are no signal).
+    Never a neutral value.
     """
     return _punctuality("payments", "ap", "proveedores", row, p)
 

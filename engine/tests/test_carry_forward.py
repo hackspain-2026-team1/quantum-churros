@@ -23,8 +23,6 @@ from xray_engine.scoring import CARRIED_FIELDS, carried_pillars, carry_forward, 
 TOL = 1e-9
 START = date(2025, 1, 1)
 
-stub = pytest.mark.xfail(raises=NotImplementedError, strict=False, reason="pure core not implemented yet")
-
 
 def _explained(parts: ScoreParts) -> float:
     return parts.base + sum(parts.contributions.values()) - parts.penalty - parts.cap_adjustment
@@ -32,10 +30,10 @@ def _explained(parts: ScoreParts) -> float:
 
 def test_the_explanation_block_is_copied_whole(score_parts, params) -> None:
     live = score_parts.live(START, 47.0, params, penalty=3.0, cap_adjustment=4.0, level_weighted=54.0,
-                            caps_fired=("negative_liquidity",), flags=("debt_snapshot",))
+                            caps_fired=("negative_liquidity",), flags=("debt_snapshot",), size_band="small")
     live = replace(live, contributions={key: value + 3.5 for key, value in live.contributions.items()})
     assert live.score == pytest.approx(_explained(live), abs=TOL)
-    own = score_parts.stale(date(2025, 3, 1), 81.0, params, months_observed=14)
+    own = score_parts.stale(date(2025, 3, 1), 81.0, params, months_observed=14, size_band="medium")
     carried = carry_forward(own, live)
 
     for name in CARRIED_FIELDS:
@@ -54,7 +52,9 @@ def test_the_explanation_block_is_copied_whole(score_parts, params) -> None:
         carried.level_weighted - carried.penalty - carried.cap_adjustment, abs=TOL
     )
     assert {"branch", "pillar_scores", "weights_effective", "base", "contributions", "penalty",
-            "cap_adjustment", "caps_fired", "level_weighted", "score", "band"} == set(CARRIED_FIELDS)
+            "cap_adjustment", "caps_fired", "level_weighted", "score", "band",
+            "size_band"} == set(CARRIED_FIELDS)
+    assert carried.size_band == "small"  # the band behind the liquidity score that is shown
 
 
 def test_only_a_live_month_can_be_carried_into_a_stale_one(score_parts, params) -> None:
@@ -124,7 +124,6 @@ def test_snapshot_of_a_carried_month(score_parts, params, monkeypatch) -> None:
     assert legacy.trend == "stable" and legacy.trajectory.direction == "perimeter_shift"
 
 
-@stub
 def test_score_entity_carries_the_last_live_month(panel_rows, params) -> None:
     rng = random.Random(71)
     live = dict(rows_month=100, rows_3m=300, rows_base_median=100.0, rows_base_months=9,

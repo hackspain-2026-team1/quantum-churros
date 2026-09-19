@@ -495,7 +495,6 @@ def test_industry_signals_accept_a_folder_or_loaded_tables(tables, synthetic, sa
     assert len(classify_dataset(synthetic.path)[1]) == len(synthetic.company_ids)
 
 
-@pytest.mark.xfail(raises=NotImplementedError, strict=False, reason="io and cleaning are stubs")
 def test_clean_tables_give_the_same_structure_as_the_stand_ins(synthetic, params, cards, tmp_path) -> None:
     tables = io.load_tables(synthetic.path, tmp_path / "cache")
     clean = cleaning.clean(tables, params)
@@ -516,7 +515,6 @@ def test_clean_tables_give_the_same_structure_as_the_stand_ins(synthetic, params
     assert 0.0 < issued["invoice_issued_ratio"][0] < 1.0
 
 
-@pytest.mark.xfail(raises=NotImplementedError, strict=False, reason="engine modules are stubs")
 def test_cards_of_a_full_run_follow_the_panel(synthetic, params, tmp_path) -> None:
     run = score_dataset(synthetic.path, params, cache_dir=tmp_path / "cache", industry_override={})
     assert set(run.profiles) == set(synthetic.group_ids) | set(synthetic.company_ids)

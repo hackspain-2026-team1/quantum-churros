@@ -179,8 +179,8 @@ def validate_params(params: Params) -> None:
     bounds = params.size_bands.upper_bounds_eur
     if len(bounds) != len(SIZE_BANDS) - 1 or any(b <= a for a, b in zip((0.0, *bounds), bounds)):
         raise ParamsError("size_bands.upper_bounds_eur: one increasing positive bound per band but the last")
-    if params.size_bands.window_months < 1:
-        raise ParamsError("size_bands.window_months must be positive")
+    if params.size_bands.window_months < 1 or params.size_bands.hold_months < 1:
+        raise ParamsError("size_bands: window_months and hold_months must be positive")
 
     liquidity = params.liquidity
     if abs(liquidity.month_end_weight + liquidity.intra_min_weight - 1.0) > 1e-9:
@@ -205,6 +205,10 @@ def validate_params(params: Params) -> None:
     if invoices.min_invoices < 1 or invoices.min_effective_n <= 0:
         raise ParamsError("invoices: gates must be positive")
     _check_share("invoices.stamped_share_max", invoices.stamped_share_max)
+    _check_share("invoices.zero_terms_stamped_share", invoices.zero_terms_stamped_share)
+    _check_share("invoices.never_settles_open_share", invoices.never_settles_open_share)
+    if invoices.never_settles_min_aged < 1:
+        raise ParamsError("invoices.never_settles_min_aged must be positive")
 
     activity = params.activity
     if not 1 <= activity.coverage_min_months <= activity.coverage_window_months:
@@ -259,6 +263,10 @@ def validate_params(params: Params) -> None:
         raise ParamsError("trajectory: min_scored_months must exceed horizon_months")
     if trajectory.sigma_floor <= 0 or trajectory.min_delta_points <= 0:
         raise ParamsError("trajectory: thresholds must be positive")
+    if not 3 <= trajectory.long_min_months <= trajectory.long_horizon:
+        raise ParamsError("trajectory: long_min_months must lie in [3, long_horizon]")
+    if trajectory.long_threshold <= 0 or trajectory.long_sigma_mult < 0:
+        raise ParamsError("trajectory: long_threshold > 0 and long_sigma_mult >= 0")
     _check_share("trajectory.perimeter_shift_share", trajectory.perimeter_shift_share)
     _check_share("trajectory.bump_revert_fraction", trajectory.bump_revert_fraction)
     _check_share("profile.concentration_top1_share", params.profile.concentration_top1_share)

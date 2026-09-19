@@ -54,7 +54,6 @@ def test_invoice_state_does_not_leak_future_payment() -> None:
     assert earlier.equals(states.filter(pl.col("month") <= date(2026, 4, 1)))
 
 
-@pytest.mark.xfail(raises=NotImplementedError, strict=False, reason="invoices is a stub")
 def test_settled_date_is_only_trusted_when_paid_in_full(params) -> None:
     def cached(operation_id: str, **values: object) -> dict[str, object]:
         row: dict[str, object] = {
@@ -111,7 +110,6 @@ def _payable(operation_id: str, due: date, settled: date | None, cents: int, **v
     )
 
 
-@pytest.mark.xfail(raises=NotImplementedError, strict=False, reason="invoices is a stub")
 def test_days_beyond_terms_are_read_as_of_each_month_end(params) -> None:
     march, april = date(2026, 3, 1), date(2026, 4, 1)
     rows = [

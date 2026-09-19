@@ -1012,7 +1012,9 @@ def truncate_dataset(source: Path, target: Path, last_month: date) -> Path:
     for row in _read(source / "balances.csv"):
         cents = to_cents(row["balance"])
         anchor = date.fromisoformat(row["date"][:10])
-        if abs(cents) < SENTINEL_ABS_CENTS and anchor > cut:
+        if abs(cents) >= SENTINEL_ABS_CENTS and anchor > cut:
+            row = dict(row, date=_stamp(cut))  # same placeholder value, read at the cut
+        elif anchor > cut:
             moved = sum(
                 to_cents(item["amount"]) for item in transactions
                 if item["product_id"] == row["product_id"] and item["status"] != "pending"
@@ -1206,6 +1208,11 @@ def random_panel_row(rng: random.Random, **overrides: object) -> PanelRow:
                 f"{side}_overdue": size * rng.random() * 0.3 if has_invoices else 0.0,
             }
         )
+        # own generator: the rows of a seed stay what they were before these columns existed
+        aged_rng = random.Random(f"{side}:{count}:{size}")
+        aged = aged_rng.choice([0, 0, 5, 25, 300]) if has_invoices else 0
+        still_open = aged_rng.choice([0.0, 0.1, 0.3, 0.5, 0.9])  # the last one: an ERP that never settles
+        values.update({f"{side}_aged_n": aged, f"{side}_aged_open_n": int(aged * still_open)})
     values.update(overrides)
     names = {item.name for item in fields(PanelRow)}
     assert set(values) == names, sorted(names ^ set(values))

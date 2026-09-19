@@ -266,7 +266,7 @@ def test_switching_to_the_cash_of_the_group_is_not_a_trajectory(score_parts, par
 
 def test_forward_pass_equals_every_prefix_and_is_past_only(score_parts, params) -> None:
     rng = random.Random(62)
-    seen = set()
+    seen, horizons = set(), set()
     for _ in range(40):
         history, score, last_live = [], rng.uniform(30, 80), None
         for index in range(30):
@@ -286,12 +286,145 @@ def test_forward_pass_equals_every_prefix_and_is_past_only(score_parts, params) 
         for size, verdict in enumerate(verdicts, start=1):
             assert verdict == trajectory(history[:size], params)
             seen.add((verdict.reason, verdict.direction, verdict.nature))
-            if verdict.nature == "structural":
+            if verdict.nature == "structural" and verdict.horizon == "short":
                 assert verdict.persistence_months >= params.trajectory.structural_consecutive_months
+            if verdict.nature == "shock_pending":
+                assert verdict.horizon == "short"
             if verdict.direction in ("stable", "perimeter_shift"):
                 assert verdict.persistence_months == 0 and verdict.detected_since is None
+                assert verdict.horizon is None
+            else:
+                assert verdict.horizon in ("short", "long", "both") and verdict.persistence_months >= 1
+            horizons.add(verdict.horizon)
         assert trajectories(history, params) == verdicts  # deterministic
     assert {nature for _, _, nature in seen} == {None, "shock_pending", "structural", "bump"}
     assert {reason for reason, _, _ in seen} == {None, "short_history", "stale_feed"}
     assert {direction for _, direction, _ in seen} >= {"improving", "deteriorating", "perimeter_shift"}
+    assert horizons == {None, "short", "long", "both"}
     assert trajectory([], params).reason == "short_history"
+
+
+def _ramp(first: float, last: float, count: int = 24) -> list[float]:
+    return [first + (last - first) * index / (count - 1) for index in range(count)]
+
+
+def test_a_slow_drift_is_seen_by_the_long_horizon_only(score_parts, params) -> None:
+    """Under a point a month never reaches |delta3| >= 6; twelve months of it add up."""
+    cfg = params.trajectory
+    for first, last, expected in ((45.0, 65.0, "improving"), (82.0, 62.0, "deteriorating")):
+        history = _history(score_parts, params, _ramp(first, last))
+        verdicts = _verdicts(history, params)
+        assert verdicts == trajectories(history, params)
+        slope = (last - first) / 23
+        assert all(abs(item.delta3) < cfg.min_delta_points for item in verdicts if item.available)
+        final = verdicts[-1]
+        assert (final.direction, final.nature, final.horizon) == (expected, "structural", "long")
+        assert not final.shock_pending and final.shock_month is None
+        assert final.drift_months == cfg.long_horizon
+        assert final.drift_points == pytest.approx(slope * cfg.long_horizon, abs=1e-6)
+        # the call starts when the fitted drift crosses the bar and then holds month after month
+        called = [index for index, item in enumerate(verdicts) if item.direction == expected]
+        months_needed = next(h for h in range(cfg.long_min_months, cfg.long_horizon + 1)
+                             if abs(slope) * h >= cfg.long_threshold)
+        assert called == list(range(months_needed - 1, 24))
+        assert [verdicts[index].persistence_months for index in called] == list(range(1, len(called) + 1))
+        assert {verdicts[index].detected_since for index in called} == {history[called[0]].month}
+        for index in range(cfg.min_scored_months - 1, called[0]):
+            assert verdicts[index].direction == "stable" and verdicts[index].horizon is None
+            assert verdicts[index].drift_points == pytest.approx(slope * (index + 1), abs=1e-6)
+
+    # below the bar over twelve months: stable on both horizons, the drift is still reported
+    flat = trajectory(_history(score_parts, params, _ramp(70.0, 70.0 - 0.5 * 23)), params)
+    assert (flat.direction, flat.horizon, flat.nature) == ("stable", None, None)
+    assert flat.drift_points == pytest.approx(-6.0, abs=1e-6)
+
+
+def test_long_horizon_is_robust_to_a_spike_and_needs_six_months(score_parts, params) -> None:
+    # one bad month inside a flat year: the median slope does not move
+    spiked = [70.0] * 12
+    spiked[6] = 40.0
+    verdict = trajectory(_history(score_parts, params, spiked), params)
+    assert verdict.drift_points == pytest.approx(0.0, abs=TOL) and verdict.direction == "stable"
+    # a noisy entity needs a larger drift: 2 sigma of its own monthly changes
+    rng = random.Random(64)
+    noisy = [60.0]
+    for _ in range(11):
+        noisy.append(noisy[-1] + rng.choice([-9.0, 9.0]))
+    tail = [noisy[-1] - 0.8 * step for step in range(1, 13)]
+    history = _history(score_parts, params, noisy + tail)
+    verdict = trajectory(history, params)
+    assert verdict.sigma > 5.0 and abs(verdict.drift_points) >= params.trajectory.long_threshold
+    assert abs(verdict.drift_points) < params.trajectory.long_sigma_mult * verdict.sigma
+    assert verdict.direction == "stable"
+    # fewer than long_min_months comparable live months: no drift at all
+    young = _history(score_parts, params, _ramp(80.0, 60.0, 6))
+    stale = [score_parts.stale(item.month, item.score, params, score=80.0, carried_from=START)
+             if index in (2, 3) else item for index, item in enumerate(young)]
+    assert trajectory(young, params).drift_months == 6
+    assert trajectory(stale + _history(score_parts, params, [0] * 6 + [60.0])[6:], params).drift_points is None
+
+
+def test_both_horizons_and_the_long_one_wins_a_conflict(score_parts, params) -> None:
+    falling = _ramp(90.0, 68.0, 12) + [58.0]  # a slow fall that ends with a drop
+    verdict = trajectory(_history(score_parts, params, falling), params)
+    assert (verdict.direction, verdict.horizon, verdict.nature) == ("deteriorating", "both", "structural")
+    assert verdict.persistence_months >= 1 and not verdict.shock_pending
+
+    # a year of steady decline and a rebound in the last month: the long horizon keeps the call
+    rebound = _ramp(90.0, 57.0, 12) + [72.0]
+    verdict = trajectory(_history(score_parts, params, rebound), params)
+    assert verdict.delta3 > params.trajectory.min_delta_points and verdict.drift_points < 0
+    assert (verdict.direction, verdict.horizon, verdict.nature) == ("deteriorating", "long", "structural")
+
+
+def test_long_window_only_holds_months_measured_like_the_last_one(score_parts, params) -> None:
+    def ramp(**late):
+        months = []
+        for index in range(14):
+            extra = late if index >= 5 else {}
+            months.append(_scored(score_parts, params, index, liquidity=40.0 + 2.5 * index,
+                                  activity=40.0 + 2.5 * index, **extra))
+        return months
+
+    plain = trajectory(ramp(), params)
+    assert plain.horizon in ("long", "both") and plain.drift_months == params.trajectory.long_horizon
+    # a pillar that comes online in between: the fit starts there
+    arrived = ramp(debt=90.0)
+    assert arrived[5].score - arrived[4].score > 6
+    verdict = trajectory(arrived, params)
+    assert verdict.drift_months == 9 and verdict.drift_points == pytest.approx(
+        9 * 2.5 * (1 - params.weights["debt"] / (1 - params.weights["payments"] - params.weights["collections"])),
+        abs=1e-6,
+    )
+    # months before a perimeter shift describe another perimeter
+    shifted = ramp()
+    shifted[9] = replace(shifted[9], flags=("perimeter_changed", "perimeter_shift"))
+    assert trajectory(shifted, params).drift_points is None  # four months since: not enough
+    assert trajectory(shifted[:10], params).direction == "perimeter_shift"
+    assert trajectory(shifted[:10], params).drift_points is None
+
+
+def test_a_size_band_change_is_not_like_for_like(score_parts, params) -> None:
+    """Another band reads another liquidity table: the level moves, the entity did not."""
+    def history(liquidity_after: float, activity_after: float = 70.0):
+        months = []
+        for index in range(11):
+            late = index >= 8
+            parts = _scored(score_parts, params, index, liquidity=liquidity_after if late else 40.0,
+                            activity=activity_after if late else 70.0)
+            months.append(replace(parts, size_band="medium" if late else "small"))
+        return months
+
+    jumped = history(85.0)
+    assert jumped[8].score - jumped[7].score > 15 and jumped[8].branch == jumped[7].branch
+    verdicts = _verdicts(jumped, params)
+    assert [item.direction for item in verdicts[8:]] == ["stable"] * 3
+    assert verdicts[8].delta3 == pytest.approx(jumped[8].score - jumped[5].score, abs=TOL)
+    assert own_sigma(jumped + jumped[-1:] * 0, params) == params.trajectory.sigma_floor
+    same_band = [replace(item, size_band="small") for item in jumped]
+    assert trajectory(same_band[:9], params).direction == "improving"
+    confirmed = _verdicts(history(85.0, activity_after=90.0), params)  # activity, comparable, moves too
+    assert [item.direction for item in confirmed[8:10]] == ["improving"] * 2
+    # with absolute anchors the band plays no part
+    absolute = replace(params, liquidity=replace(params.liquidity, segmented=False))
+    assert trajectory(jumped[:9], absolute).direction == "improving"
