@@ -72,9 +72,9 @@ export const MOVIMIENTOS_M: { id: MovM; nombre: string; frase: string }[] = [
 export const TIPOS_AVISO: { id: TipoAlerta; nombre: string; tono: 'baja' | 'sube' | 'neutro' }[] = [
 	{ id: 'level_critical', nombre: 'Nivel crítico', tono: 'baja' },
 	{ id: 'deterioration_structural', nombre: 'Deterioro', tono: 'baja' },
-	{ id: 'deterioration_drift', nombre: 'Deriva a la baja', tono: 'baja' },
+	{ id: 'deterioration_drift', nombre: 'Bajada lenta', tono: 'baja' },
 	{ id: 'improvement_structural', nombre: 'Mejora', tono: 'sube' },
-	{ id: 'improvement_drift', nombre: 'Deriva al alza', tono: 'sube' },
+	{ id: 'improvement_drift', nombre: 'Subida lenta', tono: 'sube' },
 	{ id: 'stale_feed', nombre: 'Datos sin actualizar', tono: 'neutro' },
 	{ id: 'cap_fired', nombre: 'Tope aplicado', tono: 'neutro' },
 ];
