@@ -6,7 +6,7 @@
 // Si un fichero de Rumbo falta, la función devuelve null y la interfaz lo dice; nunca rellena con otra cosa.
 
 import type {
-	AlertaM, EmpresaM, IndiceEmpresasM, EvidenciaM, GrupoM, HorizonteM, HorizontesIndiceM, Manifiesto, ParametrosM,
+	AlertaM, EmpresaM, IndiceEmpresasM, EvidenciaM, GrupoM, HorizonteM, HorizontesIndiceM, HorizontesPasadosM, Manifiesto, ParametrosM,
 	ProductosEmpresaM, ProductosGrupoM, ProductosIndiceM, ReciboM,
 } from './contrato';
 
@@ -42,6 +42,7 @@ export const carga = {
 	productosGrupo: (id: string) => leer<ProductosGrupoM>(`${RAIZ_RUMBO}products/${id}.json`, true),
 	productosIndice: () => leer<ProductosIndiceM>(`${RAIZ_RUMBO}products/index.json`, true),
 	horizonte: (id: string) => leer<HorizonteM>(`${RAIZ_RUMBO}horizons/${id}.json`, true),
+	horizontePasado: (id: string) => leer<HorizontesPasadosM>(`${RAIZ_RUMBO}horizons/pasados/${id}.json`, true),
 	horizontesIndice: () => leer<HorizontesIndiceM>(`${RAIZ_RUMBO}horizons/index.json`, true),
 	parametros: () => leer<ParametrosM>(`${RAIZ_RUMBO}params.json`, true),
 	indiceEmpresas: () => leer<IndiceEmpresasM>(`${RAIZ_RUMBO}indice-empresas.json`, true),

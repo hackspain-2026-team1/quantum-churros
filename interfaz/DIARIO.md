@@ -4,6 +4,62 @@ Registro de lo que se hace en `interfaz/`, en qué orden y por qué. Lo lleva el
 
 ---
 
+## 19 de septiembre de 2026, la jerarquía y la previsión del motor
+
+### Una página que se entiende solo por sus formas
+
+Antes, casi todo estaba al mismo nivel. Ahora cada ficha tiene cuatro niveles, cada uno con su forma:
+
+1. **El marco**, fino y en los bordes: la cabecera y, pegada debajo, la regla del tiempo.
+2. **El protagonista**, fijo arriba y siempre a la vista: el número dentro de su círculo y el horizonte. Es lo único de arena de la página.
+3. **Las secciones** (Scoring, Productos y Acciones), en filas, que actúan sobre el protagonista.
+4. **Técnico**, aparte y más tenue: el reverso.
+
+- **El círculo** es la escala del número: de 0 a 100, con los cortes de banda y el nombre de la banda dentro. Lleva dos marcas de comparación: la mediana de las de su tamaño (anillo hueco) y su grupo (grano). Sustituye al medidor pequeño de la línea de estado.
+- **El horizonte** es un calendario fijo: los 24 meses del bundle más 12. Tiene sus dos ejes (el score siempre de 0 a 100, con las bandas, y los meses), las dos zonas rotuladas («lo que ha pasado» y «lo que puede pasar», esta con otro fondo) y los avisos confirmados posados en su mes.
+- **La reactividad**:
+  - pasar por una acción la previsualiza en el horizonte, y marcarla la fija;
+  - «no hacer nada» queda como contorno punteado;
+  - las boyas dicen «6 meses: 35 → 40 (+5)»;
+  - pasar por un pilar lo dibuja encima de la serie, y pasar por un producto enseña la acción que resuelve.
+- **El hilo de arena**: al pasar por una gráfica, la arena ya no se aparta. Cae un hilo fino por el mes señalado y se lee el valor exacto. En la flota, el hilo va en cruz hasta los dos ejes. Solo en la portada la arena se aparta al paso del cursor, y en las fichas no respira: en reposo está quieta.
+- **La regla** va arriba en todas las vistas. En las fichas tiene un solo tirador (el mes que se mira), y ← → lo mueven. Si el mes es pasado, toda la aplicación lo dice: se tiñe el papel y aparece «Viendo mayo de 2026 · volver a hoy». La portada no tiene regla ni reloj de arena, y la pantalla de carga tampoco lleva el reloj.
+- **Productos y Acciones siguen separados**, cada uno con su papel:
+  - Acciones dice qué hacer, ordenado por lo que sube el score;
+  - Productos es la estantería de los siete, siempre en el mismo orden, con sus contratos y el uso de cada línea sobre su límite.
+- **Fuera las notas que justificaban el sistema**: la de «el score del grupo se calcula sumando los flujos», la de «cada grano es una simulación», la de «las acciones las calcula el motor», la de «la clasificación se guarda en este navegador», «ella tira hacia abajo», las versalitas diminutas y los numerales romanos. Los avisos salen de Acciones: van posados en la gráfica, y su bandeja, en Técnico.
+- **Ejes en todas las gráficas**: el horizonte, la flota (score y cambio en tres meses, con las bandas), los pilares (regla de 0 a 100 y la referencia del motor explicada) y las curvas del técnico.
+
+### La previsión, en el motor
+
+Los horizontes ya no los calcula un guion de la interfaz. `scripts/datos/horizontes.py` era una simulación y se ha retirado. Ahora los calcula el motor, con un modelo predictivo entrenado y validado: `engine/src/xray_engine/forecast.py`, que se ejecuta con `xray-score forecast` o `make forecast`, y con `xray-db sync --horizons-dir` dentro del ciclo del backend.
+
+- **El modelo**: uno por horizonte, de 1 a 12 meses. Es una regresión cuantílica lineal del cambio del score, con escala propia y calibración conformal en el tiempo. Cada par (entidad, mes) solo usa lo que se sabía en ese mes.
+- **La validación**, fuera de muestra con origen móvil:
+  - mejora a «no cambia nada» en todos los horizontes validados, de 1 a 10 meses (a 3 meses, 14,2 puntos de error frente a 15,5; a 6, 16,1 frente a 17,7);
+  - la franja del 80 % acierta entre el 80 y el 86 %;
+  - en febrero de 2026, a 3 y 6 meses, el error es de 14,3 frente a 16,1; la simulación anterior se quedaba en 15,2;
+  - los meses 11 y 12 no se pueden validar todavía (hay 24 meses de historia), así que su arena se aclara y lleva la marca «sin validar».
+- **Lo que no es**:
+  - las acciones son contrafactuales: el motor da el score con el pilar en su objetivo y el modelo prevé desde ahí;
+  - «si sigue la deriva» y «si se repite su peor trimestre» son supuestos que se dibujan como líneas, no previsiones.
+- **El futuro visto desde el pasado**: `horizons/pasados/` guarda, para cada corte desde marzo de 2025, lo que preveía un modelo entrenado solo con lo anterior. Con la regla en un mes pasado, el horizonte enseña esa previsión junto a lo que pasó de verdad.
+
+### Pruebas
+
+`bun run prueba` pasa a 46 comprobaciones. Las nuevas cubren:
+- la regla arriba y la portada sin reloj;
+- el horizonte siempre visible, que se mueve al pasar por una acción;
+- los ejes;
+- el hilo de arena;
+- los «qué pasaría si» como líneas;
+- el viaje en el tiempo.
+
+El motor suma `engine/tests/test_forecast.py`: sin fuga del futuro, cuantiles ordenados, mejora a «no cambia nada» en un proceso que vuelve a su nivel y granos deterministas.
+
+Última ejecución: **46 de 46**.
+
+
 ## 19 de septiembre de 2026, la marca, la cabecera, los escenarios y el informe
 
 ### La marca (`src/vistas/marca.ts`)

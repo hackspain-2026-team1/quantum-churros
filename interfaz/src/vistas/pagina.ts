@@ -2,7 +2,7 @@
 // empresa y la metodología. Cada página es un documento que se desplaza; la arena la acompaña con
 // las placas (registro.ts). La miga de pan va en la misma línea que la marca: Grupo › Empresa.
 
-import { TONO } from '../arena/arena';
+import { TONO, type Hilo } from '../arena/arena';
 import type { Placa } from '../arena/placas';
 import { carga } from '../datos/carga';
 import type { AlertaM, EmpresaM, GrupoM, Manifiesto } from '../datos/contrato';
@@ -11,11 +11,11 @@ import type { Cartera } from '../datos/modelo';
 import { nombreBanda, movimiento } from '../datos/redaccion';
 import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
 import { cola, h, vaciar } from './dom';
-import { cabecera, cargarFicha, contenidoSeccion, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia, type OpcionesGrafico } from './ficha';
+import { cabecera, cargarFicha, contenidoSeccion, graficoHorizonte, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
 import { iconoProducto } from './iconos';
 import { logotipo, monograma } from './marca';
 import { granos3, seccion } from './primitivos';
-import { medirPlacas, placa } from './registro';
+import { medirFijas, medirPlacas, placa } from './registro';
 
 export interface Paginas {
 	raiz: HTMLElement;
@@ -26,36 +26,88 @@ export interface Paginas {
 	franja(): [number, number];
 	desplazamiento(): number;
 	ocultar(): void;
+	/** Los avisos confirmados de la entidad abierta, para la regla (índice de mes y si es mejora). */
+	avisosPropios(): { month: string; mejora: boolean }[] | null;
 	/** El informe imprimible de la ficha abierta (las cuatro secciones seguidas), o null. */
 	informe(): HTMLElement | null;
 }
 
 const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Técnico' };
-const ROMANO: Record<Seccion, string> = { scoring: 'I', productos: 'II', acciones: 'III', tecnico: 'IV' };
 
-export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; imprimir(): void }): Paginas {
+export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; imprimir(): void; hilo(hs: Hilo[]): void }): Paginas {
+	// La página: el escenario (el protagonista, fijo) y el cuerpo, que se desplaza debajo.
 	const raiz = h('main', { class: 'pagina', tabindex: '-1' });
+	const escenario = h('section', { class: 'escenario', 'aria-label': 'Dónde está y hacia dónde va' });
+	const cuerpoP = h('div', { class: 'pagina-cuerpo' });
+	raiz.append(escenario, cuerpoP);
 	const miga = h('nav', { class: 'miga', 'aria-label': 'Dónde estás' });
 	app.append(raiz);
-	raiz.addEventListener('scroll', () => cb.alDesplazar(), { passive: true });
+	cuerpoP.addEventListener('scroll', () => { cb.alDesplazar(); cb.hilo([]); }, { passive: true });
+	/** En pantallas bajas o móviles, el escenario va dentro del cuerpo y se desplaza con él. */
+	const escenarioFijo = () => !cb.esMovil() && innerHeight >= 620;
 
 	let clave = '';
 	let datos: DatosFicha | null = null;
-	const estadoUI = { escenario: 'base' as OpcionesGrafico['escenario'], metrica: 'score', acciones: new Set<string>(), filtro: null as FiltroEvidencia | null };
+	const estadoUI = { metrica: 'score', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, supuestos: new Set<'drift' | 'stress'>(), filtro: null as FiltroEvidencia | null };
 	let accionPendiente: string | null = null;
 
 	const acc: Acciones = {
-		abrirEmpresa: (id) => { raiz.scrollTop = 0; S.fijar({ vista: 'empresa', emp: id, sec: S.e.sec }, true); },
-		abrirGrupo: (id) => { raiz.scrollTop = 0; S.fijar({ vista: 'organizacion', sel: id, emp: null }, true); },
+		abrirEmpresa: (id) => { cuerpoP.scrollTop = 0; S.fijar({ vista: 'empresa', emp: id, sec: S.e.sec }, true); },
+		abrirGrupo: (id) => { cuerpoP.scrollTop = 0; S.fijar({ vista: 'organizacion', sel: id, emp: null }, true); },
 		irSeccion: (s, accion, filtro) => {
-			if (accion) { estadoUI.acciones = new Set([accion]); accionPendiente = accion; }
+			if (accion) { estadoUI.acciones.add(accion); accionPendiente = accion; }
 			estadoUI.filtro = filtro ?? null;
 			if (S.e.sec === s) pintarFicha(S.e); else S.fijar({ sec: s }, true);
 		},
 		repintarArena: () => requestAnimationFrame(() => cb.alCambiarArena()),
+		horizonte: {
+			elegidas: () => estadoUI.acciones,
+			alternar: (id, si) => { if (si) estadoUI.acciones.add(id); else estadoUI.acciones.delete(id); estadoUI.previa = null; pintarHorizonte(); },
+			previa: (ids) => { const k = JSON.stringify(ids); if (k === JSON.stringify(estadoUI.previa)) return; estadoUI.previa = ids; pintarHorizonte(); },
+			pilar: (k) => { if (k === estadoUI.pilar) return; estadoUI.pilar = k; pintarHorizonte(); },
+		},
+		hilo: (hs) => cb.hilo(hs),
 	};
 
-	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; }
+	// ─── El protagonista: el número y el horizonte ─────────
+	const zonaHorizonte = h('div', { class: 'zona-grafico' });
+	const controles = h('div', { class: 'controles-grafico' });
+	let temporizadorH = 0;
+	function pintarHorizonte() {
+		if (!datos) return;
+		// Tantear es inmediato para la vista, pero la arena se recompone una vez por gesto.
+		clearTimeout(temporizadorH);
+		temporizadorH = window.setTimeout(() => {
+			const d = datos!;
+			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
+			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, acciones: estadoUI.acciones, previa: estadoUI.previa, supuestos: estadoUI.supuestos, pilar: estadoUI.pilar, alto, alHilo: (hs) => cb.hilo(hs) }, true));
+			pintarControles(d);
+			cb.alCambiarArena();
+		}, estadoUI.previa || estadoUI.pilar ? 40 : 0);
+	}
+	function pintarControles(d: DatosFicha) {
+		vaciar(controles);
+		const metricas: [string, string][] = [['score', 'Score'], ...d.ent.series.filter((s) => ['buffer_days', 'cash_month_end', 'headroom', 'ar_days_beyond_terms', 'ap_days_beyond_terms', 'activity_coverage', 'debt_burden', 'op_inflow_1m', 'op_outflow_1m'].includes(s.key)).map((s) => [s.key, s.label] as [string, string])];
+		const selM = h('select', { class: 'sel-sutil', 'aria-label': 'Qué se dibuja' }, ...metricas.map(([k, n]) => h('option', { value: k, selected: k === estadoUI.metrica }, n)));
+		selM.addEventListener('change', () => { estadoUI.metrica = selM.value; pintarHorizonte(); });
+		controles.append(selM);
+		if (estadoUI.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte) {
+			const sup = h('div', { class: 'escenarios', role: 'group', 'aria-label': 'Qué pasaría si' }, h('span', { class: 'esc-t' }, 'qué pasaría si'));
+			for (const k of ['drift', 'stress'] as const) {
+				const b = h('button', { type: 'button', class: `esc esc-${k} ${estadoUI.supuestos.has(k) ? 'activo' : ''}`, 'aria-pressed': String(estadoUI.supuestos.has(k)), title: k === 'drift' ? 'Prolonga su pendiente de 12 meses. No es una predicción.' : 'Resta a la previsión su peor caída de tres meses del último año. No es una predicción.' }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), k === 'drift' ? 'sigue la deriva' : 'se repite su peor trimestre');
+				b.addEventListener('click', () => { if (estadoUI.supuestos.has(k)) estadoUI.supuestos.delete(k); else estadoUI.supuestos.add(k); pintarHorizonte(); });
+				sup.append(b);
+			}
+			controles.append(sup);
+		}
+		if (estadoUI.acciones.size) {
+			const quitar = h('button', { type: 'button', class: 'chip-acciones' }, `${f.plural(estadoUI.acciones.size, 'acción marcada', 'acciones marcadas')} · quitar`);
+			quitar.addEventListener('click', () => { estadoUI.acciones.clear(); estadoUI.previa = null; pintarFicha(S.e); });
+			controles.append(quitar);
+		}
+	}
+
+	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; cb.hilo([]); }
 
 	// ─── Miga de pan (en la cabecera, junto a la marca) ─────
 	function pintarMiga(e: Estado) {
@@ -84,11 +136,11 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		miga.append(mapa);
 	}
 
-	// ─── Marcas de sección (I–IV) ─────────────────────────
+	// ─── Secciones: tres que actúan sobre el horizonte y, aparte, el reverso técnico ───
 	function marcas(e: Estado): HTMLElement {
 		const nav = h('nav', { class: 'sec-marcas', 'aria-label': 'Secciones' });
 		for (const s of SECCIONES) {
-			const b = h('button', { type: 'button', class: `sec-marca ${e.sec === s ? 'activa' : ''}`, 'aria-current': e.sec === s ? 'true' : undefined, title: `${NOMBRE_SECCION[s]} (${SECCIONES.indexOf(s) + 1})` }, h('span', { class: 'sec-marca-n' }, ROMANO[s]), h('span', { class: 'sec-marca-t' }, NOMBRE_SECCION[s]));
+			const b = h('button', { type: 'button', class: `sec-marca ${s === 'tecnico' ? 'reverso' : ''} ${e.sec === s ? 'activa' : ''}`, 'aria-current': e.sec === s ? 'true' : undefined, title: `${NOMBRE_SECCION[s]} (${SECCIONES.indexOf(s) + 1})` }, NOMBRE_SECCION[s]);
 			b.addEventListener('click', () => { if (S.e.sec !== s) S.fijar({ sec: s }, true); });
 			nav.append(b);
 		}
@@ -98,6 +150,8 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	// ─── Pintar ──────────────────────────────────────────────
 	async function pintar(e: Estado) {
 		raiz.hidden = false; miga.hidden = false;
+		const ficha = e.vista === 'organizacion' || e.vista === 'empresa';
+		raiz.classList.toggle('con-escenario', ficha);
 		document.body.dataset.pagina = e.vista;
 		pintarMiga(e);
 		const corte = cb.corte();
@@ -106,10 +160,10 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const k = `${nueva}|${e.sec}`;
 		if (soloSeccion) { pintarFicha(e); return; }
 		clave = nueva;
+		if (!ficha) { vaciar(escenario); escenario.hidden = true; }
 		if (e.vista === 'entrada') return pintarEntrada();
 		if (e.vista === 'metodologia') return pintarMetodologia();
-		vaciar(raiz);
-		raiz.append(h('div', { class: 'cargando' }, h('p', {}, 'Leyendo la ficha…')));
+		if (!datos || datos.id !== (e.vista === 'empresa' ? e.emp : e.sel)) { vaciar(escenario); vaciar(cuerpoP); cuerpoP.append(h('div', { class: 'cargando' }, h('p', {}, 'Leyendo la ficha…'))); }
 		const kind = e.vista === 'empresa' ? 'company' : 'group';
 		const id = kind === 'company' ? e.emp! : e.sel!;
 		const d = await cargarFicha(kind, id, e.sel!, corte, man);
@@ -133,30 +187,37 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			}
 		}
 		datos = d;
-		if (!d) { vaciar(raiz); raiz.append(h('p', { class: 'vacio' }, `No hay fichero de ${nombreEntidad(kind, id)} en el bundle.`)); cb.alCambiarArena(); return; }
-		estadoUI.acciones = accionPendiente ? new Set([accionPendiente]) : new Set();
+		if (!d) { vaciar(cuerpoP); cuerpoP.append(h('p', { class: 'vacio' }, `No hay fichero de ${nombreEntidad(kind, id)} en el bundle.`)); cb.alCambiarArena(); return; }
+		// Las acciones marcadas se conservan al mover la regla dentro de la misma entidad.
+		if (!datos || datos.id !== d.id) estadoUI.acciones = accionPendiente ? new Set([accionPendiente]) : new Set();
 		accionPendiente = null;
+		estadoUI.previa = null; estadoUI.pilar = null;
 		pintarFicha(S.e);
 	}
 
 	function pintarFicha(e: Estado) {
 		const d = datos!;
-		const y = raiz.scrollTop;
-		vaciar(raiz);
-		if (accionPendiente) { estadoUI.acciones = new Set([accionPendiente]); accionPendiente = null; }
+		const y = cuerpoP.scrollTop;
+		if (accionPendiente) { estadoUI.acciones.add(accionPendiente); accionPendiente = null; }
 		const movil = cb.esMovil();
+		// El protagonista: número y horizonte, arriba y siempre a la vista.
+		escenario.hidden = false;
+		vaciar(escenario);
+		escenario.append(h('div', { class: `escenario-hoja ${d.kind}` }, cabecera(d, movil), h('div', { class: 'horizonte' }, controles, zonaHorizonte)));
+		const fijo = escenarioFijo();
+		raiz.classList.toggle('escenario-fijo', fijo);
+		vaciar(cuerpoP);
+		if (!fijo) cuerpoP.append(escenario);
 		const hoja = h('article', { class: `hoja-ficha ${d.kind}` });
-		hoja.append(cabecera(d, movil), marcas(e));
-		const cuerpo = h('div', { class: 'ficha-cuerpo' });
-		if (d.kind === 'group' && e.sec === 'scoring') cuerpo.append(flota(d));
-		cuerpo.append(contenidoSeccion(d, e.sec, estadoUI, acc, movil));
-		hoja.append(cuerpo);
-		raiz.append(hoja);
-		raiz.scrollTop = e.sec === S.e.sec ? y : 0;
-		// Llegada desde un nudo del hilo: la evidencia filtrada, a la vista.
+		hoja.append(marcas(e));
+		hoja.append(contenidoSeccion(d, e.sec, acc, estadoUI.filtro, d.kind === 'group' ? flota(d) : null));
+		cuerpoP.append(hoja);
+		if (fijo) raiz.insertBefore(escenario, cuerpoP);
+		pintarHorizonte();
+		cuerpoP.scrollTop = e.sec === S.e.sec ? y : 0;
 		if (estadoUI.filtro && e.sec === 'tecnico') {
-			const ev = raiz.querySelector('.evidencia-filtrada') as HTMLElement | null;
-			if (ev) raiz.scrollTop = ev.offsetTop - 70;
+			const ev = cuerpoP.querySelector('.evidencia-filtrada') as HTMLElement | null;
+			if (ev) cuerpoP.scrollTop = ev.offsetTop - 70;
 			estadoUI.filtro = null;
 		}
 		cb.alCambiarArena();
@@ -167,22 +228,39 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const g = d.ent as GrupoM;
 		const filas = d.empresas.map((em) => ({ em, mes: em.ent?.months.find((m) => m.month === d.corte) ?? null }));
 		const conScore = filas.filter((x) => x.mes);
-		const maxD = Math.max(60, ...conScore.map((x) => Math.abs(x.mes!.verdict.delta3 ?? 0)));
+		// El eje vertical es simétrico y redondo: el cambio en tres meses, en puntos.
+		const maxP = Math.max(6, ...conScore.map((x) => Math.abs(x.mes!.verdict.delta3 ?? 0) / 10));
+		const paso = maxP <= 10 ? 5 : maxP <= 20 ? 10 : maxP <= 40 ? 20 : 25;
+		const tope = Math.ceil(maxP / paso) * paso;
+		const uY = (dp: number) => 0.5 - (dp / tope) * 0.5;
 		const plano = h('div', { class: 'flota-plano', 'aria-label': 'Empresas del grupo: score en horizontal, cambio en tres meses en vertical' });
+		const bandas = man.bands.filter((b) => b.min > 0).map((b) => b.min / 1000);
 		placa(plano, (cj) => ({
 			tipo: 'flota', x: cj.x, y: cj.y, w: cj.w, h: cj.h,
-			puntos: conScore.map((x) => ({ x: x.mes!.shown / 1000, y: 0.5 - ((x.mes!.verdict.delta3 ?? 0) / maxD) * 0.45, r: 5, tono: x.mes!.band === 'critical' ? TONO.peligro : TONO.tinta, alfa: 0.9 })),
+			puntos: conScore.map((x) => ({ x: x.mes!.shown / 1000, y: uY((x.mes!.verdict.delta3 ?? 0) / 10), r: 5.5, tono: x.mes!.band === 'critical' ? TONO.peligro : TONO.tinta, alfa: 0.9 })),
+			rejillaX: [0.2, 0.4, 0.6, 0.8].map((u) => ({ u, fuerte: bandas.some((b) => Math.abs(b - u) < 1e-6) })).concat(bandas.filter((b) => ![0.2, 0.4, 0.6, 0.8].some((u) => Math.abs(u - b) < 1e-6)).map((u) => ({ u, fuerte: true }))),
+			rejillaY: [-tope, -tope / 2, 0, tope / 2, tope].map((v) => ({ u: uY(v), fuerte: v === 0 })),
 		}));
+		for (const v of [0, 20, 40, 60, 80, 100]) { const t = h('span', { class: 'flota-tick x' }, String(v)); t.style.left = `${v}%`; plano.append(t); }
+		for (const v of [-tope, -tope / 2, 0, tope / 2, tope]) { const t = h('span', { class: 'flota-tick y' }, v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`); t.style.top = `${uY(v) * 100}%`; plano.append(t); }
+		for (const b of man.bands) { const t = h('span', { class: 'flota-banda' }, b.label.toLowerCase()); t.style.left = `${((b.min + (man.bands[man.bands.indexOf(b) + 1]?.min ?? 1000)) / 20)}%`; plano.append(t); }
 		for (const x of conScore) {
-			const et = h('button', { type: 'button', class: 'flota-etq', title: `${f.empresa(x.em.res.id)} · ${x.em.res.role} · ${f.score(x.mes!.shown)}` }, f.empresa(x.em.res.id).replace('Empresa ', ''));
+			const et = h('button', { type: 'button', class: 'flota-etq', title: `${f.empresa(x.em.res.id)} · ${x.em.res.role} · score ${f.score(x.mes!.shown)} · ${f.delta(x.mes!.verdict.delta3 ?? 0)} en tres meses` }, f.empresa(x.em.res.id));
 			et.style.left = `${(x.mes!.shown / 1000) * 100}%`;
-			et.style.top = `${(0.5 - ((x.mes!.verdict.delta3 ?? 0) / maxD) * 0.45) * 100}%`;
+			et.style.top = `${uY((x.mes!.verdict.delta3 ?? 0) / 10) * 100}%`;
 			et.addEventListener('click', () => acc.abrirEmpresa(x.em.res.id));
+			// El hilo en cruz: del punto a sus dos ejes, para leerlo exacto.
+			et.addEventListener('pointerenter', () => {
+				const r = plano.getBoundingClientRect();
+				const px = r.left + (x.mes!.shown / 1000) * r.width, py = r.top + uY((x.mes!.verdict.delta3 ?? 0) / 10) * r.height;
+				cb.hilo([{ x0: px, y0: py, x1: px, y1: r.bottom, tono: TONO.info }, { x0: px, y0: py, x1: r.left, y1: py, tono: TONO.info }]);
+			});
+			et.addEventListener('pointerleave', () => cb.hilo([]));
 			plano.append(et);
 		}
-		plano.append(h('span', { class: 'flota-eje x' }, 'score →'), h('span', { class: 'flota-eje y' }, 'cambio en tres meses ↑'));
+		plano.append(h('span', { class: 'flota-eje x' }, 'score'), h('span', { class: 'flota-eje y' }, 'cambio en tres meses, en puntos'));
 		const tabla = h('table', { class: 'tabla-sutil empresas' },
-			h('thead', {}, h('tr', {}, h('th', {}, 'Empresa'), h('th', {}, 'Papel y tesorería'), h('th', { class: 'num' }, 'Score'), h('th', {}, 'Movimiento'), h('th', {}, 'Confianza'), h('th', {}, 'Productos'), h('th', { class: 'num' }, 'Acciones'))),
+			h('thead', {}, h('tr', {}, h('th', {}, 'Empresa'), h('th', {}, 'Papel y tesorería'), h('th', { class: 'num' }, 'Score'), h('th', {}, 'Movimiento'), h('th', {}, 'Confianza'), h('th', {}, 'Productos'), h('th', { class: 'num' }, 'Acciones'), h('th', {}, '24 meses'))),
 			h('tbody', {}, ...filas.sort((a, b) => (a.mes?.shown ?? 9999) - (b.mes?.shown ?? 9999)).map(({ em, mes }) => {
 				const tr = h('tr', { class: 'tocable', tabindex: '0' },
 					h('td', {}, h('b', {}, f.empresa(em.res.id))),
@@ -192,18 +270,17 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 					h('td', {}, mes ? granos3(mes.conf.label) : ''),
 					h('td', { class: 'mini-prods' }, ...(em.prod?.held ?? []).map((t) => iconoProducto(t.product, { tam: 18, titulo: true, sinFilete: true }))),
 					h('td', { class: 'num' }, mes?.actions?.length ? f.numero(mes.actions.length) : '—'),
-					h('td', {}, cola(em.res.shown.map((v) => v), 88, 20)));
+					h('td', { title: 'Últimos 24 meses, de 0 a 100' }, cola(em.res.shown.map((v) => v), 88, 20)));
 				tr.addEventListener('click', () => acc.abrirEmpresa(em.res.id));
 				tr.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') acc.abrirEmpresa(em.res.id); });
 				return tr;
 			})));
-		const hereda = g.companies.filter((x) => x.inherits_liquidity).length;
-		return seccion(`Sus ${f.plural(g.companies.length, 'empresa', 'empresas')}`, plano, h('div', { class: 'tabla-caja' }, tabla), hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
+		return seccion(`Sus ${f.plural(g.companies.length, 'empresa', 'empresas')}`, plano, h('div', { class: 'tabla-caja' }, tabla));
 	}
 
 	// ─── Entrada ───────────────────────────────────────────
 	async function pintarEntrada() {
-		vaciar(raiz);
+		vaciar(cuerpoP);
 		const hoja = h('article', { class: 'entrada' });
 		// El objeto de la portada: la rosa de los vientos, hecha de arena.
 		const rosa = h('div', { class: 'entrada-rosa', 'aria-hidden': 'true' });
@@ -245,7 +322,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			seccion('Las que piden atención hoy', atencion),
 			seccion('O buscarla en el mapa', mapa, met),
 		);
-		raiz.append(hoja);
+		cuerpoP.append(hoja);
 		cb.alCambiarArena();
 		requestAnimationFrame(() => entrada.focus({ preventScroll: true }));
 		// Las que piden atención: datos del motor y de los horizontes, nada más.
@@ -264,9 +341,9 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 
 	// ─── Metodología ───────────────────────────────────────
 	async function pintarMetodologia() {
-		vaciar(raiz);
+		vaciar(cuerpoP);
 		const hoja = h('article', { class: 'metodologia' }, h('h1', {}, 'Cómo se calcula todo esto'));
-		raiz.append(hoja);
+		cuerpoP.append(hoja);
 		const [recibo, prod, hor, params] = await Promise.all([carga.recibo(), carga.productosIndice(), carga.horizontesIndice(), carga.parametros()]);
 		hoja.append(h('p', { class: 'lema' }, 'Todo lo que enseña Rumbo sale de estos ficheros. Nada está escrito a mano en la aplicación.'));
 		hoja.append(seccion('La huella', h('dl', { class: 'dl-tecnica' },
@@ -284,11 +361,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			for (const a of recibo.abstentions) porRazon.set(a.reason, (porRazon.get(a.reason) ?? 0) + 1);
 			hoja.append(seccion('Dónde se abstiene', h('ul', { class: 'senales' }, ...[...porRazon].map(([r, n]) => h('li', {}, h('b', {}, man.glossary.reasons[r] ?? r), ` · ${f.plural(n, 'mes de entidad', 'meses de entidad')}`, h('p', {}, recibo.abstentions.find((a) => a.reason === r)?.unlock ?? ''))))));
 		}
-		if (hor) {
-			const cal = hor.calibration as { h3?: { cov50: number; cov80: number }; h6?: { cov50: number; cov80: number }; mae_median?: number; mae_naive?: number; eval_cut?: string };
-			hoja.append(seccion('El futuro', h('p', {}, `Para cada entidad se simulan 12 meses, 400 veces, a partir de sus propias variaciones, y cada mes simulado se puntúa con las funciones del motor. Comprobado contra lo que pasó de verdad desde ${cal.eval_cut ? f.mes(cal.eval_cut) : '—'}: a seis meses, la franja del 80 % acierta el ${f.porcentaje(cal.h6?.cov80 ?? 0, 0)} de las veces. La mediana se equivoca en ${f.numero(cal.mae_median ?? 0, 1)} puntos de media, frente a ${f.numero(cal.mae_naive ?? 0, 1)} de suponer que nada cambia.`),
-				h('p', { class: 'nota' }, `El corte se reproduce con el motor en ${hor.checks.h0_reproduced} entidades; cada acción llega a la cifra del motor en ${hor.checks.actions_consistent}. Los horizontes nunca cambian un score, un veredicto ni un aviso.`)));
-		}
+		if (hor) hoja.append(seccion('El futuro: la previsión del motor', validacion(hor)));
 		if (prod) {
 			const p = prod.portfolio;
 			hoja.append(seccion('Los productos', h('ul', { class: 'senales' }, ...Object.entries(p).map(([id, x]) => h('li', { class: 'prod-met' }, iconoProducto(id as never, { tam: 32 }), h('div', {}, h('b', {}, `${f.plural(x.companies, 'empresa', 'empresas')}`), ` en ${f.plural(x.groups, 'grupo', 'grupos')}: ${f.numero(x.declared)} declaradas por el banco, ${f.numero(x.inferred)} deducidas de sus movimientos`, h('p', { class: 'nota' }, (prod.rules[id] as { note?: string })?.note ?? '')))))));
@@ -303,16 +376,15 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const e = S.e;
 		if (!datos || (e.vista !== 'organizacion' && e.vista !== 'empresa')) return null;
 		const d = datos;
-		const quieto: Acciones = { abrirEmpresa: () => {}, abrirGrupo: () => {}, irSeccion: () => {}, repintarArena: () => {} };
+		const quieto: Acciones = { abrirEmpresa: () => {}, abrirGrupo: () => {}, irSeccion: () => {}, repintarArena: () => {}, horizonte: { elegidas: () => estadoUI.acciones, alternar: () => {}, previa: () => {}, pilar: () => {} }, hilo: () => {} };
 		const hoja = h('article', { class: `hoja-ficha informe ${d.kind}` });
 		hoja.append(h('header', { class: 'informe-cab' },
 			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
 			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
-		hoja.append(cabecera(d, false));
+		hoja.append(cabecera(d, false), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', acciones: new Set(estadoUI.acciones), previa: null, supuestos: new Set(estadoUI.supuestos), pilar: null, alto: 240 }, true)));
 		for (const sec of SECCIONES) {
-			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, h('span', { class: 'sec-marca-n' }, ROMANO[sec]), ` ${NOMBRE_SECCION[sec]}`));
-			if (d.kind === 'group' && sec === 'scoring') cuerpo.append(flota(d));
-			cuerpo.append(contenidoSeccion(d, sec, { ...estadoUI, acciones: new Set(estadoUI.acciones), filtro: null }, quieto, false));
+			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, NOMBRE_SECCION[sec]));
+			cuerpo.append(contenidoSeccion(d, sec, quieto, null, d.kind === 'group' && sec === 'scoring' ? flota(d) : null));
 			hoja.append(cuerpo);
 		}
 		hoja.append(h('footer', { class: 'informe-pie' },
@@ -322,14 +394,38 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 
 	return {
 		raiz, miga, pintar: (e) => { void pintar(e); }, ocultar, informe,
-		placas: () => medirPlacas(raiz),
-		franja: () => { const r = raiz.getBoundingClientRect(); return [r.top, r.bottom]; },
-		desplazamiento: () => raiz.scrollTop,
+		placas: () => [...(raiz.classList.contains('escenario-fijo') && !escenario.hidden ? medirFijas(escenario) : []), ...medirPlacas(cuerpoP)],
+		franja: () => { const r = cuerpoP.getBoundingClientRect(); return [r.top, r.bottom]; },
+		desplazamiento: () => cuerpoP.scrollTop,
+		avisosPropios: () => {
+			const e = S.e;
+			if (!datos || (e.vista !== 'organizacion' && e.vista !== 'empresa')) return null;
+			return datos.ent.alerts.filter((a) => a.state === 'fired' && /structural|drift/.test(a.kind)).map((a) => ({ month: a.month, mejora: a.kind.startsWith('improvement') }));
+		},
 	};
 }
 
+/** La previsión del motor contada con sus pruebas: contra qué se compara y cuánto acierta. */
+function validacion(ix: NonNullable<Awaited<ReturnType<typeof carga.horizontesIndice>>>): HTMLElement {
+	const v = ix.validation;
+	const caja = h('div', { class: 'validacion' });
+	caja.append(h('p', {}, `El motor aprende de la historia de toda la cartera cómo cambia el score en los meses siguientes: un modelo por horizonte (${ix.model.type}). Cada previsión solo usa lo que se sabía en su mes.`));
+	const filas = Object.entries(v.por_horizonte).map(([k, r]) => ({ h: Number(k.slice(1)), ...r })).sort((a, b) => a.h - b.h);
+	if (filas.length) {
+		const maxE = Math.max(...filas.map((r) => Math.max(r.error_mediana, r.error_sin_cambio)));
+		caja.append(h('div', { class: 'tabla-caja' }, h('table', { class: 'tabla-sutil validacion-t' },
+			h('thead', {}, h('tr', {}, h('th', {}, 'Meses'), h('th', {}, 'Error de la previsión frente a «no cambia nada» (puntos)'), h('th', { class: 'num' }, 'Franja del 80 %'), h('th', { class: 'num' }, 'Casos'))),
+			h('tbody', {}, ...filas.map((r) => h('tr', {}, h('td', {}, String(r.h)),
+				h('td', {}, h('span', { class: 'vt-barras' }, h('i', { class: 'modelo', style: { width: `${(r.error_mediana / maxE) * 100}%` } }), h('i', { class: 'naive', style: { width: `${(r.error_sin_cambio / maxE) * 100}%` } })), ` ${f.numero(r.error_mediana, 1)} frente a ${f.numero(r.error_sin_cambio, 1)}`),
+				h('td', { class: 'num' }, f.porcentaje(r.acierta_80, 0)), h('td', { class: 'num' }, f.numero(r.n))))))));
+	}
+	caja.append(h('p', {}, `Validado fuera de muestra hasta ${f.plural(v.validado_hasta, 'mes', 'meses')}: en cada corte de ${f.mes(v.cortes[0])} a ${f.mes(v.cortes[v.cortes.length - 1])} se entrenó solo con lo anterior y se comparó con lo que pasó. Más allá, la arena se aclara y se marca «sin validar».`));
+	caja.append(h('p', {}, `Las acciones no son predicciones: el motor da el score con el pilar en su objetivo y el modelo prevé desde ahí. «Si sigue la deriva» y «si se repite su peor trimestre» son supuestos, no previsiones.`));
+	return caja;
+}
+
 /** Las organizaciones que piden atención en el corte: avisos nuevos, cambios de banda y horizontes que caen. */
-function piden(c: Cartera, corte: string, alertas: AlertaM[], hor: Record<string, { p_critical_h6: number | null; cross: { to: string; month: string; prob: number } | null; shown_at_cut: number | null }>, man: Manifiesto) {
+function piden(c: Cartera, corte: string, alertas: AlertaM[], hor: Record<string, { p_critical_h6: number | null; cross: { to: string; month: string; prob: number | null } | null; shown_at_cut: number | null }>, man: Manifiesto) {
 	const t = c.months.indexOf(corte);
 	const salida: { id: string; peso: number; texto: string }[] = [];
 	for (const g of c.groups) {
@@ -345,7 +441,7 @@ function piden(c: Cartera, corte: string, alertas: AlertaM[], hor: Record<string
 		const hz = hor[g.id];
 		if (hz?.cross && m.band !== hz.cross.to) {
 			const baja = man.bands.findIndex((b) => b.key === hz.cross!.to) < man.bands.findIndex((b) => b.key === m.band);
-			if (baja && hz.cross.prob >= 0.5) { partes.push(`${f.porcentaje(hz.cross.prob, 0)} de pasar a ${nombreBanda(man, hz.cross.to).toLowerCase()} hacia ${f.mes(hz.cross.month)}`); peso += 2 + hz.cross.prob; }
+			if (baja && (hz.cross.prob ?? 0) >= 0.5) { partes.push(`${f.porcentaje(hz.cross.prob ?? 0, 0)} de pasar a ${nombreBanda(man, hz.cross.to).toLowerCase()} hacia ${f.mes(hz.cross.month)}`); peso += 2 + (hz.cross.prob ?? 0); }
 		}
 		if (partes.length) salida.push({ id: g.id, peso, texto: `${f.score(m.shown)} · ${partes.join(' · ')}` });
 	}
