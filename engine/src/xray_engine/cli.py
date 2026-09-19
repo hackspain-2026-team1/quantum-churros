@@ -121,7 +121,7 @@ def score(
 @app.command()
 def export(
     input_dir: str,
-    export_dir: Path = typer.Option(Path("frontend/static/data/v1"), help="Bundle folder"),
+    export_dir: Path = typer.Option(Path("bundle"), help="Bundle folder"),
     receipt: Optional[Path] = typer.Option(
         None, help="validation.json to embed as the receipt (default: artifacts/validation.json when present)"
     ),

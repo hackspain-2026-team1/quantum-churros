@@ -21,7 +21,7 @@ from app.main import engine
 from sqlmodel import Session, SQLModel
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FIXTURE_BUNDLE = REPO_ROOT / "frontend" / "e2e" / "fixtures" / "bundle" / "v1"
+FIXTURE_BUNDLE = REPO_ROOT / "tests" / "fixtures" / "bundle" / "v1"
 
 
 def pytest_sessionfinish() -> None:
