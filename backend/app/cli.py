@@ -7,6 +7,7 @@ from sqlmodel import Session, create_engine
 from .config import settings
 from .industry import run_classification
 from .ingest import dataset_fingerprint, ingest_dataset, source_paths
+from .pipeline import sync_dataset
 from .publish import publish_outputs
 
 app = typer.Typer(no_args_is_help=True)
@@ -25,7 +26,9 @@ def ingest(input_dir: Annotated[Path, typer.Argument()] = Path("data/raw"), dry_
         fingerprint = dataset_fingerprint(paths)
         typer.echo(f"Validated {len(paths)} files; dataset hash: {fingerprint}")
         return
-    fingerprint, row_counts, skipped = ingest_dataset(input_dir, settings.database_url)
+    fingerprint, row_counts, skipped = ingest_dataset(
+        input_dir, settings.require_database_url()
+    )
     if skipped:
         typer.echo(f"Dataset {fingerprint} is already loaded; no rows changed")
         return
@@ -39,7 +42,7 @@ def classify(
     force: bool = False,
 ) -> None:
     """Classify companies into industry archetypes for a dataset version."""
-    db_engine = create_engine(settings.database_url, pool_pre_ping=True)
+    db_engine = create_engine(settings.require_database_url(), pool_pre_ping=True)
     with Session(db_engine) as session:
         dataset_hash, counts, skipped = run_classification(
             session,
@@ -60,12 +63,39 @@ def classify(
         typer.echo(f"  {slug}: {total}")
 
 
-if __name__ == "__main__":
-    app()
-
-
 @app.command()
 def publish(out_dir: Annotated[Path, typer.Argument()] = Path("artifacts/full")) -> None:
     """Load an engine run (panel, scores, alerts) into the xray schema, one attribute per column."""
-    dataset_hash, counts = publish_outputs(out_dir, settings.database_url)
+    dataset_hash, counts = publish_outputs(out_dir, settings.require_database_url())
     typer.echo(f"Published dataset {dataset_hash}: {counts}")
+
+
+@app.command()
+def sync(
+    input_dir: Annotated[Path, typer.Argument()] = Path("data/raw"),
+    out_dir: Path = typer.Option(Path("artifacts"), help="Parquet artifact directory"),
+    bundle_dir: Path | None = typer.Option(None, help="JSON bundle directory"),
+    evidence_months: int = typer.Option(24, min=0),
+) -> None:
+    """Ingest, classify, score, publish, and export one immutable dataset version."""
+    target_bundle = bundle_dir or settings.bundle_dir
+    typer.echo("Synchronizing source data, model outputs, and read projections")
+    result = sync_dataset(
+        input_dir=input_dir,
+        out_dir=out_dir,
+        bundle_dir=target_bundle,
+        database_url=settings.require_database_url(),
+        evidence_months=evidence_months,
+    )
+    ingest_state = "already loaded" if result.ingest_skipped else "loaded"
+    classification_state = (
+        "already classified" if result.classification_skipped else "classified"
+    )
+    typer.echo(
+        f"Dataset {result.dataset_hash}: {ingest_state}, {classification_state}, "
+        f"published {result.published_counts}, bundle {result.bundle_id[:12]}"
+    )
+
+
+if __name__ == "__main__":
+    app()

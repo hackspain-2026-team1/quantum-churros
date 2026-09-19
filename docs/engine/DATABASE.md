@@ -11,7 +11,7 @@ product is typed by hand: every figure is measured from the ingested dataset.
 
 | Step | Command | Result |
 |---|---|---|
-| Start | `make up` | PostgreSQL (host port 5433), API, web |
+| Start | `make up` | PostgreSQL (host port 5433 by default; override with `POSTGRES_PORT`), API, web |
 | Ingest | `make db-seed` | `source.<table>`: the eight files untouched, keyed by `dataset_hash` (sha256 of the files). NUL bytes inside descriptions are removed, PostgreSQL text cannot hold them |
 | Score from the database | `make predict XRAY_DATA=postgresql://xray:xray-local@localhost:5433/xray` | Same outputs as scoring the folder |
 | Publish | `make db-publish XRAY_OUT=artifacts/full` | `xray.entity_month_panel`, `xray.entity_month_score`, `xray.alert` |
