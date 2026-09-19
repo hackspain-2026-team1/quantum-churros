@@ -7,3 +7,6 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Contract fixtures: bundle_id covers their bytes
+/e2e/fixtures/

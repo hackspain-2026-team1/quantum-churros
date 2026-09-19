@@ -1,0 +1,57 @@
+{
+  "schema": "xray-export-v1",
+  "kind": "evidence",
+  "entity_kind": "group",
+  "entity_id": "GROUP_T002",
+  "group_id": "GROUP_T002",
+  "months": [
+    {
+      "month": "2026-06",
+      "rows": [
+        {"pillar": "liquidity", "label": "Caja a fin de mes", "value": 464505.77, "unit": "EUR", "period": "2026-06", "source_file": "balances.csv", "n_rows": 4},
+        {"pillar": "liquidity", "label": "Disponible en líneas de crédito", "value": 60000.0, "unit": "EUR", "period": "2026-06", "source_file": "debt_products.csv", "n_rows": 1},
+        {"pillar": "liquidity", "label": "Mediana mensual de pagos operativos y deuda", "value": 260904.01, "unit": "EUR", "period": "2026-04..2026-06", "source_file": "transactions.csv", "n_rows": 651},
+        {"pillar": "liquidity", "label": "Días de colchón a fin de mes", "value": 60.3, "unit": "días", "period": "2026-06", "source_file": "balances.csv", "n_rows": null},
+        {"pillar": "payments", "label": "Días sobre el vencimiento, ponderados por importe", "value": 90, "unit": "días", "period": "2026-04..2026-06", "source_file": "invoices.csv", "n_rows": 64},
+        {"pillar": "payments", "label": "Facturas de proveedores en la ventana", "value": 64, "unit": "facturas", "period": "2026-04..2026-06", "source_file": "invoices.csv", "n_rows": 64},
+        {"pillar": "collections", "label": "Días sobre el vencimiento, ponderados por importe", "value": 6.9, "unit": "días", "period": "2026-04..2026-06", "source_file": "invoices.csv", "n_rows": 51},
+        {"pillar": "activity", "label": "Cobros operativos sobre pagos operativos y deuda", "value": 1.1, "unit": "ratio", "period": "2026-01..2026-06", "source_file": "transactions.csv", "n_rows": 1302},
+        {"pillar": "debt", "label": "Servicio de deuda sobre cobros operativos", "value": 0.014, "unit": "cuota", "period": "2025-07..2026-06", "source_file": "transactions.csv", "n_rows": 24},
+        {"pillar": null, "label": "Movimientos contabilizados en el mes", "value": 217, "unit": "filas", "period": "2026-06", "source_file": "transactions.csv", "n_rows": 217},
+        {"pillar": null, "label": "Pares espejo neteados en el mes", "value": 18, "unit": "pares", "period": "2026-06", "source_file": "transactions.csv", "n_rows": 36}
+      ]
+    },
+    {
+      "month": "2026-07",
+      "rows": [
+        {"pillar": "liquidity", "label": "Caja a fin de mes", "value": 446249.93, "unit": "EUR", "period": "2026-07", "source_file": "balances.csv", "n_rows": 4},
+        {"pillar": "liquidity", "label": "Disponible en líneas de crédito", "value": 60000.0, "unit": "EUR", "period": "2026-07", "source_file": "debt_products.csv", "n_rows": 1},
+        {"pillar": "liquidity", "label": "Mediana mensual de pagos operativos y deuda", "value": 250116.07, "unit": "EUR", "period": "2026-05..2026-07", "source_file": "transactions.csv", "n_rows": 552},
+        {"pillar": "liquidity", "label": "Días de colchón a fin de mes", "value": 60.7, "unit": "días", "period": "2026-07", "source_file": "balances.csv", "n_rows": null},
+        {"pillar": "payments", "label": "Días sobre el vencimiento, ponderados por importe", "value": 90, "unit": "días", "period": "2026-05..2026-07", "source_file": "invoices.csv", "n_rows": 64},
+        {"pillar": "payments", "label": "Facturas de proveedores en la ventana", "value": 64, "unit": "facturas", "period": "2026-05..2026-07", "source_file": "invoices.csv", "n_rows": 64},
+        {"pillar": "collections", "label": "Días sobre el vencimiento, ponderados por importe", "value": 5.7, "unit": "días", "period": "2026-05..2026-07", "source_file": "invoices.csv", "n_rows": 51},
+        {"pillar": "activity", "label": "Cobros operativos sobre pagos operativos y deuda", "value": 1.1, "unit": "ratio", "period": "2026-02..2026-07", "source_file": "transactions.csv", "n_rows": 1104},
+        {"pillar": "debt", "label": "Servicio de deuda sobre cobros operativos", "value": 0.014, "unit": "cuota", "period": "2025-08..2026-07", "source_file": "transactions.csv", "n_rows": 24},
+        {"pillar": null, "label": "Movimientos contabilizados en el mes", "value": 184, "unit": "filas", "period": "2026-07", "source_file": "transactions.csv", "n_rows": 184},
+        {"pillar": null, "label": "Pares espejo neteados en el mes", "value": 15, "unit": "pares", "period": "2026-07", "source_file": "transactions.csv", "n_rows": 30}
+      ]
+    },
+    {
+      "month": "2026-08",
+      "rows": [
+        {"pillar": "liquidity", "label": "Caja a fin de mes", "value": 451923.9, "unit": "EUR", "period": "2026-08", "source_file": "balances.csv", "n_rows": 4},
+        {"pillar": "liquidity", "label": "Disponible en líneas de crédito", "value": 60000.0, "unit": "EUR", "period": "2026-08", "source_file": "debt_products.csv", "n_rows": 1},
+        {"pillar": "liquidity", "label": "Mediana mensual de pagos operativos y deuda", "value": 252337.54, "unit": "EUR", "period": "2026-06..2026-08", "source_file": "transactions.csv", "n_rows": 573},
+        {"pillar": "liquidity", "label": "Días de colchón a fin de mes", "value": 60.9, "unit": "días", "period": "2026-08", "source_file": "balances.csv", "n_rows": null},
+        {"pillar": "payments", "label": "Días sobre el vencimiento, ponderados por importe", "value": 90, "unit": "días", "period": "2026-06..2026-08", "source_file": "invoices.csv", "n_rows": 64},
+        {"pillar": "payments", "label": "Facturas de proveedores en la ventana", "value": 64, "unit": "facturas", "period": "2026-06..2026-08", "source_file": "invoices.csv", "n_rows": 64},
+        {"pillar": "collections", "label": "Días sobre el vencimiento, ponderados por importe", "value": 5.2, "unit": "días", "period": "2026-06..2026-08", "source_file": "invoices.csv", "n_rows": 51},
+        {"pillar": "activity", "label": "Cobros operativos sobre pagos operativos y deuda", "value": 1.1, "unit": "ratio", "period": "2026-03..2026-08", "source_file": "transactions.csv", "n_rows": 1146},
+        {"pillar": "debt", "label": "Servicio de deuda sobre cobros operativos", "value": 0.014, "unit": "cuota", "period": "2025-09..2026-08", "source_file": "transactions.csv", "n_rows": 24},
+        {"pillar": null, "label": "Movimientos contabilizados en el mes", "value": 191, "unit": "filas", "period": "2026-08", "source_file": "transactions.csv", "n_rows": 191},
+        {"pillar": null, "label": "Pares espejo neteados en el mes", "value": 15, "unit": "pares", "period": "2026-08", "source_file": "transactions.csv", "n_rows": 30}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "schema": "xray-export-v1",
+  "kind": "manifest",
+  "bundle_id": "7354132144f5663695a975bbe22e6df4a8aaa0c89b94aa6b23e3c528e7a993b5",
+  "engine_version": "engine-v2",
+  "params_hash": "synthetic-fixture-params",
+  "dataset_hash": "synthetic-fixture-dataset",
+  "generated_at": "2026-09-01",
+  "months": [
+    "2024-09",
+    "2024-10",
+    "2024-11",
+    "2024-12",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+    "2025-07",
+    "2025-08",
+    "2025-09",
+    "2025-10",
+    "2025-11",
+    "2025-12",
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08"
+  ],
+  "counts": {"groups": 3, "companies": 5, "alerts": 13},
+  "pillars": [
+    {"key": "liquidity", "label": "Liquidez", "weight": 0.3, "baseline": 610},
+    {"key": "payments", "label": "Pagos a proveedores", "weight": 0.2, "baseline": 680},
+    {"key": "collections", "label": "Cobros de clientes", "weight": 0.15, "baseline": 640},
+    {"key": "activity", "label": "Actividad", "weight": 0.2, "baseline": 620},
+    {"key": "debt", "label": "Deuda", "weight": 0.15, "baseline": 700}
+  ],
+  "bands": [{"key": "critical", "label": "Crítico", "min": 0}, {"key": "watch", "label": "Vigilancia", "min": 400}, {"key": "stable", "label": "Estable", "min": 600}, {"key": "solid", "label": "Sólido", "min": 800}],
+  "glossary": {
+    "gates": {
+      "inherited_from_group": "Liquidez heredada del grupo: la caja de esta filial se barre a la matriz.",
+      "no_cash_anchor": "Hay cuentas de caja con movimientos pero sin saldo de referencia.",
+      "no_outflow": "Sin pagos operativos en la ventana: el colchón no está definido.",
+      "no_invoices": "La entidad no tiene facturas en el fichero.",
+      "invoice_burn_in": "Las facturas acaban de empezar a llegar; todavía no hay una ventana completa.",
+      "stamped_regime": "Las fechas de las facturas las estampa el ERP: no miden puntualidad.",
+      "few_settlements": "Menos de 10 facturas en la ventana: la puntualidad no es medible.",
+      "empty_cohort": "No vence ninguna factura en la ventana.",
+      "short_history": "Historia insuficiente para calcular este pilar.",
+      "no_base": "No hay meses de comparación para medir el impulso.",
+      "no_debt": "Sin productos de deuda ni servicio de deuda en la ventana."
+    },
+    "flags": {
+      "stale_feed": "El feed bancario ha dejado de llegar: se mantiene el último score con datos vivos.",
+      "perimeter_changed": "Este mes se conectó una empresa o una cuenta nueva.",
+      "perimeter_quiet": "Periodo de calma tras un cambio de perímetro: las alertas quedan en pausa.",
+      "short_history": "Menos de 6 meses observados: sin trayectoria.",
+      "granted_assumed_constant": "El límite de las líneas de crédito se asume constante en el tiempo.",
+      "debt_snapshot": "El saldo de deuda es una foto de la fecha de extracción.",
+      "fx_excluded": "Hay movimientos en divisas fuera de la tabla de cambio: cuentan en filas, no en importes.",
+      "inherited_from_group": "La liquidez mostrada es la del grupo."
+    },
+    "caps": {"negative_liquidity": "Caja más líneas disponibles en negativo 3 de los últimos 6 meses: score máximo 40.", "weak_pillar": "Liquidez o pagos por debajo de 25: score máximo 50."},
+    "reasons": {"short_history": "Historia insuficiente.", "perimeter_change": "Cambio de perímetro reciente.", "abstention": "El motor se abstiene en este mes.", "stale_feed": "Feed bancario sin datos recientes.", "no_bank_pillar": "Sin pilares basados en banco."}
+  }
+}

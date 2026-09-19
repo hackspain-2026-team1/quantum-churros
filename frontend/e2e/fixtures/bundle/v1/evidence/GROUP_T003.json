@@ -1,0 +1,42 @@
+{
+  "schema": "xray-export-v1",
+  "kind": "evidence",
+  "entity_kind": "group",
+  "entity_id": "GROUP_T003",
+  "group_id": "GROUP_T003",
+  "months": [
+    {
+      "month": "2026-06",
+      "rows": [
+        {"pillar": "liquidity", "label": "Caja a fin de mes", "value": 20239.63, "unit": "EUR", "period": "2026-06", "source_file": "balances.csv", "n_rows": 4},
+        {"pillar": "liquidity", "label": "Disponible en líneas de crédito", "value": 0.0, "unit": "EUR", "period": "2026-06", "source_file": "debt_products.csv", "n_rows": 0},
+        {"pillar": "liquidity", "label": "Mediana mensual de pagos operativos y deuda", "value": 53896.66, "unit": "EUR", "period": "2026-06", "source_file": "transactions.csv", "n_rows": 651},
+        {"pillar": "liquidity", "label": "Días de colchón a fin de mes", "value": 11.3, "unit": "días", "period": "2026-06", "source_file": "balances.csv", "n_rows": null},
+        {"pillar": null, "label": "Movimientos contabilizados en el mes", "value": 217, "unit": "filas", "period": "2026-06", "source_file": "transactions.csv", "n_rows": 217},
+        {"pillar": null, "label": "Pares espejo neteados en el mes", "value": 18, "unit": "pares", "period": "2026-06", "source_file": "transactions.csv", "n_rows": 36}
+      ]
+    },
+    {
+      "month": "2026-07",
+      "rows": [
+        {"pillar": "liquidity", "label": "Caja a fin de mes", "value": 22642.24, "unit": "EUR", "period": "2026-07", "source_file": "balances.csv", "n_rows": 4},
+        {"pillar": "liquidity", "label": "Disponible en líneas de crédito", "value": 0.0, "unit": "EUR", "period": "2026-07", "source_file": "debt_products.csv", "n_rows": 0},
+        {"pillar": "liquidity", "label": "Mediana mensual de pagos operativos y deuda", "value": 56780.81, "unit": "EUR", "period": "2026-06..2026-07", "source_file": "transactions.csv", "n_rows": 552},
+        {"pillar": "liquidity", "label": "Días de colchón a fin de mes", "value": 12.0, "unit": "días", "period": "2026-07", "source_file": "balances.csv", "n_rows": null},
+        {"pillar": null, "label": "Movimientos contabilizados en el mes", "value": 184, "unit": "filas", "period": "2026-07", "source_file": "transactions.csv", "n_rows": 184},
+        {"pillar": null, "label": "Pares espejo neteados en el mes", "value": 15, "unit": "pares", "period": "2026-07", "source_file": "transactions.csv", "n_rows": 30}
+      ]
+    },
+    {
+      "month": "2026-08",
+      "rows": [
+        {"pillar": "liquidity", "label": "Caja a fin de mes", "value": 20229.17, "unit": "EUR", "period": "2026-08", "source_file": "balances.csv", "n_rows": 4},
+        {"pillar": "liquidity", "label": "Disponible en líneas de crédito", "value": 0.0, "unit": "EUR", "period": "2026-08", "source_file": "debt_products.csv", "n_rows": 0},
+        {"pillar": "liquidity", "label": "Mediana mensual de pagos operativos y deuda", "value": 51851.56, "unit": "EUR", "period": "2026-06..2026-08", "source_file": "transactions.csv", "n_rows": 573},
+        {"pillar": "liquidity", "label": "Días de colchón a fin de mes", "value": 11.7, "unit": "días", "period": "2026-08", "source_file": "balances.csv", "n_rows": null},
+        {"pillar": null, "label": "Movimientos contabilizados en el mes", "value": 191, "unit": "filas", "period": "2026-08", "source_file": "transactions.csv", "n_rows": 191},
+        {"pillar": null, "label": "Pares espejo neteados en el mes", "value": 15, "unit": "pares", "period": "2026-08", "source_file": "transactions.csv", "n_rows": 30}
+      ]
+    }
+  ]
+}

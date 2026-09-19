@@ -1,0 +1,39 @@
+{
+  "schema": "xray-export-v1",
+  "kind": "evidence",
+  "entity_kind": "company",
+  "entity_id": "COMP_T002",
+  "group_id": "GROUP_T001",
+  "months": [
+    {
+      "month": "2026-06",
+      "rows": [
+        {"pillar": "liquidity", "label": "Días con saldo propio cercano a cero", "value": 0.94, "unit": "cuota", "period": "2025-07..2026-06", "source_file": "balances.csv", "n_rows": 365},
+        {"pillar": "liquidity", "label": "Traspasos espejo hacia la matriz", "value": 212, "unit": "pares", "period": "2025-07..2026-06", "source_file": "transactions.csv", "n_rows": 424},
+        {"pillar": "activity", "label": "Cobros operativos sobre pagos operativos y deuda", "value": 1.08, "unit": "ratio", "period": "2026-01..2026-06", "source_file": "transactions.csv", "n_rows": 1296},
+        {"pillar": null, "label": "Movimientos contabilizados en el mes", "value": 216, "unit": "filas", "period": "2026-06", "source_file": "transactions.csv", "n_rows": 216},
+        {"pillar": null, "label": "Pares espejo neteados en el mes", "value": 18, "unit": "pares", "period": "2026-06", "source_file": "transactions.csv", "n_rows": 36}
+      ]
+    },
+    {
+      "month": "2026-07",
+      "rows": [
+        {"pillar": "liquidity", "label": "Días con saldo propio cercano a cero", "value": 0.94, "unit": "cuota", "period": "2025-08..2026-07", "source_file": "balances.csv", "n_rows": 365},
+        {"pillar": "liquidity", "label": "Traspasos espejo hacia la matriz", "value": 212, "unit": "pares", "period": "2025-08..2026-07", "source_file": "transactions.csv", "n_rows": 424},
+        {"pillar": "activity", "label": "Cobros operativos sobre pagos operativos y deuda", "value": 1.07, "unit": "ratio", "period": "2026-02..2026-07", "source_file": "transactions.csv", "n_rows": 1098},
+        {"pillar": null, "label": "Movimientos contabilizados en el mes", "value": 183, "unit": "filas", "period": "2026-07", "source_file": "transactions.csv", "n_rows": 183},
+        {"pillar": null, "label": "Pares espejo neteados en el mes", "value": 15, "unit": "pares", "period": "2026-07", "source_file": "transactions.csv", "n_rows": 30}
+      ]
+    },
+    {
+      "month": "2026-08",
+      "rows": [
+        {"pillar": "liquidity", "label": "Días con saldo propio cercano a cero", "value": 0.94, "unit": "cuota", "period": "2025-09..2026-08", "source_file": "balances.csv", "n_rows": 365},
+        {"pillar": "liquidity", "label": "Traspasos espejo hacia la matriz", "value": 212, "unit": "pares", "period": "2025-09..2026-08", "source_file": "transactions.csv", "n_rows": 424},
+        {"pillar": "activity", "label": "Cobros operativos sobre pagos operativos y deuda", "value": 1.06, "unit": "ratio", "period": "2026-03..2026-08", "source_file": "transactions.csv", "n_rows": 1140},
+        {"pillar": null, "label": "Movimientos contabilizados en el mes", "value": 190, "unit": "filas", "period": "2026-08", "source_file": "transactions.csv", "n_rows": 190},
+        {"pillar": null, "label": "Pares espejo neteados en el mes", "value": 15, "unit": "pares", "period": "2026-08", "source_file": "transactions.csv", "n_rows": 30}
+      ]
+    }
+  ]
+}
