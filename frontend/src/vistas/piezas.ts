@@ -78,6 +78,17 @@ export function glifoOrden(): SVGSVGElement {
 	return s;
 }
 
+/** Extender: las cuatro esquinas de la pantalla, abriéndose; o cerrándose, si ya está extendida. */
+export function glifoExtender(extendida: boolean): SVGSVGElement {
+	const s = svg(14, 14, 'glifo glifo-extender');
+	const t = { fill: 'none', class: 'trazo', 'stroke-width': 1.3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+	const esquinas = extendida
+		? ['M5.4 1.8 V5.4 H1.8', 'M8.6 1.8 V5.4 H12.2', 'M12.2 8.6 H8.6 V12.2', 'M1.8 8.6 H5.4 V12.2']
+		: ['M1.8 5.4 V1.8 H5.4', 'M12.2 5.4 V1.8 H8.6', 'M8.6 12.2 H12.2 V8.6', 'M5.4 12.2 H1.8 V8.6'];
+	for (const d of esquinas) s.append(el('path', { d, ...t }));
+	return s;
+}
+
 // ─── Sellos y cifras ──────────────────────────────────────────
 
 /** Sello de banda: el nombre y una línea de 0 a 100 con las bandas y un grano donde está el grupo. */

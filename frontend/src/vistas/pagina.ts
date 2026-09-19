@@ -18,7 +18,8 @@ import { crearFinanciacion } from './financiacion';
 import { iconoProducto } from './iconos';
 import { logotipo, monograma } from './marca';
 import { crearMonitor, type Monitor } from './monitor';
-import { cabecerasOrdenables, granos3, seccion } from './primitivos';
+import { glifoExtender } from './piezas';
+import { cabecerasOrdenables, granos3, reglaBanda, seccion } from './primitivos';
 import { medirFijas, medirPlacas, placa } from './registro';
 
 export interface Paginas {
@@ -48,11 +49,37 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	raiz.append(escenario, cuerpoP);
 	const miga = h('nav', { class: 'miga', 'aria-label': 'Dónde estás' });
 	app.append(raiz);
-	cuerpoP.addEventListener('scroll', () => { cb.alDesplazar(); cb.hilo([]); }, { passive: true });
-	/** En pantallas bajas o móviles, el escenario va dentro del cuerpo y se desplaza con él. */
-	const escenarioFijo = () => !cb.esMovil() && innerHeight >= 620;
+	cuerpoP.addEventListener('scroll', () => { cb.alDesplazar(); cb.hilo([]); marcarHorizonte(); }, { passive: true });
+	// El horizonte se queda fijo arriba o se desplaza con las secciones, y entonces estas ocupan la
+	// pantalla entera. Lo decide quien mira, desde las pestañas, y se recuerda en este navegador.
+	// En pantallas bajas o móviles no hay elección: el escenario no cabe fijo y siempre se desplaza.
+	const CLAVE_EXTENDIDA = 'rumbo.ficha.extendida.v1';
+	let extendida = (() => { try { return localStorage.getItem(CLAVE_EXTENDIDA) !== 'no'; } catch { return true; } })();
+	const cabeFijo = () => !cb.esMovil() && innerHeight >= 620;
+	const escenarioFijo = () => cabeFijo() && !extendida;
+	/** Alto del escenario cuando se desplaza: dice cuándo el horizonte se ha ido de la pantalla. */
+	let altoEscenario = 0;
+	const marcarHorizonte = () => raiz.classList.toggle('horizonte-fuera', altoEscenario > 0 && cuerpoP.scrollTop > altoEscenario - 44);
+	const medirEscenario = () => { altoEscenario = escenarioFijo() || escenario.hidden ? 0 : escenario.offsetHeight; marcarHorizonte(); };
+	const comoSeMueve = (): ScrollBehavior => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+	const subirAlHorizonte = () => cuerpoP.scrollTo({ top: 0, behavior: comoSeMueve() });
+	/** Marcar una acción trae el horizonte a la vista: lo que cambia se ve. */
+	const traerHorizonte = () => { if (raiz.classList.contains('horizonte-fuera')) subirAlHorizonte(); };
+	/** Extender o recoger: el mismo sitio del documento, con el horizonte fuera o dentro del texto. */
+	function alternarExtendida() {
+		const alto = escenario.getBoundingClientRect().height;
+		extendida = !extendida;
+		try { localStorage.setItem(CLAVE_EXTENDIDA, extendida ? 'si' : 'no'); } catch { /* sin almacenamiento: vale para esta sesión */ }
+		const y = cuerpoP.scrollTop;
+		pintarFicha(S.e);
+		cuerpoP.scrollTop = Math.max(0, extendida ? y + alto : y - alto);
+		medirEscenario();
+		cb.alDesplazar();
+	}
 
 	let clave = '';
+	/** Qué ficha y qué sección están pintadas: cambiar de pestaña empieza arriba, en el horizonte. */
+	let pintada = '';
 	let datos: DatosFicha | null = null;
 	const financiacion = crearFinanciacion(S, () => cb.alCambiarArena());
 	const estadoUI = { metrica: 'score', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, filtro: null as FiltroEvidencia | null, ancla: null as string | null };
@@ -73,7 +100,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		repintarArena: () => requestAnimationFrame(() => cb.alCambiarArena()),
 		horizonte: {
 			elegidas: () => estadoUI.acciones,
-			alternar: (id, si) => { if (si) estadoUI.acciones.add(id); else estadoUI.acciones.delete(id); estadoUI.previa = null; pintarHorizonte(); },
+			alternar: (id, si) => { if (si) estadoUI.acciones.add(id); else estadoUI.acciones.delete(id); estadoUI.previa = null; pintarHorizonte(); traerHorizonte(); },
 			previa: (ids) => { const k = JSON.stringify(ids); if (k === JSON.stringify(estadoUI.previa)) return; estadoUI.previa = ids; pintarHorizonte(); },
 			pilar: (k) => { if (k === estadoUI.pilar) return; estadoUI.pilar = k; pintarHorizonte(); },
 		},
@@ -93,6 +120,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
 			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, alHilo: (hs) => cb.hilo(hs) }, true));
 			pintarControles(d);
+			medirEscenario();
 			cb.alCambiarArena();
 		}, estadoUI.previa || estadoUI.pilar ? 40 : 0);
 	}
@@ -120,7 +148,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		}
 	}
 
-	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; cb.hilo([]); }
+	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; cb.hilo([]); altoEscenario = 0; marcarHorizonte(); }
 
 	// ─── Miga de pan (en la cabecera, junto a la marca) ─────
 	function pintarMiga(e: Estado) {
@@ -165,6 +193,21 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			b.addEventListener('click', () => { if (S.e.sec !== s) S.fijar({ sec: s }, true); });
 			nav.append(b);
 		}
+		// Con el horizonte desplazado fuera de la pantalla, el número sigue aquí y lleva de vuelta.
+		const m = datos?.mes;
+		if (m) {
+			const volver = h('button', { type: 'button', class: 'sec-volver', title: 'Volver arriba, al horizonte' },
+				h('span', { class: 'versalita' }, nombreBanda(man, m.band)), h('b', {}, f.score(m.shown)), reglaBanda(man, m.shown, m.band));
+			volver.addEventListener('click', subirAlHorizonte);
+			nav.insertBefore(volver, nav.querySelector('.reverso'));
+		}
+		if (cabeFijo()) {
+			const ext = h('button', { type: 'button', class: `sec-extender ${extendida ? 'activa' : ''}`,
+				title: extendida ? 'El horizonte vuelve a quedarse fijo arriba, siempre a la vista' : 'El horizonte se desplaza con las secciones, que ocupan la pantalla entera' },
+				glifoExtender(extendida), extendida ? 'Fijar el horizonte' : 'Extender');
+			ext.addEventListener('click', alternarExtendida);
+			nav.append(ext);
+		}
 		return nav;
 	}
 
@@ -181,7 +224,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const k = `${nueva}|${e.sec}`;
 		if (soloSeccion) { pintarFicha(e); return; }
 		clave = nueva;
-		if (!ficha) { vaciar(escenario); escenario.hidden = true; }
+		if (!ficha) { vaciar(escenario); escenario.hidden = true; altoEscenario = 0; marcarHorizonte(); }
 		if (e.vista === 'entrada') return pintarEntrada();
 		if (e.vista === 'metodologia') return pintarMetodologia();
 		if (e.vista === 'financiacion') {
@@ -243,7 +286,9 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		cuerpoP.append(hoja);
 		if (fijo) raiz.insertBefore(escenario, cuerpoP);
 		pintarHorizonte();
-		cuerpoP.scrollTop = e.sec === S.e.sec ? y : 0;
+		const misma = pintada === `${e.vista}|${e.sel}|${e.emp}|${e.sec}`;
+		pintada = `${e.vista}|${e.sel}|${e.emp}|${e.sec}`;
+		cuerpoP.scrollTop = misma ? y : 0;
 		if (estadoUI.filtro && e.sec === 'tecnico') {
 			const ev = cuerpoP.querySelector('.evidencia-filtrada') as HTMLElement | null;
 			if (ev) cuerpoP.scrollTop = ev.offsetTop - 70;
@@ -257,6 +302,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			}
 			estadoUI.ancla = null;
 		}
+		medirEscenario();
 		cb.alCambiarArena();
 	}
 

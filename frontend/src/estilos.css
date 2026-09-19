@@ -3232,7 +3232,6 @@ body[data-vista='entrada'] .regla, body[data-vista='entrada'] .reproducir, body[
 .pagina { display: flex; flex-direction: column; overflow: hidden; }
 .pagina-cuerpo { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; outline: none; }
 .escenario { flex: none; padding: 6px 44px 0; }
-.pagina:not(.escenario-fijo) .escenario { padding: 6px 0 0; }
 .escenario-hoja { display: grid; grid-template-columns: 410px minmax(0, 1fr); gap: 32px; align-items: start; }
 .escenario-hoja .ficha-cab { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 16px; align-items: start; }
 .cab-circulo { position: relative; width: 168px; height: 168px; margin: 0 0 0 -10px; }
@@ -3290,9 +3289,22 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 
 /* Las secciones: título encima, a todo el ancho. */
 .hoja-ficha { max-width: none; padding: 0 44px 80px; }
-.sec-marcas { margin: 4px 0 6px; padding: 10px 0 0; gap: 2px; border-bottom: 1px solid var(--borde); background: linear-gradient(var(--papel) 85%, rgba(255, 255, 255, 0)); }
+.sec-marcas { margin: 4px 0 6px; padding: 10px 0 0; gap: 2px; border-bottom: 1px solid var(--borde); background: var(--papel); }
 .sec-marca { padding: 6px 16px 9px; border-bottom: 2px solid transparent; margin-bottom: -1px; font: 500 15px var(--sans); }
 .sec-marca.reverso { margin-left: auto; font-size: 13.5px; color: var(--tenue); }
+/* Con el horizonte fuera de la pantalla, el número sigue en las pestañas y lleva de vuelta arriba. */
+.sec-volver {
+	margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px 8px;
+	font: 500 13px var(--sans); color: var(--tinta-2); opacity: 0; visibility: hidden; transition: opacity 160ms;
+}
+.pagina.horizonte-fuera .sec-volver { opacity: 1; visibility: visible; }
+.sec-volver:hover { color: var(--tinta); }
+.sec-volver .versalita { color: var(--apagado); }
+.sec-volver b { font: 600 15px var(--serif); }
+/* Extender: el horizonte se desplaza con las secciones y estas ocupan la pantalla entera. */
+.sec-extender { display: inline-flex; align-items: center; gap: 7px; margin-left: 16px; padding: 5px 10px 8px; font: 500 13px var(--sans); color: var(--tenue); }
+.sec-extender:hover, .sec-extender.activa { color: var(--tinta-2); }
+.sec-extender .glifo-extender .trazo { stroke: currentColor; }
 .seccion { grid-template-columns: 1fr; gap: 12px; padding: 20px 0 22px; }
 .sec-titulo { font: 600 20px/1.25 var(--serif); }
 .seccion .seccion { padding-top: 12px; }
@@ -3372,6 +3384,7 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 	.pt-fila, .pt-eje { grid-template-columns: 150px 50px minmax(120px, 1fr) 60px; }
 }
 @media screen and (max-width: 699px) {
+	.pagina:not(.escenario-fijo) .escenario { padding: 6px 0 0; }
 	.escenario-hoja { grid-template-columns: 1fr; gap: 8px; }
 	.escenario-hoja .ficha-cab { grid-template-columns: 130px 1fr; align-items: center; }
 	.cab-circulo { width: 130px; height: 130px; }
@@ -3386,6 +3399,7 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 	.horizonte, .escenario { overflow-x: hidden; }
 	.sec-marca { padding: 6px 10px 9px; }
 	.sec-marca.reverso { margin-left: 0; }
+	.sec-volver { display: none; }
 	.est-fila { grid-template-columns: 44px minmax(0, 1fr); }
 	.est-efecto { grid-column: 2; justify-items: start; }
 	.rec { grid-template-columns: 40px 1fr; }
