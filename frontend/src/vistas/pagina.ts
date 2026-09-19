@@ -39,7 +39,7 @@ export interface Paginas {
 	irAvisos(): void;
 }
 
-const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Desglose', conciliacion: 'Conciliación' };
+const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Detalle', productos: 'Productos', acciones: 'Acciones', tecnico: 'Desglose', conciliacion: 'Conciliación' };
 // En una organización, la sección de scoring es la lista de sus empresas.
 const nombreSeccion = (s: Seccion, vista: Estado['vista']) => s === 'scoring' && vista === 'organizacion' ? 'Empresas' : NOMBRE_SECCION[s];
 
