@@ -66,7 +66,8 @@ comprobar('los datos son los del motor', (await p.$eval('.nota-datos', (x) => x.
 await hasta(p, () => document.querySelectorAll('.atencion li.tocable').length > 0);
 comprobar('«las que piden atención hoy» sale de los datos', (await p.$$('.atencion li.tocable')).length > 0);
 comprobar('la portada no lleva regla ni reloj de arena', await p.evaluate(() => getComputedStyle(document.querySelector('.reproducir')).display === 'none' && getComputedStyle(document.querySelector('.regla')).display === 'none'));
-comprobar('la portada lleva la rosa de los vientos y no repite la marca en la cabecera', await p.evaluate(() => !!document.querySelector('.entrada-rosa[data-placa]') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'hidden'));
+comprobar('la portada lleva la rosa de los vientos y, en la cabecera, solo el monograma', await p.evaluate(() => !!document.querySelector('.entrada-rosa[data-placa]') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'visible' && getComputedStyle(document.querySelector('.barra .marca .logotipo')).display === 'none'));
+comprobar('el buscador va pegado a la rosa, dentro de la cabeza', await p.evaluate(() => { const c = document.querySelector('.mon-cabeza > .mon-campo'); const r = document.querySelector('.mon-rosa'); return !!c && !!r && c.getBoundingClientRect().top >= r.getBoundingClientRect().bottom - 1; }));
 comprobar('la línea de puntos del buscador mide lo que se escribe', await p.evaluate(async () => {
 	const i = document.querySelector('.entrada-buscar');
 	const vacio = i.getBoundingClientRect().width;
@@ -108,8 +109,12 @@ comprobar('la línea de puntos del buscador mide lo que se escribe', await p.eva
 	const nEmp = await p.$eval('.mon-cuantas', (x) => x.textContent);
 	comprobar('el monitor cambia a empresas', /empresas/.test(nEmp), nEmp);
 	await p.click('.mon-unidad button[data-valor="organizaciones"]'); await esperar(300);
+	// El desplegable de la casa se cuelga del documento: no lo recorta ni lo tapa nada.
+	await p.click('.mon-vista .desp-boton'); await esperar(300);
+	comprobar('el desplegable se pinta por encima de todo', await p.evaluate(() => { const l = document.querySelector('.desp-lista:not([hidden])'); if (!l || l.parentElement !== document.body) return false; const c = l.getBoundingClientRect(); const e = document.elementFromPoint(c.x + c.width / 2, c.y + 12); return !!e?.closest('.desp-lista'); }));
+	await p.keyboard.press('Escape'); await esperar(250);
 	// «Dile qué quieres ver»: palabras al instante y Jev (grabado) después.
-	comprobar('«dile qué quieres ver» está a la vista, con ejemplos', await p.evaluate(() => { const c = document.querySelector('.mon-pedir-campo'); const r = c?.getBoundingClientRect(); return !!r && r.width > 200 && document.querySelectorAll('.mon-ejemplos .ejemplo').length >= 3; }));
+	comprobar('«dile qué quieres ver» vive con la lista, dentro del panel, y con sus ejemplos', await p.evaluate(() => { const c = document.querySelector('.mon-vista .mon-pedir-caja .mon-pedir-campo'); const r = c?.getBoundingClientRect(); return !!r && r.width > 200 && document.querySelectorAll('.mon-vista .mon-ejemplos .ejemplo').length >= 3; }));
 	await p.type('.mon-pedir-campo', 'las organizaciones grandes que se tuercen, en tabla');
 	await p.keyboard.press('Enter');
 	await hasta(p, () => /Jev,/.test(document.querySelector('.mon-entendido')?.textContent ?? ''));
