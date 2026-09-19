@@ -182,8 +182,17 @@ barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, b
 		prepararInforme(paginas?.informe() ?? null);
 		print();
 	}
-	addEventListener('beforeprint', () => { if (!hayInforme()) prepararInforme(paginas?.informe() ?? null); });
-	addEventListener('afterprint', () => quitarInforme());
+	addEventListener('beforeprint', () => {
+		if (document.querySelector('.panel-propuesta')) {
+			document.body.classList.add('imprimir-propuesta');
+			return;
+		}
+		if (!hayInforme()) prepararInforme(paginas?.informe() ?? null);
+	});
+	addEventListener('afterprint', () => {
+		document.body.classList.remove('imprimir-propuesta');
+		quitarInforme();
+	});
 	void capaExp;
 
 	ayuda.append(h('h2', {}, 'Cómo se usa'), h('p', {}, 'La frase de arriba dice lo que ves. Toca cualquier trozo para cambiarlo, o escribe en cualquier parte.'));

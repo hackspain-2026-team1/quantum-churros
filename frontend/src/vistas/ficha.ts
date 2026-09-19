@@ -22,6 +22,7 @@ import { h, vaciar } from './dom';
 import { iconoProducto } from './iconos';
 import { hilo, lineaEstado, llamadas, seccion, sello, type Nudo } from './primitivos';
 import { placa } from './registro';
+import { abrirPropuesta } from './propuesta';
 import { seccionTecnica } from './tecnico';
 import { triaje } from './triaje';
 
@@ -571,11 +572,6 @@ function productosGrupo(d: DatosFicha, acc: Acciones): HTMLElement {
 
 // ─── Sección · Acciones ───────────────────────────────────────
 
-const CLAVE_ESTADOS = 'rumbo.acciones.v1';
-type EstadoAccion = 'propuesta' | 'en curso' | 'hecha';
-function leerEstados(): Record<string, EstadoAccion> { try { return JSON.parse(localStorage.getItem(CLAVE_ESTADOS) ?? '{}'); } catch { return {}; } }
-function guardarEstado(clave: string, e: EstadoAccion) { const t = leerEstados(); t[clave] = e; try { localStorage.setItem(CLAVE_ESTADOS, JSON.stringify(t)); } catch { /* Sin almacenamiento, el estado dura solo esta sesión. */ } }
-
 /** El efecto de una acción: la cifra del motor y la mediana prevista a seis meses con y sin ella. */
 function efectoAccion(d: DatosFicha, a?: AccionM): string | null {
 	if (!a) return null;
@@ -593,25 +589,19 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const recs = recomendaciones({ mes: m, man: d.man, tenencia: tenenciaDe(d), perfil: d.ent.profile, papel: d.kind === 'company' ? (d.ent as EmpresaM).role : null, heredaLiquidez: d.kind === 'company' ? (d.ent as EmpresaM).inherits_liquidity : false });
 	const sel = acc.horizonte.elegidas();
 	const lista = h('ol', { class: 'recomendaciones' });
-	const estadosG = leerEstados();
 	recs.forEach((r, i) => {
 		const a = r.accion;
-		const clave = `${d.id}:${d.corte}:${a.id}`;
 		const marca = h('input', { type: 'checkbox', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
 		marca.addEventListener('change', () => { acc.horizonte.alternar(a.id, marca.checked); li.classList.toggle('elegida', marca.checked); });
-		const estadoSel = h('select', { class: 'sel-sutil', 'aria-label': 'Estado de la acción' }, ...(['propuesta', 'en curso', 'hecha'] as EstadoAccion[]).map((x) => h('option', { value: x, selected: (estadosG[clave] ?? 'propuesta') === x }, x)));
-		estadoSel.addEventListener('change', () => { guardarEstado(clave, estadoSel.value as EstadoAccion); li.dataset.estado = estadoSel.value; });
-		estadoSel.addEventListener('click', (ev) => ev.stopPropagation());
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 24, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
-		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-estado': estadosG[clave] ?? 'propuesta', 'data-accion': a.id },
+		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id },
 			h('label', { class: 'rec-marca' }, marca, h('span', { class: 'rec-n' }, String(i + 1))),
 			h('div', { class: 'rec-cuerpo' },
 				h('div', { class: 'rec-titulo' }, tituloAccion(a)),
 				h('p', { class: 'rec-texto' }, r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a)),
 				h('p', { class: 'rec-hechos' }, efectoAccion(d, a) ?? '', ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
 				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
-			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
-			h('div', { class: 'rec-estado' }, estadoSel));
+			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')));
 		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
@@ -628,7 +618,14 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		lista.append(nada);
 	}
 	if (!recs.length) lista.prepend(h('li', { class: 'rec vacia' }, h('p', {}, m.abstain ? `El motor se abstiene este mes y no propone acciones: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}` : !m.feed_live ? 'Sin datos del banco al día, el motor no propone acciones.' : 'El motor no encuentra este mes ninguna palanca que suba el score al menos medio punto.')));
-	raiz.append(seccion(d.kind === 'group' ? 'Qué puede hacer el grupo' : 'Qué puede cambiar su rumbo', lista));
+	const cabeceraAcciones = h(
+		'div',
+		{ class: 'sec-acciones-cabecera' },
+		h('p', { class: 'nota' }, 'Las acciones y su efecto las calcula el motor. Marca una o varias para verlas en el horizonte, o arma la propuesta al cliente.'),
+		h('button', { type: 'button', class: 'boton-propuesta' }, 'Armar propuesta al cliente'),
+	);
+	cabeceraAcciones.querySelector('button')!.addEventListener('click', () => abrirPropuesta(d, acc.horizonte.elegidas(), acc));
+	raiz.append(seccion(d.kind === 'group' ? 'Qué puede hacer el grupo' : 'Qué puede cambiar su rumbo', cabeceraAcciones, lista));
 	if (d.kind === 'group') raiz.append(seccion('Lo que proponen sus empresas', accionesEmpresas(d, acc)));
 	return raiz;
 }
