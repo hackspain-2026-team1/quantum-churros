@@ -148,6 +148,10 @@ CHECK_TEXTS: dict[str, tuple[str, str]] = {
     "verdict_persistence": ("Persistencia de veredictos", "Lo que se llama estructural sigue ahí tres y seis meses después; lo pendiente y los baches, menos."),
     "netting_placebo": ("Placebo de traspasos", "El emparejamiento de traspasos internos casi no encuentra nada con las fechas desplazadas."),
     "injection": ("Deterioros inyectados", "Retraso de detección y falsas alertas al inyectar picos, escalones y rampas."),
+    "natural_anticipation": (
+        "Anticipación natural",
+        "AUC y meses de antelación frente a deterioro estructural en cartera real, con calibración por inyección.",
+    ),
     "level_vs_slope": (
         "Nivel frente a pendiente",
         "La persistencia del score es de nivel, no de pendiente; mide autocorrelación y co-movimiento con liquidez.",

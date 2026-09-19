@@ -19,6 +19,7 @@ CHECK_LABELS: dict[str, str] = {
     "netting_placebo": "Placebo de traspasos (espejos y reversiones reales, no azar)",
     "rolling_origin": "Origen rodante (re-puntuar en cortes históricos)",
     "injection": "Deterioros inyectados (pico, escalón, rampa)",
+    "natural_anticipation": "Anticipación natural (AUC y meses de antelación)",
     "level_vs_slope": "Nivel frente a pendiente",
     "persistence": "Persistencia de nivel (el score bajo sigue bajo)",
     "verdict_persistence": "Persistencia de veredictos (estructural vs bache)",

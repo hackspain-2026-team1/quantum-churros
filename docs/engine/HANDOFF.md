@@ -39,8 +39,9 @@ uv run --package xray-engine xray-score predict data/raw \
   --out artifacts/full --export-dir frontend/static/data/v1 --evidence-months 6
 
 # Validación completa (sin etiquetas): aislamiento, truncado, aditividad,
-# determinismo, inyección, persistencia de veredictos
+# determinismo, inyección, anticipación natural (R9), persistencia de veredictos
 uv run --package xray-engine xray-score validate data/raw --out artifacts/validation.json
+make eval-anticipation   # informe AUC(h) + lead-time → docs/engine/NATURAL_ANTICIPATION.md
 
 # App (docker): web en localhost:3000, api en :8000, postgres en :5433
 make up        # o: docker compose -f compose.yaml -f compose.dev.yaml up --build -d
@@ -73,7 +74,8 @@ profile.py   → ficha de empresa (contexto, no es eje del score)
 reference.py → params/reference_v1.json (anclas congeladas) + sha256
 scoring.py   → orquestación: score_dataset / score_tables
 export.py    → bundle JSON estático para el front
-validation.py→ suite sin etiquetas
+validation.py→ suite sin etiquetas (+ natural_anticipation R9)
+natural_anticipation.py → AUC(h) y lead-time en cartera real
 ```
 
 **Score:** 5 pilares con pesos Liquidez 30 / Pagos 20 / Cobros 15 / Actividad 20

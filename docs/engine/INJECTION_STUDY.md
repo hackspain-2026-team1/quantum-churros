@@ -9,7 +9,7 @@ make eval-injection
 
 La salida legible está en la terminal; el artefacto completo vive en `artifacts/validation.json` → clave `injection`.
 
-Relacionado: [`EVALUATION.md`](EVALUATION.md) · [`VALIDATION.md`](VALIDATION.md) · [`MODEL_CARD.md`](MODEL_CARD.md)
+Relacionado: [`EVALUATION.md`](EVALUATION.md) · [`VALIDATION.md`](VALIDATION.md) · [`MODEL_CARD.md`](MODEL_CARD.md) · [`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md) (AUC + lead-time en cartera real)
 
 ---
 
@@ -22,6 +22,12 @@ El organizador pregunta tres cosas que un score estático no demuestra:
 3. **¿Avisa sin que preguntes?** — Cuántas alertas aparecen en grupos sanos (falsas alarmas).
 
 El estudio de inyección responde insertando deterioros **controlados** en grupos que, sin tocar, estaban sanos (score ≥ 60, feed activo, ventana completa de 24 meses). Solo se re-puntúa la entidad inyectada; el resto de la cartera no cambia.
+
+**Complemento:** [`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md) publica AUC(h) y meses de antelación sobre la **cartera real** (mismo target operativo de deterioro estructural, sin retocar el score). R8 = capacidad; R9 = lo observado.
+
+```bash
+make eval-anticipation   # informe AUC + lead-time (cartera + calibración)
+```
 
 ---
 
@@ -193,8 +199,9 @@ Regenera con `make validate` y consulta `validation.json` → `outlook_fan`.
 | «Un mes malo no es una quiebra» | P(estructural\|pico) = 7,7 % |
 | «Un escalón se ve en un mes» | Retraso mediano escalón = 1 mes |
 | «La erosión lenta tarda más» | Retraso mediano rampa = 3 meses |
-| «Medimos anticipación, no magia» | Distribución de retrasos en `validation.json` |
+| «Medimos anticipación, no magia» | R8: retrasos en `injection` · R9: AUC(h) + lead-time en `natural_anticipation` |
 | «No inflamos falsas alarmas en calma» | P(estructural\|pico) en ventanas tranquilas = 3,7 % |
+| «Publicamos números en cartera real» | AUC-3 = 0,48 · lead mediano = 1 mes · ver `make eval-anticipation` |
 
 ---
 
@@ -204,5 +211,7 @@ Regenera con `make validate` y consulta `validation.json` → `outlook_fan`.
 |-------|---------|
 | Receta de inyección | [`engine/src/xray_engine/validation.py`](../engine/src/xray_engine/validation.py) → `inject()` |
 | Estudio masivo | misma → `injection_study()` |
+| Anticipación natural (R9) | [`engine/src/xray_engine/natural_anticipation.py`](../engine/src/xray_engine/natural_anticipation.py) → `anticipation_study()` |
 | Casos canónicos del brief | [`engine/tests/test_canonical_drift.py`](../engine/tests/test_canonical_drift.py) |
-| Informe en terminal | [`scripts/print_injection_report.py`](../scripts/print_injection_report.py) |
+| Informe inyección | [`scripts/print_injection_report.py`](../scripts/print_injection_report.py) |
+| Informe anticipación | [`scripts/print_anticipation_report.py`](../scripts/print_anticipation_report.py) |

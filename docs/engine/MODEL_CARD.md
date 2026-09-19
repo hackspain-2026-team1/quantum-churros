@@ -45,6 +45,18 @@ Convención: cada fila indica **qué se prueba**, el **resultado** y el **objeti
 | Meses hasta detectar un escalón permanente (mediana) | 1,0 | ≤ 3 |
 | Alertas de deterioro sin inyección real | 24,4 por cada 100 grupo-años | documentar |
 
+## Anticipación natural (bonus del brief)
+
+| Qué se prueba | Resultado | Objetivo |
+|---------------|-----------|----------|
+| AUC cartera · 3 meses — ¿la nota ordena deterioro estructural en h = 3? | 0,48 (66 eventos) | publicar (sin retocar score) |
+| AUC cartera · 6 meses | 0,44 (127 eventos) | publicar |
+| Meses de antelación mediana — señal → onset estructural | 1 mes (68 onsets) | bonus «anticipación medida» |
+| Calibración inyección · escalón · AUC-6 (onset conocido) | 0,51 | coherencia con R8 |
+| Auditoría origen rodante · \|ΔAUC\| en cortes históricos | ≤ 0,013 | point-in-time |
+
+Detalle: [`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md) · `make eval-anticipation`
+
 ## Qué no prometemos
 
 - No hay modelo entrenado con etiquetas: el score es un nivel auditable, no un clasificador ajustado a defaults históricos.
@@ -58,4 +70,4 @@ make eval-phase-a XRAY_DATA=data/raw
 make eval-report
 ```
 
-Detalle: [`EVALUATION.md`](EVALUATION.md) · [`VALIDATION.md`](VALIDATION.md) (códigos internos)
+Detalle: [`EVALUATION.md`](EVALUATION.md) · [`VALIDATION.md`](VALIDATION.md) (códigos internos) · [`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md)

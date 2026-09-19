@@ -60,11 +60,13 @@ NEUTRALITY_FAIL = 0.10
 CHECK_KEYS: tuple[str, ...] = (
     "isolation", "truncation", "additivity", "scale", "determinism", "ablation", "neutrality",
     "penalty_by_branch", "rank_stability", "history_truncation", "persistence", "verdict_persistence",
-    "netting_placebo", "injection", "level_vs_slope", "rolling_origin", "outlook_fan",
+    "netting_placebo", "injection", "natural_anticipation", "level_vs_slope", "rolling_origin", "outlook_fan",
 )
 ROLLING_ORIGIN_CUTS: tuple[date, ...] = (date(2025, 11, 1), date(2026, 2, 1), date(2026, 5, 1))
 # expensive checks left out by ``quick``
-QUICK_SKIPPED: tuple[str, ...] = ("history_truncation", "netting_placebo", "injection")
+QUICK_SKIPPED: tuple[str, ...] = (
+    "history_truncation", "netting_placebo", "injection", "natural_anticipation",
+)
 INJECTION_KINDS: tuple[str, ...] = ("spike", "step", "ramp")
 P_STRUCTURAL_SPIKE_MAX = 0.10
 P_STRUCTURAL_STEP_MIN = 0.70
@@ -89,6 +91,7 @@ TITLES: dict[str, str] = {
     "verdict_persistence": "Persistencia de veredictos",
     "netting_placebo": "Placebo de traspasos",
     "injection": "Deterioros inyectados",
+    "natural_anticipation": "Anticipación natural",
     "level_vs_slope": "Nivel frente a pendiente",
     "rolling_origin": "Origen rodante",
     "outlook_fan": "Abanico de escenarios",
@@ -1925,7 +1928,13 @@ def build_kpis(
     ramp = (injection.get("by_kind") or {}).get("ramp") or {}
     outlook_fan = results.get("outlook_fan") or {}
     neutrality = results.get("neutrality") or {}
+    anticipation = results.get("natural_anticipation") or {}
+    natural = anticipation.get("natural") or {}
+    cal_step = (anticipation.get("calibration_on_injection") or {}).get("step") or {}
     groups_cov = coverage.get("groups") or {}
+    h3 = (natural.get("by_horizon") or {}).get("3") or {}
+    h6 = (natural.get("by_horizon") or {}).get("6") or {}
+    lead = natural.get("lead_time") or {}
     return {
         "by_stage": {
             "reconcile": {
@@ -1960,6 +1969,18 @@ def build_kpis(
                 "p_structural_given_ramp": ramp.get("p_structural"),
                 "false_alarms_per_100_gy": untouched.get("rate_per_100_group_years"),
                 "outlook_fan_hit_rate": outlook_fan.get("hit_rate"),
+                "natural_auc_h3": h3.get("auc"),
+                "natural_auc_h6": h6.get("auc"),
+                "natural_median_lead_months": lead.get("median_months"),
+                "natural_events_per_100_gy": natural.get("events_per_100_group_years"),
+                "injection_cal_auc_h6_step": cal_step.get("auc_h6"),
+                "injection_step_detection_delay": (
+                    cal_step.get("detection_delay") or {}
+                ).get("median_months"),
+                "injection_step_structural_delay": (
+                    cal_step.get("structural_delay") or {}
+                ).get("median_months"),
+                "injection_step_structural_rate": cal_step.get("structural_rate"),
             },
         },
         "window": {
@@ -2077,6 +2098,9 @@ def run_checks(scored: Scored, *, quick: bool = False, log: Callable[[str], None
         "verdict_persistence": lambda: verdict_persistence(scored),
         "netting_placebo": lambda: netting_placebo(scored),
         "injection": lambda: injection_study(scored),
+        "natural_anticipation": lambda: __import__(
+            "xray_engine.natural_anticipation", fromlist=["anticipation_study"]
+        ).anticipation_study(scored),
         "level_vs_slope": lambda: level_vs_slope(scored),
         "rolling_origin": lambda: rolling_origin(scored),
         "outlook_fan": lambda: outlook_fan_calibration(scored),

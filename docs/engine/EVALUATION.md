@@ -2,7 +2,7 @@
 
 Protocolo de evaluación para las tres primeras etapas: **conciliación → normalización → scoring**. Este documento es la fuente de verdad sobre *cómo* medimos; los números viven en [`MODEL_CARD.md`](MODEL_CARD.md) y la serie temporal en [`KPI_HISTORY.md`](KPI_HISTORY.md).
 
-Relacionado: [`VALIDATION.md`](VALIDATION.md) (checks completos, con códigos internos), [`TRACK_COVERAGE.md`](TRACK_COVERAGE.md) (track.md → pipeline).
+Relacionado: [`VALIDATION.md`](VALIDATION.md) (checks completos, con códigos internos), [`TRACK_COVERAGE.md`](TRACK_COVERAGE.md) (track.md → pipeline), [`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md) (AUC + lead-time).
 
 ## Estilo de presentación (sin acrónimos)
 
@@ -26,6 +26,7 @@ Las claves internas del motor (`netting_placebo`, `truncation`, …) viven solo 
 | `level_vs_slope` | Persistencia de nivel vs pendiente |
 | `rolling_origin` | Origen rodante |
 | `injection` | Deterioros inyectados |
+| `natural_anticipation` | Anticipación natural (AUC y lead-time) |
 | «gy» | grupo-años |
 | «ρ» / Spearman | correlación (Spearman) |
 
@@ -97,6 +98,14 @@ Salida:
 | Nivel frente a pendiente | correlación a 3 meses | informativa |
 | Origen rodante | cortes 2025-11 / 2026-02 / 2026-05 | informativa |
 | Deterioros inyectados | pico, escalón, rampa | informativa (publicar baseline) |
+| Anticipación natural | AUC(h) + meses de antelación en cartera real | informativa ([`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md)) |
+
+Comandos:
+
+```bash
+make eval-injection      # tutorial R8
+make eval-anticipation   # informe AUC + lead-time
+```
 
 ## Post-inyección de datos
 
@@ -107,7 +116,8 @@ Si quieres **explorar gráficos** (distribución de delays por banda de tamaño,
 1. Ejecuta `make validate` con dataset real.
 2. Abre `artifacts/validation.json` → claves `injection.by_kind`, `injection.untouched`.
 3. Ejecuta `make eval-injection` para el tutorial en terminal con puntos de mejora.
-4. Lee [`INJECTION_STUDY.md`](INJECTION_STUDY.md) para el informe completo.
+4. Lee [`INJECTION_STUDY.md`](INJECTION_STUDY.md) para el informe completo de R8.
+5. Ejecuta `make eval-anticipation` y lee [`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md) para AUC(h) y lead-time en cartera real (R9).
 
 Regla: el notebook no sustituye a `validation.json`; como mucho visualiza lo ya sellado.
 
@@ -125,6 +135,8 @@ Tras cada cambio, comparar la última fila de KPI_HISTORY:
 | Origen rodante (correlación mínima) | 1,0 (identidad al corte) |
 | Pico confundido con caída estructural | baja (≤10 %) |
 | Retardo mediano en escalón | baja (≤3 meses) |
+| AUC anticipación · 3 meses (R9) | documentado; no retocar score para subirlo |
+| Lead-time mediano cartera (R9) | publicado en [`NATURAL_ANTICIPATION.md`](NATURAL_ANTICIPATION.md) |
 
 ## Segmentos sana / media / mala (Fase B)
 

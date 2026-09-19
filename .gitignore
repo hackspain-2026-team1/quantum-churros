@@ -29,6 +29,13 @@ artifacts/*
 
 # IDE
 .idea/
+.vscode/
+
+# frontend build artifacts
+frontend/.svelte-kit/
+frontend/build/
+frontend/test-results/
+frontend/static/data/
 # local agent worktrees and scratch
 .claude/
 workspace/
