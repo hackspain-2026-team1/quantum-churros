@@ -226,10 +226,10 @@ def test_snapshots_reach_parquet_with_the_frozen_schema(tmp_path, monkeypatch, p
 
 def test_cli_exposes_the_frozen_commands() -> None:
     runner = CliRunner()
-    listing = runner.invoke(app, ["--help"]).output
+    listing = runner.invoke(app, ["--help"], terminal_width=120).output
     for command in ("ingest", "fit-reference", "predict", "validate"):
         assert command in listing
     assert "train" not in listing
     for command in ("predict", "score"):
-        output = runner.invoke(app, [command, "--help"]).output
+        output = runner.invoke(app, [command, "--help"], terminal_width=120).output
         assert "--export-dir" in output and "--out" in output
