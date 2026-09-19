@@ -56,6 +56,7 @@ comprobar('arranca en la entrada', (await estado(p)).vista === 'entrada');
 comprobar('los datos son los del motor', (await p.$eval('.nota-datos', (x) => x.textContent)).includes('datos reales'));
 await hasta(p, () => document.querySelectorAll('.atencion li.tocable').length > 0);
 comprobar('«las que piden atención hoy» sale de los datos', (await p.$$('.atencion li.tocable')).length > 0);
+comprobar('la portada lleva la rosa de los vientos y no repite la marca en la cabecera', await p.evaluate(() => !!document.querySelector('.entrada-rosa[data-placa]') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'hidden'));
 await foto(p, '01-entrada');
 await p.type('.entrada-buscar', '237');
 await esperar(200);
@@ -64,6 +65,7 @@ await p.keyboard.press('Enter');
 await hasta(p, () => document.querySelector('.hoja-ficha h1')?.textContent === 'Grupo 237');
 let e = await estado(p);
 comprobar('Enter abre la organización', e.vista === 'organizacion' && e.sel === 'GROUP_0237', `${e.vista} ${e.sel}`);
+comprobar('una sola cabecera: la miga va junto a la marca', await p.evaluate(() => !!document.querySelector('.barra .miga .miga-paso.actual') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'visible'));
 
 // ─── 2. La organización ────────────────────────────────────
 const manifest = await leer(p, `${DATOS}manifest.json`);
@@ -133,6 +135,23 @@ await foto(p, '06-empresa-tecnico');
 await p.keyboard.press('1');
 await hasta(p, () => !!document.querySelector('.cifras-c'));
 comprobar('el scoring enseña el previsto a seis meses', (await p.$eval('.cifras-c', (x) => x.textContent)).includes('previsto a seis meses'));
+// Los tres escenarios a la vez; elegir otro reorganiza la arena.
+if (await p.$('.esc-drift')) {
+	comprobar('los escenarios alternativos se ven a la vez', (await p.$$('.grafico .g-etq.alternativa')).length === 2);
+	const antes = await p.evaluate(() => [...window.xray.arena.px.slice(0, 40000)]);
+	await p.click('.esc-drift');
+	await esperar(900);
+	const cambio = await p.evaluate((a) => { const b = window.xray.arena.px; let n = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 2) n++; return n; }, antes);
+	const elegido = await p.$eval('.esc-drift', (x) => x.getAttribute('aria-checked'));
+	comprobar('elegir un escenario reorganiza la arena', elegido === 'true' && cambio > 500, `${cambio} granos se mueven`);
+	await p.click('.esc-base');
+	await esperar(300);
+}
+// El informe para imprimir: las cuatro secciones, con la arena cocida en imágenes.
+await p.evaluate(() => dispatchEvent(new Event('beforeprint')));
+const inf = await p.evaluate(() => ({ secciones: document.querySelectorAll('.capa-informe .informe-seccion').length, arena: document.querySelectorAll('.capa-informe .arena-impresa').length }));
+await p.evaluate(() => dispatchEvent(new Event('afterprint')));
+comprobar('el informe imprime las cuatro secciones con su arena', inf.secciones === 4 && inf.arena >= 2 && !(await p.$('.capa-informe')), `${inf.secciones} secciones · ${inf.arena} placas`);
 await foto(p, '07-empresa-scoring');
 await p.keyboard.press('Escape');
 await esperar(600);

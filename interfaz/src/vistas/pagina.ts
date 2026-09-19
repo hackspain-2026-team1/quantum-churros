@@ -1,6 +1,6 @@
 // El controlador de las páginas de Rumbo: la entrada (elegir organización), la organización, la
 // empresa y la metodología. Cada página es un documento que se desplaza; la arena la acompaña con
-// las placas (registro.ts). La miga de pan hace de frase: Rumbo › Grupo › Empresa › Sección.
+// las placas (registro.ts). La miga de pan va en la misma línea que la marca: Grupo › Empresa.
 
 import { TONO } from '../arena/arena';
 import type { Placa } from '../arena/placas';
@@ -13,6 +13,7 @@ import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
 import { cola, h, vaciar } from './dom';
 import { cabecera, cargarFicha, contenidoSeccion, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia, type OpcionesGrafico } from './ficha';
 import { iconoProducto } from './iconos';
+import { logotipo, monograma } from './marca';
 import { granos3, seccion } from './primitivos';
 import { medirPlacas, placa } from './registro';
 
@@ -25,15 +26,17 @@ export interface Paginas {
 	franja(): [number, number];
 	desplazamiento(): number;
 	ocultar(): void;
+	/** El informe imprimible de la ficha abierta (las cuatro secciones seguidas), o null. */
+	informe(): HTMLElement | null;
 }
 
 const NOMBRE_SECCION: Record<Seccion, string> = { scoring: 'Scoring', productos: 'Productos', acciones: 'Acciones', tecnico: 'Técnico' };
 const ROMANO: Record<Seccion, string> = { scoring: 'I', productos: 'II', acciones: 'III', tecnico: 'IV' };
 
-export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string }): Paginas {
+export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Manifiesto, cb: { alCambiarArena(): void; alDesplazar(): void; irCartera(v?: 'plano' | 'tapiz'): void; esMovil(): boolean; corte(): string; imprimir(): void }): Paginas {
 	const raiz = h('main', { class: 'pagina', tabindex: '-1' });
 	const miga = h('nav', { class: 'miga', 'aria-label': 'Dónde estás' });
-	app.append(raiz, miga);
+	app.append(raiz);
 	raiz.addEventListener('scroll', () => cb.alDesplazar(), { passive: true });
 
 	let clave = '';
@@ -54,24 +57,29 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 
 	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; }
 
-	// ─── Miga de pan ───────────────────────────────────────
+	// ─── Miga de pan (en la cabecera, junto a la marca) ─────
 	function pintarMiga(e: Estado) {
 		vaciar(miga);
+		const pasos = h('span', { class: 'miga-pasos' });
 		const paso = (texto: string, accion: (() => void) | null, actual = false) => {
 			const b = h(accion ? 'button' : 'span', { class: `miga-paso ${actual ? 'actual' : ''}`, type: accion ? 'button' : undefined, 'aria-current': actual ? 'page' : undefined }, texto);
 			if (accion) b.addEventListener('click', accion);
-			miga.append(b);
+			pasos.append(b);
 		};
-		const sep = () => miga.append(h('span', { class: 'miga-sep', 'aria-hidden': 'true' }, '›'));
-		paso('Rumbo', e.vista === 'entrada' ? null : () => S.fijar({ vista: 'entrada', sel: null, emp: null }, true), e.vista === 'entrada');
-		if (e.vista === 'metodologia') { sep(); paso('Metodología', null, true); }
+		const sep = () => pasos.append(h('span', { class: 'miga-sep', 'aria-hidden': 'true' }, '›'));
+		if (e.vista === 'metodologia') paso('Metodología', null, true);
 		if ((e.vista === 'organizacion' || e.vista === 'empresa') && e.sel) {
-			sep();
 			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion');
 			if (e.vista === 'empresa' && e.emp) { sep(); paso(f.empresa(e.emp), null, true); }
-			miga.append(h('span', { class: 'miga-cuando' }, `· ${f.mes(cb.corte())}`));
+			pasos.append(h('span', { class: 'miga-cuando' }, f.mes(cb.corte())));
 		}
-		const mapa = h('button', { type: 'button', class: 'miga-mapa' }, 'Mapa de la cartera');
+		miga.append(pasos, h('span', { class: 'hueco' }));
+		if (e.vista === 'organizacion' || e.vista === 'empresa') {
+			const pdf = h('button', { type: 'button', class: 'miga-accion', title: 'Las cuatro secciones, listas para imprimir o guardar en PDF (⌘P)' }, 'Informe en PDF');
+			pdf.addEventListener('click', () => cb.imprimir());
+			miga.append(pdf);
+		}
+		const mapa = h('button', { type: 'button', class: 'miga-accion' }, 'Mapa de la cartera');
 		mapa.addEventListener('click', () => cb.irCartera());
 		miga.append(mapa);
 	}
@@ -197,6 +205,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	async function pintarEntrada() {
 		vaciar(raiz);
 		const hoja = h('article', { class: 'entrada' });
+		// El objeto de la portada: la rosa de los vientos, hecha de arena.
 		const rosa = h('div', { class: 'entrada-rosa', 'aria-hidden': 'true' });
 		placa(rosa, (cj) => ({ tipo: 'rosa', cx: cj.x + cj.w / 2, cy: cj.y + cj.h / 2, r: Math.min(cj.w, cj.h) * 0.36 }));
 		const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: '¿qué organización?', 'aria-label': 'Buscar organización por número, sector o país', autocomplete: 'off', autofocus: true }) as HTMLInputElement;
@@ -230,7 +239,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		met.addEventListener('click', () => S.fijar({ vista: 'metodologia' }, true));
 		hoja.append(
 			rosa,
-			h('div', { class: 'entrada-frase' }, h('span', { class: 'entrada-rumbo' }, 'Rumbo de'), entrada),
+			h('div', { class: 'entrada-frase' }, h('span', { class: 'entrada-rumbo' }, logotipo(cb.esMovil() ? 34 : 50, 'Rumbo'), h('span', { class: 'entrada-de' }, 'de')), entrada),
 			resultados,
 			h('p', { class: 'entrada-lema' }, `${f.numero(man.counts.groups)} organizaciones y ${f.numero(man.counts.companies)} empresas, de ${f.mes(man.months[0])} a ${f.mes(man.months[man.months.length - 1])}. Dónde está cada una, hacia dónde va y qué puede cambiar su rumbo.`),
 			seccion('Las que piden atención hoy', atencion),
@@ -287,8 +296,32 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		cb.alCambiarArena();
 	}
 
+	// ─── Informe para imprimir ─────────────────────────────
+	// El mismo HTML de las cuatro secciones, seguido, con el estado que se ve (escenario elegido,
+	// acciones marcadas). Sin controles: nada se puede tocar en papel.
+	function informe(): HTMLElement | null {
+		const e = S.e;
+		if (!datos || (e.vista !== 'organizacion' && e.vista !== 'empresa')) return null;
+		const d = datos;
+		const quieto: Acciones = { abrirEmpresa: () => {}, abrirGrupo: () => {}, irSeccion: () => {}, repintarArena: () => {} };
+		const hoja = h('article', { class: `hoja-ficha informe ${d.kind}` });
+		hoja.append(h('header', { class: 'informe-cab' },
+			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
+			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
+		hoja.append(cabecera(d, false));
+		for (const sec of SECCIONES) {
+			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, h('span', { class: 'sec-marca-n' }, ROMANO[sec]), ` ${NOMBRE_SECCION[sec]}`));
+			if (d.kind === 'group' && sec === 'scoring') cuerpo.append(flota(d));
+			cuerpo.append(contenidoSeccion(d, sec, { ...estadoUI, acciones: new Set(estadoUI.acciones), filtro: null }, quieto, false));
+			hoja.append(cuerpo);
+		}
+		hoja.append(h('footer', { class: 'informe-pie' },
+			`Rumbo · motor ${man.engine_version} · bundle ${man.bundle_id.slice(0, 12)} · parámetros ${man.params_hash.slice(0, 12)} · datos ${man.dataset_hash.slice(0, 12)} · impreso el ${new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}. Todo sale de los ficheros del motor y de los procesos de Rumbo.`));
+		return hoja;
+	}
+
 	return {
-		raiz, miga, pintar: (e) => { void pintar(e); }, ocultar,
+		raiz, miga, pintar: (e) => { void pintar(e); }, ocultar, informe,
 		placas: () => medirPlacas(raiz),
 		franja: () => { const r = raiz.getBoundingClientRect(); return [r.top, r.bottom]; },
 		desplazamiento: () => raiz.scrollTop,

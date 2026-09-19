@@ -29,3 +29,8 @@ export function medirPlacas(contenedor: HTMLElement): Placa[] {
 	});
 	return salida;
 }
+
+/** La placa de un hueco con una caja dada (para dibujarla fuera de la arena, en el informe). */
+export function hacerPlaca(el: Element, c: Caja): Placa | null {
+	return hacedores.get(el)?.(c) ?? null;
+}

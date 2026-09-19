@@ -12,8 +12,9 @@ export const PALETA: [number, number, number][] = [
 	[157, 75, 221], // 5 TellMe (#9d4bdd)
 	[110, 112, 124], // 6 apagado (#6e707c)
 	[190, 192, 204], // 7 filete (#bec0cc)
+	[176, 112, 22], // 8 ocre (#b07016): escenario «si se repite su peor trimestre»
 ];
-export const TONO = { tinta: 0, peligro: 1, exito: 2, info: 3, aviso: 4, tellme: 5, apagado: 6, filete: 7 } as const;
+export const TONO = { tinta: 0, peligro: 1, exito: 2, info: 3, aviso: 4, tellme: 5, apagado: 6, filete: 7, ocre: 8 } as const;
 
 export interface Escena {
 	x: Float32Array;
