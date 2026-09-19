@@ -214,17 +214,25 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 		case 'tapiz': {
 			const alto = (Y1 - Y0) / Math.max(1, v.filas), ancho = (X1 - X0) / Math.max(1, v.meses);
 			guias.fila = alto; guias.col = ancho;
+			// Cada fila es la trayectoria del score (0 a 100 dentro de la fila), una línea de arena; el tramo de un mes
+			// en crítico, en rojo. Los meses sin dato quedan en blanco.
+			const Ys = (base: number, d: number) => base - 1 - Math.max(0, Math.min(1, d / 1000)) * (alto - 3);
 			for (const e of v.ents) {
 				if (!e.visible || e.puesto < 0 || e.puesto >= v.filas) continue;
-				const y = Y0 + (e.puesto + 0.5) * alto;
-				const celdas = e.serie.map((s, i) => [i, s] as const).filter(([, s]) => s !== null);
-				if (!celdas.length) continue;
-				anclas.set(e.id, { x: X1 - ancho / 2, y, r: alto / 2 });
+				const base = Y0 + (e.puesto + 1) * alto;
+				const hay = e.serie.map((s) => s !== null);
+				// Tramos entre meses consecutivos con dato; un mes aislado, un punto.
+				const tramos: [number, number][] = [];
+				e.serie.forEach((s, c) => { if (s === null) return; if (hay[c + 1]) tramos.push([c, c + 1]); else if (!hay[c - 1]) tramos.push([c, c]); });
+				if (!tramos.length) continue;
+				anclas.set(e.id, { x: X1 - ancho / 2, y: base - alto / 2, r: alto / 2 });
 				pintores.set(e.id, (add) => {
 					for (let i = 0; i < k; i++) {
-						const [c, s] = celdas[i % celdas.length];
-						// Tinta densa, score alto; el mes en crítico, en rojo.
-						add(X0 + (c + Math.random()) * ancho, y + azar(alto * 0.8), e.bandas[c] === 'critical' ? TONO.peligro : TONO.tinta, 0.28 + 0.72 * Math.max(0, Math.min(1, (s! / 10 - 20) / 70)), 2);
+						const pos = ((i + 0.5) / k) * tramos.length, j = Math.min(tramos.length - 1, Math.floor(pos)), u = pos - j;
+						const [c0, c1] = tramos[j];
+						const d = e.serie[c0]! + (e.serie[c1]! - e.serie[c0]!) * u;
+						const c = u < 0.5 ? c0 : c1;
+						add(X0 + (c0 + 0.5 + (c1 - c0) * u) * ancho, Ys(base, d) + azar(0.6), e.bandas[c] === 'critical' ? TONO.peligro : TONO.tinta, 0.9, 1.6);
 					}
 				});
 			}
