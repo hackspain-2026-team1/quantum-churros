@@ -208,6 +208,32 @@ export interface EvidenciaM {
   months: { month: string; rows: FilaEvidenciaM[] }[];
 }
 
+/** Una factura vencida del trabajo de recordatorios (invoices_due.json). */
+export interface FacturaVencidaM {
+  operation_id: string;
+  counterparty_id: string | null;
+  due_date: string;
+  amount: number;
+  days_overdue: number;
+}
+
+/** invoices_due.json: lo vencido a fin de corte, por lado (ar: clientes; ap: proveedores). */
+export interface InvoicesDueM {
+  schema: "xray-export-v1";
+  kind: "invoices_due";
+  month: string;
+  rows: {
+    ar: {
+      companies: Record<string, FacturaVencidaM[]>;
+      groups: Record<string, FacturaVencidaM[]>;
+    };
+    ap: {
+      companies: Record<string, FacturaVencidaM[]>;
+      groups: Record<string, FacturaVencidaM[]>;
+    };
+  };
+}
+
 export interface ReciboM {
   engine_version: string;
   params_hash: string;
@@ -299,6 +325,8 @@ export interface ProductosEmpresaM {
   held: TenenciaM[];
   other_debt: OtraDeudaM[];
   accounts: Record<string, number>;
+  /** Los bancos donde la empresa tiene productos de banco (cuentas, tarjetas…): banco → cuántos. */
+  banks?: Record<string, number>;
   totals: Record<string, number>;
 }
 export interface ProductosGrupoM {
@@ -311,6 +339,8 @@ export interface ProductosGrupoM {
     sources: Partial<Record<ProductoId, "declarado" | "movimientos">>;
   }[];
   counts: Partial<Record<ProductoId, number>>;
+  /** Bancos de todas sus empresas: banco → cuántos productos de banco. */
+  banks?: Record<string, number>;
   totals?: Record<string, number>;
 }
 export interface ProductosIndiceM {

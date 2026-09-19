@@ -28,6 +28,10 @@ export interface AccionElegida {
   title: string;
   uplift_tenths: number;
   new_score_tenths: number;
+  /** El valor medido del insumo en el corte y al que apunta la acción: para validar después si se cumplió. */
+  current?: number | null;
+  target?: number | null;
+  unit?: "días" | "ratio" | "%" | null;
 }
 
 export interface PropuestaGuardada {
@@ -73,6 +77,11 @@ export function propuestasDe(
   return leer()
     .generadas.filter((p) => p.entidad === entidad && p.corte === corte)
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
+}
+
+/** Todo el registro de propuestas, de más nueva a más vieja (cualquier entidad y corte). */
+export function todasLasPropuestas(): PropuestaGuardada[] {
+  return [...leer().generadas].sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
 
 export function guardarPropuesta(p: PropuestaGuardada): void {

@@ -969,18 +969,32 @@ def _reminder_row(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _reminders(due_ar: pl.DataFrame) -> dict[str, dict[str, list[dict[str, Any]]]]:
-    """Top overdue open AR invoices per company and per group, for the reminders."""
+def _reminders(
+    due_ar: pl.DataFrame, due_ap: pl.DataFrame
+) -> dict[str, dict[str, dict[str, list[dict[str, Any]]]]]:
+    """Top overdue open invoices per company and per group, both sides:
+    ``ar`` = clients that owe the entity, ``ap`` = suppliers the entity owes."""
 
-    def side(key: str) -> dict[str, list[dict[str, Any]]]:
+    def lado(due: pl.DataFrame) -> dict[str, dict[str, list[dict[str, Any]]]]:
         rows: dict[str, list[dict[str, Any]]] = {}
-        ids = due_ar[key].drop_nulls().unique().sort().to_list()
+        ids = due["company_id"].drop_nulls().unique().sort().to_list()
         for entity_id in ids:
-            picked = due_ar.filter(pl.col(key) == entity_id).head(MAX_REMINDERS)
+            picked = due.filter(pl.col("company_id") == entity_id).head(MAX_REMINDERS)
             rows[entity_id] = [_reminder_row(row) for row in picked.to_dicts()]
         return rows
 
-    return {"companies": side("company_id"), "groups": side("group_id")}
+    def grupo(due: pl.DataFrame) -> dict[str, list[dict[str, Any]]]:
+        rows: dict[str, list[dict[str, Any]]] = {}
+        ids = due["group_id"].drop_nulls().unique().sort().to_list()
+        for entity_id in ids:
+            picked = due.filter(pl.col("group_id") == entity_id).head(MAX_REMINDERS)
+            rows[entity_id] = [_reminder_row(row) for row in picked.to_dicts()]
+        return rows
+
+    return {
+        "ar": {"companies": lado(due_ar), "groups": grupo(due_ar)},
+        "ap": {"companies": lado(due_ap), "groups": grupo(due_ap)},
+    }
 
 
 def export_bundle(
@@ -1164,7 +1178,7 @@ def export_bundle(
         "schema": BUNDLE_SCHEMA,
         "kind": "invoices_due",
         "month": _month(result.window.last_month),
-        "rows": _reminders(result.due_ar),
+        "rows": _reminders(result.due_ar, result.due_ap),
     }
     files["portfolio.json"] = {"schema": BUNDLE_SCHEMA, "kind": "portfolio", "months": axis, "groups": portfolio_rows}
     files["alerts.json"] = {"schema": BUNDLE_SCHEMA, "kind": "alerts", "alerts": alerts}

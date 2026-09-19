@@ -2,8 +2,9 @@
 // los que la organización ya trabaja, para que el usuario de Embat elija a quién
 // proponerle cada instrumento. Nada se inventa: la tasa sale de los datos cuando
 // consta (casi siempre solo para préstamos) y si no, la oferta dice «sin tasa
-// publicada». El motor solo aporta el instrumento y el monto; el banco es una
-// relación real de la entidad (cuentas o productos contratados).
+// publicada». Solo se ofrece un banco si consta que ya financia a la entidad (un
+// producto de crédito contratado); un banco que solo guarda cuentas no se ofrece
+// como prestamista. El motor solo aporta el instrumento y el monto.
 
 import type {
   FinanciacionM,
@@ -31,8 +32,8 @@ export interface OfertaBanco {
 export interface FuentesBanco {
   tenencias: TenenciaM[];
   otras: OtraDeudaM[];
-  /** Bancos de las cuentas (claves de accounts). */
-  cuentas: string[];
+  /** Los bancos donde constan productos de banco (cuentas, tarjetas…): banco → cuántos. */
+  bancos: Record<string, number>;
 }
 
 const PRODUCTO_POR_KIND: Partial<Record<FinanciacionM["kind"], ProductoId>> = {
@@ -43,23 +44,48 @@ const PRODUCTO_POR_KIND: Partial<Record<FinanciacionM["kind"], ProductoId>> = {
 /** El instrumento «reestructuración» equivale a un préstamo (loan) entre las otras deudas. */
 const ES_PRESTAMO = /loan|préstamo/i;
 
+/** Los productos de crédito: lo que convierte a un banco en un prestamista con evidencia. */
+const PRODUCTOS_DE_CREDITO: Set<ProductoId> = new Set([
+  "factoring",
+  "confirming",
+  "linea_credito",
+]);
+
 function bancoDe(bank: string | null): string | null {
   return bank && bank.trim() ? bank.trim() : null;
 }
 
+/** Los bancos que consta que financian a la entidad: tienen un producto de crédito contratado. */
+function bancosPrestamistas(fuentes: FuentesBanco): Set<string> {
+  const prestamistas = new Set<string>();
+  for (const tenencia of fuentes.tenencias)
+    if (PRODUCTOS_DE_CREDITO.has(tenencia.product))
+      for (const item of tenencia.items) {
+        const b = bancoDe(item.bank);
+        if (b) prestamistas.add(b);
+      }
+  for (const otra of fuentes.otras) {
+    const b = bancoDe(otra.bank);
+    if (b) prestamistas.add(b);
+  }
+  return prestamistas;
+}
+
 /**
- * Los bancos con los que la entidad trabaja, de mejor a peor opción para el
- * instrumento: primero los que ya le dan ese producto (por tasa creciente
- * cuando consta, y concedido decreciente), después los que tienen cualquier
- * otro producto o cuenta. Determinista: los empates por nombre.
+ * Los bancos a los que ofrecer el instrumento, de mejor a peor opción: solo
+ * bancos que ya financian a la entidad (así la oferta descansa en una relación
+ * real). Primero los que ya le dan ese producto (por tasa creciente cuando
+ * consta, y concedido decreciente), después el resto. Determinista: los empates
+ * por nombre.
  */
 export function ofertasBanco(
   kind: FinanciacionM["kind"],
   fuentes: FuentesBanco,
 ): OfertaBanco[] {
   const producto = PRODUCTO_POR_KIND[kind];
+  const prestamistas = bancosPrestamistas(fuentes);
   const exactos = new Map<string, OfertaBanco>();
-  const conocidos = new Set<string>();
+  const resto = new Map<string, OfertaBanco>();
 
   const anotar = (
     mapa: Map<string, OfertaBanco>,
@@ -95,8 +121,7 @@ export function ofertasBanco(
     const es = tenencia.product === producto;
     for (const item of tenencia.items) {
       const b = bancoDe(item.bank);
-      if (!b) continue;
-      conocidos.add(b);
+      if (!b || !prestamistas.has(b)) continue;
       if (es)
         anotar(
           exactos,
@@ -106,16 +131,26 @@ export function ofertasBanco(
           item.granted,
           item.outstanding,
         );
+      else if (!resto.has(b))
+        resto.set(b, {
+          bank: b,
+          tieneProducto: false,
+          rate: null,
+          rate_type: null,
+          granted: null,
+          outstanding: null,
+          oferta_tasa: null,
+          oferta_fuente: null,
+        });
     }
   }
   for (const otra of fuentes.otras) {
     const b = bancoDe(otra.bank);
-    if (!b) continue;
-    conocidos.add(b);
+    if (!b || !prestamistas.has(b) || exactos.has(b)) continue;
     if (
       kind === "restructure" &&
       ES_PRESTAMO.test(`${otra.type} ${otra.type_label}`)
-    ) {
+    )
       anotar(
         exactos,
         b,
@@ -124,22 +159,19 @@ export function ofertasBanco(
         otra.granted,
         otra.outstanding,
       );
-    }
+    else if (!resto.has(b))
+      resto.set(b, {
+        bank: b,
+        tieneProducto: false,
+        rate: null,
+        rate_type: null,
+        granted: null,
+        outstanding: null,
+        oferta_tasa: null,
+        oferta_fuente: null,
+      });
   }
-  for (const cuenta of fuentes.cuentas) conocidos.add(cuenta);
 
-  const resto = [...conocidos]
-    .filter((b) => !exactos.has(b))
-    .map((bank) => ({
-      bank,
-      tieneProducto: false,
-      rate: null,
-      rate_type: null,
-      granted: null,
-      outstanding: null,
-      oferta_tasa: null,
-      oferta_fuente: null,
-    }));
   const conOferta = (o: OfertaBanco): OfertaBanco => {
     const oferta = tasaPara(kind, o.rate, o.rate_type);
     return {
@@ -148,29 +180,36 @@ export function ofertasBanco(
       oferta_fuente: oferta?.fuente ?? null,
     };
   };
-  return [...exactos.values(), ...resto].map(conOferta).sort((a, b) => {
-    if (a.tieneProducto !== b.tieneProducto) return a.tieneProducto ? -1 : 1;
-    // el dato real siempre rankea antes que la estimación de mercado
-    const pesoFuente = (o: OfertaBanco) =>
-      o.oferta_fuente === "banco" ? 0 : o.oferta_fuente === "mercado" ? 1 : 2;
-    if (pesoFuente(a) !== pesoFuente(b)) return pesoFuente(a) - pesoFuente(b);
-    if ((a.oferta_tasa ?? 1e9) !== (b.oferta_tasa ?? 1e9))
-      return (a.oferta_tasa ?? 1e9) - (b.oferta_tasa ?? 1e9);
-    if ((b.granted ?? 0) !== (a.granted ?? 0))
-      return (b.granted ?? 0) - (a.granted ?? 0);
-    return a.bank.localeCompare(b.bank, "es");
-  });
+  return [...exactos.values(), ...resto.values()]
+    .map(conOferta)
+    .sort((a, b) => {
+      if (a.tieneProducto !== b.tieneProducto) return a.tieneProducto ? -1 : 1;
+      // el dato real siempre rankea antes que la estimación de mercado
+      const pesoFuente = (o: OfertaBanco) =>
+        o.oferta_fuente === "banco" ? 0 : o.oferta_fuente === "mercado" ? 1 : 2;
+      if (pesoFuente(a) !== pesoFuente(b)) return pesoFuente(a) - pesoFuente(b);
+      if ((a.oferta_tasa ?? 1e9) !== (b.oferta_tasa ?? 1e9))
+        return (a.oferta_tasa ?? 1e9) - (b.oferta_tasa ?? 1e9);
+      if ((b.granted ?? 0) !== (a.granted ?? 0))
+        return (b.granted ?? 0) - (a.granted ?? 0);
+      return a.bank.localeCompare(b.bank, "es");
+    });
 }
 
 /** Los bancos de la entidad con lo que tiene en cada uno: para «Tus bancos conectados». */
 export interface BancoConectado {
   bank: string;
+  /** Cuántos productos de banco (cuentas, tarjetas…) tiene ahí. */
   cuentas: number;
+  /** true si consta que el banco ya financia a la entidad (un producto de crédito). */
+  otorga: boolean;
   productos: {
     producto: string;
     granted: number | null;
     rate: number | null;
     rate_type: string | null;
+    /** true si es un producto de crédito (no una cuenta). */
+    credito: boolean;
   }[];
 }
 
@@ -178,53 +217,69 @@ export function bancosConectados(fuentes: FuentesBanco): BancoConectado[] {
   const porBanco = new Map<string, BancoConectado>();
   const visto = (bank: string): BancoConectado => {
     if (!porBanco.has(bank))
-      porBanco.set(bank, { bank, cuentas: 0, productos: [] });
+      porBanco.set(bank, { bank, cuentas: 0, otorga: false, productos: [] });
     return porBanco.get(bank)!;
   };
-  for (const t of fuentes.tenencias)
+  for (const [banco, n] of Object.entries(fuentes.bancos)) {
+    if (!banco.trim()) continue;
+    visto(banco.trim()).cuentas += n;
+  }
+  for (const t of fuentes.tenencias) {
+    const credito = PRODUCTOS_DE_CREDITO.has(t.product);
     for (const item of t.items) {
       const b = item.bank?.trim();
-      if (b)
-        visto(b).productos.push({
-          producto: producto(t.product).nombre,
-          granted: item.granted,
-          rate: item.rate,
-          rate_type: item.rate_type,
-        });
+      if (!b) continue;
+      const banco = visto(b);
+      banco.productos.push({
+        producto: producto(t.product).nombre,
+        granted: item.granted,
+        rate: item.rate,
+        rate_type: item.rate_type,
+        credito,
+      });
+      if (credito) banco.otorga = true;
     }
+  }
   for (const o of fuentes.otras) {
     const b = o.bank?.trim();
-    if (b)
-      visto(b).productos.push({
-        producto: o.type_label,
-        granted: o.granted,
-        rate: o.rate,
-        rate_type: o.rate_type,
-      });
+    if (!b) continue;
+    const banco = visto(b);
+    banco.productos.push({
+      producto: o.type_label,
+      granted: o.granted,
+      rate: o.rate,
+      rate_type: o.rate_type,
+      credito: true,
+    });
+    banco.otorga = true;
   }
-  for (const c of fuentes.cuentas) visto(c).cuentas += 1;
-  return [...porBanco.values()].sort((a, b) =>
-    b.productos.length + b.cuentas !== a.productos.length + a.cuentas
-      ? b.productos.length + b.cuentas - (a.productos.length + a.cuentas)
-      : a.bank.localeCompare(b.bank, "es"),
-  );
+  return [...porBanco.values()].sort((a, b) => {
+    const peso = (x: BancoConectado) =>
+      (x.otorga ? 2 : 0) + Math.min(x.cuentas, 9);
+    if (peso(a) !== peso(b)) return peso(b) - peso(a);
+    return a.bank.localeCompare(b.bank, "es");
+  });
 }
 
 /** Las fuentes de la ficha de una entidad (empresa: las suyas; grupo: las de sus empresas). */
 export function fuentesDe(
   tenencias: TenenciaM[],
   otras: OtraDeudaM[],
-  cuentas: string[],
+  bancos: Record<string, number>,
   empresas: {
     tenencias: TenenciaM[];
     otras: OtraDeudaM[];
-    cuentas: string[];
+    bancos: Record<string, number>;
   }[],
 ): FuentesBanco {
-  if (!empresas.length) return { tenencias, otras, cuentas };
+  if (!empresas.length) return { tenencias, otras, bancos };
+  const juntos: Record<string, number> = { ...bancos };
+  for (const e of empresas)
+    for (const [banco, n] of Object.entries(e.bancos))
+      juntos[banco] = (juntos[banco] ?? 0) + n;
   return {
     tenencias: [...tenencias, ...empresas.flatMap((e) => e.tenencias)],
     otras: [...otras, ...empresas.flatMap((e) => e.otras)],
-    cuentas: [...new Set([...cuentas, ...empresas.flatMap((e) => e.cuentas)])],
+    bancos: juntos,
   };
 }

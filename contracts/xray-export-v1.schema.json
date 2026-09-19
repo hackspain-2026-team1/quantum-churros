@@ -1861,7 +1861,7 @@
     },
     "invoices_due": {
       "title": "invoices_due.json",
-      "description": "Top open overdue AR invoices per company and per group as of the last month: the work list behind the collect-earlier reminders.",
+      "description": "Top open overdue invoices per company and per group as of the last month, both sides: ar (clients that owe the entity, the work list behind the collect-earlier reminders) and ap (suppliers the entity owes).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1884,22 +1884,39 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "companies",
-            "groups"
+            "ar",
+            "ap"
           ],
           "properties": {
-            "companies": {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/reminderList"
-              }
+            "ar": {
+              "$ref": "#/$defs/reminderSide"
             },
-            "groups": {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/reminderList"
-              }
+            "ap": {
+              "$ref": "#/$defs/reminderSide"
             }
+          }
+        }
+      }
+    },
+    "reminderSide": {
+      "description": "One side of the overdue invoice lists, per company and per group.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "companies",
+        "groups"
+      ],
+      "properties": {
+        "companies": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/reminderList"
+          }
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/reminderList"
           }
         }
       }

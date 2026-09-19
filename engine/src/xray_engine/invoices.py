@@ -165,17 +165,28 @@ def open_overdue_ar(invoices: pl.DataFrame, month: date) -> pl.DataFrame:
     EUR. Columns: company_id, group_id, operation_id, counterparty_id,
     due_date, amount (EUR), days_overdue. Sorted by amount descending.
     """
+    return _open_overdue(invoices, month, "AR")
+
+
+def open_overdue_ap(invoices: pl.DataFrame, month: date) -> pl.DataFrame:
+    """Top overdue open AP invoices as of the end of ``month``: the suppliers
+    the entity still owes, with how much and for how long. Same shape as
+    ``open_overdue_ar``; amounts are positive (what the entity owes)."""
+    return _open_overdue(invoices, month, "AP")
+
+
+def _open_overdue(invoices: pl.DataFrame, month: date, side: str) -> pl.DataFrame:
     end = pl.lit(month).dt.month_end()
     return (
         invoices.filter(
-            (pl.col("side") == "AR")
+            (pl.col("side") == side)
             & ~pl.col("stamped")
             & ~pl.col("fx_excluded")
             & (pl.col("due_date") < end)
             & (pl.col("settled_date").is_null() | (pl.col("settled_date") > end))
         )
         .with_columns(
-            (pl.col("amount_cents") * pl.col("fx_rate") / 100).alias("amount"),
+            (pl.col("amount_cents").abs() * pl.col("fx_rate") / 100).alias("amount"),
             (end - pl.col("due_date")).dt.total_days().alias("days_overdue"),
         )
         .select(

@@ -1,14 +1,16 @@
-// El flujo de propuesta al cliente (sección Acciones), en tres pasos:
-//   1. Tus bancos conectados: la relación real de la entidad, banco por banco.
-//   2. Acciones: qué ofrecer, con el efecto que calculó el motor.
-//   3. Financiación: por instrumento, qué banco lo otorga, con su tasa (la del
-//      banco cuando consta, si no una estimación de mercado siempre marcada).
+// El flujo de propuesta al cliente (sección Acciones), en pantalla completa:
+//   izquierda · el documento: vista previa en vivo de lo que se elige a la
+//     derecha, o el historial de propuestas con su validación de cumplimiento
+//     (lo medido en el corte contra lo medido en los meses posteriores);
+//   derecha · los tres pasos: bancos conectados, acciones, financiación por
+//     banco (tasa del banco cuando consta, si no estimación de mercado marcada).
 // Generar propuesta la guarda con trazabilidad (id, fecha, entidad, corte,
-// hash del bundle) y abre el informe del cliente: radiografía + plan. Entrega:
-// PDF por impresión del navegador o mailto (el envío lo hace el usuario).
+// hash del bundle) y el documento pasa a ser el informe final. Entrega: PDF
+// por impresión del navegador o mailto (el envío lo hace el usuario).
 
 import { carga } from "../datos/carga";
 import { f } from "../datos/formato";
+import type { FacturaVencidaM, InvoicesDueM, SerieM } from "../datos/contrato";
 import {
   bancosConectados,
   fuentesDe,
@@ -21,7 +23,9 @@ import {
   correoPropuesta,
   guardarPropuesta,
   nuevaPropuestaId,
-  propuestasDe,
+  todasLasPropuestas,
+  type AccionElegida,
+  type FinanciacionElegida,
   type PropuestaGuardada,
 } from "../datos/propuestas";
 import {
@@ -31,6 +35,11 @@ import {
   nombrePilar,
   tituloAccion,
 } from "../datos/redaccion";
+import {
+  validarPropuesta,
+  valorSerieEn,
+  type EstadoAccion,
+} from "../datos/seguimiento";
 import { fuenteTexto } from "../datos/tasas";
 import { h, vaciar } from "./dom";
 import type { Acciones, DatosFicha } from "./ficha";
@@ -41,6 +50,23 @@ const CONFIANZA: Record<string, string> = {
   low: "baja",
 };
 
+/** Las medidas reales que el informe muestra en «la foto de este mes». */
+const SERIES_FOTO: string[] = [
+  "buffer_days",
+  "cash_month_end",
+  "headroom",
+  "debt_burden",
+  "ar_days_beyond_terms",
+  "ap_days_beyond_terms",
+];
+
+const ESTADO_TEXTO: Record<EstadoAccion, string> = {
+  cumplida: "cumplida",
+  "en camino": "en camino",
+  pendiente: "pendiente",
+  "sin datos": "sin datos",
+};
+
 function fuentesDeFicha(d: DatosFicha): FuentesBanco {
   const propias = d.prodE;
   const empresas =
@@ -48,13 +74,13 @@ function fuentesDeFicha(d: DatosFicha): FuentesBanco {
       ? d.empresas.map((e) => ({
           tenencias: e.prod?.held ?? [],
           otras: e.prod?.other_debt ?? [],
-          cuentas: Object.keys(e.prod?.accounts ?? {}),
+          bancos: e.prod?.banks ?? {},
         }))
       : [];
   return fuentesDe(
     propias?.held ?? [],
     propias?.other_debt ?? [],
-    Object.keys(propias?.accounts ?? {}),
+    propias?.banks ?? {},
     empresas,
   );
 }
@@ -108,11 +134,12 @@ function tarjetaBanco(b: BancoConectado): HTMLElement {
           p.granted !== null
             ? h("span", {}, ` · ${f.eurosCorto(p.granted)}`)
             : "",
-          p.rate !== null
+          // el tipo de un crédito ya contratado es un hecho, no una oferta
+          p.credito && p.rate !== null
             ? h(
                 "span",
-                { class: "propuesta-badge propuesta-badge-banco" },
-                `${f.numero(p.rate, 2)} % ${p.rate_type === "variable" ? "variable" : "fijo"} · del banco`,
+                { class: "propuesta-banco-tipo" },
+                `· tipo actual ${f.numero(p.rate, 2)} % ${p.rate_type === "variable" ? "variable" : "fijo"}`,
               )
             : "",
         ),
@@ -127,13 +154,25 @@ function tarjetaBanco(b: BancoConectado): HTMLElement {
   return h(
     "div",
     { class: "propuesta-banco" },
-    h("p", { class: "propuesta-titulo" }, b.bank),
+    h(
+      "div",
+      { class: "propuesta-banco-cabeza" },
+      h("p", { class: "propuesta-titulo" }, b.bank),
+      b.otorga
+        ? h(
+            "span",
+            { class: "propuesta-badge propuesta-badge-banco" },
+            "ya te financia",
+          )
+        : "",
+    ),
     h(
       "p",
       { class: "propuesta-nota" },
       b.cuentas
         ? `${b.cuentas} ${b.cuentas === 1 ? "cuenta" : "cuentas"} conectadas`
         : "sin cuentas conectadas",
+      b.otorga ? "" : " · no consta que otorgue financiación",
     ),
     ...lineas,
   );
@@ -192,6 +231,355 @@ function filaOferta(
   );
 }
 
+// ─── El documento (izquierda) ─────────────────────────────────
+
+/** Lo que el informe necesita del plan: las elecciones del momento o lo guardado. */
+interface PlanInforme {
+  corte: string;
+  score_actual_tenths: number;
+  acciones: AccionElegida[];
+  financiacion: FinanciacionElegida[];
+}
+
+function formatoSerie(s: SerieM, v: number | null): string {
+  if (v === null) return "—";
+  if (s.unit === "EUR") return f.eurosCorto(v);
+  if (s.unit === "días") return `${f.numero(v, 1)} días`;
+  if (s.unit === "ratio") return `${f.numero(v, 2)}×`;
+  return `${f.numero(v, 1)}${s.unit === "%" ? " %" : ""}`;
+}
+
+/** «La foto de este mes»: las medidas reales del motor en el corte del informe. */
+function bloqueFoto(
+  d: DatosFicha,
+  corte: string,
+  cabecera: string,
+): HTMLElement {
+  const celdas: HTMLElement[] = [];
+  for (const clave of SERIES_FOTO) {
+    const s = d.ent.series.find((x) => x.key === clave);
+    if (!s) continue;
+    const v = valorSerieEn(d.ent, clave, corte);
+    celdas.push(
+      h(
+        "div",
+        { class: "informe-metrica" },
+        h("span", { class: "informe-metrica-valor" }, formatoSerie(s, v)),
+        h("span", { class: "informe-metrica-nombre" }, s.label),
+      ),
+    );
+  }
+  return h(
+    "section",
+    { class: "informe-bloque" },
+    h("h2", {}, cabecera),
+    h("div", { class: "informe-metricas" }, ...celdas),
+  );
+}
+
+/** Las facturas vencidas abiertas del lado pedido, las más grandes que exporta el motor. */
+function facturasDe(
+  due: InvoicesDueM,
+  d: DatosFicha,
+  lado: "ar" | "ap",
+): FacturaVencidaM[] {
+  const mapa =
+    d.kind === "company" ? due.rows[lado].companies : due.rows[lado].groups;
+  return mapa[d.id] ?? [];
+}
+
+function bloqueFacturas(
+  titulo: string,
+  filas: FacturaVencidaM[],
+  sinDatos: string,
+): HTMLElement {
+  if (!filas.length)
+    return h(
+      "section",
+      { class: "informe-bloque" },
+      h("h2", {}, titulo),
+      h("p", { class: "informe-nota" }, sinDatos),
+    );
+  const tabla = h(
+    "table",
+    { class: "informe-tabla" },
+    h(
+      "thead",
+      {},
+      h(
+        "tr",
+        {},
+        h("th", {}, "Contraparte"),
+        h("th", {}, "Vencida el"),
+        h("th", { class: "num" }, "Atraso"),
+        h("th", { class: "num" }, "Importe"),
+      ),
+    ),
+  );
+  const cuerpo = h("tbody");
+  for (const x of filas.slice(0, 8))
+    cuerpo.append(
+      h(
+        "tr",
+        {},
+        h("td", {}, x.counterparty_id ?? "—"),
+        h("td", {}, x.due_date),
+        h("td", { class: "num" }, `${x.days_overdue} días`),
+        h("td", { class: "num" }, f.eurosCorto(x.amount)),
+      ),
+    );
+  tabla.append(cuerpo);
+  return h(
+    "section",
+    { class: "informe-bloque" },
+    h("h2", {}, titulo),
+    tabla,
+    h(
+      "p",
+      { class: "informe-nota" },
+      "Solo las facturas vencidas y abiertas más grandes que exporta el motor; el total puede ser mayor.",
+    ),
+  );
+}
+
+/** El bloque de seguimiento de una propuesta guardada: lo prometido contra lo medido después. */
+function bloqueSeguimiento(d: DatosFicha, p: PropuestaGuardada): HTMLElement {
+  const seg = validarPropuesta(p, d.ent, d.mes);
+  const filas: HTMLElement[] = [];
+  const chip = (estado: EstadoAccion) =>
+    h(
+      "span",
+      { class: `informe-chip estado-${estado.replace(/ /g, "-")}` },
+      ESTADO_TEXTO[estado],
+    );
+  for (const v of seg.acciones)
+    filas.push(
+      h(
+        "div",
+        { class: "informe-seg" },
+        chip(v.estado),
+        h(
+          "div",
+          {},
+          h("p", { class: "informe-item" }, h("b", {}, v.accion.title)),
+          h(
+            "p",
+            { class: "informe-nota" },
+            `${v.etiqueta} · apuntaba a ${v.accion.target !== null && v.accion.target !== undefined ? f.numero(v.accion.target, 1) : "—"} ${v.accion.unit === "ratio" ? "×" : (v.accion.unit ?? "")}`,
+          ),
+        ),
+      ),
+    );
+  return h(
+    "section",
+    { class: "informe-bloque" },
+    h("h2", {}, "Seguimiento: ¿se cumplió?"),
+    h(
+      "div",
+      { class: "informe-seg-score" },
+      h(
+        "p",
+        {},
+        h("b", {}, "Score: "),
+        `${f.score(seg.scoreAntes)} en ${f.mes(p.corte)} → ${seg.scoreAhora !== null ? f.score(seg.scoreAhora) : "—"} en ${f.mes(d.corte)}`,
+      ),
+      seg.scoreAhora !== null && seg.scoreAhora !== seg.scoreAntes
+        ? h(
+            "p",
+            { class: "informe-nota" },
+            f.delta(seg.scoreAhora - seg.scoreAntes),
+          )
+        : null,
+    ),
+    ...(seg.conMeses
+      ? filas
+      : [
+          h(
+            "p",
+            { class: "informe-nota" },
+            "Sin meses posteriores en el fichero: todavía no hay nada que validar.",
+          ),
+        ]),
+  );
+}
+
+/** La hoja del informe tal como la ve el cliente: radiografía + foto real + plan + trazabilidad. */
+async function construirInforme(
+  d: DatosFicha,
+  plan: PlanInforme,
+  p: PropuestaGuardada | null,
+): Promise<HTMLElement> {
+  const m = d.mes;
+  const informe = h("article", { class: "informe" });
+  if (!m) return informe;
+  const due = await carga.facturasVencidas();
+  const ap = due ? facturasDe(due, d, "ap") : [];
+  const ar = due ? facturasDe(due, d, "ar") : [];
+
+  informe.append(
+    h(
+      "header",
+      { class: "informe-cabecera" },
+      h("p", { class: "versalita" }, "Rumbo · Embat · informe al cliente"),
+      h("h1", {}, `Plan de mejora de ${d.id}`),
+      h(
+        "p",
+        { class: "informe-sub" },
+        `${d.kind === "company" ? "Empresa" : "Organización"} · corte ${f.mes(plan.corte)} · ${
+          p
+            ? `propuesta ${p.id} del ${p.fecha.slice(0, 10)}`
+            : "borrador, aún sin generar"
+        }`,
+      ),
+    ),
+  );
+
+  const cascada = m.pillars.map((pi) =>
+    h(
+      "div",
+      {},
+      h("span", {}, nombrePilar(d.man, pi.key)),
+      h(
+        "span",
+        { class: pi.contrib < 0 ? "neg" : "pos" },
+        pi.score !== null
+          ? `${f.score(pi.score)} (${f.delta(pi.contrib)})`
+          : "no observable",
+      ),
+    ),
+  );
+  informe.append(
+    h(
+      "section",
+      { class: "informe-bloque" },
+      h("h2", {}, "La radiografía"),
+      h(
+        "div",
+        { class: "informe-score" },
+        h("p", { class: "informe-cifra" }, f.score(plan.score_actual_tenths)),
+        h(
+          "div",
+          {},
+          h("p", {}, nombreBanda(d.man, m.band)),
+          h(
+            "p",
+            { class: "informe-nota" },
+            `Confianza ${CONFIANZA[m.conf.label] ?? m.conf.label}.`,
+          ),
+        ),
+      ),
+      h("div", { class: "cascada" }, ...cascada),
+    ),
+  );
+
+  informe.append(bloqueFoto(d, plan.corte, "La foto de este mes"));
+  informe.append(
+    bloqueFacturas(
+      "Proveedores que esperan cobro",
+      ap,
+      "Ninguna factura de proveedor vencida y abierta consta este mes.",
+    ),
+  );
+  informe.append(
+    bloqueFacturas(
+      "Clientes que te deben",
+      ar,
+      "Ninguna factura de cliente vencida y abierta consta este mes.",
+    ),
+  );
+
+  const alertas = (await carga.alertas()).alerts.filter(
+    (a) =>
+      a.entity_id === d.id && a.month === plan.corte && a.state === "fired",
+  );
+  if (alertas.length)
+    informe.append(
+      h(
+        "section",
+        { class: "informe-bloque" },
+        h("h2", {}, "Avisos activos"),
+        ...alertas.map((a) =>
+          h(
+            "p",
+            { class: "informe-aviso" },
+            h("b", {}, a.title),
+            " — ",
+            a.detail,
+          ),
+        ),
+      ),
+    );
+
+  informe.append(
+    h(
+      "section",
+      { class: "informe-bloque" },
+      h("h2", {}, "El plan"),
+      ...(plan.acciones.length
+        ? plan.acciones.map((a) =>
+            h(
+              "p",
+              { class: "informe-item" },
+              h("b", {}, a.title),
+              ` · ${f.delta(a.uplift_tenths)} según el motor (score ${f.score(a.new_score_tenths)})`,
+            ),
+          )
+        : [
+            h(
+              "p",
+              { class: "informe-nota" },
+              "Sin acciones elegidas todavía: márcalas en el panel de la derecha.",
+            ),
+          ]),
+      ...plan.financiacion.map((x) =>
+        h(
+          "p",
+          { class: "informe-item" },
+          h("b", {}, x.title),
+          x.bank ? ` · con ${x.bank}` : "",
+          x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : "",
+          x.rate !== null
+            ? ` · ${f.numero(x.rate, 2)} % ${x.rate_fuente ? `(${fuenteTexto(x.rate_fuente)})` : ""}`
+            : "",
+        ),
+      ),
+      h(
+        "p",
+        { class: "informe-nota" },
+        "Las tasas marcadas como estimación de mercado no son ofertas del banco: son referencias para la conversación. Este informe es una propuesta, no una oferta vinculante.",
+      ),
+    ),
+  );
+
+  if (p) informe.append(bloqueSeguimiento(d, p));
+
+  informe.append(
+    h(
+      "footer",
+      { class: "informe-pie" },
+      h(
+        "p",
+        {},
+        p
+          ? `Id de propuesta ${p.id} · bundle ${p.bundle_id.slice(0, 12)} · parámetros ${(d.params?.sha256 ?? "").slice(0, 12)} · motor ${d.man.engine_version}.`
+          : `Borrador · bundle ${d.man.bundle_id.slice(0, 12)} · motor ${d.man.engine_version}.`,
+      ),
+      h(
+        "p",
+        {},
+        "Cada cifra la calcula el motor determinista sobre los datos de la entidad; ninguna promesa se estima a mano.",
+      ),
+    ),
+  );
+  return informe;
+}
+
+// ─── La vista completa ────────────────────────────────────────
+
+type Pestaña = "documento" | "historial";
+/** Qué muestra el documento: el borrador en vivo o una propuesta guardada. */
+type ModoDoc = { tipo: "borrador" } | { tipo: "final"; p: PropuestaGuardada };
+
 export function abrirPropuesta(
   d: DatosFicha,
   sel: Set<string>,
@@ -201,89 +589,247 @@ export function abrirPropuesta(
   const bancos: Record<string, string | null> = {};
   const fuentes = fuentesDeFicha(d);
   const fondo = h("div", { class: "panel-propuesta" });
-  const caja = h("div", { class: "panel-propuesta-caja" });
-  fondo.append(caja);
-  fondo.addEventListener("click", (ev) => {
-    if (ev.target === fondo) fondo.remove();
-  });
+  (document.querySelector("#app") ?? document.body).append(fondo);
 
   const m = d.mes;
-  caja.append(
+  let pestaña: Pestaña = "documento";
+  let modo: ModoDoc = { tipo: "borrador" };
+
+  // — Barra superior.
+  const botonEntrega = h(
+    "div",
+    { class: "propuesta-entrega", hidden: "true" },
+    h("button", { type: "button", "data-pdf": "" }, "Descargar PDF"),
+    h("button", { type: "button", "data-mail": "" }, "Enviar por mail"),
+  );
+  const cabecera = h(
+    "header",
+    { class: "propuesta-cabecera" },
     h(
-      "header",
-      { class: "propuesta-cabecera" },
-      h(
-        "div",
-        {},
-        h("p", { class: "versalita" }, "Propuesta al cliente"),
-        h("h2", {}, `${d.id} · ${m ? f.mes(m.month) : f.mes(d.corte)}`),
-      ),
-      h(
-        "button",
-        {
-          type: "button",
-          class: "boton-sutil",
-          "aria-label": "Cerrar la propuesta",
-        },
-        "Cerrar",
-      ),
+      "div",
+      {},
+      h("p", { class: "versalita" }, "Propuesta al cliente"),
+      h("h2", {}, `${d.id} · ${m ? f.mes(m.month) : f.mes(d.corte)}`),
     ),
+    h("div", { class: "propuesta-cabecera-acciones" }, botonEntrega),
   );
-  (caja.querySelector("button") as HTMLElement).addEventListener("click", () =>
-    fondo.remove(),
+  const cerrar = h(
+    "button",
+    {
+      type: "button",
+      class: "boton-sutil",
+      "aria-label": "Cerrar la propuesta",
+    },
+    "Cerrar",
   );
+  cerrar.addEventListener("click", () => fondo.remove());
+  cabecera.append(cerrar);
 
-  if (!m) {
-    caja.append(
-      h(
-        "p",
-        { class: "vacio" },
-        `Sin datos de ${d.id} en ${f.mes(d.corte)}: no hay propuesta que armar.`,
-      ),
+  // — Izquierda: pestañas documento / historial.
+  const pestañas = h("div", { class: "propuesta-pestanas", role: "tablist" });
+  const botonPestaña = (clave: Pestaña, texto: string) => {
+    const b = h(
+      "button",
+      {
+        type: "button",
+        role: "tab",
+        class: `propuesta-pestana ${pestaña === clave ? "activa" : ""}`,
+        "aria-selected": String(pestaña === clave),
+      },
+      texto,
     );
-    (document.querySelector("#app") ?? document.body).append(fondo);
-    return;
-  }
-
-  // — Paso 1 · Tus bancos conectados.
-  const conectados = bancosConectados(fuentes);
-  caja.append(
-    paso(
-      1,
-      "Tus bancos conectados",
-      "Con estos bancos trabaja la organización: cuentas y productos contratados, con su tasa cuando consta.",
-      h(
-        "div",
-        { class: "propuesta-bancos" },
-        ...(conectados.length
-          ? conectados.map(tarjetaBanco)
-          : [
-              h(
-                "p",
-                { class: "vacio" },
-                "El fichero no declara bancos para esta entidad.",
-              ),
-            ]),
-      ),
-    ),
+    b.addEventListener("click", () => {
+      pestaña = clave;
+      pintar();
+    });
+    pestañas.append(b);
+  };
+  botonPestaña("documento", "Documento");
+  botonPestaña("historial", "Historial");
+  const zonaDoc = h("div", { class: "propuesta-doc" });
+  const colDoc = h(
+    "div",
+    { class: "propuesta-col propuesta-col-doc" },
+    pestañas,
+    zonaDoc,
   );
 
-  // — Paso 2 · Acciones.
-  const cajaAcciones = h("div", { class: "propuesta-acciones" });
-  caja.append(
-    paso(
-      2,
-      "Acciones que le ofreces",
-      "Cada cifra la calcula el motor: la acción aplicada al mes, re-puntuado entero.",
-      cajaAcciones,
-    ),
-  );
+  // — Derecha: los tres pasos + resumen + generar.
+  const colEdit = h("div", { class: "propuesta-col propuesta-col-editor" });
   const zonaResumen = h("div", { class: "propuesta-resumen" });
-  caja.append(zonaResumen);
+  const listaPropuestas = h("div", { class: "propuesta-grupo" });
+
+  // Cuerpo del editor (pasos), rellenable cuando hay mes.
+  const cajaPasos = h("div", { class: "propuesta-pasos" });
+
+  const pintar = () => {
+    for (const b of pestañas.querySelectorAll("button")) {
+      const activa =
+        b.textContent === (pestaña === "documento" ? "Documento" : "Historial");
+      b.classList.toggle("activa", activa);
+      b.setAttribute("aria-selected", String(activa));
+    }
+    if (pestaña === "historial") {
+      pintarHistorial();
+      return;
+    }
+    if (modo.tipo === "final") {
+      void pintarDocumento(modo.p);
+    } else {
+      void pintarDocumento(null);
+    }
+  };
+
+  const pintarDocumento = async (p: PropuestaGuardada | null) => {
+    if (!m) return;
+    botonEntrega.hidden = p === null;
+    zonaDoc.replaceChildren(
+      h("p", { class: "propuesta-nota" }, "Preparando el documento…"),
+    );
+    const plan: PlanInforme = p
+      ? {
+          corte: p.corte,
+          score_actual_tenths: p.score_actual_tenths,
+          acciones: p.acciones,
+          financiacion: p.financiacion,
+        }
+      : {
+          corte: d.corte,
+          score_actual_tenths: m.shown,
+          acciones: (m.actions ?? [])
+            .filter((a) => sel.has(a.id))
+            .map((a) => ({
+              id: a.id,
+              pillar: a.pillar,
+              title: tituloAccion(a),
+              uplift_tenths: a.uplift_tenths,
+              new_score_tenths: a.new_score_tenths,
+              current: a.current,
+              target: a.target,
+              unit: a.unit,
+            })),
+          financiacion: (m.financing ?? [])
+            .filter((x) => bancos[x.id])
+            .map((x) => {
+              const oferta =
+                ofertasBanco(x.kind, fuentes).find(
+                  (o) => o.bank === bancos[x.id],
+                ) ?? null;
+              return {
+                id: x.id,
+                kind: x.kind,
+                title: x.title,
+                amount: x.amount,
+                uplift_tenths: x.uplift_tenths,
+                bank: bancos[x.id],
+                rate: oferta?.oferta_tasa ?? null,
+                rate_type: oferta?.rate_type ?? null,
+                rate_fuente: oferta?.oferta_fuente ?? null,
+              };
+            }),
+        };
+    zonaDoc.replaceChildren(await construirInforme(d, plan, p));
+  };
+
+  const pintarHistorial = () => {
+    vaciar(zonaDoc);
+    botonEntrega.hidden = true;
+    const hechas = todasLasPropuestas().filter((p) => p.entidad === d.id);
+    const zona = h("div", { class: "propuesta-historial" });
+    if (!hechas.length) {
+      zona.append(
+        h(
+          "p",
+          { class: "vacio" },
+          "Todavía no se generó ninguna propuesta para esta entidad. Elegí acciones a la derecha y generá la primera.",
+        ),
+      );
+      zonaDoc.append(zona);
+      return;
+    }
+    for (const p of hechas) {
+      const seg = validarPropuesta(p, d.ent, d.mes);
+      const fichas = seg.acciones
+        .filter((v) => v.estado !== "sin datos")
+        .map((v) => v.estado);
+      const resumenEstado =
+        fichas.length === 0
+          ? seg.conMeses
+            ? "sin métricas para validar"
+            : "del corte actual"
+          : `${f.plural(fichas.filter((e) => e === "cumplida").length, "cumplida", "cumplidas")} · ${f.plural(fichas.filter((e) => e !== "cumplida").length, "pendiente", "pendientes")}`;
+      const fila = h(
+        "div",
+        { class: "propuesta-fila propuesta-hecha" },
+        h(
+          "div",
+          { class: "propuesta-hecha-info" },
+          h(
+            "p",
+            { class: "propuesta-titulo" },
+            `${f.mes(p.corte)} · ${p.acciones.length} acción${p.acciones.length === 1 ? "" : "es"}${p.financiacion.length ? ` · ${p.financiacion.length} financiación` : ""}`,
+          ),
+          h(
+            "p",
+            { class: "propuesta-nota" },
+            `${p.fecha.slice(0, 16).replace("T", " ")} · ${resumenEstado}`,
+          ),
+          seg.conMeses && seg.scoreAhora !== null
+            ? h(
+                "p",
+                { class: "propuesta-nota seguimiento-score" },
+                `score ${f.score(seg.scoreAntes)} → ${f.score(seg.scoreAhora)} (${f.delta(seg.scoreAhora - seg.scoreAntes)})`,
+              )
+            : "",
+        ),
+        h(
+          "div",
+          { class: "propuesta-hecha-botones" },
+          h(
+            "button",
+            { type: "button", class: "boton-sutil", "data-ver": p.id },
+            "Ver",
+          ),
+          h(
+            "button",
+            { type: "button", class: "boton-sutil", "data-borrar": p.id },
+            "Borrar",
+          ),
+        ),
+      );
+      fila.querySelector("[data-ver]")!.addEventListener("click", () => {
+        modo = { tipo: "final", p };
+        pestaña = "documento";
+        pintar();
+      });
+      fila.querySelector("[data-borrar]")!.addEventListener("click", () => {
+        borrarPropuesta(p.id);
+        pintarHistorial();
+      });
+      zona.append(fila);
+    }
+    zonaDoc.append(zona);
+  };
+
+  // — Resumen con cifras grandes + generar.
+  const zonaCifras = h("div", { class: "propuesta-resumen-cifras-zona" });
+  const botonGenerar = h(
+    "button",
+    { type: "button", class: "boton-primario", "data-generar": "" },
+    "Generar propuesta",
+  );
+  botonGenerar.addEventListener("click", () => {
+    void generar();
+  });
+  zonaResumen.append(
+    zonaCifras,
+    h("div", { class: "propuesta-botones" }, botonGenerar),
+  );
   const repintarResumen = () => {
+    if (!m) return;
     const total = estimacionPlan(m, sel, bancos);
-    vaciar(zonaResumen);
-    zonaResumen.append(
+    vaciar(zonaCifras);
+    zonaCifras.append(
       h(
         "div",
         { class: "propuesta-resumen-cifras" },
@@ -307,6 +853,122 @@ export function abrirPropuesta(
       ),
     );
   };
+
+  const generar = async () => {
+    if (!m) return;
+    const elegidas = (m.actions ?? [])
+      .filter((a) => sel.has(a.id))
+      .map((a) => ({
+        id: a.id,
+        pillar: a.pillar,
+        title: tituloAccion(a),
+        uplift_tenths: a.uplift_tenths,
+        new_score_tenths: a.new_score_tenths,
+        current: a.current,
+        target: a.target,
+        unit: a.unit,
+      }));
+    const financiacion = (m.financing ?? [])
+      .filter((x) => bancos[x.id])
+      .map((x) => {
+        const oferta =
+          ofertasBanco(x.kind, fuentes).find((o) => o.bank === bancos[x.id]) ??
+          null;
+        return {
+          id: x.id,
+          kind: x.kind,
+          title: x.title,
+          amount: x.amount,
+          uplift_tenths: x.uplift_tenths,
+          bank: bancos[x.id],
+          rate: oferta?.oferta_tasa ?? null,
+          rate_type: oferta?.rate_type ?? null,
+          rate_fuente: oferta?.oferta_fuente ?? null,
+        };
+      });
+    if (!elegidas.length && !financiacion.length) return;
+    const p: PropuestaGuardada = {
+      id: nuevaPropuestaId(),
+      fecha: new Date().toISOString(),
+      kind: d.kind,
+      entidad: d.id,
+      grupoId: d.grupoId,
+      corte: d.corte,
+      bundle_id: d.man.bundle_id,
+      score_actual_tenths: m.shown,
+      acciones: elegidas,
+      financiacion,
+    };
+    guardarPropuesta(p);
+    modo = { tipo: "final", p };
+    pestaña = "documento";
+    pintar();
+  };
+
+  botonEntrega
+    .querySelector("[data-pdf]")!
+    .addEventListener("click", () => window.print());
+  botonEntrega.querySelector("[data-mail]")!.addEventListener("click", () => {
+    if (modo.tipo !== "final") return;
+    const { asunto, cuerpo } = correoPropuesta(modo.p);
+    window.location.href = `mailto:?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+  });
+
+  // — Montaje.
+  fondo.append(
+    h(
+      "div",
+      { class: "propuesta-hoja" },
+      cabecera,
+      h("div", { class: "propuesta-cuerpo" }, colDoc, colEdit),
+    ),
+  );
+
+  if (!m) {
+    colEdit.append(
+      h(
+        "p",
+        { class: "vacio" },
+        `Sin datos de ${d.id} en ${f.mes(d.corte)}: no hay propuesta que armar.`,
+      ),
+    );
+    pintar();
+    return;
+  }
+
+  // — Paso 1 · Tus bancos conectados.
+  const conectados = bancosConectados(fuentes);
+  cajaPasos.append(
+    paso(
+      1,
+      "Tus bancos conectados",
+      "Dónde tiene la organización sus cuentas y productos. El sello «ya te financia» marca a los bancos con un crédito contratado: solo ellos aparecen en la financiación.",
+      h(
+        "div",
+        { class: "propuesta-bancos" },
+        ...(conectados.length
+          ? conectados.map(tarjetaBanco)
+          : [
+              h(
+                "p",
+                { class: "vacio" },
+                "El fichero no declara bancos para esta entidad.",
+              ),
+            ]),
+      ),
+    ),
+  );
+
+  // — Paso 2 · Acciones.
+  const cajaAcciones = h("div", { class: "propuesta-acciones" });
+  cajaPasos.append(
+    paso(
+      2,
+      "Acciones que le ofreces",
+      "Cada cifra la calcula el motor: la acción aplicada al mes, re-puntuado entero.",
+      cajaAcciones,
+    ),
+  );
   const repintarAcciones = () => {
     vaciar(cajaAcciones);
     for (const [i, a] of (m.actions ?? []).entries()) {
@@ -319,6 +981,9 @@ export function abrirPropuesta(
         else sel.delete(a.id);
         acc.repintarArena();
         repintarResumen();
+        // tocar la elección vuelve el documento al borrador en vivo
+        modo = { tipo: "borrador" };
+        if (pestaña === "documento") void pintarDocumento(null);
       });
       cajaAcciones.append(
         h(
@@ -355,11 +1020,11 @@ export function abrirPropuesta(
 
   // — Paso 3 · Financiación por banco.
   const cajaFinanciacion = h("div", { class: "propuesta-financiacion" });
-  caja.append(
+  cajaPasos.append(
     paso(
       3,
       "Financiación: el banco que la otorga",
-      "Solo los instrumentos que el motor recomienda este mes, con el monto calculado y la tasa ofrecida (del banco, o estimación de mercado marcada).",
+      "Solo los instrumentos que el motor recomienda este mes, con el monto calculado. Se ofrecen los bancos que ya financian a la entidad, con su tasa (o estimación de mercado marcada).",
       cajaFinanciacion,
     ),
   );
@@ -376,10 +1041,14 @@ export function abrirPropuesta(
         name: x.id,
         checked: bancos[x.id] === null,
       }) as HTMLInputElement;
-      ninguna.addEventListener("change", () => {
-        bancos[x.id] = null;
+      const alElegir = (bank: string | null) => {
+        bancos[x.id] = bank;
         repintarResumen();
-      });
+        // tocar la elección vuelve el documento al borrador en vivo
+        modo = { tipo: "borrador" };
+        if (pestaña === "documento") void pintarDocumento(null);
+      };
+      ninguna.addEventListener("change", () => alElegir(null));
       const filas: HTMLElement[] = [
         h(
           "label",
@@ -398,12 +1067,7 @@ export function abrirPropuesta(
         ),
       ];
       for (const o of ofertas)
-        filas.push(
-          filaOferta(x, o, bancos[x.id], (bank) => {
-            bancos[x.id] = bank;
-            repintarResumen();
-          }),
-        );
+        filas.push(filaOferta(x, o, bancos[x.id], (bank) => alElegir(bank)));
       if (!ofertas.length)
         filas[0].replaceWith(
           h(
@@ -436,289 +1100,11 @@ export function abrirPropuesta(
       );
   };
 
-  // — Vista previa del informe, entrega y lista de propuestas.
-  const zonaInforme = h("div", { class: "propuesta-informe" });
-  caja.append(zonaInforme);
-  const listaPropuestas = h("div", { class: "propuesta-grupo" });
-  caja.append(listaPropuestas);
-  const repintarPropuestas = () => {
-    vaciar(listaPropuestas);
-    listaPropuestas.append(h("h3", {}, "Propuestas de este corte"));
-    const hechas = propuestasDe(d.id, d.corte);
-    if (!hechas.length) {
-      listaPropuestas.append(
-        h(
-          "p",
-          { class: "vacio" },
-          "Todavía ninguna. Generá la primera con el botón de abajo.",
-        ),
-      );
-      return;
-    }
-    for (const p of hechas) {
-      const fila = h(
-        "div",
-        { class: "propuesta-fila propuesta-hecha" },
-        h(
-          "div",
-          {},
-          h(
-            "p",
-            { class: "propuesta-titulo" },
-            `${f.mes(p.corte)} · ${p.acciones.length} acción${p.acciones.length === 1 ? "" : "es"}${p.financiacion.length ? ` · ${p.financiacion.length} financiación` : ""}`,
-          ),
-          h(
-            "p",
-            { class: "propuesta-nota" },
-            `${p.fecha.slice(0, 16).replace("T", " ")} · bundle ${p.bundle_id.slice(0, 12)}`,
-          ),
-        ),
-        h(
-          "button",
-          { type: "button", class: "boton-sutil", "data-ver": p.id },
-          "Ver",
-        ),
-        h(
-          "button",
-          { type: "button", class: "boton-sutil", "data-borrar": p.id },
-          "Borrar",
-        ),
-      );
-      fila.querySelector("[data-ver]")!.addEventListener("click", () => {
-        void mostrarInforme(p);
-      });
-      fila.querySelector("[data-borrar]")!.addEventListener("click", () => {
-        borrarPropuesta(p.id);
-        repintarPropuestas();
-      });
-      listaPropuestas.append(fila);
-    }
-  };
-
-  const mostrarInforme = async (p: PropuestaGuardada) => {
-    const informe = await construirInforme(d, p);
-    vaciar(zonaInforme);
-    zonaInforme.append(
-      h(
-        "div",
-        { class: "propuesta-entrega" },
-        h("button", { type: "button", "data-pdf": "" }, "Descargar PDF"),
-        h("button", { type: "button", "data-mail": "" }, "Enviar por mail"),
-        h(
-          "button",
-          { type: "button", class: "boton-sutil", "data-cerrar": "" },
-          "Cerrar vista",
-        ),
-      ),
-      informe,
-    );
-    zonaInforme
-      .querySelector("[data-pdf]")!
-      .addEventListener("click", () => window.print());
-    zonaInforme.querySelector("[data-mail]")!.addEventListener("click", () => {
-      const { asunto, cuerpo } = correoPropuesta(p);
-      window.location.href = `mailto:?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
-    });
-    zonaInforme
-      .querySelector("[data-cerrar]")!
-      .addEventListener("click", () => vaciar(zonaInforme));
-    zonaInforme.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  const generar = async () => {
-    const elegidas = (m.actions ?? [])
-      .filter((a) => sel.has(a.id))
-      .map((a) => ({
-        id: a.id,
-        pillar: a.pillar,
-        title: tituloAccion(a),
-        uplift_tenths: a.uplift_tenths,
-        new_score_tenths: a.new_score_tenths,
-      }));
-    const financiacion = (m.financing ?? [])
-      .filter((x) => bancos[x.id])
-      .map((x) => {
-        const oferta =
-          ofertasBanco(x.kind, fuentes).find((o) => o.bank === bancos[x.id]) ??
-          null;
-        return {
-          id: x.id,
-          kind: x.kind,
-          title: x.title,
-          amount: x.amount,
-          uplift_tenths: x.uplift_tenths,
-          bank: bancos[x.id],
-          rate: oferta?.oferta_tasa ?? null,
-          rate_type: oferta?.rate_type ?? null,
-          rate_fuente: oferta?.oferta_fuente ?? null,
-        };
-      });
-    if (!elegidas.length && !financiacion.length) return;
-    const p: PropuestaGuardada = {
-      id: nuevaPropuestaId(),
-      fecha: new Date().toISOString(),
-      kind: d.kind,
-      entidad: d.id,
-      grupoId: d.grupoId,
-      corte: d.corte,
-      bundle_id: d.man.bundle_id,
-      score_actual_tenths: m.shown,
-      acciones: elegidas,
-      financiacion,
-    };
-    guardarPropuesta(p);
-    repintarPropuestas();
-    await mostrarInforme(p);
-  };
-
-  caja.append(
-    h(
-      "div",
-      { class: "propuesta-botones" },
-      h("button", { type: "button", "data-generar": "" }, "Generar propuesta"),
-    ),
-  );
-  caja.querySelector("[data-generar]")!.addEventListener("click", () => {
-    void generar();
-  });
+  colEdit.append(cajaPasos, zonaResumen);
+  void listaPropuestas; // el historial vive en la pestaña de la izquierda
 
   repintarAcciones();
   repintarFinanciacion();
   repintarResumen();
-  repintarPropuestas();
-  (document.querySelector("#app") ?? document.body).append(fondo);
-}
-
-/** La hoja del informe tal como la ve el cliente: radiografía + plan + trazabilidad. */
-async function construirInforme(
-  d: DatosFicha,
-  p: PropuestaGuardada,
-): Promise<HTMLElement> {
-  const m = d.mes;
-  const informe = h("article", { class: "informe" });
-  if (!m) return informe;
-
-  informe.append(
-    h(
-      "header",
-      { class: "informe-cabecera" },
-      h("p", { class: "versalita" }, "Rumbo · Embat · informe al cliente"),
-      h("h1", {}, `Plan de mejora de ${d.id}`),
-      h(
-        "p",
-        { class: "informe-sub" },
-        `${d.kind === "company" ? "Empresa" : "Organización"} · corte ${f.mes(p.corte)} · preparado el ${p.fecha.slice(0, 10)}`,
-      ),
-    ),
-  );
-
-  const cascada = m.pillars.map((pi) =>
-    h(
-      "div",
-      {},
-      h("span", {}, nombrePilar(d.man, pi.key)),
-      h(
-        "span",
-        { class: pi.contrib < 0 ? "neg" : "pos" },
-        pi.score !== null
-          ? `${f.score(pi.score)} (${f.delta(pi.contrib)})`
-          : "no observable",
-      ),
-    ),
-  );
-  informe.append(
-    h(
-      "section",
-      { class: "informe-bloque" },
-      h("h2", {}, "La radiografía"),
-      h(
-        "div",
-        { class: "informe-score" },
-        h("p", { class: "informe-cifra" }, f.score(m.shown)),
-        h(
-          "div",
-          {},
-          h("p", {}, nombreBanda(d.man, m.band)),
-          h(
-            "p",
-            { class: "informe-nota" },
-            `Confianza ${CONFIANZA[m.conf.label] ?? m.conf.label}.`,
-          ),
-        ),
-      ),
-      h("div", { class: "cascada" }, ...cascada),
-    ),
-  );
-
-  const alertas = (await carga.alertas()).alerts.filter(
-    (a) => a.entity_id === d.id && a.month === p.corte && a.state === "fired",
-  );
-  if (alertas.length)
-    informe.append(
-      h(
-        "section",
-        { class: "informe-bloque" },
-        h("h2", {}, "Avisos activos"),
-        ...alertas.map((a) =>
-          h(
-            "p",
-            { class: "informe-aviso" },
-            h("b", {}, a.title),
-            " — ",
-            a.detail,
-          ),
-        ),
-      ),
-    );
-
-  informe.append(
-    h(
-      "section",
-      { class: "informe-bloque" },
-      h("h2", {}, "El plan"),
-      ...p.acciones.map((a) =>
-        h(
-          "p",
-          { class: "informe-item" },
-          h("b", {}, a.title),
-          ` · ${f.delta(a.uplift_tenths)} según el motor (score ${f.score(a.new_score_tenths)})`,
-        ),
-      ),
-      ...p.financiacion.map((x) =>
-        h(
-          "p",
-          { class: "informe-item" },
-          h("b", {}, x.title),
-          x.bank ? ` · con ${x.bank}` : "",
-          x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : "",
-          x.rate !== null
-            ? ` · ${f.numero(x.rate, 2)} % ${x.rate_fuente ? `(${fuenteTexto(x.rate_fuente)})` : ""}`
-            : "",
-        ),
-      ),
-      h(
-        "p",
-        { class: "informe-nota" },
-        "Las tasas marcadas como estimación de mercado no son ofertas del banco: son referencias para la conversación. Este informe es una propuesta, no una oferta vinculante.",
-      ),
-    ),
-  );
-
-  informe.append(
-    h(
-      "footer",
-      { class: "informe-pie" },
-      h(
-        "p",
-        {},
-        `Id de propuesta ${p.id} · bundle ${p.bundle_id.slice(0, 12)} · parámetros ${(d.params?.sha256 ?? "").slice(0, 12)} · motor ${d.man.engine_version}.`,
-      ),
-      h(
-        "p",
-        {},
-        "Cada cifra la calcula el motor determinista sobre los datos de la entidad; ninguna promesa se estima a mano.",
-      ),
-    ),
-  );
-  return informe;
+  pintar();
 }

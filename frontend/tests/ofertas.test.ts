@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  bancosConectados,
   fuentesDe,
   ofertasBanco,
   type FuentesBanco,
@@ -56,22 +57,34 @@ const fuentes = (extra: Partial<FuentesBanco> = {}): FuentesBanco => ({
     tenencia("linea_credito", [item("Banco C", { granted: 1_000_000 })]),
   ],
   otras: [otra("Banco D", { rate: 3.5, rate_type: "fixed" }), otra("Banco B")],
-  cuentas: ["Banco E"],
+  bancos: { "Banco E": 2, "Banco A": 4 },
   ...extra,
 });
 
 describe("ofertasBanco", () => {
-  test("primero los bancos que ya dan el producto, después cuentas", () => {
+  test("primero los bancos que ya dan el producto, después el resto", () => {
     const ofertas = ofertasBanco("factoring", fuentes());
     expect(ofertas.map((o) => o.bank)).toEqual([
       "Banco B",
       "Banco A",
       "Banco C",
       "Banco D",
-      "Banco E",
     ]);
     expect(ofertas[0].tieneProducto).toBe(true);
     expect(ofertas[2].tieneProducto).toBe(false);
+  });
+
+  test("un banco que solo guarda cuentas no se ofrece como prestamista", () => {
+    const ofertas = ofertasBanco("factoring", fuentes());
+    expect(ofertas.map((o) => o.bank)).not.toContain("Banco E");
+    // solo cuentas y ningún crédito: no hay a quién ofrecer
+    expect(
+      ofertasBanco("line", {
+        tenencias: [],
+        otras: [],
+        bancos: { "Banco Solo": 3 },
+      }),
+    ).toEqual([]);
   });
 
   test("a igual producto, ordena por tasa creciente cuando consta", () => {
@@ -83,7 +96,7 @@ describe("ofertasBanco", () => {
         ]),
       ],
       otras: [],
-      cuentas: [],
+      bancos: {},
     });
     expect(ofertasBanco("factoring", f).map((o) => o.bank)).toEqual([
       "Bajo",
@@ -100,12 +113,11 @@ describe("ofertasBanco", () => {
         ]),
       ],
       otras: [],
-      cuentas: ["Zeta"],
+      bancos: { Zeta: 1 },
     });
     expect(ofertasBanco("factoring", f).map((o) => o.bank)).toEqual([
       "Grande",
       "Chico",
-      "Zeta",
     ]);
   });
 
@@ -113,7 +125,7 @@ describe("ofertasBanco", () => {
     const f = fuentes({
       tenencias: [],
       otras: [otra("Prestamista", { rate: 7 }), otra("SoloCuenta")],
-      cuentas: [],
+      bancos: {},
     });
     const ofertas = ofertasBanco("restructure", f);
     expect(ofertas[0].bank).toBe("Prestamista");
@@ -128,21 +140,35 @@ describe("ofertasBanco", () => {
   });
 });
 
+describe("bancosConectados", () => {
+  test("cuentas por banco y el sello de quién financia", () => {
+    const conectados = bancosConectados(fuentes());
+    const porNombre = Object.fromEntries(conectados.map((b) => [b.bank, b]));
+    expect(porNombre["Banco A"].cuentas).toBe(4);
+    expect(porNombre["Banco A"].otorga).toBe(true); // factoring
+    expect(porNombre["Banco E"].cuentas).toBe(2);
+    expect(porNombre["Banco E"].otorga).toBe(false); // solo cuentas
+    expect(porNombre["Banco E"].productos).toEqual([]);
+    // los que financian van primero
+    expect(conectados[0].otorga).toBe(true);
+  });
+});
+
 describe("fuentesDe", () => {
   test("para un grupo junta los bancos de sus empresas", () => {
     const juntas = fuentesDe(
       [tenencia("confirming", [item("Matriz Banco")])],
       [],
-      ["Matriz Cuenta"],
+      { "Matriz Cuenta": 1 },
       [
         {
           tenencias: [tenencia("linea_credito", [item("Filial Banco")])],
           otras: [],
-          cuentas: ["Filial Cuenta"],
+          bancos: { "Filial Cuenta": 2 },
         },
       ],
     );
     expect(juntas.tenencias.length).toBe(2);
-    expect(juntas.cuentas).toEqual(["Matriz Cuenta", "Filial Cuenta"]);
+    expect(juntas.bancos).toEqual({ "Matriz Cuenta": 1, "Filial Cuenta": 2 });
   });
 });
