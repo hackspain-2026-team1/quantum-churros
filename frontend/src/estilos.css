@@ -2529,53 +2529,132 @@ button.filtro-opcion[aria-pressed="true"] {
   color: var(--apagado);
 }
 
-/* Acciones: recomendaciones y avisos. */
+/* Acciones: recomendaciones y avisos. Cada acción es una fila de cuatro columnas (orden, qué hacer,
+   cómo va y qué suma) y la fila entera es el mando que la lleva al horizonte. */
 .recomendaciones {
   list-style: none;
   padding: 0;
   display: grid;
 }
+.rec-cab,
 .rec {
   display: grid;
-  grid-template-columns: 54px 1fr;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--borde);
-  transition: background 200ms;
+  grid-template-columns: 62px minmax(0, 1fr) 190px 104px;
+  gap: 18px;
+  align-items: start;
 }
+.rec-cab {
+  padding: 0 12px 6px;
+  border-bottom: 1px solid var(--borde-2);
+  font: 600 11.5px/1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tenue);
+}
+.rec-cab span {
+  white-space: nowrap;
+}
+.rec-cab .der {
+  text-align: right;
+}
+.rec {
+  position: relative;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--borde);
+  border-radius: 11px;
+  transition: background 160ms, box-shadow 160ms;
+}
+.rec[data-accion] {
+  cursor: pointer;
+}
+.rec[data-accion]:hover {
+  background: var(--fondo-3);
+}
+.rec:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: -2px;
+}
+/* Elegida: se marca con un filete en el canto, no con un fondo que tape la letra. */
 .rec.elegida {
-  background: linear-gradient(90deg, var(--info-s), rgba(255, 255, 255, 0) 70%);
+  background: color-mix(in srgb, var(--info-s) 55%, #fff);
+}
+.rec.elegida::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--info);
 }
 .rec-marca {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding-top: 1px;
+}
+/* La casilla de la casa: cuadrada, de tinta, con su tic dibujado. Nada del sistema operativo. */
+.rec-tick {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 1.5px solid var(--borde-2);
+  border-radius: 7px;
+  background: #fff;
   cursor: pointer;
-  padding-left: 4px;
-  align-self: start;
+  position: relative;
+  transition: border-color 120ms, background 120ms, box-shadow 120ms;
 }
-.rec-marca input {
-  accent-color: var(--info);
-  width: 15px;
-  height: 15px;
+.rec-tick:hover {
+  border-color: var(--info);
+  box-shadow: var(--sombra-1);
 }
-.rec-n {
-  font: italic 16px var(--serif);
+.rec-tick:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+.rec-tick:checked {
+  background: var(--info);
+  border-color: var(--info);
+}
+.rec-tick:checked::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 3.5px;
+  width: 6px;
+  height: 11px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.rec-orden {
+  font: italic 13px/1 var(--serif);
   color: var(--tenue);
+}
+.rec.elegida .rec-orden {
+  color: var(--info-t);
 }
 .rec-titulo {
   font: 600 17px/1.3 var(--serif);
+}
+.rec.elegida .rec-titulo {
+  color: var(--info-t);
 }
 .rec-texto {
   font-size: 13.5px;
   color: var(--tinta-2);
   margin-top: 3px;
   line-height: 1.45;
+  max-width: 62ch;
 }
 .rec-hechos {
   font-size: 12.5px;
   color: var(--apagado);
-  margin-top: 4px;
+  margin-top: 5px;
 }
 .rec-productos {
   display: flex;
@@ -2589,16 +2668,73 @@ button.filtro-opcion[aria-pressed="true"] {
   font-style: italic;
   color: var(--apagado);
 }
-.rec[data-estado="hecha"] .rec-titulo {
+/* Cómo va: el estado, y debajo si está puesta en el horizonte. */
+.rec-estado {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+}
+.rec-estado .desp-boton {
+  min-width: 140px;
+}
+/* Si se hace: los puntos que suma. */
+.rec-efecto {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  align-self: start;
+}
+.rec-efecto b {
+  font: 500 24px/1 var(--serif);
+  color: var(--info-t);
+}
+.rec-efecto span {
+  font-size: 12px;
+  color: var(--apagado);
+}
+.rec[data-estado='en curso'] .rec-titulo::after {
+  content: '·';
+  margin-left: 6px;
+  color: var(--info-t);
+}
+.rec[data-estado='hecha'] {
+  opacity: 0.6;
+}
+.rec[data-estado='hecha'] .rec-titulo {
   text-decoration: line-through;
   text-decoration-color: var(--tenue);
   color: var(--apagado);
 }
-.rec[data-estado="en curso"] .rec-n {
-  color: var(--info-t);
+.rec[data-estado='hecha'] .rec-efecto b {
+  color: var(--apagado);
 }
-.rec.nada .rec-titulo {
+.rec.nada .rec-titulo,
+.rec.vacia {
   font-style: italic;
+}
+.rec.nada,
+.rec.vacia {
+  cursor: default;
+}
+@media (max-width: 900px) {
+  .rec-cab {
+    display: none;
+  }
+  .rec {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .rec-estado,
+  .rec-efecto {
+    grid-column: 2;
+  }
+  .rec-efecto {
+    justify-items: start;
+    margin-top: 6px;
+  }
+  .rec-efecto b {
+    font-size: 20px;
+  }
 }
 .frase-horizonte {
   font: 400 18px/1.5 var(--serif);
@@ -3283,13 +3419,6 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .mz-leyenda span { display: inline-flex; align-items: center; gap: 6px; }
 
 /* Acciones: cada fila mueve el horizonte; pulsar la fila también la marca. */
-.rec { grid-template-columns: 54px minmax(0, 1fr) 90px; cursor: default; }
-.rec[data-accion] { cursor: pointer; }
-.rec:hover { background: linear-gradient(90deg, rgba(56, 120, 246, 0.06), rgba(255, 255, 255, 0) 70%); }
-.rec-efecto { display: grid; justify-items: end; align-self: start; }
-.rec-efecto b { font: 500 22px var(--serif); color: var(--info-t); }
-.rec-efecto span { font-size: 12px; color: var(--apagado); }
-.rec.elegida .rec-titulo { color: var(--info-t); }
 
 /* La validación de la previsión. */
 .validacion { display: grid; gap: 10px; }
