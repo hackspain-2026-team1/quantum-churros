@@ -95,7 +95,8 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 	type Add = (x: number, y: number, tono: number, alfa: number, talla: number) => void;
 	const k = v.k;
 	const disco = (cx: number, cy: number, r: number, tono: number, alfa: number, talla = 1.5) => (add: Add) => {
-		for (let i = 0; i < k; i++) { const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r; add(cx + Math.cos(a) * d, cy + Math.sin(a) * d, tono, alfa, talla); }
+		// Girasol: los granos cubren el disco de forma pareja, sin grumos ni calvas.
+		for (let i = 0; i < k; i++) { const a = i * 2.399963, d = Math.sqrt((i + 0.5) / k) * r; add(cx + Math.cos(a) * d, cy + Math.sin(a) * d, tono, alfa, talla); }
 	};
 
 	/**
@@ -153,22 +154,22 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 			const alto = (Y1 - Y0) / Math.max(1, v.filas);
 			guias.fila = alto;
 			const X = (d: number) => X0 + Math.max(0, Math.min(1, d / 1000)) * (X1 - X0);
+			const rPunto = Math.max(2.5, Math.min(4.5, alto * 0.24));
 			for (const e of v.ents) {
 				if (!e.visible || e.puesto < 0 || e.puesto >= v.filas || e.shown === null) continue;
 				const y = Y0 + (e.puesto + 0.5) * alto;
 				anclas.set(e.id, { x: X(e.shown), y, r: alto / 2 });
 				const s = e.shown, p = e.prevShown ?? s;
+				// Un punto macizo en el score de hoy, un tallo tenue desde el cero y el cambio del mes como tramo
+				// aparte: en rojo hacia donde estaba si ha bajado, en verde desde donde estaba si ha subido.
+				const cambio = Math.abs(s - p) >= 10;
+				// El tramo del cambio lleva granos según su largo, para que se vea igual de denso sea corto o largo.
+				const nTallo = Math.round(k * 0.16), nCambio = cambio ? Math.round(Math.min(k * 0.45, Math.max(10, Math.abs(X(s) - X(p)) / 2.5))) : 0, nPunto = k - nTallo - nCambio;
 				pintores.set(e.id, (add) => {
-					// La barra hasta lo que se conserva, en tinta; lo que se pierde este mes, suelto en rojo; lo que se gana, en verde.
-					const firme = Math.min(s, p), largoF = X(firme) - X0, largoC = Math.abs(X(s) - X(p));
-					const nC = Math.round((k * largoC) / Math.max(1, largoF + largoC));
-					const tono = tonoBanda(e.band);
-					for (let i = 0; i < k; i++) {
-						const enCambio = i < nC;
-						const x = enCambio ? X(firme) + Math.random() * largoC : X0 + Math.random() * largoF;
-						const t = enCambio ? (s < p ? TONO.peligro : TONO.exito) : tono;
-						add(x, y + azar(alto * 0.3), t, enCambio ? (s < p ? 0.6 : 0.95) : 0.9, 1.9);
-					}
+					const xs = X(s), xp = X(p), fin = cambio && p < s ? xp : xs;
+					for (let i = 0; i < nTallo; i++) add(X0 + ((i + 0.5) / nTallo) * (fin - X0), y, TONO.apagado, 0.45, 1.2);
+					for (let i = 0; i < nCambio; i++) add(xs + ((i + 0.5) / nCambio) * (xp - xs), y + azar(1.2), s < p ? TONO.peligro : TONO.exito, 0.9, 1.7);
+					for (let i = 0; i < nPunto; i++) { const a = i * 2.399963, d = Math.sqrt((i + 0.5) / nPunto) * rPunto; add(xs + Math.cos(a) * d, y + Math.sin(a) * d, TONO.tinta, 0.95, 1.5); }
 				});
 			}
 			break;

@@ -534,8 +534,10 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 					et(g.x0 - 10, y, 'mr-nombre', movil ? e.nombre.replace(/^(Grupo|Empresa) /, '') : e.nombre);
 					et(g.x1 + 10, y, 'mr-dato', h('b', {}, f.score(e.shown)), e.delta1 !== null && Math.round(e.delta1 / 10) !== 0 ? h('span', { class: e.delta1 < 0 ? 'baja' : 'sube' }, ` ${f.deltaEntero(e.delta1)}`) : '');
 				});
-				for (const s of [40, 60, 80]) et(g.x0 + (s / 100) * (g.x1 - g.x0), 0, 'mr-guia', '');
-				if (vis.length > datos.filas) et(g.x0, alto - 2, 'mr-mas', `y ${f.numero(vis.length - datos.filas)} más (en tabla se ven todas)`);
+				// El eje, de 0 a 100, con las fronteras de banda.
+				for (const s of [0, 20, 40, 60, 80, 100]) et(g.x0 + (s / 100) * (g.x1 - g.x0), g.y1 + 6, 'mr-eje x', String(s));
+				for (const s of [40, 60, 80]) { const ln = h('span', { class: 'mr-linea v tenue' }); ln.style.left = `${g.x0 + (s / 100) * (g.x1 - g.x0)}px`; ln.style.top = `${g.y0}px`; ln.style.height = `${g.y1 - g.y0}px`; capa.append(ln); }
+				if (vis.length > datos.filas) et(4, alto - 2, 'mr-mas', `y ${f.numero(vis.length - datos.filas)} más`);
 				break;
 			}
 			case 'bandas': {
