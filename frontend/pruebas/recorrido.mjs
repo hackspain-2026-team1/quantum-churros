@@ -67,6 +67,15 @@ await hasta(p, () => document.querySelectorAll('.atencion li.tocable').length > 
 comprobar('«las que piden atención hoy» sale de los datos', (await p.$$('.atencion li.tocable')).length > 0);
 comprobar('la portada no lleva regla ni reloj de arena', await p.evaluate(() => getComputedStyle(document.querySelector('.reproducir')).display === 'none' && getComputedStyle(document.querySelector('.regla')).display === 'none'));
 comprobar('la portada lleva la rosa de los vientos y no repite la marca en la cabecera', await p.evaluate(() => !!document.querySelector('.entrada-rosa[data-placa]') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'hidden'));
+comprobar('la línea de puntos del buscador mide lo que se escribe', await p.evaluate(async () => {
+	const i = document.querySelector('.entrada-buscar');
+	const vacio = i.getBoundingClientRect().width;
+	i.value = 'Grupo'; i.dispatchEvent(new Event('input'));
+	await new Promise((r) => requestAnimationFrame(r));
+	const escrito = i.getBoundingClientRect().width;
+	i.value = ''; i.dispatchEvent(new Event('input'));
+	return vacio > 200 && escrito > 60 && escrito < vacio - 40;
+}));
 // ─── 1b. El monitor ───────────────────────────────────────
 {
 	const pf = await leer(p, `${DATOS}portfolio.json`);
