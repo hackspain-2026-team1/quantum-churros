@@ -1,0 +1,148 @@
+/* El desplegable de la casa (vistas/desplegable.ts). Vive en su propio fichero para no engordar
+   estilos.css y para que el componente se lleve sus estilos allá donde se use. */
+
+.desp {
+	position: relative;
+	display: inline-block;
+}
+
+.desp-boton {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	max-width: 280px;
+	min-height: 30px;
+	padding: 5px 9px;
+	border: 1px solid var(--borde);
+	border-radius: 9px;
+	background: #fff;
+	font: 500 13px var(--sans);
+	color: var(--tinta);
+	cursor: pointer;
+	transition: border-color 120ms, box-shadow 120ms;
+}
+.desp-boton:hover {
+	border-color: var(--tenue);
+}
+.desp-boton:focus-visible {
+	outline: 2px solid var(--info);
+	outline-offset: 1px;
+}
+.desp.abierto .desp-boton {
+	border-color: var(--info);
+	box-shadow: 0 0 0 3px var(--info-s);
+}
+.desp-boton.sutil {
+	border-color: transparent;
+	background: transparent;
+}
+.desp-boton.sutil:hover {
+	border-color: var(--borde);
+}
+
+.desp-texto {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.desp-texto.vacio {
+	color: var(--apagado);
+}
+
+/* La punta: un triángulo pequeño, que gira al abrir. */
+.desp-punta {
+	width: 7px;
+	height: 7px;
+	margin-left: auto;
+	border-right: 1.5px solid var(--apagado);
+	border-bottom: 1.5px solid var(--apagado);
+	transform: translateY(-2px) rotate(45deg);
+	transition: transform 160ms var(--salida);
+}
+.desp.abierto .desp-punta {
+	transform: translateY(1px) rotate(-135deg);
+}
+
+.desp-lista {
+	position: absolute;
+	z-index: 32;
+	top: calc(100% + 5px);
+	left: 0;
+	min-width: 100%;
+	max-width: min(340px, 80vw);
+	max-height: min(320px, 60vh);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 5px;
+	background: #fff;
+	border: 1px solid var(--borde);
+	border-radius: 13px;
+	box-shadow: var(--sombra-3, var(--sombra-2));
+}
+.desp-lista.arriba {
+	top: auto;
+	bottom: calc(100% + 5px);
+}
+.desp-lista[hidden] {
+	display: none;
+}
+
+.desp-opcion {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	width: 100%;
+	padding: 7px 9px;
+	border-radius: 9px;
+	background: none;
+	border: 0;
+	text-align: left;
+	font: 13px var(--sans);
+	color: var(--tinta);
+	cursor: pointer;
+	white-space: nowrap;
+}
+.desp-opcion.marcada {
+	background: var(--fondo-2);
+}
+.desp-opcion.activa {
+	font-weight: 600;
+}
+/* La marca de la elegida: un punto, no un tic del sistema. */
+.desp-opcion.activa::before {
+	content: '';
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--info);
+	flex: 0 0 auto;
+	align-self: center;
+	margin-left: -3px;
+}
+.desp-opcion:not(.activa)::before {
+	content: '';
+	width: 5px;
+	flex: 0 0 auto;
+	margin-left: -3px;
+}
+.desp-opcion[disabled] {
+	color: var(--tenue);
+	cursor: not-allowed;
+}
+.desp-opcion-detalle {
+	margin-left: auto;
+	padding-left: 12px;
+	font-size: 12px;
+	color: var(--apagado);
+}
+
+/* En el informe impreso, los mandos no se enseñan. */
+.informe .desp {
+	display: none !important;
+}
+
+@media (max-width: 760px) {
+	.desp-boton {
+		max-width: 100%;
+	}
+}

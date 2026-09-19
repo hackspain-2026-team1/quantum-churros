@@ -21,6 +21,7 @@ import {
 import { producto, PRODUCTOS } from '../datos/productos';
 import { claveDeMirada } from '../datos/redaccion';
 import { cola, h, vaciar } from './dom';
+import { desplegable } from './desplegable';
 import { logotipo } from './marca';
 import { placa } from './registro';
 import { triaje } from './triaje';
@@ -434,8 +435,11 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			}
 			return g;
 		};
-		const orden = h('select', { class: 'sel-sutil', 'aria-label': 'Orden' }, ...ORDENES.map((o) => h('option', { value: o.id, selected: est.orden === o.id }, primeraMayuscula(o.nombre))));
-		orden.addEventListener('change', () => cambiar({ orden: orden.value as EstadoMonitor['orden'] }));
+		const orden = desplegable<EstadoMonitor['orden']>({
+			etiqueta: 'Orden', valor: est.orden,
+			opciones: ORDENES.map((o) => ({ valor: o.id, texto: primeraMayuscula(o.nombre) })),
+			alElegir: (v) => cambiar({ orden: v }),
+		}).raiz;
 		b.append(formas, h('span', { class: 'hueco' }), conmutador('mon-modo', 'Arena o tabla', [['arena', 'Arena'], ['tabla', 'Tabla']], est.modo, (v) => cambiar({ modo: v })));
 		const opciones = h('div', { class: 'mon-opciones' },
 			cfo() ? null : conmutador('mon-unidad', 'Unidad', [['organizaciones', 'Organizaciones'], ['empresas', 'Empresas']], est.unidad, (v) => cambiar({ unidad: v, filtros: { ...est.filtros, producto: v === 'empresas' ? undefined : est.filtros.producto, grupo: undefined } })),
