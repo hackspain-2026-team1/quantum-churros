@@ -94,9 +94,10 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	const pie = h('p', { class: 'entrada-lema' });
 	const masAbajo = h('button', { type: 'button', class: 'mon-mas-abajo' }, h('span', {}, ctx.cfo() ? 'Piden atención, avisos y tus empresas' : 'Piden atención, avisos y la cartera'), h('span', { class: 'mon-flecha', 'aria-hidden': 'true' }, '↓'));
 	masAbajo.addEventListener('click', () => columnas.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-	// Primero el monitor y luego lo que se busca; con un filtro puesto, la cartera sube por encima.
-	raiz.append(cabeza, columnas, campo, vistaSec, pie, masAbajo);
-	const colocar = () => raiz.insertBefore(columnas, Object.values(est.filtros).some(Boolean) ? pie : campo);
+	// El buscador va dentro de la cabeza, pegado a la rosa: es lo primero que se mira y lo primero
+	// que se usa. Con un filtro puesto, la cartera sube por encima de las columnas.
+	raiz.append(cabeza, columnas, vistaSec, pie, masAbajo);
+	const colocar = () => raiz.insertBefore(columnas, Object.values(est.filtros).some(Boolean) ? pie : vistaSec);
 	// La pista se va en cuanto se baja un poco (la página se desplaza dentro de su contenedor).
 	requestAnimationFrame(() => {
 		const cont = raiz.parentElement;
@@ -178,8 +179,10 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				: h('h1', { class: 'mon-titulo' }, 'La cartera en ', h('span', { class: 'mon-mes' }, f.mes(ctx.corte()))),
 			gr ? cabezaGrupo(gr) : h('p', { class: 'mon-cuantas' }, `${f.plural(r.total, uno, varias)}${est.unidad === 'empresas' ? ` de ${f.plural(c.groups.length, 'organización', 'organizaciones')}` : ''}`),
 			lineaBandas, lineaMes, mapas);
-		cabeza.append(...(reducido() ? [] : [rosaCaja]), estado);
+		const buscando = document.activeElement === entrada ? [entrada.selectionStart ?? 0, entrada.selectionEnd ?? 0] : null;
+		cabeza.append(...(reducido() ? [] : [rosaCaja]), campo, estado);
 		cabeza.classList.toggle('mon-cabeza-sola', reducido());
+		if (buscando) { entrada.focus(); entrada.setSelectionRange(buscando[0], buscando[1]); }
 	}
 
 	/** El titular del CFO: dónde está su grupo, cómo se ha movido y dónde estará en seis meses. */
@@ -204,7 +207,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	const entendido = h('div', { class: 'mon-entendido', role: 'status' });
 	let peticion: AbortController | null = null;
 	// La segunda línea: «dile qué quieres ver», con su propio campo y ejemplos que se pueden tocar.
-	const pedirCampo = h('input', { class: 'mon-pedir-campo', type: 'search', placeholder: 'o dile qué quieres ver…', 'aria-label': cfo() ? 'Dile qué quieres ver de tus empresas' : 'Dile qué quieres ver de la cartera', autocomplete: 'off' }) as HTMLInputElement;
+	const pedirCampo = h('input', { class: 'mon-pedir-campo', type: 'search', placeholder: 'dile qué quieres ver…', 'aria-label': cfo() ? 'Dile qué quieres ver de tus empresas' : 'Dile qué quieres ver de la cartera', autocomplete: 'off' }) as HTMLInputElement;
 	const pedirBoton = h('button', { type: 'button', class: 'mon-pedir-boton' }, 'Ver');
 	const ejemplos = h('p', { class: 'mon-ejemplos' });
 	for (const ej of cfo()
@@ -219,7 +222,9 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	pedirBoton.addEventListener('click', lanzar);
 	campo.append(
 		h('div', { class: 'entrada-frase' }, h('span', { class: 'entrada-rumbo' }, logotipo(ctx.esMovil() ? 34 : 50, 'Rumbo'), h('span', { class: 'entrada-de' }, 'de')), entrada),
-		resultados,
+		resultados);
+	// Pedir la vista con palabras es otro mando de la lista, y vive con ella: dentro del panel.
+	const pedirCaja = h('div', { class: 'mon-pedir-caja' },
 		h('div', { class: 'mon-pedir' }, h('span', { class: 'mon-pedir-grano', 'aria-hidden': 'true' }), pedirCampo, pedirBoton),
 		ejemplos, entendido);
 
@@ -491,6 +496,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	let observador: ResizeObserver | null = null;
 	function pintarVista() {
 		colocar();
+		// La caja de pedir se saca y se vuelve a poner en cada repintado: el cursor de quien escribe no.
+		const escribiendo = document.activeElement === pedirCampo ? [pedirCampo.selectionStart ?? 0, pedirCampo.selectionEnd ?? 0] : null;
 		vaciar(vistaSec);
 		observador?.disconnect();
 		lienzoActual = null;
@@ -498,9 +505,11 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		vistaSec.append(
 			h('header', { class: 'mon-vista-cab' }, h('h2', {}, cfo() ? 'Tus empresas' : 'La cartera')),
 			barra(),
+			pedirCaja,
 			h('div', { class: 'mon-frase-fila' }, h('p', { class: 'mon-frase' }, descripcion()), acciones()),
 			misVistas() ?? '',
 		);
+		if (escribiendo) { pedirCampo.focus(); pedirCampo.setSelectionRange(escribiendo[0], escribiendo[1]); }
 		if (!vis.length) {
 			vistaSec.append(h('p', { class: 'vacio-monitor' }, 'Ninguna pasa estos filtros. Quita alguno tocando su ×.'));
 			return;
