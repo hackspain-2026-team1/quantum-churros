@@ -55,6 +55,7 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [],
       "abstain": {"reason": "short_history", "unlock": "Faltan 3 meses de historia bancaria para emitir un veredicto."}
     },
     {
@@ -93,6 +94,7 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [],
       "abstain": {"reason": "short_history", "unlock": "Faltan 2 meses de historia bancaria para emitir un veredicto."}
     },
     {
@@ -131,6 +133,7 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [],
       "abstain": {"reason": "short_history", "unlock": "Falta 1 mes de historia bancaria para emitir un veredicto."}
     },
     {
@@ -169,6 +172,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 869, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 836, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 817, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 903, "uplift": 98},
       "abstain": null
     },
     {
@@ -207,6 +216,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 869, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 836, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 817, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 903, "uplift": 98},
       "abstain": null
     },
     {
@@ -245,6 +260,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 871, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 838, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 819, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 905, "uplift": 98},
       "abstain": null
     },
     {
@@ -283,6 +304,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 869, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 836, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 817, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 903, "uplift": 98},
       "abstain": null
     },
     {
@@ -321,6 +348,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 867, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 834, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 815, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 901, "uplift": 98},
       "abstain": null
     },
     {
@@ -359,6 +392,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 870, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 837, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 818, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 904, "uplift": 98},
       "abstain": null
     },
     {
@@ -397,6 +436,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 835, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 802, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 783, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 869, "uplift": 98},
       "abstain": null
     },
     {
@@ -435,6 +480,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 869, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 836, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 817, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 903, "uplift": 98},
       "abstain": null
     },
     {
@@ -473,6 +524,12 @@
         "persistence_months": 1,
         "detected_since": "2025-08"
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 764, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 731, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 712, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 798, "uplift": 98},
       "abstain": null
     },
     {
@@ -511,6 +568,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 867, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 834, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 815, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 901, "uplift": 98},
       "abstain": null
     },
     {
@@ -549,6 +612,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 867, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 834, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 815, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 901, "uplift": 98},
       "abstain": null
     },
     {
@@ -587,6 +656,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 869, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 836, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 817, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 903, "uplift": 98},
       "abstain": null
     },
     {
@@ -625,6 +700,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 871, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 838, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 819, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 905, "uplift": 98},
       "abstain": null
     },
     {
@@ -663,6 +744,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 871, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 838, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 819, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 905, "uplift": 98},
       "abstain": null
     },
     {
@@ -701,6 +788,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 870, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 837, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 818, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 904, "uplift": 98},
       "abstain": null
     },
     {
@@ -739,6 +832,12 @@
         "persistence_months": 0,
         "detected_since": null
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 826, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 793, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 774, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 860, "uplift": 98},
       "abstain": null
     },
     {
@@ -777,6 +876,12 @@
         "persistence_months": 1,
         "detected_since": "2026-04"
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 778, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 745, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 726, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 812, "uplift": 98},
       "abstain": null
     },
     {
@@ -815,6 +920,12 @@
         "persistence_months": 2,
         "detected_since": "2026-04"
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 733, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 700, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 681, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 767, "uplift": 98},
       "abstain": null
     },
     {
@@ -853,6 +964,12 @@
         "persistence_months": 3,
         "detected_since": "2026-04"
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 690, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 657, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 638, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 724, "uplift": 98},
       "abstain": null
     },
     {
@@ -891,6 +1008,12 @@
         "persistence_months": 4,
         "detected_since": "2026-04"
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 645, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 612, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 593, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 679, "uplift": 98},
       "abstain": null
     },
     {
@@ -929,6 +1052,12 @@
         "persistence_months": 5,
         "detected_since": "2026-04"
       },
+      "actions": [
+        {"id": "collections-days", "pillar": "collections", "title": "Cobrar antes las facturas vencidas", "detail": "Reducir los días de cobro sobre vencimiento hasta el objetivo acerca el pilar de cobros a su referencia.", "current": 18.0, "target": 7.0, "unit": "días", "uplift_tenths": 64, "new_score_tenths": 601, "effort": "medio"},
+        {"id": "liquidity-buffer", "pillar": "liquidity", "title": "Ampliar el colchón de liquidez", "detail": "Subir los días de colchón entre caja y líneas disponibles hasta el objetivo.", "current": 21.0, "target": 45.0, "unit": "días", "uplift_tenths": 31, "new_score_tenths": 568, "effort": "alto"},
+        {"id": "payments-days", "pillar": "payments", "title": "Pagar a proveedores dentro de plazo", "detail": "Eliminar los días de retraso sobre vencimiento al pagar.", "current": 6.0, "target": 0.0, "unit": "días", "uplift_tenths": 12, "new_score_tenths": 549, "effort": "bajo"}
+      ],
+      "actions_combined": {"new_score": 635, "uplift": 98},
       "abstain": null
     }
   ],

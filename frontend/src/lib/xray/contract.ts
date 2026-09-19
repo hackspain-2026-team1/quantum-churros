@@ -80,6 +80,21 @@ export const verdictSchema = z.object({
 	detected_since: month.nullable()
 });
 
+// Optional, newer bundles only: what the entity could do next and what the score would become.
+export const actionSchema = z.object({
+	id: z.string().min(1).max(80),
+	pillar: pillarKey.nullable().optional(),
+	title: text,
+	detail: z.string().max(600).nullable().optional(),
+	current: z.number().nullable().optional(),
+	target: z.number().nullable().optional(),
+	unit: z.string().max(24).nullable().optional(),
+	uplift_tenths: tenths,
+	new_score_tenths: scoreTenths,
+	effort: z.string().max(40).nullable().optional()
+});
+export const actionsCombinedSchema = z.object({ new_score: scoreTenths, uplift: tenths });
+
 const entityMonthShape = z.object({
 	month,
 	shown: scoreTenths,
@@ -102,7 +117,9 @@ const entityMonthShape = z.object({
 	months_observed: count,
 	perimeter_changed: z.boolean(),
 	verdict: verdictSchema,
-	abstain: z.object({ reason: code, unlock: text }).nullable()
+	abstain: z.object({ reason: code, unlock: text }).nullable(),
+	actions: z.array(actionSchema).optional(),
+	actions_combined: actionsCombinedSchema.nullable().optional()
 });
 
 /** base + contributions - penalty - cap - shown, in tenths; 0 on a valid entity-month. */
@@ -409,6 +426,8 @@ export type SuppressedBy = z.infer<typeof suppressedBySchema>;
 export type Receipt = z.infer<typeof receiptSchema>;
 export type ReceiptCheck = z.infer<typeof receiptCheckSchema>;
 export type EntityMonth = z.infer<typeof entityMonthSchema>;
+export type EntityAction = z.infer<typeof actionSchema>;
+export type ActionsCombined = z.infer<typeof actionsCombinedSchema>;
 export type PillarEntry = z.infer<typeof pillarSchema>;
 export type Verdict = z.infer<typeof verdictSchema>;
 export type ProfileAttribute = z.infer<typeof profileAttributeSchema>;

@@ -73,7 +73,7 @@
 <section class="space-y-6" aria-labelledby="receipt-heading">
 	<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
 		<div>
-			<h1 id="receipt-heading" class="eyebrow">Recibo</h1>
+			<h2 id="receipt-heading" class="eyebrow">Recibo</h2>
 			<p
 				class="text-3xl font-semibold tracking-[-0.045em] text-balance md:text-4xl"
 				role="doc-subtitle"

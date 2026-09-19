@@ -1,15 +1,14 @@
 <script lang="ts">
-	import PortfolioView from '$lib/xray/portfolio-view.svelte';
+	import XrayDashboard from '$lib/xray/xray-dashboard.svelte';
 
 	let { data } = $props();
 </script>
 
-<svelte:head>
-	<title>Cartera · Embat X-Ray</title>
-	<meta
+<svelte:head
+	><title>Embat X-Ray · Salud financiera en movimiento</title><meta
 		name="description"
-		content="Salud financiera de cada grupo empresarial, mes a mes, con su veredicto y su explicación."
-	/>
-</svelte:head>
+		content="Detecta, explica y actúa sobre cambios en la salud financiera de cada grupo empresarial."
+	/></svelte:head
+>
 
-<PortfolioView portfolio={data.portfolio} manifest={data.manifest} />
+<XrayDashboard portfolio={data.portfolio} manifest={data.manifest} />

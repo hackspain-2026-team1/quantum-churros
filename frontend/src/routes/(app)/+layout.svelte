@@ -2,7 +2,6 @@
 	import { untrack } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
-	import AppShell from '$lib/xray/app-shell.svelte';
 	import { monthStore } from '$lib/xray/month-store.svelte.js';
 
 	let { data, children } = $props();
@@ -26,7 +25,5 @@
 </script>
 
 <Tooltip.Provider delayDuration={150}>
-	<AppShell manifest={data.manifest}>
-		{@render children()}
-	</AppShell>
+	{@render children()}
 </Tooltip.Provider>

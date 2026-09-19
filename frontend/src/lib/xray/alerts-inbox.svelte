@@ -195,7 +195,7 @@
 	<div class="grid gap-4 lg:grid-cols-[1fr_24rem] lg:items-end">
 		<div>
 			<p class="eyebrow">Bandeja de alertas</p>
-			<h1 id="alerts-heading">Alertas</h1>
+			<h2 id="alerts-heading" class="text-2xl font-semibold tracking-[-0.03em]">Alertas</h2>
 			<p class="page-lead" data-testid="alerts-lead">{lead}</p>
 		</div>
 		<div class="space-y-2">
@@ -403,7 +403,7 @@
 									El
 									<a
 										class="font-medium text-foreground underline underline-offset-4"
-										href={monthStore.href('/receipt')}>recibo</a
+										href={monthStore.href('/?tab=tecnico&section=recibo')}>recibo</a
 									>
 									lista todas las entidades en abstención en el último cierre y qué dato las desbloquea.
 								</span>

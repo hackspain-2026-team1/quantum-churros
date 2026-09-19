@@ -1,7 +1,7 @@
 {
   "schema": "xray-export-v1",
   "kind": "manifest",
-  "bundle_id": "7354132144f5663695a975bbe22e6df4a8aaa0c89b94aa6b23e3c528e7a993b5",
+  "bundle_id": "2735a03aafcb0bb2c5365ce007eef08c717fe0a3c6b1d953feb295efc8d670ed",
   "engine_version": "engine-v2",
   "params_hash": "synthetic-fixture-params",
   "dataset_hash": "synthetic-fixture-dataset",
