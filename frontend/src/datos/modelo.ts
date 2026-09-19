@@ -148,8 +148,8 @@ export const NOMBRE_ALERTA: Record<TipoAlerta, string> = {
 	improvement_structural: 'Mejora estructural',
 	level_critical: 'Nivel crítico',
 	cap_fired: 'Tope aplicado',
-	deterioration_drift: 'Deriva a la baja',
-	improvement_drift: 'Deriva al alza',
+	deterioration_drift: 'Bajada lenta',
+	improvement_drift: 'Subida lenta',
 	stale_feed: 'Datos sin actualizar',
 };
 
@@ -160,6 +160,6 @@ export function bandaDe(decimas: number): Banda {
 	return 'solid';
 }
 
-/** Avisos que dicen «sube» o «baja» (la deriva lenta llega con la rama de Rubén). */
+/** Avisos que dicen «sube» o «baja» (la bajada o subida lenta llega con la rama de Rubén). */
 export const esMejora = (k: TipoAlerta) => k === 'improvement_structural' || k === 'improvement_drift';
 export const esDeterioro = (k: TipoAlerta) => k === 'deterioration_structural' || k === 'deterioration_drift' || k === 'level_critical';

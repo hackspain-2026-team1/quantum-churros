@@ -108,8 +108,8 @@ export function lineaAvisoM(a: AlertaM, man: Manifiesto, umbralCritico: number |
 		case 'level_critical': return umbralCritico !== null ? `Baja de ${f.numero(umbralCritico)} puntos: nivel crítico (${f.score(a.shown)})` : `Nivel crítico (${f.score(a.shown)})`;
 		case 'deterioration_structural': return `Deterioro confirmado (${f.score(a.shown)})`;
 		case 'improvement_structural': return `Mejora confirmada (${f.score(a.shown)})`;
-		case 'deterioration_drift': return `Deriva lenta a la baja (${f.score(a.shown)})`;
-		case 'improvement_drift': return `Deriva lenta al alza (${f.score(a.shown)})`;
+		case 'deterioration_drift': return `Baja poco a poco (${f.score(a.shown)})`;
+		case 'improvement_drift': return `Sube poco a poco (${f.score(a.shown)})`;
 		case 'cap_fired': return `Salta un tope y limita el score (${f.score(a.shown)})`;
 		case 'stale_feed': return 'Los datos del banco dejan de llegar';
 		default: return a.title || man.glossary.flags[a.kind] || a.kind;

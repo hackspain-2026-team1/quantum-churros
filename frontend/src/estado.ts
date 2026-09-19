@@ -10,9 +10,9 @@ import { PRODUCTOS, type ProductoId } from './datos/productos';
 /** Niveles de Rumbo: la entrada (elegir organización), la cartera como mapa (plano, tapiz),
  * la organización, la empresa y la metodología. */
 export type Vista = 'entrada' | 'plano' | 'tapiz' | 'organizacion' | 'empresa' | 'metodologia' | 'financiacion';
-export type Seccion = 'scoring' | 'productos' | 'acciones' | 'tecnico';
+export type Seccion = 'scoring' | 'productos' | 'acciones' | 'tecnico' | 'conciliacion';
 export type Lente = 'score' | 'productos' | 'horizonte';
-export const SECCIONES: Seccion[] = ['scoring', 'acciones', 'productos', 'tecnico'];
+export const SECCIONES: Seccion[] = ['scoring', 'acciones', 'productos', 'tecnico', 'conciliacion'];
 const PAGINAS: Vista[] = ['organizacion', 'empresa', 'metodologia', 'financiacion', 'entrada'];
 export const esPagina = (v: Vista) => PAGINAS.includes(v);
 

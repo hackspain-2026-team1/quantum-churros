@@ -13,17 +13,20 @@ import { desplegable } from './desplegable';
 import { primeraMayuscula } from '../datos/formato';
 import { hilo, seccion } from './primitivos';
 import { triaje } from './triaje';
-import { lineaAviso, nudosScore, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
+import { lineaAviso, nudosScore, partitura, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
 
 const NS = 'http://www.w3.org/2000/svg';
 const sv = <K extends keyof SVGElementTagNameMap>(tag: K, a: Record<string, string | number>) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(a)) e.setAttribute(k, String(v)); return e; };
 
-export function seccionTecnica(d: DatosFicha, acc: Acciones, filtro: FiltroEvidencia | null = null): HTMLElement {
+export function seccionTecnica(d: DatosFicha, acc: Acciones): HTMLElement {
 	const raiz = h('div', { class: 'sec-tecnico' });
 	const m = d.mes;
 	if (!m) { raiz.append(h('p', { class: 'vacio' }, `Sin datos en ${f.mes(d.corte)}.`)); return raiz; }
 
-	// 1. La cascada, décima a décima.
+	// 1. Qué aporta cada pilar: la lectura pilar a pilar antes de las décimas.
+	raiz.append(partitura(d, acc));
+
+	// 2. La cascada, décima a décima.
 	const pasos: [string, number, string?][] = [['Punto de partida (referencia ponderada)', m.base]];
 	for (const p of m.pillars) pasos.push([nombrePilar(d.man, p.key), p.contrib, p.score === null ? 'sin dato' : `pilar ${f.scoreDec(p.score)} · peso ${f.porcentaje(p.w_eff, 0)}`]);
 	pasos.push(['Penalización por el pilar más débil', -m.penalty, d.params ? `λ ${f.numero(d.params.penalty.lam, 2)} · τ ${f.numero(d.params.penalty.tau)}` : undefined]);
@@ -47,10 +50,10 @@ export function seccionTecnica(d: DatosFicha, acc: Acciones, filtro: FiltroEvide
 	tabla.append(h('div', { class: 'ct-fila total' }, h('span', { class: 'ct-nombre' }, 'Score'), h('span', {}), h('span', { class: 'ct-v' }, f.scoreDec(m.shown)), h('span', { class: 'ct-acum' }, suma === m.shown ? 'cuadra al décimo' : `no cuadra: ${f.scoreDec(suma)}`)));
 	raiz.append(seccion('La cascada', tabla, h('p', { class: 'nota' }, 'score = base + Σ aportaciones − penalización − tope, en décimas enteras. La confianza no interviene.')));
 
-	// 2. Las curvas del motor con la entidad encima.
+	// 3. Las curvas del motor con la entidad encima.
 	raiz.append(seccion('Dónde cae en cada curva', curvas(d, acc)));
 
-	// 3. El veredicto por dentro.
+	// 4. El veredicto por dentro.
 	const v = m.verdict, t = d.params?.trajectory;
 	const umbral = t && v.sigma !== null ? Math.max(t.min_delta_points, t.min_sigma_multiple * (v.sigma / 10)) : null;
 	const filasV: [string, string][] = [
@@ -67,7 +70,7 @@ export function seccionTecnica(d: DatosFicha, acc: Acciones, filtro: FiltroEvide
 	if (m.flags.length) filasV.push(['Marcas del mes', m.flags.map((x) => d.man.glossary.flags[x] ?? x).join('; ')]);
 	raiz.append(seccion('El veredicto por dentro', dl(filasV)));
 
-	// 4. Confianza y abstención.
+	// 5. Confianza y abstención.
 	const conf = d.params?.confidence as { label_high_min?: number; label_medium_min?: number } | undefined;
 	raiz.append(seccion('Confianza', dl([
 		['Historia × cobertura × calidad', `${f.porcentaje(m.conf.history, 0)} × ${f.porcentaje(m.conf.coverage, 0)} × ${f.porcentaje(m.conf.quality, 0)} = ${f.porcentaje(m.conf.value, 0)}`],
@@ -75,13 +78,8 @@ export function seccionTecnica(d: DatosFicha, acc: Acciones, filtro: FiltroEvide
 		['Abstención', m.abstain ? `${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason} Qué la levantaría: ${m.abstain.unlock}` : 'no se abstiene'],
 	])));
 
-	// 5. El hilo entero.
+	// 6. El hilo entero.
 	raiz.append(seccion('El hilo del score', hilo(nudosScore(d, acc))));
-
-	// 6. Evidencia filtrable.
-	const ev = seccion('Evidencia', evidencia(d, filtro));
-	if (filtro) ev.classList.add('evidencia-filtrada');
-	raiz.append(ev);
 
 	// 7. Avisos, todos.
 	const todos = d.ent.alerts.filter((a) => a.month <= d.corte).sort((a, b) => (a.month < b.month ? 1 : -1));
@@ -104,6 +102,16 @@ export function seccionTecnica(d: DatosFicha, acc: Acciones, filtro: FiltroEvide
 
 	// 10. Huella.
 	raiz.append(seccion('Huella', huella(d)));
+	return raiz;
+}
+
+/** La conciliación: la evidencia fila a fila —de dónde salió cada cifra—, filtrable y buscable. */
+export function seccionConciliacion(d: DatosFicha, filtro: FiltroEvidencia | null = null): HTMLElement {
+	const raiz = h('div', { class: 'sec-conciliacion' });
+	if (!d.mes) { raiz.append(h('p', { class: 'vacio' }, `Sin datos en ${f.mes(d.corte)}.`)); return raiz; }
+	const ev = seccion('Conciliación', evidencia(d, filtro));
+	if (filtro) ev.classList.add('evidencia-filtrada');
+	raiz.append(ev);
 	return raiz;
 }
 

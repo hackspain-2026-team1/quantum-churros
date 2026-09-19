@@ -624,7 +624,7 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 		// En las páginas, las teclas son de la página: 1–4 cambian de sección, Esc sube un nivel.
 		if (esPagina(S.e.vista)) {
 			if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
-			if (/^[1-4]$/.test(ev.key) && (S.e.vista === 'organizacion' || S.e.vista === 'empresa')) S.fijar({ sec: SECCIONES[Number(ev.key) - 1] }, true);
+			if (/^[1-5]$/.test(ev.key) && (S.e.vista === 'organizacion' || S.e.vista === 'empresa')) S.fijar({ sec: SECCIONES[Number(ev.key) - 1] }, true);
 			else if ((ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && (S.e.vista === 'organizacion' || S.e.vista === 'empresa') && !t?.closest?.('select')) {
 				ev.preventDefault();
 				const q = S.confirmado.q, ult = ctxDe(q).periodos.length - 1;
@@ -646,7 +646,7 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 			case 'ArrowDown': if (!t?.closest?.('.ficha')) { ev.preventDefault(); vecino(1); } break;
 			case 'ArrowUp': if (!t?.closest?.('.ficha')) { ev.preventDefault(); vecino(-1); } break;
 			case 'Enter': if (S.e.hover && !esPagina(S.e.vista) && !t?.closest?.('button')) abrir(S.e.hover); break;
-			case '1': case '2': case '3': case '4': if (S.e.vista === 'organizacion' || S.e.vista === 'empresa') S.fijar({ sec: SECCIONES[Number(ev.key) - 1] }, true); break;
+			case '1': case '2': case '3': case '4': case '5': if (S.e.vista === 'organizacion' || S.e.vista === 'empresa') S.fijar({ sec: SECCIONES[Number(ev.key) - 1] }, true); break;
 			case '?': ayuda.classList.toggle('ver'); break;
 			case 'Escape':
 				if (ayuda.classList.contains('ver')) ayuda.classList.remove('ver');
