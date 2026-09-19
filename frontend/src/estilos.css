@@ -4050,6 +4050,11 @@ body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina
   display: grid;
   gap: 1px;
 }
+.propuesta-oferta-entidad {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .propuesta-oferta-tasa {
   display: flex;
   gap: 6px;

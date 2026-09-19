@@ -2,7 +2,7 @@
 // traen campos (palanca, de cuánto a cuánto, unidad) y un texto propio en segunda persona; aquí se
 // redactan de nuevo a partir de los campos. El texto del motor se conserva para la sección técnica.
 
-import type { AccionM, AlertaM, Manifiesto, MesM } from './contrato';
+import type { AccionM, AlertaM, FinanciacionM, Manifiesto, MesM } from './contrato';
 import { f } from './formato';
 
 export type Palanca = 'liquidity-buffer' | 'payments-punctuality' | 'collections-speed' | 'activity-coverage' | 'debt-burden';
@@ -81,6 +81,12 @@ export function explicacionAccion(a: AccionM): string {
 }
 
 export const ESFUERZO: Record<AccionM['effort'], string> = { bajo: 'esfuerzo bajo', medio: 'esfuerzo medio', alto: 'esfuerzo alto' };
+
+/** El título de un instrumento de financiación llega del motor con el importe sin agrupar
+ *  («Anticipa 2315799 de facturas»); se reformatea al vuelo con el formato del equipo. */
+export function tituloFinanciacion(i: Pick<FinanciacionM, 'title'>): string {
+	return i.title.replace(/(?<![\d.,])(\d{4,})(?![\d.,])/g, (n) => f.numero(Number(n)));
+}
 
 /** Una línea por aviso del motor, en tercera persona. `umbralCritico` sale de los parámetros. */
 export function lineaAvisoM(a: AlertaM, man: Manifiesto, umbralCritico: number | null): string {
