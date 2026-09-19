@@ -458,7 +458,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			avisos: e.historia.filter((a) => a.state === 'fired' && a.month >= desdeAv && filaTipo.has(a.kind)).map((a) => [a.month - desdeAv, filaTipo.get(a.kind)!] as [number, number]),
 		}));
 		const filas = est.forma === 'ranking' ? Math.min(vis.length, movil ? 14 : 20) : Math.min(vis.length, movil ? 24 : 40);
-		return { forma: est.forma, ents, k: est.unidad === 'organizaciones' ? 120 : 20, meses: est.forma === 'avisos' ? MESES_AVISOS : MESES_TAPIZ, tipos: tiposVis.map((x) => ({ tono: x.tono })), filas, movil };
+		return { forma: est.forma, ents, k: est.unidad === 'organizaciones' ? 180 : 36, meses: est.forma === 'avisos' ? MESES_AVISOS : MESES_TAPIZ, tipos: tiposVis.map((x) => ({ tono: x.tono })), filas, movil };
 	}
 
 	function altoArena(d: DatosVista): number {
