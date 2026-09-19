@@ -13,6 +13,33 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  validate-deployment-identity:
+    name: Validate deployment identity
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: development
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Validate GitHub OIDC claims
+        env:
+          OIDC_AUDIENCE: ${{ secrets.TS_OIDC_AUDIENCE }}
+        run: |
+          response=$(curl --fail-with-body --silent --show-error \
+            --get \
+            --data-urlencode "audience=$OIDC_AUDIENCE" \
+            --header "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL")
+          token=$(jq --exit-status --raw-output '.value' <<<"$response")
+          claims=$(OIDC_TOKEN="$token" python3 -c 'import base64, json, os; payload = os.environ["OIDC_TOKEN"].split(".")[1]; payload += "=" * (-len(payload) % 4); print(json.dumps(json.loads(base64.urlsafe_b64decode(payload))))')
+          jq '{iss, aud, sub, repository, ref, environment, job_workflow_ref}' <<<"$claims"
+          jq --exit-status \
+            --arg audience "$OIDC_AUDIENCE" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            '.iss == "https://token.actions.githubusercontent.com" and .aud == $audience and .repository == $repository and (.sub | startswith("repo:" + $repository + ":"))' \
+            <<<"$claims" >/dev/null
+
   verify:
     name: Verify application
     runs-on: ubuntu-24.04
@@ -107,7 +134,7 @@ jobs:
   deploy-development:
     name: Deploy development
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build-images
+    needs: [build-images, validate-deployment-identity]
     runs-on: ubuntu-24.04
     environment: development
     permissions:
@@ -129,6 +156,8 @@ jobs:
           audience: ${{ secrets.TS_OIDC_AUDIENCE }}
           tags: tag:github-ci
           ping: ${{ vars.DEPLOY_HOST }}
+          retry: 1
+          timeout: 30s
 
       - name: Configure SSH host verification
         env:
