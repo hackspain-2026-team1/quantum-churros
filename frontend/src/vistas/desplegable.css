@@ -19,7 +19,7 @@
 	font: 500 13px var(--sans);
 	color: var(--tinta);
 	cursor: pointer;
-	transition: border-color 120ms, box-shadow 120ms;
+	transition: border-color 120ms, box-shadow 120ms, background 120ms;
 }
 .desp-boton:hover {
 	border-color: var(--tenue);
@@ -83,6 +83,21 @@
 	border: 1px solid var(--borde);
 	border-radius: 13px;
 	box-shadow: var(--sombra-3, var(--sombra-2));
+	/* Cerrada: sin sitio en el árbol de accesibilidad, pero con caja, para poder medirla antes de abrir. */
+	visibility: hidden;
+	opacity: 0;
+	transform: translateY(-6px) scale(0.985);
+	transform-origin: top center;
+	transition: opacity 130ms var(--salida), transform 190ms var(--salida), visibility 0s 190ms;
+}
+.desp.abierto .desp-lista {
+	visibility: visible;
+	opacity: 1;
+	transform: none;
+	transition: opacity 130ms var(--salida), transform 190ms var(--salida), visibility 0s;
+}
+.desp-lista.arriba {
+	transform-origin: bottom center;
 }
 .desp-lista.arriba {
 	top: auto;
@@ -106,6 +121,15 @@
 	color: var(--tinta);
 	cursor: pointer;
 	white-space: nowrap;
+	/* Las opciones entran escalonadas, como la arena al caer. */
+	opacity: 0;
+	transform: translateY(-3px);
+	transition: opacity 120ms linear, transform 160ms var(--salida), background 120ms;
+}
+.desp.abierto .desp-opcion {
+	opacity: 1;
+	transform: none;
+	transition-delay: calc(var(--i, 0) * 18ms);
 }
 .desp-opcion.marcada {
 	background: var(--fondo-2);
@@ -149,5 +173,18 @@
 @media (max-width: 760px) {
 	.desp-boton {
 		max-width: 100%;
+	}
+}
+
+/* Quien pide menos movimiento, lo recibe: el desplegable aparece sin desplazarse. */
+@media (prefers-reduced-motion: reduce) {
+	.desp-lista,
+	.desp.abierto .desp-lista,
+	.desp-opcion,
+	.desp.abierto .desp-opcion,
+	.desp-punta {
+		transition-duration: 0s;
+		transition-delay: 0s;
+		transform: none;
 	}
 }
