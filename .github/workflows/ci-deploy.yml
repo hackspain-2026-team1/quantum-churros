@@ -24,6 +24,7 @@ jobs:
     steps:
       - name: Validate GitHub OIDC claims
         env:
+          EXPECTED_OIDC_SUBJECT: repo:${{ github.repository_owner }}@${{ github.repository_owner_id }}/${{ github.event.repository.name }}@${{ github.repository_id }}:environment:development
           OIDC_AUDIENCE: ${{ secrets.TS_OIDC_AUDIENCE }}
         run: |
           response=$(curl --fail-with-body --silent --show-error \
@@ -37,7 +38,8 @@ jobs:
           jq --exit-status \
             --arg audience "$OIDC_AUDIENCE" \
             --arg repository "$GITHUB_REPOSITORY" \
-            '.iss == "https://token.actions.githubusercontent.com" and .aud == $audience and .repository == $repository and (.sub | startswith("repo:" + $repository + ":"))' \
+            --arg subject "$EXPECTED_OIDC_SUBJECT" \
+            '.iss == "https://token.actions.githubusercontent.com" and .aud == $audience and .repository == $repository and .sub == $subject' \
             <<<"$claims" >/dev/null
 
   verify:
