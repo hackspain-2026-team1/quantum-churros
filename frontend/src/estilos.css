@@ -1039,7 +1039,7 @@ body[data-vista="expediente"] .frase-linea {
 @media screen and (max-width: 1099px) {
 	.barra { padding: 0 28px; }
 	.barra::after { left: 28px; right: 28px; }
-	.marca-de, .nota-datos, .miga-cuando { display: none; }
+	.marca-de, .nota-datos { display: none; }
 	.frase-linea { font-size: 25px; }
 	.exp-cab h1 { font-size: 30px; }
 	.exp-explica { font-size: 16px; }
@@ -1126,7 +1126,6 @@ body[data-vista='organizacion'] .barra-hueco, body[data-vista='empresa'] .barra-
 button.miga-paso:hover { color: var(--tinta); border-bottom-color: var(--borde-2); }
 .miga-paso.actual { color: var(--tinta); }
 .miga-sep { color: var(--tenue); font-size: 16px; }
-.miga-cuando { color: var(--apagado); font-size: 16px; font-style: italic; margin-left: 2px; }
 .miga-accion { font: 500 12.5px var(--sans); color: var(--apagado); padding: 6px 10px; border-radius: 10px; border: 1px solid var(--borde); white-space: nowrap; transition: color 140ms, border-color 140ms; }
 .miga-accion:hover { color: var(--tinta); border-color: var(--borde-2); }
 
@@ -2490,6 +2489,7 @@ button.filtro-opcion[aria-pressed="true"] {
   border-radius: 3px;
   object-fit: contain;
   background: #fff;
+  flex: 0 0 auto;
 }
 .tabla-sutil tr.tocable {
   cursor: pointer;
@@ -3045,7 +3045,7 @@ button.filtro-opcion[aria-pressed="true"] {
 }
 @media screen and (max-width: 699px) {
 	.miga-pasos { font-size: 16px; padding-left: 10px; }
-	.miga-cuando, .boton-metodo, .lentes, .miga-accion { display: none; }
+	.boton-metodo, .lentes, .miga-accion { display: none; }
 	.hoja-ficha, .entrada, .metodologia { padding: 14px 16px 60px; }
 	.ficha-cab { grid-template-columns: 1fr; gap: 6px; }
 	.cab-numeral { height: 86px; }

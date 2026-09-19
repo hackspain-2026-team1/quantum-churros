@@ -136,7 +136,6 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		if ((e.vista === 'organizacion' || e.vista === 'empresa') && e.sel) {
 			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion');
 			if (e.vista === 'empresa' && e.emp) { sep(); paso(f.empresa(e.emp), null, true); }
-			pasos.append(h('span', { class: 'miga-cuando' }, f.mes(cb.corte())));
 		}
 		miga.append(pasos, h('span', { class: 'hueco' }));
 		if (e.vista === 'organizacion' || e.vista === 'empresa') {

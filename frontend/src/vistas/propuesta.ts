@@ -49,6 +49,7 @@ import {
 import { fuenteTexto } from "../datos/tasas";
 import { h, vaciar } from "./dom";
 import type { Acciones, DatosFicha } from "./ficha";
+import { marcaBanco } from "./primitivos";
 
 const nombreDe = (kind: "company" | "group", id: string) =>
   kind === "company" ? f.empresa(id) : f.grupo(id);
@@ -201,6 +202,7 @@ function tarjetaBanco(b: BancoConectado): HTMLElement {
     h(
       "div",
       { class: "propuesta-banco-cabeza" },
+      marcaBanco(b.bank, 18),
       h("p", { class: "propuesta-titulo" }, b.bank),
       b.otorga
         ? h(
