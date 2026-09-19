@@ -316,7 +316,7 @@ export function seccionScoring(d: DatosFicha, estado: { escenario: OpcionesGrafi
 	const cifras = h('div', { class: 'cifras-c' },
 		cifraC(f.score(m.shown), 'score', v.compared_to && v.delta3 !== null ? `${f.delta(v.delta3)} frente a ${f.mesCorto(v.compared_to)}` : null, v.delta3 === null ? '' : v.delta3 < -5 ? 'baja' : v.delta3 > 5 ? 'sube' : ''),
 		cifraC(f.porcentaje(m.conf.value, 0), `confianza ${({ high: 'alta', medium: 'media', low: 'baja' } as Record<string, string>)[m.conf.label]}`, `historia ${f.porcentaje(m.conf.history, 0)} · cobertura ${f.porcentaje(m.conf.coverage, 0)} · calidad ${f.porcentaje(m.conf.quality, 0)}`),
-		cifraC(v.persistence_months ? f.plural(v.persistence_months, 'mes', 'meses') : '—', 'persistencia', v.detected_since ? `${movimiento(m)}` : 'sin movimiento confirmado'),
+		cifraC(v.persistence_months ? f.plural(v.persistence_months, 'mes', 'meses') : '—', 'persistencia', v.detected_since ? `${movimiento(m)}` : 'sin movimiento confirmado', v.available ? (v.direction === 'improving' ? 'sube' : v.direction === 'deteriorating' ? 'baja' : '') : ''),
 		cifraC(deriva && typeof deriva.value === 'number' ? f.signo(deriva.value, 1) : '—', 'deriva de 12 meses', deriva ? `${f.periodo(deriva.period)}, según el motor` : 'el motor no la calcula este mes', deriva && typeof deriva.value === 'number' ? (deriva.value < -3 ? 'baja' : deriva.value > 3 ? 'sube' : '') : ''),
 		cifraC(conSims ? `${f.score(esc6!.q.p10[5])}–${f.score(esc6!.q.p90[5])}` : ol ? `${f.score(ol.worst)}–${f.score(ol.best)}` : '—', 'previsto a seis meses',
 			conSims ? `lo más probable, ${f.score(esc6!.q.p50[5])}${esc6!.cross ? ` · ${f.porcentaje(esc6!.cross.prob, 0)} de pasar a ${nombreBanda(d.man, esc6!.cross.to).toLowerCase()}` : ''}`
@@ -436,12 +436,31 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 		const us = new Set(vs.filter((v) => v !== null && v !== 0).map(unidadDe));
 		return us.size === 1 ? [...us][0]! : null;
 	};
-	const uConcedido = unidadComun(otras.map((x) => x.granted));
-	const uPendiente = unidadComun(otras.map((x) => x.outstanding));
 	const importe = (v: number | null, u: '€' | 'k€' | 'M€' | null) => (v === null ? '—' : u ? f.eurosEn(v, u) : f.eurosCorto(v));
-	const otrasEl = otras.length ? seccion('Otras deudas', h('table', { class: 'tabla-sutil' },
-		h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, 'Entidad'), h('th', { class: 'num' }, uConcedido ? `Concedido (${uConcedido})` : 'Concedido'), h('th', { class: 'num' }, uPendiente ? `Pendiente (${uPendiente})` : 'Pendiente'), h('th', { class: 'num' }, 'Interés (%)'), h('th', {}, 'Próxima cuota'))),
-		h('tbody', {}, ...otras.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, x.bank ? h('span', { class: 'banco' }, marcaBanco(x.bank), x.bank) : '—'), h('td', { class: 'num' }, importe(x.granted, uConcedido)), h('td', { class: 'num' }, importe(x.outstanding, uPendiente)), h('td', { class: 'num' }, x.rate === null ? '—' : f.numero(x.rate, 2)), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—'))))),
+	// La tabla se reconfstruye por filtro y las unidades se vuelven a medir sobre las filas visibles:
+	// filtrar a un solo tipo puede cambiar la unidad común de una columna (docs/DESIGN_UX.mdx).
+	const tablaOtras = (visibles: typeof otras) => {
+		const uc = unidadComun(visibles.map((x) => x.granted));
+		const up = unidadComun(visibles.map((x) => x.outstanding));
+		return h('table', { class: 'tabla-sutil' },
+			h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, 'Entidad'), h('th', { class: 'num' }, uc ? `Concedido (${uc})` : 'Concedido'), h('th', { class: 'num' }, up ? `Pendiente (${up})` : 'Pendiente'), h('th', { class: 'num' }, 'Interés (%)'), h('th', {}, 'Próxima cuota'))),
+			h('tbody', {}, ...visibles.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, x.bank ? h('span', { class: 'banco' }, marcaBanco(x.bank), x.bank) : '—'), h('td', { class: 'num' }, importe(x.granted, uc)), h('td', { class: 'num' }, importe(x.outstanding, up)), h('td', { class: 'num' }, x.rate === null ? '—' : f.numero(x.rate, 2)), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—')))));
+	};
+	const tipos = [...new Set(otras.map((x) => x.type_label))];
+	let filtro: string | null = null;
+	const tabla = h('div');
+	const pinta = () => { vaciar(tabla); tabla.append(tablaOtras(filtro === null ? otras : otras.filter((x) => x.type_label === filtro))); };
+	const botonesFiltro = tipos.length > 1
+		? [null, ...tipos].map((t) => h('button', { type: 'button', class: 'filtro-opcion', 'aria-pressed': String(filtro === t), 'data-tipo': String(t) }, t === null ? 'Todos' : t))
+		: null;
+	if (botonesFiltro) for (const b of botonesFiltro) b.addEventListener('click', () => {
+		filtro = b.dataset.tipo === 'null' || b.dataset.tipo === undefined ? null : b.dataset.tipo;
+		for (const x of botonesFiltro) x.setAttribute('aria-pressed', String(x === b));
+		pinta();
+	});
+	const barra = h('div', {}, ...(botonesFiltro ? [h('div', { class: 'filtro-tipo', role: 'group', 'aria-label': 'Filtrar otras deudas por tipo' }, ...botonesFiltro)] : []));
+	pinta();
+	const otrasEl = otras.length ? seccion('Otras deudas', barra, tabla,
 		h('p', { class: 'nota' }, 'No son de los siete productos, pero pesan en el pilar de deuda.')) : null;
 
 	// Lo que le encajaría: ordenado por el efecto del motor.
