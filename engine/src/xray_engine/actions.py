@@ -162,6 +162,27 @@ def _set_attr(name: str, value: float) -> RowDelta:
     return lambda row: replace(row, **{name: value})
 
 
+def _usable_cash(row: PanelRow, p: Params, pillars: Mapping[str, PillarResult], money: float) -> float:
+    """Cap a simulated cash gain to what the liquidity curve can still reward.
+
+    The punctuality cohort includes old invoices that may never settle, so a
+    timing shift over the whole cohort would promise cash that will not arrive.
+    Only the cash that moves the buffer up to the top anchor of the liquidity
+    table changes the score; the rest is dropped from the simulation.
+    """
+    liquidity = pillars.get("liquidity")
+    if liquidity is None or liquidity.score is None or money <= _EPS:
+        return money
+    table, _ = liquidity_anchors(row, p)
+    top = max(x for x, _ in table.points)
+    buffer = liquidity.inputs.get("buffer_days_month_end")
+    monthly = liquidity.inputs.get("monthly_outflow")
+    if buffer is None or not monthly or monthly <= 0:
+        return 0.0
+    usable_days = max(0.0, top - buffer)
+    return min(money, usable_days * monthly / p.liquidity.days_per_month)
+
+
 def _buffer(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta, dict] | None:
     inputs = result.inputs
     end, low = inputs.get("buffer_days_month_end"), inputs.get("buffer_days_intra_min")
@@ -201,7 +222,9 @@ def _buffer(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta, d
     }
 
 
-def _punctuality(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta, dict] | None:
+def _punctuality(
+    result: PillarResult, row: PanelRow, p: Params, pillars: Mapping[str, PillarResult]
+) -> tuple[RowDelta, dict] | None:
     key = result.key
     side = "ap" if key == "payments" else "ar"
     days = result.inputs.get("days_beyond_terms")
@@ -220,6 +243,8 @@ def _punctuality(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDel
     # one-time cash move of cohort * G / 90.
     cohort = getattr(row, f"{side}_amount") or 0.0
     cash = cohort * gain / 90.0 if cohort > 0 else 0.0
+    if key == "collections":
+        cash = _usable_cash(row, p, pillars, cash)  # only what the liquidity curve can reward
     if key == "payments":
         delta: RowDelta = lambda row_: _cash_delta(_set_attr("ap_days_beyond_terms", goal)(row_), -cash)
         title = (
@@ -333,13 +358,15 @@ def _debt(result: PillarResult, p: Params) -> tuple[RowDelta, dict] | None:
     }
 
 
-def _propose(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta, dict] | None:
+def _propose(
+    result: PillarResult, row: PanelRow, p: Params, pillars: Mapping[str, PillarResult]
+) -> tuple[RowDelta, dict] | None:
     if result.key == "liquidity":
         if "inherited_from_group" in result.gates:
             return None
         return _buffer(result, row, p)
     if result.key in ("payments", "collections"):
-        return _punctuality(result, row, p)
+        return _punctuality(result, row, p, pillars)
     if result.key == "activity":
         return _coverage(result, row, p)
     return _debt(result, p)
@@ -365,7 +392,7 @@ def _candidates(
         result = pillars.get(key)
         if result is None or result.score is None or result.score >= TARGET_CEILING:
             continue
-        proposal = _propose(result, row, p)
+        proposal = _propose(result, row, p, pillars)
         if proposal is None:
             continue
         delta, text = proposal

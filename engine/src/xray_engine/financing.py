@@ -85,7 +85,9 @@ def _factoring(row: PanelRow, pillars: Mapping[str, PillarResult], p: Params, gr
         return None
     if not _known(row.cash_month_end) or not open_ar or open_ar <= 0:
         return None
-    advance = open_ar * ADVANCE_SHARE
+    advance = _cap_to_buffer(row, pillars, p, open_ar * ADVANCE_SHARE)
+    if advance <= 0:
+        return None
     base = _parts_score(pillars, row, p, group_row)
     delta = lambda row_: _cash_delta(row_, advance)
     parts = _rescored(delta(row), p, group_row)
@@ -108,6 +110,19 @@ def _factoring(row: PanelRow, pillars: Mapping[str, PillarResult], p: Params, gr
     )
 
 
+def _cap_to_buffer(row: PanelRow, pillars: Mapping[str, PillarResult], p: Params, amount: float) -> float:
+    """Finance only what reaches the target buffer: the score rewards nothing beyond it."""
+    liquidity = pillars.get("liquidity")
+    if liquidity is None or liquidity.score is None:
+        return 0.0
+    buffer = liquidity.inputs.get("buffer_days_month_end")
+    monthly = liquidity.inputs.get("monthly_outflow")
+    if buffer is None or not monthly or monthly <= 0:
+        return 0.0
+    needed = max(0.0, SHORT_BUFFER_DAYS - buffer) * monthly / p.liquidity.days_per_month
+    return min(amount, max(0.0, needed))
+
+
 def _parts_score(
     pillars: Mapping[str, PillarResult], row: PanelRow, p: Params, group_row: PanelRow | None
 ) -> float:
@@ -124,7 +139,9 @@ def _confirming(row: PanelRow, pillars: Mapping[str, PillarResult], p: Params, g
         return None
     if not _known(row.cash_month_end) or not open_ap or open_ap <= 0:
         return None
-    financed = open_ap * ADVANCE_SHARE
+    financed = _cap_to_buffer(row, pillars, p, open_ap * ADVANCE_SHARE)
+    if financed <= 0:
+        return None
     # The provider is paid on time and the company keeps the cash: its own delay
     # falls back by one bounded step, the rest is what it actually achieves.
     new_days = max(0.0, days - 30.0)
