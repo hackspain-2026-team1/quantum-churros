@@ -317,7 +317,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		], pares, cuerpotabla, { col: 2, dir: 1 });
 		const tabla = h('table', { class: 'tabla-sutil empresas' }, thead, cuerpotabla);
 		const hereda = g.companies.filter((x) => x.inherits_liquidity).length;
-		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, plano, h('div', { class: 'tabla-caja' }, tabla), hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
+		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, h('div', { class: 'tabla-caja' }, tabla), plano, hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
 	}
 
 	// ─── Entrada: el monitor de la cartera ─────────────────
