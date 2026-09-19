@@ -1,0 +1,20 @@
+2026-09-18 23:20:01.420 - DBeaver 26.2.0.202608301738 is starting
+2026-09-18 23:20:01.421 - OS: Linux 6.8.0-138-generic (amd64)
+2026-09-18 23:20:01.421 - Java version: 25.0.3 by Eclipse Adoptium (64bit)
+2026-09-18 23:20:01.421 - Install path: '/snap/dbeaver-ce/549/usr/share/dbeaver-ce'
+2026-09-18 23:20:01.421 - Instance path: 'file:/home/ruben/Hackathons/HACKSPAIN/workspace/'
+2026-09-18 23:20:01.423 - Memory available 64Mb/1024Mb
+2026-09-18 23:20:01.429 - Initialize desktop platform...
+2026-09-18 23:20:01.801 - BounceCastle bundle found. Use JCE provider BC
+> Start Core File Systems [org.eclipse.core.filesystem 1.11.400.v20251107-0507]
+> Start Core Resource Management [org.eclipse.core.resources 3.24.0.v20260518-1150]
+> Start Team Support Core [org.eclipse.team.core 3.10.1000.v20260112-1030]
+> Start DBeaver UI Navigator [org.jkiss.dbeaver.ui.navigator 1.0.186.202608301738]
+> Start JFace Text [org.eclipse.jface.text 3.31.0.v20260428-1719]
+> Start Text [org.eclipse.text 3.14.700.v20260326-1107]
+2026-09-18 23:20:02.039 - Initialize base platform...
+2026-09-18 23:20:02.051 - Platform initialized (621ms)
+2026-09-18 23:20:02.055 - 	Create display
+2026-09-18 23:20:02.076 - Shutdown desktop platform...
+2026-09-18 23:20:02.076 - Dispose navigator model
+2026-09-18 23:20:02.104 - Platform shutdown completed (27ms)

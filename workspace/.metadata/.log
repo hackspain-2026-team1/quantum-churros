@@ -1,0 +1,96 @@
+!SESSION 2026-09-18 23:19:59.377 -----------------------------------------------
+eclipse.buildId=unknown
+java.version=25.0.3
+java.vendor=Eclipse Adoptium
+BootLoader constants: OS=linux, ARCH=x86_64, WS=gtk, NL=en
+Framework arguments:  -eclipse.keyring /home/ruben/snap/dbeaver-ce/549/.local/share/DBeaverData/secure/secure_storage
+Command-line arguments:  -os linux -ws gtk -arch x86_64 -eclipse.keyring /home/ruben/snap/dbeaver-ce/549/.local/share/DBeaverData/secure/secure_storage
+
+!ENTRY org.jkiss.dbeaver.model 2 0 2026-09-18 23:20:01.231
+!MESSAGE AWT initialization error
+!SUBENTRY 1 org.jkiss.dbeaver.model 2 0 2026-09-18 23:20:01.231
+!MESSAGE Can't connect to X11 window server using ':0' as the value of the DISPLAY variable.
+!STACK 0
+java.awt.AWTError: Can't connect to X11 window server using ':0' as the value of the DISPLAY variable.
+	at java.desktop/sun.awt.X11GraphicsEnvironment.initDisplay(Native Method)
+	at java.desktop/sun.awt.X11GraphicsEnvironment.initStatic(Unknown Source)
+	at java.desktop/sun.awt.X11GraphicsEnvironment.<clinit>(Unknown Source)
+	at java.desktop/sun.awt.PlatformGraphicsInfo.createGE(Unknown Source)
+	at java.desktop/java.awt.GraphicsEnvironment$LocalGE.createGE(Unknown Source)
+	at java.desktop/java.awt.GraphicsEnvironment$LocalGE.<clinit>(Unknown Source)
+	at java.desktop/java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment(Unknown Source)
+	at java.desktop/sun.awt.X11.XToolkit.<clinit>(Unknown Source)
+	at java.desktop/sun.awt.PlatformGraphicsInfo.createToolkit(Unknown Source)
+	at java.desktop/java.awt.Toolkit.getDefaultToolkit(Unknown Source)
+	at java.desktop/java.awt.Desktop.isDesktopSupported(Unknown Source)
+	at org.jkiss.dbeaver.ui.AWTUtils.isDesktopSupported(AWTUtils.java:29)
+	at org.jkiss.dbeaver.core.DBeaverActivator.injectProxyPeer(DBeaverActivator.java:86)
+	at org.jkiss.dbeaver.core.DBeaverActivator.start(DBeaverActivator.java:78)
+	at org.eclipse.osgi.internal.framework.BundleContextImpl$2.run(BundleContextImpl.java:838)
+	at org.eclipse.osgi.internal.framework.BundleContextImpl$2.run(BundleContextImpl.java:1)
+	at java.base/java.security.AccessController.doPrivileged(Unknown Source)
+	at org.eclipse.osgi.internal.framework.BundleContextImpl.startActivator(BundleContextImpl.java:830)
+	at org.eclipse.osgi.internal.framework.BundleContextImpl.start(BundleContextImpl.java:780)
+	at org.eclipse.osgi.internal.framework.EquinoxBundle.startWorker0(EquinoxBundle.java:1082)
+	at org.eclipse.osgi.internal.framework.EquinoxBundle$EquinoxModule.startWorker(EquinoxBundle.java:394)
+	at org.eclipse.osgi.container.Module.doStart(Module.java:643)
+	at org.eclipse.osgi.container.Module.start(Module.java:500)
+	at org.eclipse.osgi.framework.util.SecureAction.start(SecureAction.java:528)
+	at org.eclipse.osgi.internal.hooks.EclipseLazyStarter.postFindLocalClass(EclipseLazyStarter.java:122)
+	at org.eclipse.osgi.internal.loader.classpath.ClasspathManager.findLocalClass(ClasspathManager.java:620)
+	at org.eclipse.osgi.internal.loader.ModuleClassLoader.findLocalClass(ModuleClassLoader.java:353)
+	at org.eclipse.osgi.internal.loader.BundleLoader.findLocalClass(BundleLoader.java:418)
+	at org.eclipse.osgi.internal.loader.sources.SingleSourcePackage.loadClass(SingleSourcePackage.java:41)
+	at org.eclipse.osgi.internal.loader.BundleLoader.findClass0(BundleLoader.java:523)
+	at org.eclipse.osgi.internal.loader.BundleLoader.findClass(BundleLoader.java:439)
+	at org.eclipse.osgi.internal.loader.ModuleClassLoader.loadClass(ModuleClassLoader.java:195)
+	at java.base/java.lang.ClassLoader.loadClass(Unknown Source)
+	at org.jkiss.dbeaver.ui.app.standalone.DBeaverApplication.getPlatformClass(DBeaverApplication.java:438)
+	at org.jkiss.dbeaver.model.impl.app.AbstractApplication.initializeApplicationServices(AbstractApplication.java:170)
+	at org.jkiss.dbeaver.ui.app.standalone.DBeaverApplication.start(DBeaverApplication.java:229)
+	at org.eclipse.equinox.internal.app.EclipseAppHandle.run(EclipseAppHandle.java:219)
+	at org.eclipse.core.runtime.internal.adaptor.EclipseAppLauncher.runApplication(EclipseAppLauncher.java:149)
+	at org.eclipse.core.runtime.internal.adaptor.EclipseAppLauncher.start(EclipseAppLauncher.java:115)
+	at org.eclipse.core.runtime.adaptor.EclipseStarter.run(EclipseStarter.java:467)
+	at org.eclipse.core.runtime.adaptor.EclipseStarter.run(EclipseStarter.java:298)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(Unknown Source)
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source)
+	at org.jkiss.dbeaver.launcher.DBeaverLauncher.invokeFramework(DBeaverLauncher.java:1120)
+	at org.jkiss.dbeaver.launcher.DBeaverLauncher.basicRun(DBeaverLauncher.java:746)
+	at org.jkiss.dbeaver.launcher.DBeaverLauncher.run(DBeaverLauncher.java:1934)
+	at org.jkiss.dbeaver.launcher.DBeaverLauncher.main(DBeaverLauncher.java:1901)
+
+!ENTRY org.jkiss.dbeaver.core 2 0 2026-09-18 23:20:01.233
+!MESSAGE Desktop interface not available
+
+!ENTRY org.eclipse.ui.workbench 2 0 2026-09-18 23:20:02.057
+!MESSAGE swt.autoScale.updateOnRuntime is configured (e.g., via the INI), but the according preference should be preferred instead.
+
+!ENTRY org.eclipse.osgi 4 0 2026-09-18 23:20:02.059
+!MESSAGE Application error
+!STACK 1
+org.eclipse.swt.SWTError: No more handles [gtk_init_check() failed]
+	at org.eclipse.swt.SWT.error(SWT.java:4964)
+	at org.eclipse.swt.widgets.Display.createDisplay(Display.java:1205)
+	at org.eclipse.swt.widgets.Display.create(Display.java:1129)
+	at org.eclipse.swt.graphics.Device.<init>(Device.java:188)
+	at org.eclipse.swt.widgets.Display.<init>(Display.java:635)
+	at org.eclipse.swt.widgets.Display.<init>(Display.java:626)
+	at org.eclipse.ui.internal.Workbench.createDisplay(Workbench.java:784)
+	at org.eclipse.ui.PlatformUI.createDisplay(PlatformUI.java:185)
+	at org.jkiss.dbeaver.ui.app.standalone.DBeaverApplication.getDisplay(DBeaverApplication.java:522)
+	at org.jkiss.dbeaver.ui.app.standalone.DBeaverApplication.start(DBeaverApplication.java:300)
+	at org.eclipse.equinox.internal.app.EclipseAppHandle.run(EclipseAppHandle.java:219)
+	at org.eclipse.core.runtime.internal.adaptor.EclipseAppLauncher.runApplication(EclipseAppLauncher.java:149)
+	at org.eclipse.core.runtime.internal.adaptor.EclipseAppLauncher.start(EclipseAppLauncher.java:115)
+	at org.eclipse.core.runtime.adaptor.EclipseStarter.run(EclipseStarter.java:467)
+	at org.eclipse.core.runtime.adaptor.EclipseStarter.run(EclipseStarter.java:298)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(Unknown Source)
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source)
+	at org.jkiss.dbeaver.launcher.DBeaverLauncher.invokeFramework(DBeaverLauncher.java:1120)
+	at org.jkiss.dbeaver.launcher.DBeaverLauncher.basicRun(DBeaverLauncher.java:746)
+	at org.jkiss.dbeaver.launcher.DBeaverLauncher.run(DBeaverLauncher.java:1934)
+	at org.jkiss.dbeaver.launcher.DBeaverLauncher.main(DBeaverLauncher.java:1901)
+
+!ENTRY org.eclipse.core.resources 2 10035 2026-09-18 23:20:02.137
+!MESSAGE The workspace will exit with unsaved changes in this session.

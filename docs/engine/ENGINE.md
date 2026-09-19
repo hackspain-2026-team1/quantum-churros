@@ -485,11 +485,33 @@ direction = improving / deteriorating   iff |delta3| ≥ max(6, 1.5 · sigma_own
 (evidence for the explanation, not a condition). `persistence_months` and `detected_since`
 date the current run.
 
+### Slow drift: the long horizon
+
+Erosion is invisible to a three-month delta: the brief's canonical trajectories move
+2–3 points a quarter and stay `stable` in every month (Q-05). A robust Theil-Sen slope of
+the monthly score runs next to the short verdict, over the live months of
+`t − long_horizon + 1 .. t` that are measured like month `t`, stopping at the latest
+`perimeter_shift` flag:
+
+```
+drift_points = theil_sen(score over ≤ long_horizon = 12 months) × months spanned
+drift_call   = improving / deteriorating   iff |drift_points| ≥ max(8, 2 · sigma_own)
+```
+
+`long_min_months = 6` comparable live months are needed for any measurement; a month whose
+two horizons disagree calls with the recent move (`horizon = short`, unconfirmed) and says
+so (`trajectory_note`). The long call is confirmed like a short one: `shock_pending` in its
+first month, `structural` once it holds two months. `Trajectory` carries `horizon`
+(`short` / `long` / `both`), `drift_points`, `drift_months` and `drift_call`; the drift is
+descriptive and never enters the score. The export leaves the drift to the alert copy and
+to an evidence row ("Deriva acumulada del score"), so the frozen bundle contract is
+unchanged. Exact tests: `engine/tests/test_canonical_drift.py`.
+
 ## Alerts and suppression
 
 | Kind | Fires when |
 |------|-----------|
-| `deterioration_structural` / `improvement_structural` | direction with `nature == structural`, first month of the run |
+| `deterioration_structural` / `improvement_structural` | direction with `nature == structural`, first month of the run; when the long horizon makes the call (`horizon = long` / `both`) the detail names the slow drift ("deriva lenta y sostenida") with its accumulated points and months |
 | `level_critical` | score < 35 on a live feed, first month of each spell |
 | `cap_fired` | `cap_adjustment > 0`, first month of each spell of the binding rule |
 | `stale_feed` | first month of each stale spell; never suppressed |
@@ -571,7 +593,7 @@ make test-engine-data XRAY_DATA=/path/to/output
 | Question (brief) | Engine output | Honest limit |
 |------------------|---------------|--------------|
 | **Quién está sano** | `score` and `band`; `solid` ≥ 80 requires every observable pillar to be strong, because the penalty is non-compensatory | bank-only entities are judged on two pillars; confidence says so |
-| **Quién está mejorando** | `direction = improving`, `improvement_structural` alert, positive `delta_parts` | slow drifts below 6 points per quarter read as `stable` (Q-05) |
+| **Quién está mejorando** | `direction = improving`, `improvement_structural` alert, positive `delta_parts`; slow drift called by the Theil-Sen long horizon | the brief's 45 → 65 case is alerted ≥ 6 months before month 24; the 82 → 68 erosion still misses the frozen 8-point bar (Q-05, `test_canonical_drift.py`) |
 | **Quién empieza a torcerse** | `direction = deteriorating` while the band is still `stable` / `solid`; `pillars_moved` names the pillar | same threshold as above |
 | **Bache o caída** | `nature`: `shock_pending` → `bump` if it reverts within 2 months, `structural` if it holds 2 months | online, a spike is only *pending*; the bump is confirmed a posteriori, by design |
 | **Por qué ha cambiado** | exact `delta_parts` (base, per-pillar, penalty, cap) + `Evidence` rows behind each pillar | explains the measurement, not causes outside the data |

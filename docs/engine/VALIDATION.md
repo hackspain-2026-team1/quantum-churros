@@ -406,6 +406,13 @@ False structural alerts per 100 untouched group-months: `TODO(injection.false_al
 injected magnitude: `TODO(injection.magnitude)` · improvements (mirrored run), median delay to
 `structural`: `TODO(injection.improvement.step.delay_structural)`
 
+Slow-drift reading (Q-05): R8 should also report, for the ramp shape, the median delay to
+the **long-horizon call** (`drift_call` / `horizon = long`) next to the short-horizon
+columns, and the **false drift rate**: months in which an untouched group's fitted drift
+crosses the bar. That number prices the parameter decision the 82 → 68 canonical case
+exposes (`engine/tests/test_canonical_drift.py`): how much detection the 82 → 68 erosion
+gains per point of `long_threshold`, at which false-alert cost.
+
 ---
 
 ## Known limitations
