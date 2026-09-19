@@ -210,3 +210,44 @@ class DebtProductRead(SQLModel):
 class CompanyDebtProductsRead(SQLModel):
     entity_id: str
     products: list[DebtProductRead]
+
+
+class Proposal(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    entity_id: str = Field(index=True)
+    group_id: str = Field(index=True)
+    kind: str
+    corte: str = Field(index=True)
+    bundle_id: str
+    score_actual_tenths: int
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class ProposalAction(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    proposal_id: str = Field(index=True, foreign_key="proposal.id")
+    action_id: str
+    pillar: str
+    title: str
+    uplift_tenths: int
+    new_score_tenths: int
+    current: float | None = None
+    target: float | None = None
+    unit: str | None = None
+
+
+class ProposalFinancing(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    proposal_id: str = Field(index=True, foreign_key="proposal.id")
+    instrument_id: str
+    kind: str
+    title: str
+    amount: float | None = None
+    uplift_tenths: int
+    bank: str | None = None
+    rate: float | None = None
+    rate_type: str | None = None
+    rate_fuente: str | None = None

@@ -184,7 +184,7 @@ def main() -> None:
     empresas = {}
     for cid, gid in grupo_de.items():
         empresas[cid] = {"schema": "rumbo-products-v1", "company_id": cid, "group_id": gid, "cut": cut,
-                         "held": {}, "other_debt": [], "accounts": {}, "signals": senales.get(cid, {}),
+                         "held": {}, "other_debt": [], "accounts": {}, "banks": {}, "signals": senales.get(cid, {}),
                          "totals": {"debt_granted": 0.0, "debt_outstanding": 0.0, "lines_granted": 0.0, "lines_available": 0.0}}
 
     # Deuda declarada.
@@ -236,6 +236,8 @@ def main() -> None:
             continue
         tipo = r["type"]
         e["accounts"][tipo] = e["accounts"].get(tipo, 0) + 1
+        if r["bank_name"]:
+            e["banks"][r["bank_name"]] = e["banks"].get(r["bank_name"], 0) + 1
         prod = {"saving": "cuenta_remunerada", "investment": "depositos"}.get(tipo)
         if prod:
             s = saldo.get(r["product_id"])
@@ -268,10 +270,12 @@ def main() -> None:
     # Grupos e índice.
     grupos: dict[str, dict] = {}
     for e in empresas.values():
-        g = grupos.setdefault(e["group_id"], {"schema": "rumbo-products-group-v1", "group_id": e["group_id"], "cut": cut, "companies": [], "counts": {}, "totals": {}})
+        g = grupos.setdefault(e["group_id"], {"schema": "rumbo-products-group-v1", "group_id": e["group_id"], "cut": cut, "companies": [], "counts": {}, "banks": {}, "totals": {}})
         g["companies"].append({"id": e["company_id"], "held": [h["product"] for h in e["held"]], "sources": {h["product"]: h["source"] for h in e["held"]}})
         for h in e["held"]:
             g["counts"][h["product"]] = g["counts"].get(h["product"], 0) + 1
+        for banco, n in e["banks"].items():
+            g["banks"][banco] = g["banks"].get(banco, 0) + n
         for k, v in e["totals"].items():
             g["totals"][k] = round(g["totals"].get(k, 0) + v, 2)
     for gid, g in grupos.items():
