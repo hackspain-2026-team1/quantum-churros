@@ -13,7 +13,7 @@ import { nombreBanda, movimiento } from '../datos/redaccion';
 import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
 import { cola, h, vaciar } from './dom';
 import { desplegable } from './desplegable';
-import { cabecera, cargarFicha, contenidoSeccion, graficoHorizonte, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
+import { cabecera, cargarFicha, contenidoSeccion, graficoHorizonte, nombreEntidad, TONO_BANDA, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
 import { crearFinanciacion } from './financiacion';
 import { iconoProducto } from './iconos';
 import { logotipo, monograma } from './marca';
@@ -159,8 +159,9 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	function pintarMiga(e: Estado) {
 		vaciar(miga);
 		const pasos = h('span', { class: 'miga-pasos' });
-		const paso = (texto: string, accion: (() => void) | null, actual = false) => {
-			const b = h(accion ? 'button' : 'span', { class: `miga-paso ${actual ? 'actual' : ''}`, type: accion ? 'button' : undefined, 'aria-current': actual ? 'page' : undefined }, texto);
+		const paso = (texto: string, accion: (() => void) | null, actual = false, vuelta = false) => {
+			const b = h(accion ? 'button' : 'span', { class: `miga-paso ${actual ? 'actual' : ''} ${vuelta ? 'vuelta' : ''}`, type: accion ? 'button' : undefined, title: vuelta ? `Volver a ${texto} (Esc)` : undefined, 'aria-current': actual ? 'page' : undefined },
+				vuelta ? h('span', { class: 'miga-flecha', 'aria-hidden': 'true' }, '‹') : null, texto);
 			if (accion) b.addEventListener('click', accion);
 			pasos.append(b);
 		};
@@ -168,7 +169,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		if (e.vista === 'metodologia') paso('Metodología', null, true);
 		if (e.vista === 'financiacion') paso('Financiación', null, true);
 		if ((e.vista === 'organizacion' || e.vista === 'empresa') && e.sel) {
-			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion');
+			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion', e.vista === 'empresa');
 			if (e.vista === 'empresa' && e.emp) { sep(); paso(f.empresa(e.emp), null, true); }
 		}
 		miga.append(pasos, h('span', { class: 'hueco' }));
@@ -199,7 +200,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		// Con el horizonte desplazado fuera de la pantalla, el número sigue aquí y lleva de vuelta.
 		const m = datos?.mes;
 		if (m) {
-			const volver = h('button', { type: 'button', class: 'sec-volver', title: 'Volver arriba, al horizonte' },
+			const volver = h('button', { type: 'button', class: `sec-volver banda-${m.band}`, title: 'Volver arriba, al horizonte' },
 				h('span', { class: 'versalita' }, nombreBanda(man, m.band)), h('b', {}, f.score(m.shown)), reglaBanda(man, m.shown, m.band));
 			volver.addEventListener('click', subirAlHorizonte);
 			nav.insertBefore(volver, nav.querySelector('.reverso'));
@@ -278,7 +279,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		// El protagonista: número y horizonte, arriba y siempre a la vista.
 		escenario.hidden = false;
 		vaciar(escenario);
-		escenario.append(h('div', { class: `escenario-hoja ${d.kind}` }, cabecera(d, movil), h('div', { class: 'horizonte' }, controles, zonaHorizonte)));
+		escenario.append(h('div', { class: `escenario-hoja ${d.kind}` }, cabecera(d, movil, d.kind === 'company' ? () => acc.abrirGrupo(d.grupoId) : undefined), h('div', { class: 'horizonte' }, controles, zonaHorizonte)));
 		const fijo = escenarioFijo();
 		raiz.classList.toggle('escenario-fijo', fijo);
 		vaciar(cuerpoP);
@@ -323,7 +324,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const bandas = man.bands.filter((b) => b.min > 0).map((b) => b.min / 1000);
 		placa(plano, (cj) => ({
 			tipo: 'flota', x: cj.x, y: cj.y, w: cj.w, h: cj.h,
-			puntos: conScore.map((x) => ({ x: x.mes!.shown / 1000, y: uY((x.mes!.verdict.delta3 ?? 0) / 10), r: 5.5, tono: x.mes!.band === 'critical' ? TONO.peligro : TONO.tinta, alfa: 0.9 })),
+			puntos: conScore.map((x) => ({ x: x.mes!.shown / 1000, y: uY((x.mes!.verdict.delta3 ?? 0) / 10), r: 5.5, tono: TONO_BANDA[x.mes!.band] ?? TONO.tinta, alfa: 0.9 })),
 			rejillaX: [0.2, 0.4, 0.6, 0.8].map((u) => ({ u, fuerte: bandas.some((b) => Math.abs(b - u) < 1e-6) })).concat(bandas.filter((b) => ![0.2, 0.4, 0.6, 0.8].some((u) => Math.abs(u - b) < 1e-6)).map((u) => ({ u, fuerte: true }))),
 			rejillaY: [-tope, -tope / 2, 0, tope / 2, tope].map((v) => ({ u: uY(v), fuerte: v === 0 })),
 		}));
@@ -352,7 +353,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			const tr = h('tr', { class: 'tocable', tabindex: '0' },
 				h('td', {}, h('b', {}, f.empresa(em.res.id))),
 				h('td', {}, em.res.role, h('span', { class: 'sub' }, em.res.inherits_liquidity ? 'hereda la liquidez del grupo' : em.res.treasury_class ?? '')),
-				h('td', { class: 'num' }, mes ? h('span', {}, h('b', {}, f.score(mes.shown)), ' ', h('span', { class: 'sub' }, nombreBanda(man, mes.band).toLowerCase())) : '—'),
+				h('td', { class: 'num' }, mes ? h('span', { class: `cel-banda banda-${mes.band}` }, h('b', {}, f.score(mes.shown)), ' ', h('span', { class: 'sub' }, nombreBanda(man, mes.band).toLowerCase())) : '—'),
 				h('td', {}, mes ? movimiento(mes) : 'sin datos'),
 				h('td', {}, mes ? granos3(mes.conf.label) : ''),
 				h('td', { class: 'mini-prods' }, ...(em.prod?.held ?? []).map((t) => iconoProducto(t.product, { tam: 18, titulo: true, sinFilete: true }))),

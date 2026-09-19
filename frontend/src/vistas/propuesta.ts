@@ -516,7 +516,7 @@ async function construirInforme(
         h(
           "div",
           {},
-          h("p", {}, nombreBanda(d.man, m.band)),
+          h("p", { class: `t-banda banda-${m.band}` }, nombreBanda(d.man, m.band)),
           h(
             "p",
             { class: "informe-nota" },

@@ -37,6 +37,14 @@
   --muelle: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
+/* Las cuatro bandas del motor, cada una con su color: crítico rojo, vigilancia ámbar, estable azul,
+ * sólido verde. Quien pinte una banda hereda «--banda» (marcas y granos) y «--banda-t» (texto). */
+.banda-critical { --banda: var(--peligro); --banda-t: var(--peligro-t); --banda-s: var(--peligro-s); }
+.banda-watch { --banda: var(--aviso); --banda-t: var(--aviso-t); --banda-s: var(--aviso-s); }
+.banda-stable { --banda: var(--info); --banda-t: var(--info-t); --banda-s: var(--info-s); }
+.banda-solid { --banda: var(--exito); --banda-t: var(--exito-t); --banda-s: var(--exito-s); }
+.t-banda { color: var(--banda-t, var(--tinta-2)); }
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -702,6 +710,9 @@ body[data-vista="expediente"] .frase-linea {
 .deshacer:hover {
   color: var(--tinta);
 }
+.deshacer.abajo {
+  box-shadow: var(--sombra-3);
+}
 
 .ayuda {
   position: absolute;
@@ -1127,6 +1138,11 @@ body[data-vista='organizacion'] .barra-hueco, body[data-vista='empresa'] .barra-
 .miga-paso { color: var(--apagado); padding: 3px 1px; border-bottom: 1px solid transparent; transition: color 140ms, border-color 140ms; }
 button.miga-paso:hover { color: var(--tinta); border-bottom-color: var(--borde-2); }
 .miga-paso.actual { color: var(--tinta); }
+/* Volver a la organización desde una empresa: la flecha lo dice y el hueco es grande. */
+button.miga-paso.vuelta { color: var(--tinta-2); padding: 3px 8px 3px 6px; border-radius: 7px; border-bottom-color: transparent; }
+button.miga-paso.vuelta:hover { color: var(--tinta); background: var(--fondo-2); border-bottom-color: transparent; }
+.miga-flecha { color: var(--tenue); margin-right: 5px; }
+button.miga-paso.vuelta:hover .miga-flecha { color: var(--tinta); }
 .miga-sep { color: var(--tenue); font-size: 16px; }
 .miga-accion { font: 500 12.5px var(--sans); color: var(--apagado); padding: 6px 10px; border-radius: 10px; border: 1px solid var(--borde); white-space: nowrap; transition: color 140ms, border-color 140ms; }
 .miga-accion:hover { color: var(--tinta); border-color: var(--borde-2); }
@@ -1797,6 +1813,12 @@ body[data-vista="metodologia"] .regla {
 .le-banda b {
   font: 600 15px var(--serif);
 }
+.le-banda .versalita {
+  color: var(--banda-t, var(--tinta));
+}
+.le-banda.banda-critical b {
+  color: var(--peligro-t);
+}
 .le-sep {
   color: var(--tenue);
 }
@@ -1817,10 +1839,7 @@ body[data-vista="metodologia"] .regla {
   stroke-width: 0.8;
 }
 .regla-banda .rb-grano {
-  fill: var(--tinta);
-}
-.regla-banda .rb-grano.banda-critical {
-  fill: var(--peligro);
+  fill: var(--banda, var(--tinta));
 }
 .flecha-granos circle {
   fill: var(--tinta);
@@ -1837,11 +1856,26 @@ body[data-vista="metodologia"] .regla {
   fill: var(--exito);
 }
 .granos3 .lleno {
-  fill: var(--tinta);
+  fill: var(--conf, var(--tinta));
+}
+.granos3 .g1 {
+  opacity: 0.68;
+}
+.granos3 .g2 {
+  opacity: 0.84;
+}
+.granos3.conf-low {
+  --conf: var(--peligro);
+}
+.granos3.conf-medium {
+  --conf: var(--aviso-t);
+}
+.granos3.conf-high {
+  --conf: var(--exito-t);
 }
 .granos3 .vacio {
   fill: none;
-  stroke: var(--tenue);
+  stroke: var(--borde-2);
   stroke-width: 1;
 }
 
@@ -3193,11 +3227,16 @@ body[data-vista='entrada'] .regla, body[data-vista='entrada'] .reproducir, body[
 .escenario-hoja .ficha-cab { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 16px; align-items: start; }
 .cab-circulo { position: relative; width: 168px; height: 168px; margin: 0 0 0 -10px; }
 .cab-circulo .cab-numeral { position: absolute; inset: 0; height: auto; }
-.cab-banda { position: absolute; left: 0; right: 0; bottom: 36px; text-align: center; font: italic 400 15px var(--serif); color: var(--tinta-2); }
-.cab-banda.banda-critical { color: var(--peligro-t); }
+.cab-banda { position: absolute; left: 0; right: 0; bottom: 36px; text-align: center; font: italic 400 15px var(--serif); color: var(--banda-t, var(--tinta-2)); }
 .cab-texto { padding-top: 14px; }
 .cab-texto h1 { font: 600 30px/1.1 var(--serif); letter-spacing: -0.01em; }
 .cab-sub { color: var(--apagado); margin: 4px 0 8px; font-size: 13px; }
+/* El nombre de la organización, dentro de la ficha de una empresa: un clic y se sube. */
+.volver-grupo { font: inherit; color: var(--tinta-2); border-bottom: 1px solid var(--borde-2); padding: 0 0 1px; transition: color 140ms, border-color 140ms; }
+.volver-grupo:hover { color: var(--info-t); border-bottom-color: var(--info); }
+.cab-marca.grupo.tocable { cursor: pointer; }
+.cab-marca.grupo.tocable:hover { color: var(--info-t); }
+.cab-marca.grupo.tocable:hover i { background: var(--info); }
 .cab-texto .linea-estado { font-size: 13px; }
 .cab-explica { display: grid; gap: 3px; font: 400 14.5px/1.4 var(--serif); color: var(--tinta-2); margin-top: 8px; }
 .cab-marca { display: inline-flex; align-items: center; gap: 7px; font-family: var(--sans); font-size: 12.5px; color: var(--apagado); }
@@ -3217,7 +3256,7 @@ body[data-vista='entrada'] .regla, body[data-vista='entrada'] .reproducir, body[
 body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .g-etq.eje-v { transform: translate(calc(-100% - 8px), -50%); width: auto; font-size: 11px; color: var(--apagado); }
 .g-etq.eje-titulo-v { transform: translate(calc(-100% - 8px), -34px); font: italic 12px var(--serif); color: var(--apagado); }
-.g-etq.eje-banda { transform: translate(8px, -50%); font: italic 12px var(--serif); color: var(--tenue); }
+.g-etq.eje-banda { transform: translate(8px, -50%); font: italic 12px var(--serif); color: var(--banda-t, var(--tenue)); opacity: 0.75; }
 .g-etq.eje-m { transform: translate(-50%, 9px); font-size: 11px; color: var(--apagado); }
 .g-etq.eje-m.fut { color: var(--tenue); }
 .g-etq.eje-hoy { top: 100%; transform: translate(-50%, 7px); display: inline-flex; align-items: center; gap: 5px; font: 600 11.5px var(--sans); color: var(--info-t); background: var(--papel); padding: 0 4px; }
@@ -3251,6 +3290,9 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .sec-marcas { margin: 4px 0 6px; padding: 10px 0 0; gap: 2px; border-bottom: 1px solid var(--borde); background: var(--papel); }
 .sec-marca { padding: 6px 16px 9px; border-bottom: 2px solid transparent; margin-bottom: -1px; font: 500 15px var(--sans); }
 .sec-marca.reverso { margin-left: auto; font-size: 13.5px; color: var(--tenue); }
+/* La banda escrita al lado de un número: la palabra con su color; el número, solo si es crítico. */
+.cel-banda .sub { color: var(--banda-t, var(--apagado)); }
+.cel-banda.banda-critical b { color: var(--peligro-t); }
 /* Con el horizonte fuera de la pantalla, el número sigue en las pestañas y lleva de vuelta arriba. */
 .sec-volver {
 	margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px 8px;
@@ -3258,8 +3300,9 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 }
 .pagina.horizonte-fuera .sec-volver { opacity: 1; visibility: visible; }
 .sec-volver:hover { color: var(--tinta); }
-.sec-volver .versalita { color: var(--apagado); }
+.sec-volver .versalita { color: var(--banda-t, var(--apagado)); }
 .sec-volver b { font: 600 15px var(--serif); }
+.sec-volver.banda-critical b { color: var(--peligro-t); }
 /* Extender: el horizonte se desplaza con las secciones y estas ocupan la pantalla entera. */
 .sec-extender { display: inline-flex; align-items: center; gap: 7px; margin-left: 16px; padding: 5px 10px 8px; font: 500 13px var(--sans); color: var(--tenue); }
 .sec-extender:hover, .sec-extender.activa { color: var(--tinta-2); }
@@ -4188,7 +4231,15 @@ body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina
 
 .mon-score { font: 500 17px var(--serif); text-align: right; }
 
-.mon-score.critico { color: var(--peligro-t); }
+.mon-score.banda-critical { color: var(--peligro-t); }
+.mon-cifra.banda-critical, .mon-grupo-score.banda-critical { color: var(--peligro-t); }
+.mon-cifra.banda-watch { color: var(--aviso-t); }
+.mon-cifra.banda-stable { color: var(--info-t); }
+.mon-cifra.banda-solid { color: var(--exito-t); }
+.mr-dato.banda-critical b { color: var(--peligro-t); }
+.mr-dato.banda-watch b { color: var(--aviso-t); }
+.mr-banda.t-banda b { color: var(--banda-t, var(--tinta)); }
+.mon-score.banda-watch { color: var(--aviso-t); }
 
 .mon-delta { font-size: 12px; color: var(--apagado); white-space: nowrap; }
 
