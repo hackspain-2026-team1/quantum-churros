@@ -114,7 +114,7 @@
 					{#each alert.actions ?? [] as action (action.id)}
 						<a
 							class="inline-flex max-w-72 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:bg-muted"
-							href={href}
+							{href}
 							title={`${action.pillar} · ${action.title}`}
 						>
 							<span class="truncate">{action.title}</span>
@@ -124,7 +124,7 @@
 					{#each alert.financing ?? [] as item (item.id)}
 						<a
 							class="inline-flex max-w-72 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:bg-muted"
-							href={href}
+							{href}
 							title={`${item.kind} · ${item.title}`}
 						>
 							<span class="truncate">{item.title}</span>
