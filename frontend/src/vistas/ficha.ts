@@ -85,6 +85,9 @@ export async function cargarFicha(kind: 'company' | 'group', id: string, grupoId
 	};
 }
 
+/** Cada banda con su color, también en la arena: crítico rojo, vigilancia ámbar, estable azul, sólido verde. */
+export const TONO_BANDA: Record<string, number> = { critical: TONO.peligro, watch: TONO.aviso, stable: TONO.info, solid: TONO.exito };
+
 // ─── Nombres ─────────────────────────────────────────────────
 export const nombreEntidad = (kind: 'company' | 'group', id: string) => (kind === 'company' ? f.empresa(id) : f.grupo(id));
 const atributo = (d: DatosFicha, k: string) => d.ent.profile.find((a) => a.key === k)?.value ?? null;
@@ -149,6 +152,13 @@ function origenPilar(d: DatosFicha, acc: Acciones, pilar: string | null, que?: s
 
 // ─── 1. La cabecera: el número en su círculo ─────────────────
 
+/** Desde una empresa, volver a su organización: un paso atrás, siempre a la vista. */
+function botonVolver(nombre: string, ir: () => void): HTMLElement {
+	const b = h('button', { type: 'button', class: 'volver-grupo', title: `Volver a ${nombre} (Esc)` }, nombre);
+	b.addEventListener('click', ir);
+	return b;
+}
+
 export function cabecera(d: DatosFicha, movil: boolean, acc: Acciones): HTMLElement {
 	const nombre = nombreEntidad(d.kind, d.id);
 	const m = d.mes;
@@ -162,21 +172,26 @@ export function cabecera(d: DatosFicha, movil: boolean, acc: Acciones): HTMLElem
 		if (grupo) marcas.push({ v: grupo.shown / 10, tipo: 'grupo' });
 		placa(circulo, (c) => ({
 			tipo: 'numeral', x: c.x, y: c.y, h: c.h, texto: f.score(m.shown),
-			anillo: { cx: c.x + c.w / 2, cy: c.y + c.h / 2, r: Math.min(c.w, c.h) / 2 - 14, valor: m.shown / 10, bandas: d.man.bands.filter((b) => b.min > 0).map((b) => b.min / 10), tono: m.band === 'critical' ? TONO.peligro : TONO.tinta, marcas },
+			anillo: { cx: c.x + c.w / 2, cy: c.y + c.h / 2, r: Math.min(c.w, c.h) / 2 - 14, valor: m.shown / 10, bandas: d.man.bands.filter((b) => b.min > 0).map((b) => b.min / 10), tono: TONO_BANDA[m.band] ?? TONO.tinta, marcas },
 		}));
 		circulo.append(h('span', { class: `cab-banda banda-${m.band}` }, nombreBanda(d.man, m.band).toLowerCase()));
 		if (grupo) circulo.append(h('span', { class: 'cab-grupo' }, ...conCifras(`Grupo ${f.score(grupo.shown)}`, { que: 'Score del grupo en este mes', mes: d.corte, ir: () => acc.abrirGrupo(d.grupoId) })));
 		circulo.title = d.man.bands.map((b) => `${b.label} desde ${f.score(b.min)}`).join(' · ');
 	}
-	const sub: string[] = [];
-	if (d.kind === 'company') sub.push(`${(d.ent as EmpresaM).role} · ${f.grupo(d.grupoId)}`);
-	else sub.push(f.plural((d.ent as GrupoM).companies.length, 'empresa', 'empresas'));
+	const sub: (Node | string)[] = [];
+	if (d.kind === 'company') {
+		sub.push((d.ent as EmpresaM).role);
+		// El nombre de la organización es el camino de vuelta: desde una empresa se sube de un clic.
+		sub.push(d.kind === 'company' ? botonVolver(f.grupo(d.grupoId), () => acc.abrirGrupo(d.grupoId)) : f.grupo(d.grupoId));
+	} else sub.push(f.plural((d.ent as GrupoM).companies.length, 'empresa', 'empresas'));
 	const pais = atributo(d, 'country'); if (pais) sub.push(pais.replace(/\s*\([A-Z]{2}\)/, ''));
 	const sector = d.ent.context.industry?.label; if (sector) sub.push(sector);
+	const lineaSub = h('p', { class: 'cab-sub' });
+	sub.forEach((x, i) => { if (i) lineaSub.append(' · '); lineaSub.append(x); });
 	const cab = h('header', { class: 'ficha-cab' }, circulo,
 		h('div', { class: 'cab-texto' },
 			h('h1', {}, nombre),
-			h('p', { class: 'cab-sub' }, sub.join(' · ')),
+			lineaSub,
 			m ? lineaEstado(d.man, m, null, true) : h('p', { class: 'cab-vacio' }, `Sin datos en ${f.mes(d.corte)}.`),
 			m ? explicacion(d, acc) : null));
 	void movil;
@@ -407,8 +422,8 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const eti = (clase: string, texto: string, x: string, y: string) => { const e = h('span', { class: `g-etq ${clase}` }, texto); e.style.left = x; e.style.top = y; caja.append(e); return e; };
 	const fmtV = (v: number) => (esScore ? f.numero(v) : unidad === 'EUR' ? f.eurosCorto(v) : unidad === 'ratio' ? f.ratio(v) : `${f.numero(v, Math.abs(v) < 10 ? 1 : 0)}`);
 	for (const v of rejilla) eti('eje-v', fmtV(v), '0', Y(v));
-	for (const b of d.man.bands) if (esScore && b.min > 0) eti('eje-banda', b.label.toLowerCase(), '100%', Y((b.min + (d.man.bands[d.man.bands.indexOf(b) + 1]?.min ?? 1000)) / 20));
-	if (esScore) eti('eje-banda', d.man.bands[0].label.toLowerCase(), '100%', Y(d.man.bands[1].min / 20));
+	for (const b of d.man.bands) if (esScore && b.min > 0) eti(`eje-banda banda-${b.key}`, b.label.toLowerCase(), '100%', Y((b.min + (d.man.bands[d.man.bands.indexOf(b) + 1]?.min ?? 1000)) / 20));
+	if (esScore) eti(`eje-banda banda-${d.man.bands[0].key}`, d.man.bands[0].label.toLowerCase(), '100%', Y(d.man.bands[1].min / 20));
 	eti('eje-titulo-v', esScore ? 'score' : unidad === 'EUR' ? 'euros' : unidad || 'valor', '0', '0');
 	// Con horizontes, el futuro se rotula con ellos y no con los meses: así no se pisan.
 	cal.forEach((m, i) => { if (Math.abs(i - hoy) > 3 && (i - hoy) % 3 === 0 && !(i > hoy && boyas.length)) eti(`eje-m ${i > hoy ? 'fut' : ''}`, f.mesCorto(m), X(i), '100%'); });

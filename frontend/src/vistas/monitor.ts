@@ -143,7 +143,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		}
 		const cifra = (texto: string, fl: FiltrosM | null, titulo?: string) => {
 			if (!fl) return h('span', {}, texto);
-			const b = h('button', { type: 'button', class: 'mon-cifra', title: titulo ?? 'Quedarse con estas' }, texto);
+			const b = h('button', { type: 'button', class: `mon-cifra ${fl.banda ? `banda-${fl.banda}` : ''}`, title: titulo ?? 'Quedarse con estas' }, texto);
 			b.addEventListener('click', () => filtrar(fl));
 			return b;
 		};
@@ -194,8 +194,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		const abrirFicha = h('button', { type: 'button', class: 'as-enlace' }, 'Ver la ficha del grupo');
 		abrirFicha.addEventListener('click', () => ctx.abrirGrupo(g.id));
 		return h('p', { class: 'mon-cuantas mon-grupo' },
-			h('b', { class: `mon-grupo-score ${m?.band === 'critical' ? 'critico' : ''}` }, m?.shown != null ? f.score(m.shown) : '—'),
-			m?.band ? h('span', {}, ` ${nombreBandaM(c, m.band).toLowerCase()}`) : null,
+			h('b', { class: `mon-grupo-score ${m?.band ? `banda-${m.band}` : ''}` }, m?.shown != null ? f.score(m.shown) : '—'),
+			m?.band ? h('span', { class: `t-banda banda-${m.band}` }, ` ${nombreBandaM(c, m.band).toLowerCase()}`) : null,
 			d3 !== null ? h('span', { class: 'mon-mov' }, ` · ${d3 >= 0 ? '+' : '−'}${f.numero(Math.abs(Math.round(d3 / 10)))} en tres meses`) : null,
 			hz?.p50_h6 != null ? h('span', { class: 'mon-mov' }, ` · a seis meses, ${f.score(hz.p50_h6)}`) : null,
 			h('span', { class: 'mon-mov' }, ` · ${f.plural(g.n_companies, 'empresa', 'empresas')} `), abrirFicha);
@@ -255,7 +255,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			const numE = Number(q.replace(/^empresa\s*/, ''));
 			const suyas = todas('empresas').filter((e) => (Number.isFinite(numE) && numE > 0 && Number(e.id.split('_')[1]) === numE) || (q.length >= 3 && normal(`${e.nombre} empresa ${Number(e.id.split('_')[1])}`).includes(q))).slice(0, 6);
 			for (const e of suyas) {
-				const li = h('li', { role: 'option', tabindex: '0', class: 'tocable' }, h('b', {}, e.nombre), h('span', { class: 'sub' }, [e.tamano, e.band ? nombreBandaM(c, e.band) : null].filter(Boolean).join(' · ')), h('span', { class: 'res-score' }, f.score(e.shown)));
+				const li = h('li', { role: 'option', tabindex: '0', class: 'tocable' }, h('b', {}, e.nombre), h('span', { class: `sub ${e.band ? `t-banda banda-${e.band}` : ''}` }, [e.tamano, e.band ? nombreBandaM(c, e.band) : null].filter(Boolean).join(' · ')), h('span', { class: 'res-score' }, f.score(e.shown)));
 				li.addEventListener('click', () => abrir(e));
 				li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') abrir(e); });
 				resultados.append(li);
@@ -390,7 +390,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			const li = h('li', { class: `tocable nivel-${e.nivel}`, tabindex: '0' },
 				h('span', { class: 'mon-puesto' }, i === null ? '' : String(i + 1)),
 				h('b', { class: 'mon-nombre' }, nombreEnt(e)),
-				h('span', { class: `mon-score ${e.band === 'critical' ? 'critico' : ''}` }, f.score(e.shown)),
+				h('span', { class: `mon-score ${e.band ? `banda-${e.band}` : ''}` }, f.score(e.shown)),
 				h('span', { class: `mon-delta ${(e.delta1 ?? 0) < 0 ? 'baja' : (e.delta1 ?? 0) > 0 ? 'sube' : ''}` }, e.delta1 === null || Math.round(e.delta1 / 10) === 0 ? '' : `${e.delta1 < 0 ? '▼' : '▲'}${f.deltaEntero(e.delta1)}`),
 				h('span', { class: 'at-texto' }, ...conCifras(motivo, { que: `Por qué ${nombreEnt(e)} pide atención`, mes: ctx.corte(), ir: () => abrir(e) })),
 				movil ? null : cola(e.serie.slice(-24), 88, 20));
@@ -620,7 +620,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				vis.slice(0, datos.filas).forEach((e, i) => {
 					const y = g.y0 + (i + 0.5) * g.fila;
 					et(g.x0 - 10, y, 'mr-nombre', movil ? e.nombre.replace(/^(Grupo|Empresa) /, '') : e.nombre);
-					et(g.x1 + 10, y, 'mr-dato', h('b', {}, f.score(e.shown)), e.delta1 !== null && Math.round(e.delta1 / 10) !== 0 ? h('span', { class: e.delta1 < 0 ? 'baja' : 'sube' }, ` ${f.deltaEntero(e.delta1)}`) : '');
+					et(g.x1 + 10, y, `mr-dato ${e.band ? `banda-${e.band}` : ''}`, h('b', {}, f.score(e.shown)), e.delta1 !== null && Math.round(e.delta1 / 10) !== 0 ? h('span', { class: e.delta1 < 0 ? 'baja' : 'sube' }, ` ${f.deltaEntero(e.delta1)}`) : '');
 				});
 				// El eje, de 0 a 100, con las fronteras de banda.
 				for (const s of [0, 20, 40, 60, 80, 100]) et(g.x0 + (s / 100) * (g.x1 - g.x0), g.y1 + 6, 'mr-eje x', String(s));
@@ -634,7 +634,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 					const entran = lista.filter((e) => e.prevBand && e.prevBand !== b).length;
 					const salen = vis.filter((e) => e.prevBand === b && e.band !== b).length;
 					const x = g.x0 + (bi + 0.5) * g.colW;
-					const b1 = et(x, alto - m.b + 6, 'mr-banda', h('b', {}, `${nombreBandaM(c, b)} · ${f.numero(lista.length)}`), h('span', {}, `${f.numero(entran)} entran · ${f.numero(salen)} salen`));
+					const b1 = et(x, alto - m.b + 6, `mr-banda t-banda banda-${b}`, h('b', {}, `${nombreBandaM(c, b)} · ${f.numero(lista.length)}`), h('span', {}, `${f.numero(entran)} entran · ${f.numero(salen)} salen`));
 					b1.addEventListener('click', () => filtrar({ banda: b }));
 				});
 				break;
@@ -665,8 +665,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				if (antes) et(g.x0, 0, 'mr-cab izq', f.mes(antes));
 				et(g.x1, 0, 'mr-cab der', f.mes(ahora));
 				for (const b of BANDAS) {
-					if (g[`in_${b}`]) et(g.x0 - 10, g[`i_${b}`], 'mr-nombre', `${nombreBandaM(c, b)} · ${f.numero(g[`in_${b}`])}`);
-					if (g[`dn_${b}`]) et(g.x1 + 10, g[`d_${b}`], 'mr-dato', `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`);
+					if (g[`in_${b}`]) et(g.x0 - 10, g[`i_${b}`], `mr-nombre t-banda banda-${b}`, `${nombreBandaM(c, b)} · ${f.numero(g[`in_${b}`])}`);
+					if (g[`dn_${b}`]) et(g.x1 + 10, g[`d_${b}`], `mr-dato t-banda banda-${b}`, `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`);
 				}
 				const cambian = vis.filter((e) => e.band && e.prevBand && e.band !== e.prevBand);
 				const bajan = cambian.filter((e) => BANDAS.indexOf(e.band!) < BANDAS.indexOf(e.prevBand!)).length;
@@ -688,8 +688,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				et(g.x1, 0, 'mr-cab der', 'dentro de seis meses');
 				const ocupado: number[] = [];
 				for (const b of BANDAS) {
-					if (g[`in_${b}`]) et(g.x0 - 10, g[`i_${b}`], 'mr-nombre', `${nombreBandaM(c, b)} · ${f.numero(g[`in_${b}`])}`);
-					if (g[`dn_${b}`]) { et(g.x1 + 10, g[`d_${b}`], 'mr-dato', `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`); ocupado.push(g[`d_${b}`]); }
+					if (g[`in_${b}`]) et(g.x0 - 10, g[`i_${b}`], `mr-nombre t-banda banda-${b}`, `${nombreBandaM(c, b)} · ${f.numero(g[`in_${b}`])}`);
+					if (g[`dn_${b}`]) { et(g.x1 + 10, g[`d_${b}`], `mr-dato t-banda banda-${b}`, `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`); ocupado.push(g[`d_${b}`]); }
 				}
 				// Las que van hacia crítico, con nombre donde acaba su cinta y sin pisar los rótulos de banda.
 				const riesgo = vis.filter((e) => e.band !== 'critical' && (e.hz?.pCritico ?? 0) >= 0.5 && g[`fin:${e.id}`] !== undefined).sort((a, b) => (b.hz!.pCritico ?? 0) - (a.hz!.pCritico ?? 0)).slice(0, 10).sort((a, b) => g[`fin:${a.id}`] - g[`fin:${b.id}`]);
@@ -728,7 +728,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 					h('thead', {}, h('tr', {}, ordenable('#', 'gravedad'), h('th', {}, esEmp ? 'Empresa' : 'Organización'), ordenable('Score', 'score', 'num'), ordenable('Mes', 'cambio', 'num'), ordenable('3 meses', 'cambio3', 'num'), h('th', {}, 'Banda'), h('th', {}, 'Por qué'), ordenable('A 6 meses', 'horizonte', 'num'), ordenable('Avisos', 'avisos', 'num'), ctx.esMovil() ? null : h('th', {}, 'Dos años'))),
 					h('tbody', {}, ...vis.slice(0, tope).map((e, i) => h('tr', { class: e.band === 'critical' ? 'fila-critica' : '' },
 						h('td', { class: 'num tenue' }, String(i + 1)), celdaEnt(e), h('td', { class: 'num' }, h('b', {}, f.score(e.shown))), delta(e.delta1), delta(e.delta3),
-						h('td', {}, e.band ? nombreBandaM(c, e.band).toLowerCase() : '—', e.prevBand && e.band && e.prevBand !== e.band ? h('span', { class: 'sub' }, ` (era ${nombreBandaM(c, e.prevBand).toLowerCase()})`) : ''),
+						h('td', {}, e.band ? h('span', { class: `t-banda banda-${e.band}` }, nombreBandaM(c, e.band).toLowerCase()) : '—', e.prevBand && e.band && e.prevBand !== e.band ? h('span', { class: 'sub' }, ` (era ${nombreBandaM(c, e.prevBand).toLowerCase()})`) : ''),
 						h('td', { class: 'por-que' }, e.nivel <= 4 ? e.motivo : e.sube ?? ''),
 						h('td', { class: 'num' }, e.hz?.p50 != null ? `${f.score(e.hz.p50)}${e.hz.pCritico ? ` · ${f.porcentaje(e.hz.pCritico, 0)}` : ''}` : '—'),
 						h('td', { class: 'num' }, String(e.avisos.filter((a) => a.state === 'fired').length || '')),

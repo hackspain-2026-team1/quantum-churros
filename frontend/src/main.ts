@@ -391,9 +391,17 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 		}
 	});
 	deshacer.addEventListener('click', () => { deshacer.classList.remove('ver'); S.deshacer(); });
+	// Deshacer va pegado a lo que se deshace: bajo la frase en el mapa y, en las páginas —donde la
+	// frase no existe—, abajo a la izquierda, sin taparle nada a la cabecera.
 	function colocarDeshacer() {
 		const r = frase.raiz.querySelector('.frase-linea')?.getBoundingClientRect();
-		if (!r) return;
+		const enPagina = !r || !r.width || getComputedStyle(frase.raiz).display === 'none';
+		deshacer.classList.toggle('abajo', enPagina);
+		if (enPagina) {
+			deshacer.style.top = `${innerHeight - 46}px`;
+			deshacer.style.left = `${M.pad}px`;
+			return;
+		}
 		deshacer.style.top = `${r.bottom + 4}px`;
 		deshacer.style.left = `${Math.max(M.pad, Math.min(r.right - 96, innerWidth - 130))}px`;
 	}
