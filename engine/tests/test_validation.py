@@ -442,6 +442,14 @@ def test_a_step_lowers_the_score_and_the_study_counts_it(scored, params) -> None
     assert v.injection_study(scored, min_score=101.0)["pass"] is None
 
 
+def test_outlook_fan_calibration_reports_coverage(scored) -> None:
+    result = v.outlook_fan_calibration(scored)
+    assert result["pass"] is None
+    assert result["n_evaluated"] > 0
+    assert 0 <= result["hit_rate"] <= 1
+    assert set(result["by_basis"]) >= {"drift", "flat"}
+
+
 # ---- document ---------------------------------------------------------------------
 
 

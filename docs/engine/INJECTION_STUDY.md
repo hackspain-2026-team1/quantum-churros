@@ -146,7 +146,17 @@ sin det ██████████                    18 (11,5 %)
 
 Además del estudio de inyección, la validación incluye `outlook_fan`: para cada mes con abanico optimista/central/pesimista, comprueba si el score real tres meses después cae dentro del rango.
 
-Regenera con `make validate` y consulta `validation.json` → `outlook_fan`. No juzga el punto central — solo si el rango fue lo bastante ancho.
+Regenera con `make validate` y consulta `validation.json` → `outlook_fan`.
+
+| Métrica | Valor actual | Lectura |
+|---------|--------------|---------|
+| Acierto global del abanico | 57,7 % | Por debajo del 70 % aspiracional |
+| Con deriva medida (`drift`) | 72,8 % | El abanico funciona cuando hay tendencia |
+| Con escenario plano (`flat`) | 53,1 % | El rango de ±6 puntos es estrecho para el ruido real |
+| Por debajo del pesimista | 18,0 % | Caídas más bruscas de lo previsto |
+| Por encima del optimista | 24,2 % | Recuperaciones no captadas |
+
+**Punto de mejora:** ampliar el abanico cuando `basis = flat` (volatilidad propia insuficiente) o documentar en producto que el escenario plano es conservador en el centro pero estrecho en los extremos.
 
 ---
 
