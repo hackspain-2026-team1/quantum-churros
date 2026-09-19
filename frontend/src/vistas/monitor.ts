@@ -76,7 +76,9 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	const pie = h('p', { class: 'entrada-lema' });
 	const masAbajo = h('button', { type: 'button', class: 'mon-mas-abajo' }, h('span', {}, 'Piden atención, avisos y la cartera'), h('span', { class: 'mon-flecha', 'aria-hidden': 'true' }, '↓'));
 	masAbajo.addEventListener('click', () => columnas.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-	raiz.append(cabeza, campo, columnas, vistaSec, pie, masAbajo);
+	// Primero el monitor y luego lo que se busca; con un filtro puesto, la cartera sube por encima.
+	raiz.append(cabeza, columnas, campo, vistaSec, pie, masAbajo);
+	const colocar = () => raiz.insertBefore(columnas, Object.values(est.filtros).some(Boolean) ? pie : campo);
 	// La pista se va en cuanto se baja un poco (la página se desplaza dentro de su contenedor).
 	requestAnimationFrame(() => {
 		const cont = raiz.parentElement;
@@ -155,7 +157,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	}
 
 	// ─── El campo: una organización o una vista ─────────────
-	const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: '¿qué organización?', 'aria-label': 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off', autofocus: true }) as HTMLInputElement;
+	const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: '¿qué organización?', 'aria-label': 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off' }) as HTMLInputElement;
 	const resultados = h('ul', { class: 'entrada-resultados', role: 'listbox' });
 	const entendido = h('div', { class: 'mon-entendido', role: 'status' });
 	let peticion: AbortController | null = null;
@@ -410,6 +412,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	let lienzoActual: HTMLElement | null = null;
 	let observador: ResizeObserver | null = null;
 	function pintarVista() {
+		colocar();
 		vaciar(vistaSec);
 		observador?.disconnect();
 		lienzoActual = null;
@@ -738,6 +741,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 		pie.append(`${f.numero(man.counts.groups)} organizaciones y ${f.numero(man.counts.companies)} empresas, de ${f.mes(man.months[0])} a ${f.mes(man.months[man.months.length - 1])}. Dónde está cada una, hacia dónde va y qué puede cambiar su rumbo. `, met);
 	}
 	pintarTodo();
+	// El campo recibe el foco sin desplazar la página: lo primero que se ve es el monitor.
+	requestAnimationFrame(() => entrada.focus({ preventScroll: true }));
 
 	return {
 		raiz,
