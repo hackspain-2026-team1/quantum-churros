@@ -54,7 +54,7 @@ services:
       MP_LABEL: Embat X-Ray · correo simulado
       MP_MAX_MESSAGES: 500
     ports:
-      - "127.0.0.1:${MAILPIT_HTTP_PORT:-8025}:8025"
+      - "${MAILPIT_BIND:-127.0.0.1}:${MAILPIT_HTTP_PORT:-8025}:8025"
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
