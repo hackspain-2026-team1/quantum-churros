@@ -13,6 +13,9 @@ dependencies = [
     "typer>=0.16.0",
 ]
 
+[project.optional-dependencies]
+db = ["psycopg[binary]>=3.2"]
+
 [project.scripts]
 xray-score = "xray_engine.cli:app"
 

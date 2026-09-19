@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import csv
-from functools import lru_cache
-from pathlib import Path
+from collections.abc import Mapping
 
-from .config import settings
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlmodel import Session
+
 from .models import DebtProductRead
 
 TYPE_LABELS: dict[str, str] = {
@@ -18,14 +19,27 @@ TYPE_LABELS: dict[str, str] = {
     "renting": "Renting",
 }
 
-def _parse_amount(value: str | None) -> float | None:
-    if value is None or value == "":
-        return None
-    return abs(float(value))
+# Products of the most recent completed import of ``source.debt_products``.
+PRODUCTS_QUERY = text(
+    """
+    SELECT product_id, type, label, bank_name, currency, granted, outstanding
+    FROM source.debt_products
+    WHERE upper(company_id) = :company_id
+      AND dataset_hash = (
+        SELECT dataset_hash FROM source.dataset_import
+        WHERE status = 'completed' ORDER BY completed_at DESC LIMIT 1
+      )
+    ORDER BY product_id
+    """
+)
 
 
-def _row_to_product(row: dict[str, str]) -> DebtProductRead:
-    product_type = row["type"]
+def _amount(value: float | None) -> float | None:
+    return None if value is None else abs(float(value))
+
+
+def _row_to_product(row: Mapping[str, object]) -> DebtProductRead:
+    product_type = str(row["type"])
     return DebtProductRead(
         product_id=row["product_id"],
         type=product_type,
@@ -33,24 +47,16 @@ def _row_to_product(row: dict[str, str]) -> DebtProductRead:
         label=row["label"],
         bank_name=row["bank_name"],
         currency=row["currency"],
-        granted=_parse_amount(row.get("granted")),
-        outstanding=_parse_amount(row.get("outstanding")),
+        granted=_amount(row["granted"]),
+        outstanding=_amount(row["outstanding"]),
     )
 
 
-@lru_cache(maxsize=1)
-def _load_all_products(data_dir: str) -> dict[str, list[DebtProductRead]]:
-    path = Path(data_dir) / "debt_products.csv"
-    if not path.exists():
-        return {}
-    by_company: dict[str, list[DebtProductRead]] = {}
-    with path.open(newline="", encoding="utf-8") as handle:
-        for row in csv.DictReader(handle):
-            company_id = row["company_id"].upper()
-            by_company.setdefault(company_id, []).append(_row_to_product(row))
-    return by_company
-
-
-def list_debt_products(entity_id: str) -> list[DebtProductRead]:
-    normalized = entity_id.upper()
-    return _load_all_products(str(settings.data_dir.resolve())).get(normalized, [])
+def list_debt_products(session: Session, entity_id: str) -> list[DebtProductRead]:
+    try:
+        rows = session.execute(PRODUCTS_QUERY, {"company_id": entity_id.upper()}).mappings().all()
+    except (OperationalError, ProgrammingError):
+        # the source schema does not exist until a dataset has been ingested
+        session.rollback()
+        return []
+    return [_row_to_product(row) for row in rows]

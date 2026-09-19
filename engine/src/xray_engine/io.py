@@ -399,12 +399,9 @@ def _replace(path: Path, write: Callable[[Path], object]) -> None:
         partial.unlink(missing_ok=True)
 
 
-def _cache_table(input_dir: Path, folder: Path, table: str) -> dict[str, int]:
-    source = input_dir / f"{table}.csv"
-    raw = _read_csv(source, table)
-    records = count_csv_records(source)
+def _write_cached(raw: pl.DataFrame, records: int, folder: Path, table: str, origin: str) -> dict[str, int]:
     if raw.height != records:
-        raise ValueError(f"{source.name}: {raw.height} records parsed, the csv recount gives {records}")
+        raise ValueError(f"{origin}: {raw.height} records parsed, the source recount gives {records}")
     pending = raw.filter(pl.col("status") == PENDING_STATUS).height if table == "transactions" else 0
     target = folder / f"{table}.parquet"
     _replace(target, _to_cache(raw, table).write_parquet)
@@ -412,6 +409,11 @@ def _cache_table(input_dir: Path, folder: Path, table: str) -> dict[str, int]:
     if cached != records - pending:
         raise ValueError(f"{target.name}: {cached} rows cached, expected {records - pending}")
     return {"records": records, "pending_dropped": pending, "cached": cached}
+
+
+def _cache_table(input_dir: Path, folder: Path, table: str) -> dict[str, int]:
+    source = input_dir / f"{table}.csv"
+    return _write_cached(_read_csv(source, table), count_csv_records(source), folder, table, source.name)
 
 
 def _manifest(folder: Path) -> dict[str, Any] | None:
@@ -424,13 +426,20 @@ def _manifest(folder: Path) -> dict[str, Any] | None:
     return manifest if complete and manifest.get("cache_version") == CACHE_VERSION else None
 
 
-def _ensure_cache(input_dir: Path, cache_dir: Path, dataset_hash: str) -> tuple[Path, dict[str, Any]]:
+def _ensure_cache(
+    input_dir: Path | None,
+    cache_dir: Path,
+    dataset_hash: str,
+    cache_table: Callable[[Path, str], dict[str, int]] | None = None,
+) -> tuple[Path, dict[str, Any]]:
     folder = cache_dir / dataset_hash
     manifest = _manifest(folder)
     if manifest is not None:
         return folder, manifest
     folder.mkdir(parents=True, exist_ok=True)
-    tables = {table: _cache_table(input_dir, folder, table) for table in TABLE_NAMES}
+    if cache_table is None:
+        cache_table = lambda target, table: _cache_table(input_dir, target, table)  # noqa: E731
+    tables = {table: cache_table(folder, table) for table in TABLE_NAMES}
     window = derive_window(
         pl.read_parquet(folder / "transactions.parquet", columns=["date"]),
         pl.read_parquet(folder / "balances.parquet", columns=["date"]),
@@ -480,3 +489,87 @@ def load_tables(input_dir: Path, cache_dir: Path = DEFAULT_CACHE_DIR) -> Tables:
     frames = {table: pl.read_parquet(folder / f"{table}.parquet") for table in TABLE_NAMES}
     window = Window(**{key: date.fromisoformat(day) for key, day in manifest["window"].items()})
     return Tables(**frames, dataset_hash=dataset_hash, window=window)
+
+
+# --- PostgreSQL source -------------------------------------------------------
+# The backend ingests the eight CSVs untouched into ``source.<table>`` keyed by
+# the same ``dataset_hash``. Reading them back goes through the very same typing
+# step as the files, so both sources give identical ``Tables``.
+
+DATABASE_SCHEMES = ("postgresql://", "postgresql+psycopg://", "postgres://")
+SOURCE_SCHEMA = "source"
+
+
+def is_database_source(source: object) -> bool:
+    return isinstance(source, str) and source.startswith(DATABASE_SCHEMES)
+
+
+def _connect(database_url: str):
+    try:
+        import psycopg
+    except ImportError as error:  # pragma: no cover - optional extra
+        raise RuntimeError("Reading from PostgreSQL needs the 'db' extra: psycopg") from error
+    return psycopg.connect(database_url.replace("postgresql+psycopg://", "postgresql://", 1))
+
+
+def database_dataset_hash(database_url: str, dataset_hash: str | None = None) -> str:
+    """The requested completed import, or the most recent completed one."""
+    with _connect(database_url) as connection:
+        if dataset_hash is None:
+            row = connection.execute(
+                "SELECT dataset_hash FROM source.dataset_import WHERE status = 'completed' "
+                "ORDER BY completed_at DESC LIMIT 1"
+            ).fetchone()
+        else:
+            row = connection.execute(
+                "SELECT dataset_hash FROM source.dataset_import WHERE status = 'completed' AND dataset_hash = %s",
+                (dataset_hash,),
+            ).fetchone()
+    if row is None:
+        raise FileNotFoundError("No completed dataset import in source.dataset_import: run `make db-seed`")
+    return row[0]
+
+
+def _cache_table_from_db(connection: Any, dataset_hash: str, folder: Path, table: str) -> dict[str, int]:
+    from psycopg import sql
+
+    columns = sql.SQL(", ").join(map(sql.Identifier, SCHEMAS[table]))
+    source = sql.SQL("{}.{}").format(sql.Identifier(SOURCE_SCHEMA), sql.Identifier(table))
+    where = sql.SQL("dataset_hash = {}").format(sql.Literal(dataset_hash))
+    records = connection.execute(sql.SQL("SELECT count(*) FROM {} WHERE {}").format(source, where)).fetchone()[0]
+    dump = folder / f".{table}.{os.getpid()}.csv"
+    statement = sql.SQL("COPY (SELECT {} FROM {} WHERE {}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE)").format(
+        columns, source, where
+    )
+    try:
+        with dump.open("wb") as target, connection.cursor() as cursor, cursor.copy(statement) as copy:
+            for chunk in copy:
+                target.write(chunk)
+        raw = _read_csv(dump, table)
+    finally:
+        dump.unlink(missing_ok=True)
+    return _write_cached(raw, records, folder, table, f"{SOURCE_SCHEMA}.{table}")
+
+
+def load_tables_from_db(
+    database_url: str, cache_dir: Path = DEFAULT_CACHE_DIR, dataset_hash: str | None = None
+) -> Tables:
+    """``load_tables`` with ``source.*`` of the backend database as the origin."""
+    dataset_hash = database_dataset_hash(database_url, dataset_hash)
+    with _connect(database_url) as connection:
+        folder, manifest = _ensure_cache(
+            None,
+            Path(cache_dir),
+            dataset_hash,
+            lambda target, table: _cache_table_from_db(connection, dataset_hash, target, table),
+        )
+    frames = {table: pl.read_parquet(folder / f"{table}.parquet") for table in TABLE_NAMES}
+    window = Window(**{key: date.fromisoformat(day) for key, day in manifest["window"].items()})
+    return Tables(**frames, dataset_hash=dataset_hash, window=window)
+
+
+def load_source(source: Path | str, cache_dir: Path = DEFAULT_CACHE_DIR) -> Tables:
+    """A folder with the eight CSVs or a PostgreSQL URL."""
+    if is_database_source(source):
+        return load_tables_from_db(str(source), cache_dir)
+    return load_tables(Path(source), cache_dir)

@@ -1366,6 +1366,11 @@ dependencies = [
     { name = "typer" },
 ]
 
+[package.optional-dependencies]
+db = [
+    { name = "psycopg", extra = ["binary"] },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -1376,11 +1381,13 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "polars", specifier = ">=1.35.2" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'db'", specifier = ">=3.2" },
     { name = "pyarrow", specifier = ">=20.0" },
     { name = "pydantic", specifier = ">=2.12.4" },
     { name = "scipy", specifier = ">=1.15" },
     { name = "typer", specifier = ">=0.16.0" },
 ]
+provides-extras = ["db"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.4.0" }]

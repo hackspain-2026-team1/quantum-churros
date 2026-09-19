@@ -1587,7 +1587,7 @@ def run_validation(
     """
     started = time.perf_counter()
     params = params if params is not None else load_params()
-    tables = io.load_tables(Path(input_dir), Path(cache_dir) if cache_dir is not None else DEFAULT_CACHE_DIR)
+    tables = io.load_source(input_dir, Path(cache_dir) if cache_dir is not None else DEFAULT_CACHE_DIR)
     scored = score_core(tables, params)
     if log is not None:
         log(f"scored {scored.frame.height} entity-months in {time.perf_counter() - started:.1f}s")

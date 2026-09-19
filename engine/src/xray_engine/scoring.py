@@ -337,7 +337,7 @@ def score_dataset(
     replaces the classifier output; it only reaches the profile cards.
     """
     params = params if params is not None else load_params()
-    tables = io.load_tables(Path(input_dir), cache_dir)
+    tables = io.load_source(input_dir, cache_dir)
     return score_tables(tables, params, industry_override=industry_override)
 
 

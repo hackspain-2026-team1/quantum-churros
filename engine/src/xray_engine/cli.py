@@ -20,19 +20,19 @@ def _params(path: Optional[Path]):
 
 @app.command()
 def ingest(
-    input_dir: Path,
+    input_dir: str,
     cache_dir: Path = typer.Option(DEFAULT_CACHE_DIR, help="Parquet cache root"),
 ) -> None:
     """Validate the eight CSVs and build the typed parquet cache."""
     from .io import build_cache, dataset_fingerprint
 
-    target = build_cache(input_dir, cache_dir)
-    typer.echo(f"Dataset {dataset_fingerprint(input_dir)} cached in {target}")
+    target = build_cache(Path(input_dir), cache_dir)
+    typer.echo(f"Dataset {dataset_fingerprint(Path(input_dir))} cached in {target}")
 
 
 @app.command("fit-reference")
 def fit_reference(
-    input_dir: Path,
+    input_dir: str,
     out: Path = typer.Option(DEFAULT_PARAMS_PATH, help="Params file to write"),
     cache_dir: Path = typer.Option(DEFAULT_CACHE_DIR, help="Parquet cache root"),
     report: Path = typer.Option(
@@ -65,7 +65,7 @@ def fit_reference(
 
 
 def _predict(
-    input_dir: Path,
+    input_dir: str,
     out: Path,
     export_dir: Optional[Path],
     params_path: Optional[Path],
@@ -94,7 +94,7 @@ def _predict(
 
 @app.command()
 def predict(
-    input_dir: Path,
+    input_dir: str,
     out: Path = typer.Option(Path("artifacts"), help="Output folder"),
     export_dir: Optional[Path] = typer.Option(None, help="Also write the JSON bundle here"),
     params_path: Optional[Path] = typer.Option(None, "--params", help="Params file"),
@@ -107,7 +107,7 @@ def predict(
 
 @app.command(hidden=True)
 def score(
-    input_dir: Path,
+    input_dir: str,
     out: Path = typer.Option(Path("artifacts"), help="Output folder"),
     export_dir: Optional[Path] = typer.Option(None, help="Also write the JSON bundle here"),
     params_path: Optional[Path] = typer.Option(None, "--params", help="Params file"),
@@ -120,7 +120,7 @@ def score(
 
 @app.command()
 def export(
-    input_dir: Path,
+    input_dir: str,
     export_dir: Path = typer.Option(Path("frontend/static/data/v1"), help="Bundle folder"),
     receipt: Optional[Path] = typer.Option(
         None, help="validation.json to embed as the receipt (default: artifacts/validation.json when present)"
@@ -147,7 +147,7 @@ def export(
 
 @app.command()
 def validate(
-    input_dir: Path,
+    input_dir: str,
     out: Path = typer.Option(Path("artifacts/validation.json"), help="Report to write"),
     params_path: Optional[Path] = typer.Option(None, "--params", help="Params file"),
     cache_dir: Path = typer.Option(DEFAULT_CACHE_DIR, help="Parquet cache root"),

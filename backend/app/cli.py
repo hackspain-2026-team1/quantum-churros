@@ -7,6 +7,7 @@ from sqlmodel import Session, create_engine
 from .config import settings
 from .industry import run_classification
 from .ingest import dataset_fingerprint, ingest_dataset, source_paths
+from .publish import publish_outputs
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -61,3 +62,10 @@ def classify(
 
 if __name__ == "__main__":
     app()
+
+
+@app.command()
+def publish(out_dir: Annotated[Path, typer.Argument()] = Path("artifacts/full")) -> None:
+    """Load an engine run (panel, scores, alerts) into the xray schema, one attribute per column."""
+    dataset_hash, counts = publish_outputs(out_dir, settings.database_url)
+    typer.echo(f"Published dataset {dataset_hash}: {counts}")

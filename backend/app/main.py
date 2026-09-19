@@ -115,10 +115,9 @@ def get_benchmark(study_id: str) -> BenchmarkStudyRead:
 @app.get("/api/v1/companies/{entity_id}/debt-products", response_model=CompanyDebtProductsRead)
 def get_company_debt_products(entity_id: str) -> CompanyDebtProductsRead:
     normalized = entity_id.upper()
-    return CompanyDebtProductsRead(
-        entity_id=normalized,
-        products=list_debt_products(normalized),
-    )
+    with Session(engine) as session:
+        products = list_debt_products(session, normalized)
+    return CompanyDebtProductsRead(entity_id=normalized, products=products)
 
 
 @app.get("/api/v1/companies/{entity_id}/industry", response_model=IndustryClassificationRead)

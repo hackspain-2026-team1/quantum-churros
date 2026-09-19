@@ -8,19 +8,31 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-def test_debt_products_are_read_from_the_dataset(tmp_path, monkeypatch) -> None:
-    from app import debt_products
-    from app.config import settings
+def test_debt_products_are_read_from_the_source_schema(tmp_path) -> None:
+    from app.debt_products import list_debt_products
+    from sqlalchemy import text
+    from sqlmodel import Session, create_engine
 
-    (tmp_path / "debt_products.csv").write_text(
-        "product_id,company_id,type,label,bank_name,currency,granted,outstanding\n"
-        "P1,COMP_T001,lineofcredit,Poliza,Banco,EUR,-1000,-400\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(settings, "data_dir", tmp_path)
-    debt_products._load_all_products.cache_clear()
-    products = debt_products.list_debt_products("comp_t001")
-    debt_products._load_all_products.cache_clear()
+    engine = create_engine(f"sqlite:///{tmp_path / 'main.db'}")
+    with Session(engine) as session:
+        session.execute(text(f"ATTACH DATABASE '{tmp_path / 'source.db'}' AS source"))
+        session.execute(text("CREATE TABLE source.dataset_import (dataset_hash, status, completed_at)"))
+        session.execute(
+            text(
+                "CREATE TABLE source.debt_products "
+                "(dataset_hash, product_id, company_id, type, label, bank_name, currency, granted, outstanding)"
+            )
+        )
+        session.execute(text("INSERT INTO source.dataset_import VALUES ('old', 'completed', 1), ('new', 'completed', 2)"))
+        session.execute(
+            text(
+                "INSERT INTO source.debt_products VALUES "
+                "('old', 'P0', 'COMP_T001', 'loan', 'Viejo', 'Banco', 'EUR', -5, -5), "
+                "('new', 'P1', 'COMP_T001', 'lineofcredit', 'Poliza', 'Banco', 'EUR', -1000, -400)"
+            )
+        )
+        products = list_debt_products(session, "comp_t001")
+    engine.dispose()
     assert [p.type_label for p in products] == ["Línea de crédito"]
     assert products[0].granted == 1000
 

@@ -270,7 +270,7 @@ def fit_reference(
     rule precision, medians and the calibration review).
     """
     base = base if base is not None else load_params(out_path if Path(out_path).is_file() else None, verify=False)
-    tables = io.load_tables(Path(input_dir), cache_dir)
+    tables = io.load_source(input_dir, cache_dir)
     clean = cleaning.clean(tables, base)
     panel = panel_module.build_panel(clean, base)
 
