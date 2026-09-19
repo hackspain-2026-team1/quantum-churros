@@ -84,6 +84,11 @@ db-publish: ## Load the engine run in XRAY_OUT (panel, scores, alerts) into the 
 db-classify: ## Classify companies into industry archetypes for the mounted dataset
 	$(COMPOSE) exec api uv run --locked --package quantum-churros-api xray-db classify /data/raw
 
+.PHONY: db-sync
+db-sync: ## Start PostgreSQL and synchronize source data, scores, database projections, and the frontend bundle
+	$(COMPOSE) up --build -d --wait postgres api
+	$(COMPOSE) exec api uv run --locked --package quantum-churros-api xray-db sync /data/raw --out-dir /app/artifacts --bundle-dir /app/bundle --evidence-months $(EVIDENCE_MONTHS)
+
 .PHONY: data-extract
 data-extract: ## Extract the local challenge archive into the ignored data directory
 	unzip -j -n "$(archive)" 'output/*' -d data/raw

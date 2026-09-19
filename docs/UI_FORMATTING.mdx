@@ -30,6 +30,11 @@ new Intl.NumberFormat("es-ES").format(1234.56); // "1.234,56"
 - Use a non-breaking space (`\u00A0`) between number and symbol so the pair never wraps.
 - Default to **two decimals** for money. For large aggregate amounts, abbreviate
   consistently: `1,2 M€`, `185 k€` — and never mix `k€`/`M€` in the same list.
+- Money carries zero or two decimals, never one: `55 €`, `5,50 €`; never `5,5 €`.
+- In prose and long-form copy, aggregates use at most **three significant figures**:
+  `más de 1.390 M€`, not `1.395 M€`. The exact figure stays reserved for client-area amounts.
+- Define an abbreviation at first use: `millones de euros (M€)`. Always a space between number
+  and unit: `300 k€`.
 - Positive/negative signs precede the number: `-1.234,56 €`, `+180.000 €`.
 
 ```ts
@@ -45,6 +50,9 @@ const euro = (value: number, digits = 2) =>
 - One decimal only when it adds meaning; otherwise none.
 - Format as `NN,N %` / `NN %`, always with the non-breaking space.
 - Confidence, ratios and utilization are shown as percentages, not `0–1` decimals.
+- The difference between two percentages is **puntos porcentuales**, not percent:
+  `4 % − 1 % = 3 puntos porcentuales`. The percent sign is only for the relative change of a
+  single figure.
 
 ## 5. Days and ratios
 
@@ -59,6 +67,9 @@ const euro = (value: number, digits = 2) =>
 - Month axis in charts: `09/26` (two-digit month / two-digit year), already implemented in
   `trajectory-chart.svelte`.
 - Ranges use an en dash: `jun–sep 2026`.
+- Written dates in running text: `07/12/2021` (two-digit day, four-digit year, slash
+  separators) or `07/dic/2021`. File names use the inverse form `aaaa-mm-dd` so alphabetical
+  order matches chronological order.
 
 ## 7. Copy style
 
@@ -68,7 +79,30 @@ const euro = (value: number, digits = 2) =>
 - Do not add a trailing period to metric labels, badges, axis ticks or table headers.
 - Avoid trailing zeros on integers: `68`, never `68,0`.
 
-## 8. Charts
+## 8. Writing style (long-form copy)
+
+Rules for wiki pages, FAQs, explanations and any user-facing prose. Written for
+non-technical readers; the same rules apply whatever company or product template uses them.
+
+- **Audience first.** Explain what happens and why. Never name internal files, parameters,
+  code identifiers or engine internals in user-facing copy: say "tabla de tipos de cambio
+  fija", not the param that stores it.
+- **Short sentences.** One idea per sentence; avoid nested clauses. Paragraphs of at most
+  three lines read better on screens.
+- **Tone.** Address the reader as "tú". Prefer "nosotros" over "yo" ("lo hemos revisado").
+  Write plainly; define any term the first time it appears.
+- **Emphasis.** At most one bold per sentence. Underline is reserved for links.
+- **Lists.** Either every item ends with a period or none does — never mixed.
+- **Titles.** No trailing period on titles, headings, questions or badges.
+- **Quotes.** Double quotes "…" in product copy; single quotes only for a quote inside a
+  quote.
+- **Abbreviations.** Only the ones used in speech; define at first use; write them without
+  dots (SA, SL, k€).
+- **Links.** The link text names its destination with an action verb; punctuation stays
+  outside the link. Never "haz clic aquí".
+- **Alignment.** Prose is left-aligned; never centered, right-aligned or justified.
+
+## 9. Charts
 
 - Values shown inline on a chart use the same formatter as the surrounding metric card.
 - Never render a raw float like `60.68` inside an `es-ES` chart. Format to at most two
@@ -77,14 +111,14 @@ const euro = (value: number, digits = 2) =>
 - A chart with multiple selectable metrics exposes one metric at a time via a labelled
   control; the active metric name is always visible in the card title or control.
 
-## 9. Implementation rules
+## 10. Implementation rules
 
 - Put shared formatters in one module, e.g. `frontend/src/lib/format.ts`, and import them.
   Do not duplicate `Intl.NumberFormat` calls per component.
 - Components receive numbers and format at render time; the API keeps sending raw numbers.
 - Any new numeric UI is checked against these rules before merging.
 
-## 10. Quick reference
+## 11. Quick reference
 
 | Kind      | Input     | Output               |
 | --------- | --------- | -------------------- |

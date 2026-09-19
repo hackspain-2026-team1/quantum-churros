@@ -25,6 +25,12 @@
 - Never render a raw float in the UI (e.g. `-0.9976`, `60.68`). Format through the shared helpers in `frontend/src/lib/format.ts`; never call `toLocaleString()` without an explicit `'es-ES'` locale.
 - Do not duplicate `Intl` formatting per component. Extend `frontend/src/lib/format.ts` centrally when a new format is needed.
 
+## Pre-redesign UI catalog
+
+- The frontend at commit `cad5b5a` is the **pre-redesign interface**. It is documented exhaustively in [`docs/ui-catalog-pre-redesign/`](docs/ui-catalog-pre-redesign/README.md): every screen, element, state, URL parameter, calculation and source file, with 113 real screenshots (desktop, tablet, mobile).
+- Consult `docs/ui-catalog-pre-redesign/CATALOGO.md` before redesigning or replacing a screen, to know what the old one did and which behaviors, states and texts must be kept or deliberately dropped. Search it with `rg`; screenshots live in `capturas/`.
+- The catalog is a frozen snapshot: do not update it to match new UI. Pages added after `cad5b5a` (such as `/wiki`) are not covered.
+
 ## Dependency direction
 
 - `frontend` may consume generated contracts but must not import Python code or research artifacts.
@@ -37,7 +43,9 @@
 - Alembic owns schema changes only. Never place the challenge CSV contents or other bulk seed data inside an Alembic revision.
 - `20260918_02_seed_baseline_dataset.py` is a frozen legacy demo seed already present in migration history. Do not regenerate it or use it as a pattern; all new dataset loads go through `xray-db ingest`.
 - Start the stack with `make up`; the API applies pending Alembic migrations before serving requests.
+- Local PostgreSQL binds to host port `5433` by default. Set `POSTGRES_PORT` when that port belongs to another project; container-to-container commands such as `make db-sync` keep using the internal `postgres:5432` address.
 - Validate the local dataset with `make db-seed-dry-run`, then load it with `make db-seed`. The ingestion command runs inside the API container, streams every CSV through PostgreSQL `COPY`, and records the content hash and row counts in `source.dataset_import`.
+- Run `make db-sync` to start PostgreSQL and execute the complete reproducible data cycle: ingest the immutable source version, classify companies, calculate Parquet model artifacts, publish the relational score projection, and regenerate the JSON bundle consumed by the frontend.
 - Dataset ingestion is explicit and idempotent. Never trigger it from API startup, tests, or a migration. Re-running the same hash changes no rows; a different hash is stored alongside prior datasets.
 - Never truncate source tables to refresh data. Add a new dataset version and select it by `dataset_hash` so experiments and score runs remain reproducible.
 
@@ -48,3 +56,12 @@
 - Run `uv run xray-db classify data/raw` after ingesting a new dataset. Use `--force` to re-run when `rules-v1` thresholds change. Never classify from API startup.
 - Demo overrides in `backend/app/benchmarks/demo_overrides.py` are API-only; stored classifications remain signal-pure.
 - Benchmark peer mapping is in [`docs/BENCHMARK_REFERENCE.mdx`](docs/BENCHMARK_REFERENCE.mdx).
+
+## Continuous deployment
+
+- Pull requests run the complete verification suite and build both production images through `.github/workflows/ci-deploy.yml`.
+- Every verified commit on `main` publishes `api` and `web` images to GHCR using the full commit SHA, records their content digests, then deploys those exact digests to the `development` GitHub environment on `datons-dev`.
+- The workflow reaches `datons-dev` through an ephemeral Tailscale node tagged `tag:github-ci`, authenticated with GitHub OIDC workload identity federation. Never add a persistent GitHub runner, restore a reusable Tailscale auth key, or broaden that tag beyond `datons-dev:22`.
+- Server deployment state lives in `/opt/quantum-churros`. The `quantum-deploy` account may only invoke the root-owned `/usr/local/sbin/quantum-churros-deploy` command; never add it to the `docker` group or make deployment files writable by it.
+- Deployment is image-based, not a mutable Git checkout. Do not run `git pull` on the server. The deployment command serializes releases, runs migrations through the API image, waits for container health checks, and restores the previous images when startup fails.
+- PostgreSQL data, model artifacts, and the exported frontend bundle persist independently from application images. The production bundle is mounted from `/opt/quantum-churros/bundle`; application deployments must never replace it or delete the `quantum-churros_postgres_data` volume.

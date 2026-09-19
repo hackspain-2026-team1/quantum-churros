@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		Activity,
+		BookOpen,
 		CircleGauge,
 		FlaskConical,
 		ListChecks,
@@ -124,7 +125,7 @@
 					<Activity class="size-5" />
 				</div>
 				<div>
-					<div class="leading-none font-semibold tracking-[-0.02em]">Embat X-Ray</div>
+					<div class="leading-none font-semibold tracking-[-0.02em]">Rumbo</div>
 					<div
 						class="mt-1 text-[0.62rem] font-semibold tracking-[0.18em] text-muted-foreground uppercase"
 					>
@@ -200,8 +201,14 @@
 							class="justify-start gap-3 px-3 py-2.5 data-[state=active]:bg-[var(--signal-soft)] data-[state=active]:text-[var(--signal-strong)]"
 							><tab.icon class="size-4" />{tab.label}</Tabs.Trigger
 						>{/each}</Tabs.List
-				></Tabs.Root
+				>
+			</Tabs.Root>
+			<a
+				href={monthStore.href('/wiki')}
+				class="mt-4 flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
 			>
+				<BookOpen class="size-4" />Wiki · cómo lo resolvimos
+			</a>
 			<div class="mx-3 mt-8 border-t pt-5">
 				<div class="flex items-center gap-2 text-xs text-muted-foreground">
 					<span

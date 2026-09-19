@@ -20,7 +20,7 @@ from .models import (
     IndustryClassificationRead,
 )
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+engine = create_engine(settings.require_database_url(), pool_pre_ping=True)
 
 
 @asynccontextmanager

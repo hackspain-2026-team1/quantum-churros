@@ -19,7 +19,7 @@
 	);
 </script>
 
-<svelte:head><title>{summary.id} · Embat X-Ray</title></svelte:head>
+<svelte:head><title>{summary.id} · Rumbo</title></svelte:head>
 
 {#if company}
 	<EntityView

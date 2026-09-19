@@ -37,7 +37,7 @@ flowchart TB
 | Q-02 | Size-band or absolute liquidity anchors | high | size-band (`liquidity.segmented = true`) | R2 under both settings, R4b flip |
 | Q-03 | Pillar weights | high | 30 / 20 / 15 / 20 / 15 | R4; the leaderboard if a metric exists |
 | Q-04 | Do collections (AR) belong in the score? | high | yes, weight 0.15, separate pillar | R1 variant nulling AR only |
-| Q-05 | Slow drifts: the brief's own canonical cases read as `stable` | high | 3-month delta, 6-point floor | R8 ramp results; a product decision |
+| Q-05 | Slow drifts: the brief's own canonical cases read as `stable` | high | 3-month delta, 6-point floor | **Mostly closed**: Theil-Sen long horizon + drift-named alerts shipped; the 82 → 68 case still misses the frozen bar (see the question) |
 | Q-06 | `weak_payments` cap is dormant; Paydex tail | medium | cap kept, cannot fire | team decision |
 | Q-07 | Coverage-branch parity: penalty minimum and pillar medians | medium | minimum over all available pillars | R1, R3 |
 | Q-08 | Invoice window: 90 or 120 days | medium | 90 days, clip [−30, 90] | R4b flip |
@@ -111,12 +111,25 @@ flowchart TB
 - **Settled by.** R1 variant that nulls `collections` only: mean shift and rank change. If the
   ranking barely moves, (b) is the more defensible story.
 
-## Q-05 · Slow drifts: the brief's canonical cases read as `stable`
+## Q-05 · Slow drifts: the brief's canonical cases read as `stable` — mostly closed
 
-- **Why it matters.** The brief's two examples (45 → 65 and 82 → 68 over 23 months) move 2–3
+- **Why it mattered.** The brief's two examples (45 → 65 and 82 → 68 over 23 months) move 2–3
   points per quarter. Our direction rule needs |Δ3| ≥ max(6, 1.5 σ), so both would be
   `stable` in every single month — while "quién está mejorando" and "quién empieza a
   torcerse" are two of the six questions.
+- **Shipped.** A robust Theil-Sen slope over the last `long_horizon = 12` comparable live
+  months (`long_min_months = 6`, `long_threshold = 8` points, `long_sigma_mult = 2`) runs
+  next to the three-month verdict: `Trajectory` carries `horizon`, `drift_points`,
+  `drift_months` and `drift_call`; the long call confirms like a short one and the
+  structural alert's detail names the slow drift. The score is untouched and the export
+  keeps the frozen v1 contract (drift via alert copy + evidence row).
+  `engine/tests/test_canonical_drift.py` pins the brief's cases end to end.
+- **Still open, with numbers.** The improvement case (45 → 65) is alerted with 13 months of
+  lead. The erosion case (82 → 68) accumulates only ~7.3 points inside any twelve-month
+  window, under the frozen 8-point bar, so it is never called — pinned as an xfail in the
+  same file. Settling it is a parameter decision: lower `long_threshold`, lengthen
+  `long_horizon`, or fit the bar per size band; each needs the false-alert cost measured by
+  the R8 ramp report (see VALIDATION.md).
 - **What already helps.** Both cases **cross a band** (watch → stable, solid → stable), and
   the trajectory chart shows the slope.
 - **Options.** (a) Add a long-horizon reading next to Δ3 (for example the 12-month delta with
