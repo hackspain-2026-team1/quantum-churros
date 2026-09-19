@@ -109,10 +109,13 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 
 	function cambiar(parcial: Partial<EstadoMonitor>) {
 		const antes = est.unidad;
+		const filtro = parcial.filtros !== undefined;
 		est = { ...est, ...parcial, filtros: parcial.filtros ?? est.filtros };
 		escribirEstadoURL(est);
+		pintarCabeza();
+		if (est.unidad !== antes) pintarColumnas();
 		pintarVista();
-		if (est.unidad !== antes) { pintarCabeza(); pintarColumnas(); }
+		if (filtro) vistaSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		ctx.repintarArena();
 	}
 	const filtrar = (fl: FiltrosM) => cambiar({ filtros: { ...est.filtros, ...fl } });
@@ -622,7 +625,13 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				for (const s of [0, 20, 40, 60, 80, 100]) et(g.x0 + (s / 100) * (g.x1 - g.x0), g.y1 + 6, 'mr-eje x', String(s));
 				for (const r of [-4, -2, 0, 2, 4]) et(g.x0 - 6, (g.y0 + g.y1) / 2 - (r / 5) * (g.y1 - g.y0) / 2, 'mr-eje y', r === 0 ? '0' : `${r > 0 ? '+' : '−'}${Math.abs(r)}`);
 				const zonas: [Zona, number, number, string][] = [['mejora', g.x0 + 8, g.y0 + 4, 'izq'], ['solida', g.x1 - 8, g.y0 + 4, 'der'], ['hunde', g.x0 + 8, g.y1 - 18, 'izq'], ['tuerce', g.x1 - 8, g.y1 - 18, 'der']];
-				for (const [z, x, y, lado] of zonas) { const n = vis.filter((e) => e.zona === z).length; const b = et(x, y, `mr-zona ${lado}`, `${primeraMayuscula(NOMBRE_ZONA[z])} · ${f.numero(n)}`); b.style.color = 'var(--tinta)'; b.style.fontSize = '16px'; b.addEventListener('click', () => filtrar({ zona: z })); }
+				for (const [z, x, y, lado] of zonas) {
+					if (est.filtros.zona && est.filtros.zona !== z) continue;
+					const n = vis.filter((e) => e.zona === z).length;
+					if (est.filtros.zona && n === 0) continue;
+					const b = et(x, y, `mr-zona ${lado}`, `${primeraMayuscula(NOMBRE_ZONA[z])} · ${f.numero(n)}`);
+					b.addEventListener('click', () => filtrar({ zona: z }));
+				}
 				break;
 			}
 			case 'tapiz': {
@@ -708,9 +717,14 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				break;
 			}
 			case 'bandas': case 'plano': {
-				const grupos: [string, Entidad[], FiltrosM][] = est.forma === 'bandas'
-					? BANDAS.map((b) => [nombreBandaM(c, b), vis.filter((e) => e.band === b), { banda: b }])
-					: (['hunde', 'tuerce', 'mejora', 'solida'] as Zona[]).map((z) => [primeraMayuscula(NOMBRE_ZONA[z]), vis.filter((e) => e.zona === z), { zona: z }]);
+				const grupos: [string, Entidad[], FiltrosM][] = (est.forma === 'bandas'
+					? BANDAS.map((b): [string, Entidad[], FiltrosM] => [nombreBandaM(c, b), vis.filter((e) => e.band === b), { banda: b }])
+					: (['hunde', 'tuerce', 'mejora', 'solida'] as Zona[]).map((z): [string, Entidad[], FiltrosM] => [primeraMayuscula(NOMBRE_ZONA[z]), vis.filter((e) => e.zona === z), { zona: z }])
+				).filter(([, lista, fl]) => {
+					if (est.forma === 'plano' && est.filtros.zona) return fl.zona === est.filtros.zona;
+					if (est.forma === 'bandas' && est.filtros.banda) return fl.banda === est.filtros.banda;
+					return lista.length > 0 || (!est.filtros.zona && !est.filtros.banda);
+				});
 				const rejilla = h('div', { class: 'mon-grupos' });
 				for (const [nombre, lista, fl] of grupos) {
 					const col = h('div', { class: 'mon-grupo' });

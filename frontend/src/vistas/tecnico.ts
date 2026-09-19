@@ -316,7 +316,7 @@ function supuestos(d: DatosFicha): HTMLElement {
 	caja.append(indice);
 	void carga.horizontesIndice().then((ix) => {
 		vaciar(indice);
-		const r = ix?.validation.corte_de_referencia;
+		const r = ix?.validation?.corte_de_referencia;
 		if (!ix || !r) return;
 		indice.append(dl([
 			[`Desde ${f.mes(r.corte)}, a 3 y 6 meses`, `se equivoca ${f.numero(r.error_mediana, 1)} puntos de media, frente a ${f.numero(r.error_sin_cambio, 1)} de suponer que no cambia nada; la franja del 80 % acierta el ${f.porcentaje(r.acierta_80, 0)} (${f.numero(r.n)} casos)`],

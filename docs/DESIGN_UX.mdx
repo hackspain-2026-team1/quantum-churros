@@ -32,8 +32,13 @@ cells carry bare numbers:
   formatted suffix, as before.
 - Percentages follow the same rule: a column where every cell is a percent hoists `%` to the
   header and the cells show the bare number.
+- **Marks hoist the same way.** A symbol repeated in every row of a column (the bank logo,
+  §2) rises to the column header once; the cells keep only their text. If the values differ,
+  each cell keeps its own mark. Filtering the column down to a single entity moves its mark
+  up on its own.
 - Reference implementation: the *Otras deudas* table in `frontend/src/vistas/ficha.ts`
-  (unit detection + `f.eurosEn` in `frontend/src/datos/formato.ts`).
+  (unit detection + `f.eurosEn` in `frontend/src/datos/formato.ts`; `bancoComun` + `marcaBanco`
+  for the hoisted entity mark).
 
 ### 1.2 Category filter above the table
 
@@ -64,7 +69,8 @@ shared primitive `cabecerasOrdenables` in `frontend/src/vistas/primitivos.ts`:
 
 ## 2. Entity marks (banks and counterparties)
 
-Counterparties (banks, lenders) open with their **real logo**:
+Every time a bank or counterparty is named — a table cell, a contract line — the name opens
+with its **real logo**:
 
 - `marcaBanco(nombre)` in `frontend/src/vistas/primitivos.ts` resolves the entity to a
   vendored logo via `logoBanco()` (`frontend/src/vistas/logos.ts`), matched by normalized
@@ -75,7 +81,13 @@ Counterparties (banks, lenders) open with their **real logo**:
 - **Fallback**: an entity without a vendored logo (unknown bank, "In-house bank", "Other")
   renders the engraved typographic monogram — double-ring disc, initials of the significant
   words, current ink (`--tinta`). Anonymous entities (`—`) render no mark.
+- **A repeated symbol hoists to the header** (§1.1): when every visible row of a column is
+  the same entity, the logo rises once to the column header and the cells keep only the name;
+  when the entities differ, each cell carries its own mark. A filter that narrows a column to
+  a single bank moves the logo up.
 - Size is 20 px in tables; `alt=""` because the entity name is always text next to it.
+- Reference implementation: the *Entidad* column of *Otras deudas* (`marcaBanco` + `bancoComun`)
+  and the contract lines (`contratos`) in `frontend/src/vistas/ficha.ts`.
 
 ## 3. Time ruler and playback controls
 
@@ -90,7 +102,18 @@ it selects the interval every screen reads.
 - The playback (`reproducir`) and window-mode (`modo`) controls belong to the ruler and hide
   with it.
 
-## 4. Quick reference
+## 4. Breadcrumb
+
+The breadcrumb (`nav.miga` in `frontend/src/vistas/pagina.ts`) only shows the navigation
+path: the group and, on a company, the company after the separator.
+
+- The current step is text (`aria-current="page"`), the parent steps are real buttons.
+- **No decorative data.** A value that is already stated by the screen — the reading month,
+  the score, the size band — is not repeated in the breadcrumb. Data without a real reading
+  in that place is not rendered, even when it is available.
+- Reference implementation: `pintarMiga` in `frontend/src/vistas/pagina.ts`.
+
+## 5. Quick reference
 
 | Case                              | Rule                                            |
 | --------------------------------- | ----------------------------------------------- |
@@ -98,6 +121,8 @@ it selects the interval every screen reads.
 | Column mixes € and k€             | Keep per-row suffixes, plain header             |
 | Zero under a hoisted unit         | Render `0` (unit-agnostic)                      |
 | Missing value                     | `—`, sorts last in sortable tables              |
+| Same entity in every row          | Logo hoists to the header, cells keep the name |
 | Bank or counterparty row          | Real logo (vendored locally) + name; monogram fallback |
 | Comparative data (`cifraC` tono)  | `baja` in red (`--peligro-t`), `sube` in green (`--exito-t`), value and comparison |
 | Entity pages                      | Time ruler only on the Scoring tab; no playback elsewhere |
+| Breadcrumb                        | Only the path (group › company); no repeated reading month |

@@ -22,7 +22,7 @@ import { h, vaciar } from './dom';
 import { desplegable } from './desplegable';
 import { abrirPropuesta } from './propuesta';
 import { iconoProducto } from './iconos';
-import { hilo, lineaEstado, llamadas, seccion, sello, type Nudo } from './primitivos';
+import { hilo, lineaEstado, llamadas, marcaBanco, seccion, sello, type Nudo } from './primitivos';
 import { placa } from './registro';
 import { seccionTecnica } from './tecnico';
 import { triaje } from './triaje';
@@ -188,13 +188,33 @@ export interface OpcionesGrafico {
 	/** Acciones fijadas y en vista previa. */
 	acciones: Set<string>;
 	previa: string[] | null;
+	/** Escenario definido; los otros se ven sueltos y en su color. */
+	escenario: 'base' | 'drift' | 'stress';
 	/** Un pilar señalado desde la sección de scoring. */
 	pilar: string | null;
 	alto: number;
 	alHilo?: (hs: Hilo[]) => void;
+	/** Tocar la arena del futuro o una etiqueta elige el escenario más cercano. */
+	alElegir?: (e: OpcionesGrafico['escenario']) => void;
 }
 
-const NOMBRE_SUPUESTO = { drift: 'si sigue la deriva', stress: 'si se repite su peor trimestre' } as const;
+type Escenario = OpcionesGrafico['escenario'];
+const ESCENARIOS: Escenario[] = ['base', 'drift', 'stress'];
+const NOMBRE_ESCENARIO = { base: 'Si todo sigue igual', drift: 'Si sigue la deriva', stress: 'Si se repite su peor trimestre' } as const;
+const CORTO_ESCENARIO = { base: 'todo igual', drift: 'deriva', stress: 'peor trimestre' } as const;
+const TONO_ESCENARIO = { base: TONO.tinta, drift: TONO.tellme, stress: TONO.ocre } as const;
+
+/**
+ * Percentil de un escenario en el mes m (0 = el primero previsto). Los supuestos solo
+ * traen la mediana: la franja sale entonces de sus propios granos de ese mes, o de la mediana.
+ */
+function cuantil(e: { q: { p50: number[] } & Partial<Record<'p10' | 'p90', number[]>>; grains?: [number, number][] }, k: 'p10' | 'p50' | 'p90', m: number): number {
+	const q = e.q[k];
+	if (q) return q[m];
+	const v = (e.grains ?? []).filter((g) => g[0] === m + 1).map((g) => g[1]).sort((a, b) => a - b);
+	if (!v.length) return e.q.p50[m];
+	return v[Math.min(v.length - 1, Math.max(0, Math.round((k === 'p10' ? 0.1 : k === 'p90' ? 0.9 : 0.5) * (v.length - 1))))];
+}
 const marcasEje = (lo: number, hi: number) => {
 	const paso = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1e6].find((p) => (hi - lo) / p <= 5) ?? 1e7;
 	const out: number[] = [];
@@ -245,20 +265,25 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const etFuturo: { t: string; clase: string } = { t: '', clase: '' };
 	const boyas: { h: number; texto: string; titulo?: string }[] = [];
 	const HITOS = [3, 6, 12];
-	const alternativas: { texto: string; clase: string; v: number }[] = [];
+	let referenciaTendencia: { col: number; value: number; texto: string } | null = null;
+	const alternativas: { texto: string; clase: string; v: number; k: Escenario }[] = [];
 	const validado = d.validado || 12;
 	const base = d.hor?.scenarios?.base;
-	const q6 = (e: { q: { p10: number[]; p90: number[] } }, k: number) => `${f.score(e.q.p10[k])}–${f.score(e.q.p90[k])}`;
+	const q6 = (e: { q: { p50: number[] } & Partial<Record<'p10' | 'p90', number[]>>; grains?: [number, number][] }, k: number) => `${f.score(cuantil(e, 'p10', k))}–${f.score(cuantil(e, 'p90', k))}`;
+	const elegido: Escenario = hayFuturo(d) && d.hor!.scenarios?.[o.escenario] ? o.escenario : 'base';
 	if (esScore && hayFuturo(d) && base) {
 		const vivas = new Set([...o.acciones, ...(o.previa ?? [])]);
 		const accs = (d.hor!.actions ?? []).filter((a) => vivas.has(a.id));
-		// La franja de la previsión y su mediana; más allá de lo validado, se aclara.
+		// La franja de la previsión y su mediana: una retícula regular en vez de la nube de trayectorias.
 		const abanico = (e: EscenarioM, tono: number, alfa: number): Futuro => ({ granos: [], tono, alfa, mediana: e.q.p50, franja: e.q, validado, hitos: HITOS });
 		if (accs.length) {
-			// «No hacer nada» queda como contorno fantasma; las acciones, en azul, con su mediana.
-			lineas.push({ puntos: base.q.p10.map((v, i) => [hoy + i + 1, v / 10]), tono: TONO.apagado, alfa: 0.7, punteada: true });
-			lineas.push({ puntos: base.q.p90.map((v, i) => [hoy + i + 1, v / 10]), tono: TONO.apagado, alfa: 0.7, punteada: true });
-			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...base.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: TONO.apagado, alfa: 0.8, punteada: true });
+			const tendencia = d.hor!.scenarios?.drift ?? base;
+			const tonoTendencia = tendencia === base ? TONO.apagado : TONO.tellme;
+			const p10 = 'p10' in tendencia.q ? tendencia.q.p10 : [];
+			const p90 = 'p90' in tendencia.q ? tendencia.q.p90 : [];
+			if (p10.length) lineas.push({ puntos: p10.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.45, punteada: true });
+			if (p90.length) lineas.push({ puntos: p90.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.45, punteada: true });
+			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...tendencia.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: tonoTendencia, alfa: 0.9, punteada: true });
 			const principal = accs.length === 1 ? accs[0] : accs.reduce((a, b) => (a.q.p50[5] > b.q.p50[5] ? a : b));
 			// La principal, con su franja; las demás marcadas, solo su mediana.
 			for (const a of accs) futuros.push(a === principal ? abanico(a, TONO.info, 0.72) : { granos: [], tono: TONO.info, alfa: 0.15, mediana: a.q.p50 });
@@ -266,27 +291,39 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			const ids = accs.map((a) => a.id).sort().join();
 			const cifra = accs.length === 1 ? accs[0].engine_new_score : d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids)?.new_score;
 			if (cifra !== undefined) marcas.push([hoy + lag, cifra / 10]);
+			const nombreReferencia = tendencia === base ? 'la referencia base' : 'la tendencia actual';
+			const ultimo = tendencia.q.p50.length - 1;
+			if (ultimo >= 0) referenciaTendencia = { col: hoy + ultimo + 1, value: tendencia.q.p50[ultimo] / 10, texto: tendencia === base ? 'referencia base' : 'tendencia actual' };
 			for (const hz of HITOS) {
 				const k = hz - 1;
-				const dif = Math.round((principal.q.p50[k] - base.q.p50[k]) / 10);
-				boyas.push({ h: hz, texto: `${f.score(base.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana sin hacer nada → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
+				const dif = Math.round((principal.q.p50[k] - tendencia.q.p50[k]) / 10);
+				boyas.push({ h: hz, texto: `${f.score(tendencia.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana de ${nombreReferencia} → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
 			}
 			etFuturo.t = o.previa?.length && !o.previa.every((x) => o.acciones.has(x)) ? 'vista previa · con esta acción' : accs.length > 1 ? `con ${accs.length} acciones` : 'con la acción marcada';
 			etFuturo.clase = 'con-acciones';
 		} else {
-			futuros.push(abanico(base, TONO.tinta, 0.55));
-			for (const hz of HITOS) {
-				const k = hz - 1;
-				const b = base.bands[`h${hz}` as 'h3' | 'h6' | 'h12'];
-				boyas.push({ h: hz, texto: `${f.score(base.q.p50[k])} · ${q6(base, k)}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
+			// Los tres a la vez: el elegido, definido y con su mediana; los otros, sueltos y en su color.
+			for (const k of ESCENARIOS) {
+				const raw = d.hor!.scenarios![k];
+				if (!raw) continue;
+				const es = k === elegido;
+				const granos = 'grains' in raw && raw.grains?.length ? raw.grains : [];
+				if (granos.length) {
+					// El que se mira, en abanico; los otros, solo su mediana, para que no ensucien la gráfica.
+					futuros.push(es ? abanico(raw as EscenarioM, TONO_ESCENARIO[k], 0.55) : { granos: [], tono: TONO_ESCENARIO[k], alfa: 0.22, mediana: raw.q.p50 });
+				} else {
+					lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...raw.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: TONO_ESCENARIO[k], alfa: es ? 0.95 : 0.72, punteada: !es, grosor: es ? 1.1 : 0.8 });
+				}
+				if (!es && raw.q.p50[11] != null) alternativas.push({ texto: `${CORTO_ESCENARIO[k]} · ${f.score(raw.q.p50[11])}`, clase: `esc-${k}`, v: raw.q.p50[11] / 10, k });
 			}
-			etFuturo.t = 'lo que puede pasar';
-		}
-		for (const k of ['drift', 'stress'] as const) {
-			const e = d.hor!.scenarios![k];
-			if (!e) continue;
-			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...e.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: k === 'drift' ? TONO.tellme : TONO.ocre, alfa: 0.9, punteada: true });
-			alternativas.push({ texto: `${NOMBRE_SUPUESTO[k]} · ${f.score(e.q.p50[11])}`, clase: `esc-${k}`, v: e.q.p50[11] / 10 });
+			const esc = d.hor!.scenarios![elegido] ?? base;
+			for (const hz of [3, 6, 12]) {
+				const k = hz - 1;
+				if (k >= esc.q.p50.length) continue;
+				const b = 'bands' in esc ? esc.bands[`h${hz}` as 'h3' | 'h6' | 'h12'] : undefined;
+				boyas.push({ h: hz, texto: `${f.score(esc.q.p50[k])} · ${q6(esc, k)}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
+			}
+			etFuturo.t = `previsto · ${NOMBRE_ESCENARIO[elegido].toLowerCase()}`;
 		}
 	} else if (esScore && d.pasados?.cuts[d.corte]) {
 		// La regla está en un mes pasado: lo que el modelo preveía entonces (sin ver lo que vino después).
@@ -341,6 +378,10 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const zp = eti('zona-t pasado', 'lo que ha pasado', '0', '0'); void zp;
 	const zfFondo = h('div', { class: 'zona-futuro' }); zfFondo.style.left = `${((hoy + 1) / columnas) * 100}%`; caja.prepend(zfFondo);
 	if (etFuturo.t) { const zf = eti(`zona-t futuro ${etFuturo.clase}`, etFuturo.t, `${((hoy + 1) / columnas) * 100}%`, '0'); void zf; }
+	if (referenciaTendencia) {
+		const et = eti('referencia-tendencia', referenciaTendencia.texto, X(Math.min(columnas - 1, referenciaTendencia.col)), Y(referenciaTendencia.value));
+		et.title = 'Trayectoria de referencia para comparar la acción seleccionada.';
+	}
 	if (despues.length && esScore) eti('zona-t despues', 'lo que pasó después', X(Math.min(columnas - 1, hoy + 1)), '14px');
 	if (esScore && hayFuturo(d) && validado < 12) { const ev = eti('sin-validar', 'sin validar', X(hoy + validado + 1), '0'); ev.title = `La previsión está validada fuera de muestra hasta ${validado} meses. Más allá, el modelo no se ha podido comprobar con lo que pasó.`; }
 	// Los horizontes, todos a la vista y en una fila: cuándo y qué se espera (mediana · franja del 80 %).
@@ -353,7 +394,27 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	for (const a of alternativas.sort((x, y) => y.v - x.v)) {
 		const yPx = Math.max((1 - (a.v - lo) / (hi - lo)) * o.alto, ultimoY + 14);
 		ultimoY = yPx;
-		eti(`alternativa ${a.clase}`, a.texto, X(hoy + 12), `${yPx}px`);
+		const et = eti(`alternativa ${a.clase}`, a.texto, X(hoy + 12), `${yPx}px`);
+		et.title = `${NOMBRE_ESCENARIO[a.k]}: a un año, entre ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p10', 11))} y ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p90', 11))}. Toca para verlo definido.`;
+		if (o.alElegir) et.addEventListener('click', (ev) => { ev.stopPropagation(); o.alElegir!(a.k); });
+	}
+	if (o.alElegir && alternativas.length) {
+		caja.classList.add('elegible');
+		caja.addEventListener('click', (ev) => {
+			const r = caja.getBoundingClientRect();
+			const cI = Math.floor(((ev.clientX - r.left) / r.width) * columnas);
+			const m = cI - hoy - 1;
+			if (m < 0 || !d.hor?.scenarios) return;
+			const v = hi - ((ev.clientY - r.top) / r.height) * (hi - lo);
+			let mejor: Escenario = elegido, dm = Infinity;
+			for (const k of ESCENARIOS) {
+				const e = d.hor.scenarios[k];
+				if (!e || e.q.p50[m] == null) continue;
+				const dd = Math.abs(e.q.p50[m] / 10 - v);
+				if (dd < dm) { dm = dd; mejor = k; }
+			}
+			if (mejor !== elegido) o.alElegir!(mejor);
+		});
 	}
 
 	// El hilo de arena: cae por el mes que se señala y se lee el valor exacto.
@@ -526,9 +587,43 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 	}
 	raiz.append(estante);
 	const otras = d.prodE?.other_debt.filter((x) => !x.closed) ?? [];
-	if (otras.length) raiz.append(seccion('Otras deudas', h('div', { class: 'tabla-caja' }, h('table', { class: 'tabla-sutil' },
-		h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, 'Entidad'), h('th', { class: 'num' }, 'Concedido'), h('th', { class: 'num' }, 'Pendiente'), h('th', { class: 'num' }, 'Interés'), h('th', {}, 'Próxima cuota'))),
-		h('tbody', {}, ...otras.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, x.bank ?? '—'), h('td', { class: 'num' }, f.eurosCorto(x.granted)), h('td', { class: 'num' }, f.eurosCorto(x.outstanding)), h('td', { class: 'num' }, x.rate === null ? '—' : `${f.numero(x.rate, 2)} %`), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—'))))))));
+	// La unidad que se repite entre las filas sube a la cabecera y las celdas quedan limpias; el
+	// cero no lastra la unidad (0 € = 0 k€). Si se mezclan, cada fila lleva la suya (docs/DESIGN_UX.mdx).
+	const unidadDe = (v: number | null) => (v === null || v === 0 ? null : Math.abs(v) >= 1e6 ? 'M€' : Math.abs(v) >= 1e3 ? 'k€' : '€');
+	const unidadComun = (vs: (number | null)[]) => {
+		const us = new Set(vs.filter((v) => v !== null && v !== 0).map(unidadDe));
+		return us.size === 1 ? [...us][0]! : null;
+	};
+	const importe = (v: number | null, u: '€' | 'k€' | 'M€' | null) => (v === null ? '—' : u ? f.eurosEn(v, u) : f.eurosCorto(v));
+	// El símbolo que se repite en todas las filas de la columna sube a su cabecera y las celdas se
+	// quedan con el nombre; si las entidades difieren, cada celda abre con su marca (docs/DESIGN_UX.mdx).
+	const bancoComun = (vs: typeof otras) => {
+		const bancos = vs.map((x) => x.bank).filter((b): b is string => !!b);
+		return bancos.length && bancos.every((b) => b === bancos[0]) ? bancos[0] : null;
+	};
+	// La tabla se reconstruye por filtro y las unidades se vuelven a medir sobre las filas visibles:
+	// filtrar a un solo tipo puede cambiar la unidad común de la columna (docs/DESIGN_UX.mdx).
+	const tablaOtras = (visibles: typeof otras) => {
+		const uc = unidadComun(visibles.map((x) => x.granted));
+		const up = unidadComun(visibles.map((x) => x.outstanding));
+		const bc = bancoComun(visibles);
+		return h('table', { class: 'tabla-sutil' },
+			h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, bc ? h('span', { class: 'banco' }, marcaBanco(bc), 'Entidad') : 'Entidad'), h('th', { class: 'num' }, uc ? `Concedido (${uc})` : 'Concedido'), h('th', { class: 'num' }, up ? `Pendiente (${up})` : 'Pendiente'), h('th', { class: 'num' }, 'Interés (%)'), h('th', {}, 'Próxima cuota'))),
+			h('tbody', {}, ...visibles.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, !x.bank ? '—' : bc ? x.bank : h('span', { class: 'banco' }, marcaBanco(x.bank), x.bank)), h('td', { class: 'num' }, importe(x.granted, uc)), h('td', { class: 'num' }, importe(x.outstanding, up)), h('td', { class: 'num' }, x.rate === null ? '—' : f.numero(x.rate, 2)), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—')))));
+	};
+	const tipos = [...new Set(otras.map((x) => x.type_label))];
+	let filtro: string | null = null;
+	const tabla = h('div');
+	const pinta = () => { vaciar(tabla); tabla.append(tablaOtras(filtro === null ? otras : otras.filter((x) => x.type_label === filtro))); };
+	const botonesFiltro = tipos.length > 1
+		? [null, ...tipos].map((t) => h('button', { type: 'button', class: 'filtro-opcion', 'aria-pressed': String(filtro === t), 'data-tipo': String(t) }, t === null ? 'Todos' : t))
+		: null;
+	if (botonesFiltro) for (const b of botonesFiltro) b.addEventListener('click', () => { filtro = b.dataset.tipo === 'null' || b.dataset.tipo === undefined ? null : b.dataset.tipo; for (const x of botonesFiltro) x.setAttribute('aria-pressed', String(x === b)); pinta(); });
+	pinta();
+	if (otras.length) raiz.append(seccion('Otras deudas',
+		...(botonesFiltro ? [h('div', { class: 'filtro-tipo', role: 'group', 'aria-label': 'Filtrar otras deudas por tipo' }, ...botonesFiltro)] : []),
+		h('div', { class: 'tabla-caja' }, tabla),
+		h('p', { class: 'nota' }, 'No son de los siete productos, pero pesan en el pilar de deuda.')));
 	return raiz;
 }
 
@@ -538,7 +633,7 @@ function contratos(t: TenenciaM): HTMLElement {
 	for (const it of t.items.slice(0, 4)) {
 		const uso = !it.inconsistent && it.usage !== null ? Math.max(0, Math.min(1, it.usage)) : null;
 		lista.append(h('li', {},
-			h('span', { class: 'ct-banco' }, it.bank ?? 'Entidad sin nombre'),
+			h('span', { class: 'ct-banco' }, marcaBanco(it.bank), it.bank ?? 'Entidad sin nombre'),
 			uso !== null ? h('span', { class: 'ct-uso', title: `Dispuesto ${f.eurosCorto(it.outstanding ?? 0)} de ${f.eurosCorto(it.granted ?? 0)}` }, h('span', { class: 'ct-uso-barra' }, h('i', { style: { width: `${uso * 100}%` } })), h('span', { class: 'ct-uso-t' }, `${f.porcentaje(uso, 0)} de ${f.eurosCorto(it.granted ?? 0)}`))
 				: h('span', { class: 'ct-dato' }, it.inconsistent ? 'límite y dispuesto incoherentes en el origen' : it.balance ? `saldo ${f.eurosCorto(it.balance)}` : it.granted !== null ? `límite ${f.eurosCorto(it.granted)}` : ''),
 			h('span', { class: 'ct-dato' }, [it.rate !== null ? `${f.numero(it.rate, 2)} % ${it.rate_type ?? ''}`.trim() : '', it.since ? `desde ${f.mesCorto(it.since)}` : ''].filter(Boolean).join(' · '))));
@@ -601,7 +696,8 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		const a = r.accion;
 		const clave = `${d.id}:${d.corte}:${a.id}`;
 		const marca = h('input', { type: 'checkbox', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
-		marca.addEventListener('change', () => { acc.horizonte.alternar(a.id, marca.checked); li.classList.toggle('elegida', marca.checked); });
+		const fijarMarca = (v: boolean) => { marca.checked = v; acc.horizonte.alternar(a.id, v); li.classList.toggle('elegida', v); };
+		marca.addEventListener('change', () => fijarMarca(marca.checked));
 		// «Propuesta» es la palabra del comercial; para quien la va a hacer, está pendiente.
 		const estadoSel = desplegable<EstadoAccion>({
 			etiqueta: 'Estado de la acción', clase: 'sutil', valor: estadosG[clave] ?? 'propuesta',
@@ -610,7 +706,7 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		});
 		estadoSel.raiz.addEventListener('click', (ev) => ev.stopPropagation());
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 24, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
-		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-estado': estadosG[clave] ?? 'propuesta', 'data-accion': a.id },
+		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id },
 			h('label', { class: 'rec-marca' }, marca, h('span', { class: 'rec-n' }, String(i + 1))),
 			h('div', { class: 'rec-cuerpo' },
 				h('div', { class: 'rec-titulo' }, tituloAccion(a)),
@@ -619,9 +715,10 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
 			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
 			h('div', { class: 'rec-estado' }, estadoSel.raiz));
-		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija.
+		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija — también al pulsar la fila.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
+		li.addEventListener('click', (e) => { if ((e.target as Element).closest('.rec-marca')) return; fijarMarca(!marca.checked); });
 		lista.append(li);
 	});
 	const base = d.hor?.scenarios?.base;
@@ -635,15 +732,14 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		lista.append(nada);
 	}
 	if (!recs.length) lista.prepend(h('li', { class: 'rec vacia' }, h('p', {}, m.abstain ? `El motor se abstiene este mes y no propone acciones: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}` : !m.feed_live ? 'Sin datos del banco al día, el motor no propone acciones.' : 'El motor no encuentra este mes ninguna palanca que suba el score al menos medio punto.')));
-	const titulo = d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo');
-	const sec = seccion(titulo, lista);
-	// El plan: lo que se marca aquí, escrito para llevarlo al banco.
-	if (voz('', 'cfo')) {
-		const plan = h('button', { type: 'button', class: 'miga-accion plan-boton' }, 'Mi plan para el banco');
-		plan.addEventListener('click', () => abrirPropuesta(d, sel, acc));
-		(sec.querySelector('.sec-titulo') as HTMLElement).after(plan);
-	}
-	raiz.append(sec);
+	const cabeceraAcciones = h(
+		'div',
+		{ class: 'sec-acciones-cabecera' },
+		h('p', { class: 'nota' }, voz('Las acciones y su efecto las calcula el motor. Marca una o varias para verlas en el horizonte, o arma la propuesta al cliente.', 'Las acciones y su efecto los calcula el motor. Marca una o varias para verlas en tu horizonte, o arma tu plan para el banco.')),
+		h('button', { type: 'button', class: 'boton-propuesta' }, voz('Armar propuesta al cliente', 'Mi plan para el banco')),
+	);
+	cabeceraAcciones.querySelector('button')!.addEventListener('click', () => abrirPropuesta(d, acc.horizonte.elegidas(), acc));
+	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), cabeceraAcciones, lista));
 	if (d.kind === 'group') raiz.append(seccion(voz('Lo que proponen sus empresas', 'Lo que puede hacer cada una de tus empresas'), accionesEmpresas(d, acc)));
 	return raiz;
 }

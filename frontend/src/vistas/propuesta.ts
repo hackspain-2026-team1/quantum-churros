@@ -41,6 +41,7 @@ import {
   nombreBanda,
   nombrePilar,
   tituloAccion,
+  tituloFinanciacion,
 } from "../datos/redaccion";
 import {
   validarPropuesta,
@@ -50,6 +51,7 @@ import {
 import { fuenteTexto } from "../datos/tasas";
 import { h, vaciar } from "./dom";
 import type { Acciones, DatosFicha } from "./ficha";
+import { marcaBanco } from "./primitivos";
 
 const nombreDe = (kind: "company" | "group", id: string) =>
   kind === "company" ? f.empresa(id) : f.grupo(id);
@@ -128,7 +130,7 @@ function financiacionDe(
       filas.push({
         id: x.id,
         kind: x.kind,
-        title: x.title,
+        title: tituloFinanciacion(x),
         amount: x.amount,
         uplift_tenths: x.uplift_tenths,
         bank,
@@ -202,6 +204,7 @@ function tarjetaBanco(b: BancoConectado): HTMLElement {
     h(
       "div",
       { class: "propuesta-banco-cabeza" },
+      marcaBanco(b.bank, 18),
       h("p", { class: "propuesta-titulo" }, b.bank),
       b.otorga
         ? h(
@@ -245,7 +248,12 @@ function filaOferta(
     h(
       "span",
       { class: "propuesta-oferta-banco" },
-      h("span", { class: "propuesta-titulo" }, oferta.bank),
+      h(
+        "span",
+        { class: "propuesta-oferta-entidad" },
+        marcaBanco(oferta.bank, 18),
+        h("span", { class: "propuesta-titulo" }, oferta.bank),
+      ),
       h(
         "span",
         { class: "propuesta-nota" },
@@ -958,7 +966,10 @@ export function abrirPropuesta(
     pintar();
   };
 
-  botonPdf.addEventListener("click", () => window.print());
+  botonPdf.addEventListener("click", () => {
+    document.body.classList.add("imprimir-propuesta");
+    window.print();
+  });
 
   // — Montaje.
   fondo.append(
@@ -1015,8 +1026,7 @@ export function abrirPropuesta(
         checked: sel.has(a.id),
       }) as HTMLInputElement;
       marca.addEventListener("change", () => {
-        if (marca.checked) sel.add(a.id);
-        else sel.delete(a.id);
+        acc.horizonte.alternar(a.id, marca.checked);
         acc.repintarArena();
         repintarResumen();
         // tocar la elección vuelve el documento al borrador en vivo
@@ -1143,7 +1153,7 @@ export function abrirPropuesta(
           h(
             "p",
             { class: "propuesta-titulo" },
-            `${x.title}${x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : ""}${nativos.has(x.id) ? ` · ${f.delta(x.uplift_tenths)}` : " · efecto en las empresas"}`,
+            `${tituloFinanciacion(x)}${x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : ""}${nativos.has(x.id) ? ` · ${f.delta(x.uplift_tenths)}` : " · efecto en las empresas"}`,
           ),
           h("p", { class: "propuesta-nota" }, x.detail),
           lista,
