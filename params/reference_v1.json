@@ -290,7 +290,7 @@
   "robust": {
     "monthly_winsor_multiple": 3.0
   },
-  "sha256": "b054cda1670dc3d9b4ad9e9c29a89c010b5ee8e771a4ecdf44abc66863f54ad3",
+  "sha256": "7dd1063c5793b0d0e4442dbbb486f44ad2779af2f70e77a3de2e13cd1c2c6c7b",
   "size_bands": {
     "hold_months": 3,
     "upper_bounds_eur": [2000000.0, 10000000.0, 50000000.0],
@@ -303,7 +303,7 @@
     "long_horizon": 12,
     "long_min_months": 6,
     "long_sigma_mult": 2.0,
-    "long_threshold": 8.0,
+    "long_threshold": 7.25,
     "min_delta_points": 6.0,
     "min_scored_months": 6,
     "min_sigma_multiple": 1.5,

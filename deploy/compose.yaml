@@ -30,9 +30,13 @@ services:
       CORS_ORIGINS: ${ORIGIN:-http://localhost:3101}
       SCORES_PATH: /app/artifacts/scores.parquet
       XRAY_BUNDLE_DIR: /app/bundle
+      XRAY_HORIZONS_DIR: /app/rumbo/horizons
+      XRAY_ENTITY_ALIASES_PATH: /app/rumbo/entities.json
+      FINANCING_DEMO_ENABLED: ${FINANCING_DEMO_ENABLED:-true}
     volumes:
       - ./artifacts:/app/artifacts:ro
       - ./bundle:/app/bundle:ro
+      - ./rumbo:/app/rumbo:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,6 +51,47 @@ services:
           memory: 2g
     networks: [xray]
 
+  mailpit:
+    image: axllent/mailpit:v1.31.0
+    restart: unless-stopped
+    environment:
+      MP_LABEL: Embat X-Ray · correo simulado
+      MP_MAX_MESSAGES: 500
+    ports:
+      - "${MAILPIT_BIND:-127.0.0.1}:${MAILPIT_HTTP_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks: [xray]
+
+  notifier:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    profiles: [notify]
+    restart: "no"
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      NOTIFICATION_FROM: Embat X-Ray <xray@embat.test>
+      FRONTEND_BASE_URL: ${ORIGIN:-http://localhost:3101}
+      MAILPIT_API_URL: http://mailpit:8025
+    volumes:
+      - ./bundle:/app/bundle:ro
+    command: ["xray-db", "notify-demo", "/app/bundle", "--clear"]
+    depends_on:
+      mailpit:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    networks: [xray]
+
   web:
     image: ${WEB_IMAGE:?WEB_IMAGE is required}
     pull_policy: always
@@ -55,8 +100,8 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
     volumes:
-      - ./bundle:/app/dist/data/v1:ro
-      - ./rumbo:/app/dist/data/rumbo:ro
+      - ./bundle:/usr/share/nginx/html/data/v1:ro
+      - ./rumbo:/usr/share/nginx/html/data/rumbo:ro
     ports:
       - "127.0.0.1:${WEB_PORT:-3101}:3000"
     depends_on:

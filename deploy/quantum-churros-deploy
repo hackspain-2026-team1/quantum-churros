@@ -67,13 +67,13 @@ finish() {
   local exit_code=$?
   docker logout "$registry" >/dev/null 2>&1 || true
 
-  if [[ $exit_code -ne 0 && $release_changed -eq 1 && -n "$previous_api_image" && -n "$previous_web_image" ]]; then
+  if [[ $deployment_succeeded -ne 1 && $release_changed -eq 1 && -n "$previous_api_image" && -n "$previous_web_image" ]]; then
     echo "deployment failed; restoring the previous application images" >&2
     write_release "$previous_api_image" "$previous_web_image"
     compose up -d --remove-orphans --wait --wait-timeout 180 || true
   fi
 
-  if [[ $deployment_succeeded -eq 1 ]]; then
+  if [[ $deployment_succeeded -eq 1 && $exit_code -eq 0 ]]; then
     echo "deployed $release_sha successfully"
   fi
 
@@ -85,8 +85,13 @@ printf '%s\n' "$registry_token" | docker login "$registry" --username "$registry
 write_release "$api_image" "$web_image"
 release_changed=1
 
-compose pull api web
+compose pull api web mailpit
 compose up -d --remove-orphans --wait --wait-timeout 180
 curl --fail --silent --show-error --max-time 15 http://127.0.0.1:3101/ >/dev/null
 
 deployment_succeeded=1
+
+if ! compose run --rm notifier; then
+  echo "the notifier failed; the healthy API and web deployment remains active" >&2
+  exit 70
+fi

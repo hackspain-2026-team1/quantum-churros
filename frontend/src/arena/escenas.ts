@@ -10,7 +10,7 @@ import { PILARES, esDeterioro, esMejora, type Empresa, type Grupo, type Pilar } 
 import type { Periodo } from '../datos/periodos';
 import { encajaAGrupo } from '../datos/encaje';
 import { PRODUCTOS } from '../datos/productos';
-import { DOMINIO_SCORE, cajasExpediente, tramo, xScore, yRitmo, type Marco } from '../geometria';
+import { DOMINIO_SCORE, baseRegla, cajasExpediente, tramo, xScore, yRitmo, type Marco } from '../geometria';
 
 export const POR_GRUPO = 200;
 export const RESERVA = 14000;
@@ -73,7 +73,7 @@ function volcar(e: Escena, granos: number[], l: Lote, gx: ArrayLike<number>, gy:
 function reposo(n: number, m: Marco): Lote {
 	const l = new Lote();
 	const pts: Puntos = [];
-	for (let i = 0; i < n; i++) pts.push(m.regla.x + Math.random() * m.regla.w, m.H - 3 - Math.abs(gauss()) * 2);
+	for (let i = 0; i < n; i++) pts.push(m.regla.x + Math.random() * m.regla.w, m.H + 30 + Math.abs(gauss()) * 2);
 	l.add(pts, TONO.filete, 0.06, 1.1);
 	return l;
 }
@@ -108,10 +108,20 @@ export function gruposDeLaRegla(ctx: Contexto) {
 	return r;
 }
 
-/** Cuántos avisos hay en cada periodo (mejoras y deterioros), hasta el corte. */
-export function avisosPorPeriodo(ctx: Contexto, grupos: number[]) {
+/** Cuántos avisos hay en cada periodo (mejoras y deterioros), hasta el corte. `propios`: los avisos
+ * de la entidad abierta (índice de mes y si es mejora), en lugar de los de los grupos. */
+export function avisosPorPeriodo(ctx: Contexto, grupos: number[], propios?: { month: number; mejora: boolean }[]) {
 	const mejoras = new Array(ctx.periodos.length).fill(0), deterioros = new Array(ctx.periodos.length).fill(0);
 	const lista: { gi: number; pi: number; kind: string; month: number }[] = [];
+	if (propios) {
+		for (const a of propios) {
+			if (a.month > ctx.corte) continue;
+			const pi = ctx.periodos.findIndex((p) => p.meses.includes(a.month));
+			if (pi < 0) continue;
+			if (a.mejora) mejoras[pi]++; else deterioros[pi]++;
+		}
+		return { mejoras, deterioros, lista };
+	}
 	for (const gi of grupos) {
 		for (const a of ctx.c.groups[gi].alerts) {
 			if (a.state !== 'fired' || a.month > ctx.corte) continue;
@@ -126,41 +136,50 @@ export function avisosPorPeriodo(ctx: Contexto, grupos: number[]) {
 
 // ─────────────────────────────────────────────── la regla (común a todas las vistas)
 
-/** Línea del tiempo, marcas de periodo y los avisos posados como montones: mejoras arriba, deterioros abajo. */
-function reglaArena(l: Lote, ctx: Contexto, m: Marco, grupos: number[]) {
-	const base = m.regla.y + (m.movil ? 40 : 46);
+/** Línea del tiempo, marcas de periodo y los avisos posados como montones: mejoras arriba, deterioros abajo.
+ * En las páginas solo hay un tirador (el corte): toda la línea hasta él va en tinta. */
+function reglaArena(l: Lote, ctx: Contexto, m: Marco, grupos: number[], propios?: { month: number; mejora: boolean }[], pagina = false) {
+	const base = baseRegla(m);
 	const { periodos, pDesde, pHasta, corte } = ctx;
 	const xCorte = tramo(m, [corte]).x1;
-	const tIni = tramo(m, pDesde.meses).x0;
+	const tIni = pagina ? m.tiempo.x : tramo(m, pDesde.meses).x0;
+	const xFin = tramo(m, [ctx.c.months.length - 1]).x1;
 	l.add(punteado(m.tiempo.x, base, Math.min(tIni, xCorte), base, 3.2), TONO.filete, 0.9, 1.3);
 	l.add(punteado(tIni, base, xCorte, base, 2.2), TONO.tinta, 0.6, 1.35);
+	if (xCorte < xFin - 2) l.add(punteado(xCorte, base, xFin, base, 3.2), TONO.filete, 0.9, 1.3);
 	for (const p of periodos) {
 		const t = tramo(m, p.meses);
-		if (t.x0 > xCorte) break;
 		l.add(punteado(t.x0, base - 3, t.x0, base + 3, 2), TONO.filete, 0.9, 1.2);
 	}
-	const { mejoras, deterioros } = avisosPorPeriodo(ctx, grupos);
+	const { mejoras, deterioros } = avisosPorPeriodo(ctx, grupos, propios);
 	const maxN = Math.max(1, ...mejoras, ...deterioros);
 	periodos.forEach((p, pi) => {
 		const t = tramo(m, p.meses);
 		if (t.x0 > xCorte) return;
-		const dentro = pi >= pDesde.i && pi <= pHasta.i;
-		const ancho = Math.min(t.w * 0.42, 26);
+		const dentro = pagina || (pi >= pDesde.i && pi <= pHasta.i);
+		const ancho = Math.min(t.w * 0.42, 22);
 		const monton = (n: number, arriba: boolean, tono: number) => {
 			if (!n) return;
-			const alto = 4 + (m.movil ? 16 : 22) * Math.sqrt(n / maxN);
-			const granos = Math.round(18 + 150 * Math.sqrt(n / maxN));
+			const alto = 2 + (arriba ? (m.movil ? 9 : 12) : (m.movil ? 6 : 8)) * Math.sqrt(n / maxN);
+			const granos = Math.round(14 + 110 * Math.sqrt(n / maxN));
 			const pts: Puntos = [];
 			for (let i = 0; i < granos; i++) {
 				const hh = Math.pow(Math.random(), 0.8);
 				const w = (1 - hh) * ancho;
 				pts.push(t.xc + (Math.random() - 0.5) * 2 * w, base + (arriba ? -1 : 1) * (4 + hh * alto));
 			}
-			l.add(pts, tono, dentro ? 0.95 : 0.45, 1.55);
+			l.add(pts, tono, dentro ? 0.95 : 0.45, 1.5);
 		};
 		monton(mejoras[pi], true, TONO.exito);
 		monton(deterioros[pi], false, TONO.peligro);
 	});
+}
+
+/** La regla sola, para las páginas: sus granos se añaden a la escena de placas (fijos). */
+export function reglaPagina(ctx: Contexto, m: Marco, propios: { month: number; mejora: boolean }[] | null) {
+	const l = new Lote();
+	reglaArena(l, ctx, m, [], propios ?? [], true);
+	return l;
 }
 
 // ─────────────────────────────────────────────── plano

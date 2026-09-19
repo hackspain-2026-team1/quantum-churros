@@ -376,6 +376,7 @@ def _actions(month: EntityMonth, params: Any, group_row: Any, shown: int) -> dic
             "uplift_tenths": max(0, action.new_score_tenths - shown),
             "new_score_tenths": action.new_score_tenths,
             "effort": action.effort,
+            "amount_eur": round(action.amount_eur, 2) if action.amount_eur is not None else None,
         }
         for action in plan.actions
     ]
@@ -404,6 +405,7 @@ def _actions(month: EntityMonth, params: Any, group_row: Any, shown: int) -> dic
                             ),
                             "new_score_tenths": _score_tenths(action.new_score),
                             "effort": action.effort,
+                            "amount_eur": round(action.amount_eur, 2) if action.amount_eur is not None else None,
                         }
                         for action in stage.actions
                     ],

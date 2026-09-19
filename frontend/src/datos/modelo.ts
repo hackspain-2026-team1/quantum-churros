@@ -118,6 +118,8 @@ export interface Cartera {
 	manifiesto?: Manifiesto;
 	productos?: ProductosIndiceM | null;
 	horizontes?: HorizontesIndiceM | null;
+	/** Avisos de empresa (solo con datos reales): los usa el monitor de la portada. */
+	alertasEmpresas?: Alerta[];
 }
 
 export const NOMBRE_PILAR: Record<Pilar, string> = {

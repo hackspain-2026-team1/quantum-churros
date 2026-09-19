@@ -6,21 +6,9 @@
 // Si un fichero de Rumbo falta, la función devuelve null y la interfaz lo dice; nunca rellena con otra cosa.
 
 import type {
-  AlertaM,
-  EmpresaM,
-  EntidadesM,
-  EvidenciaM,
-  GrupoM,
-  HorizonteM,
-  HorizontesIndiceM,
-  InvoicesDueM,
-  Manifiesto,
-  ParametrosM,
-  ProductosEmpresaM,
-  ProductosGrupoM,
-  ProductosIndiceM,
-  ReciboM,
-} from "./contrato";
+	AlertaM, EmpresaM, EntidadesM, EvidenciaM, GrupoM, HorizonteM, HorizontesIndiceM, HorizontesPasadosM, InvoicesDueM, Manifiesto, ParametrosM,
+	ProductosEmpresaM, ProductosGrupoM, ProductosIndiceM, ReciboM,
+} from './contrato';
 
 const BASE = import.meta.env.BASE_URL;
 const conBarra = (r: string) => (r.endsWith("/") ? r : `${r}/`);
@@ -49,28 +37,21 @@ function leer<T>(url: string, opcional = false): Promise<T | null> {
 }
 
 export const carga = {
-  manifiesto: () => leer<Manifiesto>(`${RAIZ_BUNDLE}manifest.json`),
-  grupo: (id: string) => leer<GrupoM>(`${RAIZ_BUNDLE}groups/${id}.json`),
-  empresa: (id: string) =>
-    leer<EmpresaM>(`${RAIZ_BUNDLE}companies/${id}.json`, true),
-  evidencia: (id: string) =>
-    leer<EvidenciaM>(`${RAIZ_BUNDLE}evidence/${id}.json`, true),
-  alertas: () => leer<{ alerts: AlertaM[] }>(`${RAIZ_BUNDLE}alerts.json`),
-  facturasVencidas: () =>
-    leer<InvoicesDueM>(`${RAIZ_BUNDLE}invoices_due.json`, true),
-  recibo: () => leer<ReciboM>(`${RAIZ_BUNDLE}receipt.json`, true),
-  productosEmpresa: (id: string) =>
-    leer<ProductosEmpresaM>(`${RAIZ_RUMBO}products/${id}.json`, true),
-  productosGrupo: (id: string) =>
-    leer<ProductosGrupoM>(`${RAIZ_RUMBO}products/${id}.json`, true),
-  productosIndice: () =>
-    leer<ProductosIndiceM>(`${RAIZ_RUMBO}products/index.json`, true),
-  horizonte: (id: string) =>
-    leer<HorizonteM>(`${RAIZ_RUMBO}horizons/${id}.json`, true),
-  horizontesIndice: () =>
-    leer<HorizontesIndiceM>(`${RAIZ_RUMBO}horizons/index.json`, true),
-  parametros: () => leer<ParametrosM>(`${RAIZ_RUMBO}params.json`, true),
-  entidades: () => leer<EntidadesM>(`${RAIZ_RUMBO}entities.json`, true),
+	manifiesto: () => leer<Manifiesto>(`${RAIZ_BUNDLE}manifest.json`),
+	grupo: (id: string) => leer<GrupoM>(`${RAIZ_BUNDLE}groups/${id}.json`),
+	empresa: (id: string) => leer<EmpresaM>(`${RAIZ_BUNDLE}companies/${id}.json`, true),
+	evidencia: (id: string) => leer<EvidenciaM>(`${RAIZ_BUNDLE}evidence/${id}.json`, true),
+	alertas: () => leer<{ alerts: AlertaM[] }>(`${RAIZ_BUNDLE}alerts.json`),
+	facturasVencidas: () => leer<InvoicesDueM>(`${RAIZ_BUNDLE}invoices_due.json`, true),
+	recibo: () => leer<ReciboM>(`${RAIZ_BUNDLE}receipt.json`, true),
+	productosEmpresa: (id: string) => leer<ProductosEmpresaM>(`${RAIZ_RUMBO}products/${id}.json`, true),
+	productosGrupo: (id: string) => leer<ProductosGrupoM>(`${RAIZ_RUMBO}products/${id}.json`, true),
+	productosIndice: () => leer<ProductosIndiceM>(`${RAIZ_RUMBO}products/index.json`, true),
+	horizonte: (id: string) => leer<HorizonteM>(`${RAIZ_RUMBO}horizons/${id}.json`, true),
+	horizontePasado: (id: string) => leer<HorizontesPasadosM>(`${RAIZ_RUMBO}horizons/pasados/${id}.json`, true),
+	horizontesIndice: () => leer<HorizontesIndiceM>(`${RAIZ_RUMBO}horizons/index.json`, true),
+	parametros: () => leer<ParametrosM>(`${RAIZ_RUMBO}params.json`, true),
+	entidades: () => leer<EntidadesM>(`${RAIZ_RUMBO}entities.json`, true),
 };
 
 /** Lo que se ha cargado ya, sin esperar (para pintar a la primera si está en caché). */

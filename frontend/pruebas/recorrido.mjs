@@ -13,6 +13,7 @@ const DIRECCION = process.env.XRAY_URL ?? 'http://127.0.0.1:5317/';
 const DATOS = process.env.XRAY_DATOS ?? '/datos/';
 const RUMBO = process.env.XRAY_RUMBO ?? '/rumbo/';
 const DIR = fileURLToPath(new URL('./capturas/', import.meta.url));
+const GRABADA = readFileSync(new URL('./jev/respuesta-grabada.json', import.meta.url), 'utf8');
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 mkdirSync(DIR, { recursive: true });
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -38,7 +39,15 @@ async function pagina(ruta, ancho = 1440, alto = 860, movil = false) {
 	p.errores = []; p.fuera = [];
 	p.on('console', (m) => { if (m.type() === 'error') p.errores.push(m.text()); });
 	p.on('pageerror', (e) => p.errores.push(e.message));
-	p.on('request', (r) => { const u = new URL(r.url()); if (!['127.0.0.1', 'localhost'].includes(u.hostname) && u.protocol.startsWith('http')) p.fuera.push(r.url()); });
+	// El Worker de Jev es el único servicio externo, y en las pruebas responde una grabación.
+	await p.setRequestInterception(true);
+	p.on('request', (r) => {
+		const u = new URL(r.url());
+		if (u.hostname.endsWith('.workers.dev') && r.method() === 'OPTIONS') return r.respond({ status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' } });
+		if (u.hostname.endsWith('.workers.dev') && u.pathname === '/vista') { p.jev = (p.jev ?? 0) + 1; return r.respond({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: GRABADA }); }
+		if (!['127.0.0.1', 'localhost'].includes(u.hostname) && u.protocol.startsWith('http')) p.fuera.push(r.url());
+		r.continue();
+	});
 	await p.evaluateOnNewDocument(() => localStorage.clear());
 	await p.goto(`${DIRECCION}?captura${ruta}`, { waitUntil: 'networkidle0' });
 	await esperar(900);
@@ -56,6 +65,52 @@ comprobar('arranca en la entrada', (await estado(p)).vista === 'entrada');
 comprobar('los datos son los del motor', (await p.$eval('.nota-datos', (x) => x.textContent)).includes('datos reales'));
 await hasta(p, () => document.querySelectorAll('.atencion li.tocable').length > 0);
 comprobar('«las que piden atención hoy» sale de los datos', (await p.$$('.atencion li.tocable')).length > 0);
+comprobar('la portada no lleva regla ni reloj de arena', await p.evaluate(() => getComputedStyle(document.querySelector('.reproducir')).display === 'none' && getComputedStyle(document.querySelector('.regla')).display === 'none'));
+comprobar('la portada lleva la rosa de los vientos y no repite la marca en la cabecera', await p.evaluate(() => !!document.querySelector('.entrada-rosa[data-placa]') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'hidden'));
+// ─── 1b. El monitor ───────────────────────────────────────
+{
+	const pf = await leer(p, `${DATOS}portfolio.json`);
+	const tt = pf.months.length - 1;
+	const criticas = pf.groups.filter((g) => g.band[tt] === 'critical').length;
+	const linea = await p.$eval('.mon-estado', (x) => x.textContent);
+	comprobar('el estado del mes sale de portfolio.json', linea.includes(`${criticas} en crítico`), `${criticas} en crítico`);
+	const primera = await p.$eval('.mon-atencion li.tocable .at-texto', (x) => x.textContent);
+	comprobar('piden atención empieza por las que entran en crítico', primera.startsWith('entra en crítico'), primera);
+	const campana = await p.$eval('.campana', (x) => x.textContent);
+	comprobar('la portada abre el plano y el tapiz a pantalla completa', (await p.$$eval('.mon-mapas .mapa-btn', (xs) => xs.map((x) => x.textContent))).join('|').includes('tapiz'));
+	comprobar('la campana cuenta los avisos del mes', /\d+ avisos?/.test(campana), campana);
+	// Las siete formas, en arena y en tabla.
+	let formasOk = 0;
+	for (const forma of ['ranking', 'bandas', 'plano', 'tapiz', 'flujo', 'avisos', 'horizonte']) {
+		await p.click(`.mon-forma[data-forma="${forma}"]`); await esperar(250);
+		const arena = await p.$('.mon-lienzo[data-placa], .mon-lienzo .mon-lienzo-arena[data-placa]');
+		await p.click('.mon-modo button[data-valor="tabla"]'); await esperar(250);
+		const tabla = await p.$('.mon-tabla');
+		await p.click('.mon-modo button[data-valor="arena"]'); await esperar(150);
+		if (arena && tabla) formasOk++;
+	}
+	comprobar('las siete formas se ven en arena y en tabla', formasOk === 7, `${formasOk} de 7`);
+	await p.click('.mon-forma[data-forma="bandas"]'); await esperar(700);
+	const antes = await p.evaluate(() => [...window.xray.arena.px.slice(0, 20000)]);
+	await p.click('.mon-forma[data-forma="plano"]'); await esperar(900);
+	const movidos = await p.evaluate((a) => { const b = window.xray.arena.px; let n = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 3) n++; return n; }, antes);
+	comprobar('cambiar de forma mueve los granos de cada entidad', movidos > 5000, `${movidos} granos`);
+	await p.click('.mon-unidad button[data-valor="empresas"]'); await esperar(500);
+	const nEmp = await p.$eval('.mon-cuantas', (x) => x.textContent);
+	comprobar('el monitor cambia a empresas', /empresas/.test(nEmp), nEmp);
+	await p.click('.mon-unidad button[data-valor="organizaciones"]'); await esperar(300);
+	// «Dile qué quieres ver»: palabras al instante y Jev (grabado) después.
+	comprobar('«dile qué quieres ver» está a la vista, con ejemplos', await p.evaluate(() => { const c = document.querySelector('.mon-pedir-campo'); const r = c?.getBoundingClientRect(); return !!r && r.width > 200 && document.querySelectorAll('.mon-ejemplos .ejemplo').length >= 3; }));
+	await p.type('.mon-pedir-campo', 'las organizaciones grandes que se tuercen, en tabla');
+	await p.keyboard.press('Enter');
+	await hasta(p, () => /Jev,/.test(document.querySelector('.mon-entendido')?.textContent ?? ''));
+	const q = await p.evaluate(() => Object.fromEntries(new URLSearchParams(location.search)));
+	comprobar('dile qué quieres ver: la frase se vuelve una vista', q.mz === 'tuerce' && q.mtam === 'Grande' && q.mm === 'tabla' && !!p.jev, JSON.stringify({ mz: q.mz, mtam: q.mtam, mm: q.mm }));
+	await foto(p, '01b-monitor');
+	await p.$eval('.mon-descripcion .mon-quitar', (b) => b.click()); await esperar(200);
+	await p.evaluate(() => { history.replaceState(null, '', location.pathname + '?captura'); });
+	await p.goto(`${DIRECCION}?captura`, { waitUntil: 'networkidle0' }); await esperar(900);
+}
 await foto(p, '01-entrada');
 await p.type('.entrada-buscar', '237');
 await esperar(200);
@@ -66,6 +121,8 @@ await p.keyboard.press('Enter');
 await hasta(p, () => document.querySelector('.hoja-ficha h1')?.textContent === 'Grupo 237');
 let e = await estado(p);
 comprobar('Enter abre la organización', e.vista === 'organizacion' && e.sel === 'GROUP_0237', `${e.vista} ${e.sel}`);
+comprobar('la regla del tiempo va arriba, pegada a la cabecera', await p.evaluate(() => document.querySelector('.regla').getBoundingClientRect().top < 90));
+comprobar('una sola cabecera: la miga va junto a la marca', await p.evaluate(() => !!document.querySelector('.barra .miga .miga-paso.actual') && getComputedStyle(document.querySelector('.barra .marca')).visibility === 'visible'));
 
 // ─── 2. La organización ────────────────────────────────────
 const manifest = await leer(p, `${DATOS}manifest.json`);
@@ -105,7 +162,13 @@ comprobar('las recomendaciones son las acciones del motor', recs === (mesE.actio
 if (recs) {
 	await p.$eval('.recomendaciones .rec input[type=checkbox]', (x) => x.click());
 	await esperar(400);
-	comprobar('marcar una acción la lleva al horizonte', (await p.$eval('.frase-horizonte', (x) => x.textContent)).includes('Con esta acción'));
+	comprobar('marcar una acción la lleva al horizonte, que está siempre a la vista', await hasta(p, () => !!document.querySelector('.escenario .zona-t.con-acciones')));
+	// Tantear: pasar por otra acción la previsualiza y la arena del futuro se mueve.
+	const antesH = await p.evaluate(() => [...window.xray.arena.px.slice(0, 64000)]);
+	await p.hover('.recomendaciones .rec:not(.elegida):not(.nada)').catch(() => p.hover('.recomendaciones .rec.nada'));
+	await esperar(900);
+	const movidos = await p.evaluate((a) => { const b = window.xray.arena.px; let n = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 2) n++; return n; }, antesH);
+	comprobar('pasar por una acción mueve el horizonte al instante', movidos > 100, `${movidos} granos se mueven`);
 }
 await foto(p, '05-empresa-acciones');
 
@@ -133,8 +196,42 @@ comprobar('las curvas son las de los parámetros verificados', (await p.$$('.fig
 await foto(p, '06-empresa-tecnico');
 
 await p.keyboard.press('1');
-await hasta(p, () => !!document.querySelector('.cifras-c'));
-comprobar('el scoring enseña el previsto a seis meses', (await p.$eval('.cifras-c', (x) => x.textContent)).includes('previsto a seis meses'));
+await hasta(p, () => !!document.querySelector('.boya.h6'));
+comprobar('el horizonte enseña el previsto a seis meses', (await p.$eval('.boya.h6', (x) => x.textContent)).startsWith('6 meses'));
+comprobar('la gráfica tiene sus ejes: score de 0 a 100 y los meses', await p.evaluate(() => [...document.querySelectorAll('.escenario .g-etq.eje-v')].map((x) => x.textContent).join() === '0,20,40,60,80,100' && document.querySelectorAll('.escenario .g-etq.eje-m').length >= 6));
+// El hilo de arena: al pasar por la gráfica cae un hilo y se lee el valor; la arena no se aparta.
+{
+	const bb = await (await p.$('.escenario .grafico-arena')).boundingBox();
+	await esperar(400);
+	await p.mouse.move(bb.x + bb.width * 0.4, bb.y + bb.height * 0.5);
+	await p.mouse.move(bb.x + bb.width * 0.42, bb.y + bb.height * 0.5, { steps: 3 });
+	await esperar(500);
+	const lectura = await p.$eval('.escenario .g-lectura', (x) => x.textContent);
+	comprobar('pasar por la gráfica deja caer el hilo de arena y lee el mes', /\d/.test(lectura) && await p.evaluate(() => !window.xray.arena.apartar), lectura);
+	await p.mouse.move(5, 5);
+}
+// Los tres escenarios a la vez; elegir otro reorganiza la arena.
+if (await p.$('.esc-drift')) {
+	await p.click('.esc-drift');
+	await esperar(600);
+	const pulsado = await p.$eval('.esc-drift', (x) => x.getAttribute('aria-pressed'));
+	comprobar('«qué pasaría si» se añade como línea, aparte de la previsión', pulsado === 'true' && (await p.$$('.grafico .g-etq.alternativa')).length === 1);
+	await p.click('.esc-drift');
+	await esperar(300);
+}
+// La regla en un mes pasado: toda la aplicación lo dice y el horizonte enseña lo que se preveía entonces.
+await p.evaluate(() => document.activeElement?.blur());
+await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft');
+await hasta(p, () => document.body.dataset.viaje === '1' && !!document.querySelector('.escenario .zona-t.futuro')?.textContent.startsWith('lo que se preveía'), 9000);
+const viaje = await p.evaluate(() => [document.querySelector('.regla-viaje').textContent, document.querySelector('.escenario .zona-t.futuro')?.textContent ?? '', window.xray.S.e.q.hasta]);
+comprobar('mover la regla hacia atrás cambia la ficha y lo dice', viaje[0].startsWith('Viendo') && viaje[1].startsWith('lo que se preveía'), viaje.join(' · '));
+await p.click('.regla-viaje');
+await hasta(p, () => document.body.dataset.viaje !== '1');
+// El informe para imprimir: las cuatro secciones, con la arena cocida en imágenes.
+await p.evaluate(() => dispatchEvent(new Event('beforeprint')));
+const inf = await p.evaluate(() => ({ secciones: document.querySelectorAll('.capa-informe .informe-seccion').length, arena: document.querySelectorAll('.capa-informe .arena-impresa').length }));
+await p.evaluate(() => dispatchEvent(new Event('afterprint')));
+comprobar('el informe imprime las cuatro secciones con su arena', inf.secciones === 4 && inf.arena >= 2 && !(await p.$('.capa-informe')), `${inf.secciones} secciones · ${inf.arena} placas`);
 await foto(p, '07-empresa-scoring');
 await p.keyboard.press('Escape');
 await esperar(600);
@@ -189,7 +286,7 @@ comprobar('ninguna petición a terceros', p.fuera.length === 0, p.fuera.slice(0,
 // ─── 6. Móvil ──────────────────────────────────────────────
 const m = await pagina('&v=empresa&g=GROUP_0237&emp=COMP_0023', 390, 844, true);
 await hasta(m, () => !!document.querySelector('.hoja-ficha.company'));
-comprobar('en el móvil la empresa cabe en el ancho', await m.evaluate(() => document.querySelector('.pagina').scrollWidth <= innerWidth + 1));
+comprobar('en el móvil la empresa cabe en el ancho', await m.evaluate(() => document.querySelector('.pagina-cuerpo').scrollWidth <= innerWidth + 1));
 await foto(m, '11-movil-empresa');
 const mm = await pagina('&v=plano', 390, 844, true);
 await mm.tap('.ficha-quien');

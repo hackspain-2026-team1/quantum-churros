@@ -4,6 +4,187 @@ Registro de lo que se hace en `frontend/`, en qué orden y por qué. Lo lleva el
 
 ---
 
+## 19 de septiembre de 2026, la portada como monitor (propuesta 08)
+
+La portada deja de ser una puerta y pasa a ser el monitor de la cartera. Sigue la propuesta `hackspain/08-propuesta-portada-monitor.md`, con las decisiones tomadas: organizaciones por defecto (con conmutador a empresas), la regla de gravedad propuesta, siete formas y Jev en un Worker propio.
+
+### Lo que se ve, de arriba abajo
+
+- **La rosa de los vientos, primero, grande y centrada.** Sus puntas diagonales son las cuatro zonas del plano; el largo es cuántas hay en cada una, y cada zona es un filtro. La aguja azul apunta hacia donde va la cartera: a la derecha si la media supera el corte de 60, arriba si el ritmo medio sube.
+- **El estado del mes**, con cada cifra como filtro: las bandas con quién entra y quién sale de crítico (7 entran y 8 salen en agosto: el total apenas cambia y esconde siete casos nuevos), los cambios de banda, lo que cae tres puntos o más, lo que va hacia crítico y los avisos.
+- **«Abrir el plano» y «Abrir el tapiz»**, a pantalla completa, como antes, con los filtros que el mapa también entiende.
+- **Dos campos.** «rumbo de ¿qué organización?» busca y abre una organización. Debajo, «o dile qué quieres ver…», con ejemplos que se pueden tocar.
+- **Piden atención y avisos del mes**, en dos columnas. El orden de gravedad: entran en crítico, deterioro confirmado, siguen en crítico y bajan, van hacia crítico (horizonte con un 50 % o más), golpe por confirmar. Debajo, las que suben. Los avisos llevan el triaje de siempre, y los que quedan sin revisar suben a una campana en la cabecera.
+- **La cartera**: siete formas (ranking, bandas, plano, tapiz, flujo, avisos y horizonte), cada una **en arena o en tabla**, por organizaciones o por empresas, con su orden y sus filtros en la URL. Las vistas se pueden guardar.
+
+### La arena como vista mutable (`src/arena/vistas.ts`)
+
+Cada entidad es dueña de sus granos (120 por organización, 20 por empresa), siempre en el mismo orden. La placa de la vista va la primera de la página, así que al cambiar de forma, de orden o de filtro los granos de cada una viajan de un sitio a otro: el recorrido mide que al pasar de bandas a plano se mueven casi 20.000. `disponer` es pura: calcula dónde va cada entidad (para rótulos, clics y la etiqueta al pasar) y devuelve la función que dibuja.
+
+Tres formas son nuevas:
+- **bandas**, cuatro montones con las recién llegadas arriba, en rojo si bajan y en verde si suben;
+- **flujo**, de la banda del mes pasado a la de este, con hilos rojos y verdes;
+- **horizonte**, de hoy a la mediana a seis meses, con las que van hacia crítico en rojo y rotuladas.
+
+### «Dile qué quieres ver» (`src/datos/interpretar.ts` y `worker/`)
+
+- **Dos capas.** Primero, palabras clave, al instante y sin red. Después, Jev a través del Worker `rumbo-vista` (`https://rumbo-vista.jlsf2005.workers.dev`, cuenta de José Luis). La clave de TypeSafe es un secreto del Worker y las preguntas viven en él, así que el Worker no sirve para otra cosa. Limita a 30 peticiones por minuto y dirección.
+- **Qué pregunta.** Trece preguntas en una sola petición: forma, arena o tabla, unidad, orden, banda, movimiento, zona, sector, país, tamaño, producto y si ya lo tienen, y si la frase tiene que ver con la cartera. A TypeSafe solo viaja la frase y el vocabulario (sectores y países presentes); ningún dato financiero.
+- **Cómo decide la interfaz.** Los filtros piden más probabilidad que la forma o el orden. Si duda entre dos opciones, pregunta en vez de aplicar. Además quita las piezas redundantes que solo estrechan la vista: una zona que repite la banda, o un «cae» que repite el orden. El «tiene» de las palabras manda sobre el «encaja» de Jev.
+- **Cuánto acierta.** `pruebas/jev/evaluar.mjs` escribe 40 frases en la portada y compara la vista que queda con la esperada. Última ejecución: 63 de 63 piezas; 40 de 40 vistas con todas sus piezas y sin filtros de más; 33 de 40 exactas (las otras 7 añaden una forma o un orden razonables, como abrir el flujo para «las que suben de banda»). 1,2 s de media. Resultados en `pruebas/jev/resultados.json`.
+- **Coste.** Unos 2.400 tokens de entrada por petición: una diezmilésima de dólar.
+
+### Los horizontes cambian de modelo
+
+A las 18:07 otra sesión regeneró `rumbo/horizons` con `forecast-v1`: regresión cuantílica con calibración conformal, validada en 12 cortes, y guardó la simulación anterior en `horizons-v1-simulacion`. Los escenarios «deriva» y «peor trimestre» ahora solo traen la mediana, sin granos ni probabilidades de banda. Rumbo lee los dos formatos:
+- la metodología y la sección técnica explican el modelo que venga;
+- los percentiles que faltan salen de los granos o de la mediana;
+- los escenarios sin granos se dibujan como su hilo.
+
+### Pruebas
+
+El recorrido pasa a 50 comprobaciones:
+- el estado del mes igual al de `portfolio.json`;
+- el ranking de gravedad;
+- la campana;
+- las siete formas en arena y en tabla;
+- que los granos viajan al cambiar de forma;
+- el cambio a empresas;
+- el campo de lenguaje natural a la vista y funcionando (con una respuesta de Jev grabada);
+- los botones del plano y del tapiz.
+
+Última ejecución: **50 de 50**.
+
+---
+
+## 19 de septiembre de 2026, la jerarquía y la previsión del motor
+
+### Una página que se entiende solo por sus formas
+
+Antes, casi todo estaba al mismo nivel. Ahora cada ficha tiene cuatro niveles, cada uno con su forma:
+
+1. **El marco**, fino y en los bordes: la cabecera y, pegada debajo, la regla del tiempo.
+2. **El protagonista**, fijo arriba y siempre a la vista: el número dentro de su círculo y el horizonte. Es lo único de arena de la página.
+3. **Las secciones** (Scoring, Productos y Acciones), en filas, que actúan sobre el protagonista.
+4. **Técnico**, aparte y más tenue: el reverso.
+
+- **El círculo** es la escala del número: de 0 a 100, con los cortes de banda y el nombre de la banda dentro. Lleva dos marcas de comparación: la mediana de las de su tamaño (anillo hueco) y su grupo (grano). Sustituye al medidor pequeño de la línea de estado.
+- **El horizonte** es un calendario fijo: los 24 meses del bundle más 12. Tiene sus dos ejes (el score siempre de 0 a 100, con las bandas, y los meses), las dos zonas rotuladas («lo que ha pasado» y «lo que puede pasar», esta con otro fondo) y los avisos confirmados posados en su mes.
+- **La reactividad**:
+  - pasar por una acción la previsualiza en el horizonte, y marcarla la fija;
+  - «no hacer nada» queda como contorno punteado;
+  - las boyas dicen «6 meses: 35 → 40 (+5)»;
+  - pasar por un pilar lo dibuja encima de la serie, y pasar por un producto enseña la acción que resuelve.
+- **El hilo de arena**: al pasar por una gráfica, la arena ya no se aparta. Cae un hilo fino por el mes señalado y se lee el valor exacto. En la flota, el hilo va en cruz hasta los dos ejes. Solo en la portada la arena se aparta al paso del cursor, y en las fichas no respira: en reposo está quieta.
+- **La regla** va arriba en todas las vistas. En las fichas tiene un solo tirador (el mes que se mira), y ← → lo mueven. Si el mes es pasado, toda la aplicación lo dice: se tiñe el papel y aparece «Viendo mayo de 2026 · volver a hoy». La portada no tiene regla ni reloj de arena, y la pantalla de carga tampoco lleva el reloj.
+- **Productos y Acciones siguen separados**, cada uno con su papel:
+  - Acciones dice qué hacer, ordenado por lo que sube el score;
+  - Productos es la estantería de los siete, siempre en el mismo orden, con sus contratos y el uso de cada línea sobre su límite.
+- **Fuera las notas que justificaban el sistema**: la de «el score del grupo se calcula sumando los flujos», la de «cada grano es una simulación», la de «las acciones las calcula el motor», la de «la clasificación se guarda en este navegador», «ella tira hacia abajo», las versalitas diminutas y los numerales romanos. Los avisos salen de Acciones: van posados en la gráfica, y su bandeja, en Técnico.
+- **Ejes en todas las gráficas**: el horizonte, la flota (score y cambio en tres meses, con las bandas), los pilares (regla de 0 a 100 y la referencia del motor explicada) y las curvas del técnico.
+
+### La previsión, en el motor
+
+Los horizontes ya no los calcula un guion de la interfaz. `scripts/datos/horizontes.py` era una simulación y se ha retirado. Ahora los calcula el motor, con un modelo predictivo entrenado y validado: `engine/src/xray_engine/forecast.py`, que se ejecuta con `xray-score forecast` o `make forecast`, y con `xray-db sync --horizons-dir` dentro del ciclo del backend.
+
+- **El modelo**: uno por horizonte, de 1 a 12 meses. Es una regresión cuantílica lineal del cambio del score, con escala propia y calibración conformal en el tiempo. Cada par (entidad, mes) solo usa lo que se sabía en ese mes.
+- **La validación**, fuera de muestra con origen móvil:
+  - mejora a «no cambia nada» en todos los horizontes validados, de 1 a 10 meses (a 3 meses, 14,2 puntos de error frente a 15,5; a 6, 16,1 frente a 17,7);
+  - la franja del 80 % acierta entre el 80 y el 86 %;
+  - en febrero de 2026, a 3 y 6 meses, el error es de 14,3 frente a 16,1; la simulación anterior se quedaba en 15,2;
+  - los meses 11 y 12 no se pueden validar todavía (hay 24 meses de historia), así que su arena se aclara y lleva la marca «sin validar».
+- **Lo que no es**:
+  - las acciones son contrafactuales: el motor da el score con el pilar en su objetivo y el modelo prevé desde ahí;
+  - «si sigue la deriva» y «si se repite su peor trimestre» son supuestos que se dibujan como líneas, no previsiones.
+- **El futuro visto desde el pasado**: `horizons/pasados/` guarda, para cada corte desde marzo de 2025, lo que preveía un modelo entrenado solo con lo anterior. Con la regla en un mes pasado, el horizonte enseña esa previsión junto a lo que pasó de verdad.
+
+### Pruebas
+
+`bun run prueba` pasa a 46 comprobaciones. Las nuevas cubren:
+- la regla arriba y la portada sin reloj;
+- el horizonte siempre visible, que se mueve al pasar por una acción;
+- los ejes;
+- el hilo de arena;
+- los «qué pasaría si» como líneas;
+- el viaje en el tiempo.
+
+El motor suma `engine/tests/test_forecast.py`: sin fuga del futuro, cuantiles ordenados, mejora a «no cambia nada» en un proceso que vuelve a su nivel y granos deterministas.
+
+Última ejecución: **46 de 46**.
+
+
+## 19 de septiembre de 2026, la marca, la cabecera, los escenarios y el informe
+
+### La marca (`src/vistas/marca.ts`)
+
+El monograma sale de los bocetos de José Luis y sigue su lectura (la reducción de *El toro* de Picasso). De «rumbo» quedan la r, la u y la m, porque son las letras de la familia del arco. La b y la o se quedan fuera: son formas cerradas.
+
+- **Un solo recorrido.** El hombro de la r se convierte en un arco grande, unas 2,4 veces la altura de los pequeños. Su cima es asimétrica, del lado de la subida.
+- **Trazos que hacen dos trabajos.** La bajada del arco es a la vez el primer lado de la u. La subida desde el valle es el segundo lado de la u y la primera asta de la m.
+- **Coda.** Los dos arcos de la m son pequeños y van sin espuela.
+- **Principio y final.** Arranca con un gancho corto bajo la base, que hace de ancla. Termina con una salida corta hacia la derecha, que marca el avance.
+- **Construcción.** Primero el esqueleto, engrosado después con `stroke`. El contraste es cero, los remates redondos y la inclinación de 6°. El grosor ronda 1/14 de la altura, con corrección óptica en pequeño.
+- **Tamaños diminutos.** Por debajo de 20 px pierde el segundo arco pequeño: es el favicon.
+
+El logotipo «rumbo» se construye con el mismo módulo de arco. La o es la única forma cerrada; la panza de la b queda abierta.
+
+Dónde vive la marca:
+- En la cabecera, el monograma es de arena: un lienzo 2D propio con granos que caen en el orden de la pluma y se apartan al pasar el puntero.
+- En la portada, el objeto sigue siendo la rosa de los vientos, hecha de arena. La frase empieza con el logotipo: «rumbo de ¿qué organización?».
+
+### La cabecera
+
+Antes había dos barras, marca y miga, y la portada repetía «Rumbo» tres veces. Ahora hay una sola línea:
+- la marca;
+- la miga (Grupo › Empresa · mes);
+- las acciones de la página (Informe en PDF, Mapa de la cartera);
+- Metodología y la ayuda.
+
+Debajo de la cabecera va una raya de granos, el horizonte de arena. En la portada la marca no aparece en la cabecera: allí ya están la rosa y el logotipo en la frase. En el mapa (plano y tapiz) se quedan las lentes y el selector de vista.
+
+### El reloj de arena
+
+Queda en dos líneas: el contorno de un solo trazo y el nivel de la arena. Al reproducir, un grano cae por el cuello y se posa. La primera prueba llevaba un montón curvo con un grano encima y parecía una cara triste, así que se descartó.
+
+### Los escenarios, a la vez
+
+En Scoring se ven los tres futuros juntos, cada uno con su color de arena:
+- «todo igual», en gris;
+- «deriva», en morado;
+- «peor trimestre», en ocre, un tono nuevo de la paleta.
+
+El elegido se ve definido, con sus granos apretados, más opacos y con su mediana. Los otros se ven sueltos y finos, rotulados al final de su mediana.
+
+Cada simulación tiene siempre cuatro granos y el orden no cambia. Por eso, al elegir otro escenario, la arena se reorganiza delante de los ojos: unos granos se aprietan y otros se sueltan. El escenario se elige con la leyenda, con el rótulo o tocando su arena en el gráfico. Con acciones marcadas (sección III) se sigue viendo solo el básico con las acciones.
+
+### El informe en PDF (`src/vistas/imprimir.ts`)
+
+El informe es el mismo HTML de las cuatro secciones, seguido y sin controles, y respeta el escenario elegido y las acciones marcadas. Se monta en una capa aparte con el ancho útil de un A4 (182 mm) y se imprime con el diálogo del navegador («Guardar como PDF»). Se abre con el botón «Informe en PDF» o con ⌘P.
+
+- **La arena.** Es WebGL, así que no se imprime. Cada placa se vuelve a componer con su escena y se pinta grano a grano en una imagen a 3×: el papel lleva la misma arena, quieta.
+- **Paginación.** Cada sección empieza en una hoja y no se parten ni filas ni gráficos.
+- **Anchos.** Las reglas de ancho del CSS son solo de pantalla (`screen and`), para que el papel no tome el diseño del móvil.
+- **Animaciones.** Dentro del informe están apagadas: si no, los bloques se quedan en su primer fotograma, invisibles.
+
+### Un fallo de tipografía
+
+El cuerpo llevaba `font-variant-numeric: tabular-nums`, y en Schibsted Grotesk «tnum» también ensancha la coma, el punto y el punto y coma. Por eso en la prosa parecía haber un espacio delante («motor ; donde», «+0 , 3»). Ahora las cifras tabulares van solo donde se alinean en columna.
+
+### Pruebas
+
+El recorrido pasa a 41 comprobaciones. Las nuevas son cinco:
+- la portada con la rosa y sin la marca repetida;
+- una sola cabecera;
+- los escenarios alternativos a la vez;
+- elegir uno mueve la arena (más de 30.000 granos);
+- el informe con sus cuatro secciones y la arena cocida.
+
+`pruebas/informe.mjs <url> <pdf>` genera el PDF de una ficha como lo haría el navegador. `pruebas/foto.mjs` hace capturas sueltas para diseñar piezas.
+
+Última ejecución: **41 de 41**.
+
+---
+
 ## 19 de septiembre de 2026, Rumbo
 
 Implementa las propuestas `hackspain/06-propuesta-rumbo.md` y `07-propuesta-rumbo-pr1.md`. La aplicación se llama **Rumbo** y sigue sin Svelte ni shadcn por decisión del equipo: TypeScript, Vite, Bun, DOM propio y WebGL2 son el estándar del único frontend.

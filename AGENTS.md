@@ -3,7 +3,7 @@
 ## Frontend stack
 
 - `frontend/` is the single Rumbo application. It uses plain TypeScript, Vite, Bun, direct DOM composition and WebGL2; do not introduce React, Svelte or another frontend framework unless the team explicitly changes this decision.
-- Bun is the only JavaScript package manager and task runner in this repository. Use `bun install`, `bun add`, `bun run` and `bunx`; never introduce npm, pnpm, Yarn or their lockfiles.
+- Bun is the only JavaScript package manager and task runner in this repository. Use the exact version declared by `frontend/package.json#packageManager` and pinned in `docker/frontend.Dockerfile`; an older Bun cannot parse the current lockfile. Use `bun install`, `bun add`, `bun run` and `bunx`; never introduce npm, pnpm, Yarn or their lockfiles.
 - Commit `bun.lock` and keep dependency changes reproducible.
 
 ## Component-first UI
@@ -28,6 +28,7 @@
 
 - Read `frontend/README.md` and `frontend/DIARIO.md` before changing Rumbo.
 - Rumbo ships as the root application in the `web` image. It reads the bundle from `/data/v1/` and its derived data (`params.json`, `entities.json`, `products/`, `horizons/`) from `/data/rumbo/`, mounted from `/opt/quantum-churros/rumbo`. Never put Rumbo files inside the engine bundle: that changes its `bundle_id` and breaks the bundle integrity check.
+- Rumbo's home page is a portfolio monitor. Its natural-language view uses Jev (TypeSafe) through José Luis's own Cloudflare Worker (`frontend/worker/`, `rumbo-vista`); the TypeSafe key lives only as a Worker secret. `VITE_VISTA_URL` in `frontend/.env.production` (and `.env.development`) is the only external URL the build guard allows.
 - Rumbo never falls back to invented data: a missing file is shown as missing. The synthetic portfolio exists only in development (`?datos=sinteticos`); `bun run build:despliegue` fails if it, any data file, a hard-coded entity id or a third-party request reaches the build.
 
 ## Pre-redesign UI catalog
@@ -46,9 +47,12 @@
 
 - PostgreSQL is the shared application database. Use the container from `compose.yaml`; SQLite is only a lightweight fallback for isolated unit tests.
 - Alembic owns schema changes only. Never place the challenge CSV contents or other bulk seed data inside an Alembic revision.
+- Application-domain migrations must set `SET LOCAL search_path TO public` or qualify every table explicitly. Once the `xray` schema exists, PostgreSQL resolves the default `"$user", public` path to `xray` for the `xray` database role, so an unqualified migration otherwise creates application tables in the engine-output schema.
 - `20260918_02_seed_baseline_dataset.py` is a frozen legacy demo seed already present in migration history. Do not regenerate it or use it as a pattern; all new dataset loads go through `xray-db ingest`.
 - Start the stack with `make up`; the API applies pending Alembic migrations before serving requests.
+- The development `web` service mounts `bundle/` and `rumbo/` at `/workspace/public/datos` and `/workspace/public/rumbo`. Keep those nested mounts when changing the frontend volume; without them Vite starts successfully but Rumbo can only render its missing-data state.
 - Local PostgreSQL binds to host port `5433` by default. Set `POSTGRES_PORT` when that port belongs to another project; container-to-container commands such as `make db-sync` keep using the internal `postgres:5432` address.
+- The local frontend binds to host port `3000` by default. Set `WEB_PORT` when another process owns that port; on macOS an IPv4-only process can otherwise shadow Docker at `127.0.0.1:3000` while `localhost:3000` still reaches Rumbo through IPv6.
 - Validate the local dataset with `make db-seed-dry-run`, then load it with `make db-seed`. The ingestion command runs inside the API container, streams every CSV through PostgreSQL `COPY`, and records the content hash and row counts in `source.dataset_import`.
 - Run `make db-sync` to start PostgreSQL and execute the complete reproducible data cycle: ingest the immutable source version, classify companies, calculate Parquet model artifacts, publish the relational score projection, and regenerate the JSON bundle consumed by the frontend.
 - `make db-sync` also regenerates `rumbo/entities.json` from that exact bundle. Entity aliases are deterministic presentation data keyed by the immutable IDs; never edit the generated JSON, derive names from scores, or put aliases in an Alembic revision.

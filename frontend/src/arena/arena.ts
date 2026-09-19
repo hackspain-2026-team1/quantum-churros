@@ -1,6 +1,8 @@
 // El motor de arena. Un solo lienzo WebGL2 con N granos que componen todas las figuras de la
 // interfaz. Cada grano tiene un destino; al cambiar de escena se disuelve (turbulencia) y vuelve a
-// posarse con un muelle amortiguado. El cursor aparta la arena como una mano.
+// posarse con un muelle amortiguado. Solo en la portada el cursor aparta la arena como una mano; en
+// las gráficas, en cambio, cae un hilo de arena fino donde se lee (precisión, no efecto).
+// Hay granos de página (siguen al desplazamiento) y granos fijos (el horizonte, la regla).
 // La simulación va en CPU sobre arrays tipados (≈1 ms para 32.000 granos); la GPU solo pinta.
 
 export const PALETA: [number, number, number][] = [
@@ -12,8 +14,9 @@ export const PALETA: [number, number, number][] = [
 	[157, 75, 221], // 5 TellMe (#9d4bdd)
 	[110, 112, 124], // 6 apagado (#6e707c)
 	[190, 192, 204], // 7 filete (#bec0cc)
+	[176, 112, 22], // 8 ocre (#b07016): escenario «si se repite su peor trimestre»
 ];
-export const TONO = { tinta: 0, peligro: 1, exito: 2, info: 3, aviso: 4, tellme: 5, apagado: 6, filete: 7 } as const;
+export const TONO = { tinta: 0, peligro: 1, exito: 2, info: 3, aviso: 4, tellme: 5, apagado: 6, filete: 7, ocre: 8 } as const;
 
 export interface Escena {
 	x: Float32Array;
@@ -23,6 +26,8 @@ export interface Escena {
 	talla: Float32Array;
 	/** Segundos que espera cada grano antes de partir (permite barridos y ondas). */
 	espera: Float32Array;
+	/** 1 = fijo en pantalla (no sigue al desplazamiento de la página). */
+	fijo: Uint8Array;
 	/** Turbulencia al partir: 0 = deslizarse, 1 = disolverse del todo. */
 	turbulencia: number;
 	/** Rigidez del muelle (ω en rad/s). */
@@ -32,7 +37,7 @@ export interface Escena {
 export function escenaVacia(n: number): Escena {
 	return {
 		x: new Float32Array(n), y: new Float32Array(n), tono: new Uint8Array(n),
-		alfa: new Float32Array(n), talla: new Float32Array(n).fill(1.8), espera: new Float32Array(n),
+		alfa: new Float32Array(n), talla: new Float32Array(n).fill(1.8), espera: new Float32Array(n), fijo: new Uint8Array(n),
 		turbulencia: 0.6,
 	};
 }
@@ -41,6 +46,7 @@ const VS = `#version 300 es
 in vec3 a_pt;
 in vec4 a_col;
 in float a_fase;
+in float a_fijo;
 uniform vec2 u_res;
 uniform float u_dpr;
 uniform float u_t;
@@ -51,12 +57,12 @@ out vec4 v_col;
 void main() {
 	float f = a_fase * 6.2831;
 	vec2 p = a_pt.xy + vec2(sin(u_t * 0.83 + f), cos(u_t * 0.61 + f * 1.7)) * u_respira;
-	p.y -= u_desp;
+	p.y -= u_desp * (1.0 - a_fijo);
 	vec2 c = p / u_res * 2.0 - 1.0;
 	gl_Position = vec4(c.x, -c.y, 0.0, 1.0);
 	gl_PointSize = a_pt.z * u_dpr;
 	// Fuera de la ventana visible (una página que se desplaza), el grano no se pinta.
-	v_col = (p.y < u_corte.x || p.y > u_corte.y) ? vec4(0.0) : a_col;
+	v_col = (a_fijo < 0.5 && (p.y < u_corte.x || p.y > u_corte.y)) ? vec4(0.0) : a_col;
 }`;
 
 const FS = `#version 300 es
@@ -68,6 +74,9 @@ void main() {
 	float a = v_col.a * smoothstep(0.5, 0.3, r);
 	o = vec4(v_col.rgb * a, a);
 }`;
+
+export interface Hilo { x0: number; y0: number; x1: number; y1: number; tono?: number }
+const N_HILO = 180;
 
 export class Arena {
 	readonly n: number;
@@ -83,6 +92,13 @@ export class Arena {
 	private tono: Uint8Array; private tonoPend: Uint8Array;
 	private rig: Float32Array;
 	private fase: Float32Array;
+	private fijo: Float32Array; private fijoPend: Uint8Array;
+	private bufFijo!: WebGLBuffer;
+	/** Granos del hilo: un depósito aparte, al final de los buffers. */
+	private hilosAct: Hilo[] = [];
+	private hx: Float32Array; private hy: Float32Array; private hv: Float32Array; private ha: Float32Array;
+	/** El cursor aparta la arena (solo en la portada). */
+	apartar = false;
 	private omega = 7.5;
 
 	private gl: WebGL2RenderingContext;
@@ -116,6 +132,8 @@ export class Arena {
 		this.talla = F().fill(1.6); this.tallaObj = F().fill(1.6); this.tallaPend = F().fill(1.6);
 		this.tono = new Uint8Array(n); this.tonoPend = new Uint8Array(n);
 		this.rig = F(); this.fase = F();
+		this.fijoPend = new Uint8Array(n);
+		this.hx = new Float32Array(N_HILO); this.hy = new Float32Array(N_HILO); this.hv = new Float32Array(N_HILO); this.ha = new Float32Array(N_HILO);
 		for (let i = 0; i < n; i++) { this.rig[i] = 0.72 + Math.random() * 0.56; this.fase[i] = Math.random(); }
 
 		const gl = lienzo.getContext('webgl2', { antialias: false, premultipliedAlpha: true, alpha: true });
@@ -124,13 +142,18 @@ export class Arena {
 		this.prog = this.programa(VS, FS);
 		for (const nombre of ['u_res', 'u_dpr', 'u_t', 'u_respira', 'u_desp', 'u_corte']) this.u[nombre] = gl.getUniformLocation(this.prog, nombre);
 
-		this.datosPt = new Float32Array(n * 3);
-		this.datosCol = new Uint8Array(n * 4);
+		const total = n + N_HILO;
+		this.fijo = new Float32Array(total);
+		this.datosPt = new Float32Array(total * 3);
+		this.datosCol = new Uint8Array(total * 4);
 		const vao = gl.createVertexArray();
 		gl.bindVertexArray(vao);
 		this.bufPt = this.atributo('a_pt', this.datosPt, 3, gl.FLOAT, false);
 		this.bufCol = this.atributo('a_col', this.datosCol, 4, gl.UNSIGNED_BYTE, true);
-		this.atributo('a_fase', this.fase, 1, gl.FLOAT, false, gl.STATIC_DRAW);
+		const fases = new Float32Array(total); fases.set(this.fase);
+		this.atributo('a_fase', fases, 1, gl.FLOAT, false, gl.STATIC_DRAW);
+		for (let i = n; i < total; i++) this.fijo[i] = 1;
+		this.bufFijo = this.atributo('a_fijo', this.fijo, 1, gl.FLOAT, false);
 		gl.enable(gl.BLEND);
 		gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -189,12 +212,13 @@ export class Arena {
 			this.alfaPend[i] = e.alfa[i];
 			this.tallaPend[i] = e.talla[i];
 			this.tonoPend[i] = e.tono[i];
+			this.fijoPend[i] = e.fijo[i];
 			this.turbPend[i] = turb;
 			this.espera[i] = this.reducido ? 0 : e.espera[i];
 			if (this.espera[i] <= 0) this.partir(i);
 		}
 		if (this.reducido) {
-			for (let i = 0; i < this.n; i++) { this.px[i] = e.x[i]; this.py[i] = e.y[i]; this.alfa[i] = this.alfaObj[i]; this.talla[i] = this.tallaObj[i]; }
+			for (let i = 0; i < this.n; i++) { this.fijo[i] = e.fijo[i]; this.px[i] = e.x[i]; this.py[i] = e.y[i]; this.alfa[i] = this.alfaObj[i]; this.talla[i] = this.tallaObj[i]; }
 			this.pintar((performance.now() - this.t0) / 1000);
 		}
 		this.despertar();
@@ -220,6 +244,8 @@ export class Arena {
 		this.alfaObj[i] = this.alfaPend[i];
 		this.tallaObj[i] = this.tallaPend[i];
 		this.tono[i] = this.tonoPend[i];
+		const f = this.fijoPend[i];
+		if (f !== this.fijo[i]) { const d = f ? -this.desp : this.desp; this.py[i] += d; this.ty[i] = this.ty[i]; this.fijo[i] = f; }
 		this.agit[i] = Math.max(this.agit[i], this.turbPend[i]);
 		this.espera[i] = 0;
 	}
@@ -249,7 +275,7 @@ export class Arena {
 		this.coste.pinta = this.coste.pinta * 0.95 + (t2 - t1) * 0.05;
 		this.puntero.fuerza *= Math.exp(-dt * 5);
 		// Con la arena en reposo y sin respiración, el bucle se duerme para no gastar batería.
-		if (energia < 0.02 && (this.reducido || this.respira === 0) && !this.puntero.activo) { this.quieto = true; return; }
+		if (energia < 0.02 && (this.reducido || this.respira === 0) && !(this.apartar && this.puntero.activo) && !this.hilosAct.length && !this.hiloVivo) { this.quieto = true; return; }
 		this.raf = requestAnimationFrame(this.bucle);
 	}
 
@@ -258,7 +284,7 @@ export class Arena {
 		const w = this.omega;
 		const P = this.puntero;
 		const R = 70, R2 = R * R;
-		const fuerzaP = P.activo && !this.reducido ? 2600 * (1 + P.fuerza) : 0;
+		const fuerzaP = this.apartar && P.activo && !this.reducido ? 2600 * (1 + P.fuerza) : 0;
 		let energia = 0;
 		const decae = Math.exp(-dt * 2.4);
 		const k = Math.min(1, dt * 7);
@@ -290,12 +316,20 @@ export class Arena {
 			this.alfa[i] += (this.alfaObj[i] - this.alfa[i]) * k;
 			this.talla[i] += (this.tallaObj[i] - this.talla[i]) * k;
 		}
+		this.simularHilo(dt);
 		return energia / this.n;
 	}
 
 	private pintar(t: number) {
 		const gl = this.gl;
 		const P = this.datosPt, Cc = this.datosCol;
+		const n = this.n;
+		for (let k = 0; k < N_HILO; k++) {
+			const i = n + k;
+			P[i * 3] = this.hx[k]; P[i * 3 + 1] = this.hy[k]; P[i * 3 + 2] = 1.7;
+			const c = PALETA[this.hiloTono];
+			Cc[i * 4] = c[0]; Cc[i * 4 + 1] = c[1]; Cc[i * 4 + 2] = c[2]; Cc[i * 4 + 3] = Math.max(0, Math.min(255, this.ha[k] * 255));
+		}
 		for (let i = 0; i < this.n; i++) {
 			P[i * 3] = this.px[i]; P[i * 3 + 1] = this.py[i]; P[i * 3 + 2] = this.talla[i];
 			const c = PALETA[this.tono[i]];
@@ -306,6 +340,8 @@ export class Arena {
 		gl.bufferSubData(gl.ARRAY_BUFFER, 0, P);
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.bufCol);
 		gl.bufferSubData(gl.ARRAY_BUFFER, 0, Cc);
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.bufFijo);
+		gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.fijo);
 		gl.clearColor(0, 0, 0, 0);
 		gl.clear(gl.COLOR_BUFFER_BIT);
 		gl.useProgram(this.prog);
@@ -315,7 +351,7 @@ export class Arena {
 		gl.uniform1f(this.u.u_respira, this.reducido ? 0 : this.respira);
 		gl.uniform1f(this.u.u_desp, this.desp);
 		gl.uniform2f(this.u.u_corte, this.corte[0], this.corte[1]);
-		gl.drawArrays(gl.POINTS, 0, this.n);
+		gl.drawArrays(gl.POINTS, 0, this.n + N_HILO);
 	}
 
 	private programa(vs: string, fs: string) {
@@ -344,6 +380,47 @@ export class Arena {
 		gl.enableVertexAttribArray(loc);
 		gl.vertexAttribPointer(loc, tam, tipo, normalizado, 0, 0);
 		return buf;
+	}
+
+	private hiloTono: number = 0;
+	private hiloVivo = false;
+	/**
+	 * El hilo de arena: granos que caen (o corren) de (x0, y0) a (x1, y1), en coordenadas de
+	 * pantalla. Sirve para leer una gráfica con precisión. Sin hilos, los granos se apagan.
+	 */
+	hilos(hs: Hilo[]) {
+		const antes = this.hilosAct.length;
+		this.hilosAct = hs;
+		if (hs.length) {
+			this.hiloTono = hs[0].tono ?? 0;
+			if (!antes) for (let k = 0; k < N_HILO; k++) { this.ha[k] = 0; this.hv[k] = Math.random(); }
+		}
+		this.hiloVivo = true;
+		this.despertar();
+	}
+
+	private simularHilo(dt: number) {
+		const hs = this.hilosAct;
+		if (!hs.length) {
+			let vivo = false;
+			for (let k = 0; k < N_HILO; k++) { this.ha[k] *= Math.exp(-dt * 12); if (this.ha[k] > 0.01) vivo = true; }
+			this.hiloVivo = vivo;
+			return;
+		}
+		// Cada grano recorre su hilo con una fase propia (0 → 1) y acelera un poco, como al caer.
+		for (let k = 0; k < N_HILO; k++) {
+			const h = hs[k % hs.length];
+			const largo = Math.hypot(h.x1 - h.x0, h.y1 - h.y0) || 1;
+			let u = this.hv[k] + (dt * (90 + 260 * this.hv[k])) / largo;
+			if (u >= 1) u -= 1;
+			this.hv[k] = u;
+			const jitter = ((k * 7919) % 13) / 13 - 0.5;
+			const nx = -(h.y1 - h.y0) / largo, ny = (h.x1 - h.x0) / largo;
+			this.hx[k] = h.x0 + (h.x1 - h.x0) * u + nx * jitter * 1.4;
+			this.hy[k] = h.y0 + (h.y1 - h.y0) * u + ny * jitter * 1.4;
+			const borde = Math.min(1, u / 0.08, (1 - u) / 0.12);
+			this.ha[k] += (0.85 * borde - this.ha[k]) * Math.min(1, dt * 14);
+		}
 	}
 
 	destruir() { cancelAnimationFrame(this.raf); }

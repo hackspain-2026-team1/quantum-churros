@@ -145,57 +145,17 @@ export function cifra(o: { valor: string; que: string; cola?: (number | null)[];
 
 // ─── El reloj de arena ────────────────────────────────────────
 
-/** Reproducir: un reloj de arena que se vacía mientras suena. */
-let relojes = 0;
-
 /**
- * El reloj de arena de Rumbo, grabado como los productos: marco torneado con dos columnas, el
- * vidrio en trazo fino y la arena hecha de granos. Al reproducir, la arena de arriba baja, cae
- * por el cuello grano a grano y el montón de abajo crece.
+ * El reloj de arena de Rumbo, reducido a lo que lo sostiene: una sola línea para el contorno (el
+ * mismo trazo sin contraste de la marca) y otra para el nivel de la arena. Al reproducir, un grano
+ * cae por el cuello y se posa en el nivel.
  */
 export function relojArena(): SVGSVGElement {
-	const id = `rj${++relojes}`;
-	const s = svg(30, 40, 'reloj-arena');
-	s.setAttribute('viewBox', '0 0 30 40');
-	// Mitad del ancho interior del vidrio a una altura y (curva de Bézier del bulbo de arriba, reflejada abajo).
-	const curva: [number, number][] = [];
-	for (let k = 0; k <= 40; k++) {
-		const t = k / 40, u = 1 - t;
-		const x = u * u * u * 8.6 + 3 * u * u * t * 8.6 + 3 * u * t * t * 14 + t * t * t * 14;
-		const y = u * u * u * 6.8 + 3 * u * u * t * 13.4 + 3 * u * t * t * 15.4 + t * t * t * 20;
-		curva.push([y, 15 - x]);
-	}
-	const media = (y: number) => {
-		const yy = y <= 20 ? y : 40 - y;
-		for (let k = 1; k < curva.length; k++) if (curva[k][0] >= yy) { const [y0, w0] = curva[k - 1], [y1, w1] = curva[k]; return w0 + ((w1 - w0) * (yy - y0)) / (y1 - y0 || 1); }
-		return 1;
-	};
-	const azar = rng(29);
-	const grano = (x: number, y: number) => el('circle', { cx: x.toFixed(2), cy: y.toFixed(2), r: (0.36 + azar() * 0.16).toFixed(2) });
-	const arriba = el('g', { class: 'arena-arriba', 'clip-path': `url(#${id}a)` });
-	const abajo = el('g', { class: 'arena-abajo', 'clip-path': `url(#${id}b)` });
-	for (let y = 10.6; y < 19.6; y += 0.82) for (let x = 15 - media(y) + 0.9; x < 15 + media(y) - 0.9; x += 0.86) arriba.append(grano(x + (azar() - 0.5) * 0.5, y + (azar() - 0.5) * 0.5));
-	// El montón de abajo: más alto en el centro.
-	for (let y = 24.4; y < 33; y += 0.8) for (let x = 15 - media(y) + 0.9; x < 15 + media(y) - 0.9; x += 0.84) {
-		const cima = 25 + 3.4 * Math.pow(Math.abs(x - 15) / 5.6, 1.5);
-		if (y >= cima) abajo.append(grano(x + (azar() - 0.5) * 0.45, y + (azar() - 0.5) * 0.45));
-	}
-	const chorro = el('g', { class: 'chorro' });
-	for (const y of [20.4, 22, 23.6, 25.2]) chorro.append(el('circle', { cx: 15, cy: y, r: 0.45 }));
-	const defs = el('defs', {});
-	const ca = el('clipPath', { id: `${id}a` }); ca.append(el('rect', { class: 'clip-arriba', x: 0, y: 10, width: 30, height: 10.2 }));
-	const cb = el('clipPath', { id: `${id}b` }); cb.append(el('rect', { class: 'clip-abajo', x: 0, y: 24, width: 30, height: 12 }));
-	defs.append(ca, cb);
-	s.append(defs, arriba, chorro, abajo,
-		// Vidrio: trazo fino y un brillo.
-		el('path', { d: 'M8.6 6.8C8.6 13.4 14 15.4 14 20C14 24.6 8.6 26.6 8.6 33.2M21.4 6.8C21.4 13.4 16 15.4 16 20C16 24.6 21.4 26.6 21.4 33.2', class: 'trazo vidrio', fill: 'none', 'stroke-width': 0.85, 'stroke-linecap': 'round' }),
-		el('path', { d: 'M10.3 8.8C10.5 11.6 11.6 13.2 12.7 14.3', class: 'trazo brillo', fill: 'none', 'stroke-width': 0.5, 'stroke-linecap': 'round' }),
-		// Marco torneado: tablas con grueso y fino, dos columnas con una cuenta en medio y patas.
-		el('path', { d: 'M3.6 4.4H26.4M3.6 35.6H26.4', class: 'trazo', 'stroke-width': 2, 'stroke-linecap': 'round' }),
-		el('path', { d: 'M5.2 6.5H24.8M5.2 33.5H24.8', class: 'trazo', 'stroke-width': 0.6, 'stroke-linecap': 'round' }),
-		el('path', { d: 'M5.4 6.6V33.4M24.6 6.6V33.4', class: 'trazo', 'stroke-width': 1.05, 'stroke-linecap': 'round' }),
-		el('ellipse', { cx: 5.4, cy: 20, rx: 1.05, ry: 1.7, class: 'cuenta' }), el('ellipse', { cx: 24.6, cy: 20, rx: 1.05, ry: 1.7, class: 'cuenta' }),
-		el('path', { d: 'M5 2.2V2.9M25 2.2V2.9M5 37.1V37.8M25 37.1V37.8', class: 'trazo', 'stroke-width': 1.6, 'stroke-linecap': 'round' }),
+	const s = svg(24, 32, 'reloj-arena');
+	s.append(
+		el('path', { d: 'M5 3.4C9.6 2.6 14.4 2.6 19 3.4C19.2 10.4 13.2 13.2 12.9 16C13.2 18.8 19.2 21.6 19 28.6C14.4 29.4 9.6 29.4 5 28.6C4.8 21.6 10.8 18.8 11.1 16C10.8 13.2 4.8 10.4 5 3.4Z', class: 'trazo contorno', fill: 'none', 'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }),
+		el('path', { d: 'M8.2 24.4H15.8', class: 'trazo nivel', fill: 'none', 'stroke-width': 1.7, 'stroke-linecap': 'round' }),
+		el('circle', { cx: 12, cy: 16, r: 1.05, class: 'grano-cae' }),
 	);
 	return s;
 }

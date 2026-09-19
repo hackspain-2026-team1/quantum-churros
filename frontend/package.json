@@ -2,6 +2,7 @@
 	"name": "rumbo",
 	"private": true,
 	"version": "0.1.0",
+	"packageManager": "bun@1.4.2",
 	"type": "module",
 	"scripts": {
 		"dev": "vite --host 127.0.0.1 --port 5317",
