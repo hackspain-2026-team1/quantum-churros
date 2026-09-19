@@ -181,6 +181,8 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			lineaBandas, lineaMes, mapas);
 		cabeza.append(...(reducido() ? [] : [rosaCaja]), estado);
 		cabeza.classList.toggle('mon-cabeza-sola', reducido());
+		ajustarEntrada();
+		requestAnimationFrame(ajustarEntrada);
 	}
 
 	/** El titular del CFO: dónde está su grupo, cómo se ha movido y dónde estará en seis meses. */
@@ -200,7 +202,24 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	}
 
 	// ─── El campo: una organización o una vista ─────────────
-	const entrada = h('input', { class: 'entrada-buscar', type: 'search', placeholder: cfo() ? '¿qué empresa?' : '¿qué organización?', 'aria-label': cfo() ? 'Buscar una de tus empresas o pedir una vista' : 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off' }) as HTMLInputElement;
+	const entrada = h('input', { class: 'entrada-buscar', type: 'text', placeholder: cfo() ? '¿qué empresa?' : '¿qué organización?', 'aria-label': cfo() ? 'Buscar una de tus empresas o pedir una vista' : 'Buscar una organización o pedir una vista de la cartera', autocomplete: 'off' }) as HTMLInputElement;
+	// La línea de puntos vale lo que vale lo escrito (o lo que se ofrece): un espejo invisible mide el
+	// texto con la letra del propio campo y el campo toma esa anchura. Así «rumbo de …» queda
+	// centrado de verdad, en vez de arrastrar una raya vacía hacia la derecha.
+	const espejo = h('span', { class: 'entrada-espejo', 'aria-hidden': 'true' });
+	const ajustarEntrada = () => {
+		const cs = getComputedStyle(entrada);
+		for (const k of ['fontStyle', 'fontWeight', 'fontSize', 'fontFamily', 'letterSpacing'] as const) espejo.style[k] = cs[k];
+		espejo.textContent = entrada.value || entrada.placeholder;
+		const texto = espejo.getBoundingClientRect().width;
+		// Sin dibujar todavía (o sin la letra cargada) no se mide: ya se volverá a medir.
+		if (!texto) return;
+		const relleno = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+		// La cursiva vuela por la derecha: sin ese aire se corta la última letra.
+		entrada.style.width = `${Math.min(Math.ceil(texto + relleno + 12), Math.round(innerWidth * 0.8))}px`;
+	};
+	// La letra cambia las medidas al cargarse: se remide cuando llega.
+	void document.fonts?.ready.then(ajustarEntrada);
 	const resultados = h('ul', { class: 'entrada-resultados', role: 'listbox' });
 	const entendido = h('div', { class: 'mon-entendido', role: 'status' });
 	let peticion: AbortController | null = null;
@@ -219,7 +238,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 	pedirCampo.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') lanzar(); });
 	pedirBoton.addEventListener('click', lanzar);
 	campo.append(
-		h('div', { class: 'entrada-frase' }, h('span', { class: 'entrada-rumbo' }, logotipo(ctx.esMovil() ? 34 : 50, 'Rumbo'), h('span', { class: 'entrada-de' }, 'de')), entrada),
+		h('div', { class: 'entrada-frase' }, h('span', { class: 'entrada-rumbo' }, logotipo(ctx.esMovil() ? 34 : 50, 'Rumbo'), h('span', { class: 'entrada-de' }, 'de')), entrada, espejo),
 		resultados,
 		h('div', { class: 'mon-pedir' }, h('span', { class: 'mon-pedir-grano', 'aria-hidden': 'true' }), pedirCampo, pedirBoton),
 		ejemplos, entendido);
@@ -254,7 +273,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			resultados.append(li);
 		}
 	};
-	entrada.addEventListener('input', buscar);
+	entrada.addEventListener('input', () => { ajustarEntrada(); buscar(); });
 	entrada.addEventListener('keydown', (ev) => {
 		if (ev.key !== 'Enter') return;
 		const texto = entrada.value.trim();
