@@ -23,6 +23,7 @@
 	backHref={monthStore.href('/')}
 	backLabel="Volver al radar"
 	technicalHref={monthStore.href(`/?tab=tecnico&focus=${group.id}`)}
+	invoicesDue={data.invoicesDue}
 >
 	<CompanyDrilldown {group} month={monthStore.month} />
 	<ProfileCard profile={group.profile} context={group.context} />

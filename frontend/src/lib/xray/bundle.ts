@@ -16,6 +16,7 @@ import {
 	type CompanyFile,
 	type EvidenceFile,
 	type GroupFile,
+	type InvoicesDue,
 	type Manifest,
 	type Portfolio,
 	type Receipt
@@ -162,4 +163,18 @@ export function loadAlerts(fetcher: Fetch): Promise<AlertsFile> {
 
 export function loadReceipt(fetcher: Fetch): Promise<Receipt> {
 	return loadFile(fetcher, 'receipt', BUNDLE_FILES.receipt);
+}
+
+/** Resolves to null when invoices_due.json is absent: older bundles have no reminders. */
+export async function loadInvoicesDue(fetcher: Fetch): Promise<InvoicesDue | null> {
+	const path = BUNDLE_FILES.invoices_due;
+	const { bundle_id } = await loadManifest(fetcher);
+	return cached(`${bundle_id}:${path}`, async () => {
+		try {
+			return parse('invoices_due', path, await readJson(fetcher, path, bundle_id.slice(0, 12)));
+		} catch (reason) {
+			if (reason instanceof BundleError && reason.kind === 'missing') return null;
+			throw reason;
+		}
+	});
 }

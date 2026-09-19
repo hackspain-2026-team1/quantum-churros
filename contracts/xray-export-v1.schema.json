@@ -24,6 +24,9 @@
     },
     {
       "$ref": "#/$defs/receipt"
+    },
+    {
+      "$ref": "#/$defs/invoices_due"
     }
   ],
   "$defs": {
@@ -1718,6 +1721,93 @@
         "max_uplift_tenths": {
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+    "reminderList": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_id",
+          "counterparty_id",
+          "due_date",
+          "amount",
+          "days_overdue"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "counterparty_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "days_overdue": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "invoices_due": {
+      "title": "invoices_due.json",
+      "description": "Top open overdue AR invoices per company and per group as of the last month: the work list behind the collect-earlier reminders.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "kind",
+        "month",
+        "rows"
+      ],
+      "properties": {
+        "schema": {
+          "const": "xray-export-v1"
+        },
+        "kind": {
+          "const": "invoices_due"
+        },
+        "month": {
+          "$ref": "#/$defs/month"
+        },
+        "rows": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "companies",
+            "groups"
+          ],
+          "properties": {
+            "companies": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/reminderList"
+              }
+            },
+            "groups": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/reminderList"
+              }
+            }
+          }
         }
       }
     }

@@ -30,6 +30,7 @@ export const BUNDLE_FILES = {
 	manifest: 'manifest.json',
 	portfolio: 'portfolio.json',
 	alerts: 'alerts.json',
+	invoices_due: 'invoices_due.json',
 	receipt: 'receipt.json',
 	group: (id: string) => `groups/${id}.json`,
 	company: (id: string) => `companies/${id}.json`,
@@ -412,6 +413,25 @@ export const receiptSchema = z.object({
 	checks: z.array(receiptCheckSchema)
 });
 
+export const reminderSchema = z.object({
+	operation_id: z.string().min(1),
+	counterparty_id: z.string().nullable(),
+	due_date: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/).nullable(),
+	amount: z.number().min(0),
+	days_overdue: count
+});
+export const invoicesDueSchema = z.object({
+	schema: schemaTag,
+	kind: z.literal('invoices_due'),
+	month,
+	rows: z.object({
+		companies: z.record(z.string(), z.array(reminderSchema)),
+		groups: z.record(z.string(), z.array(reminderSchema))
+	})
+});
+export type Reminder = z.infer<typeof reminderSchema>;
+export type InvoicesDue = z.infer<typeof invoicesDueSchema>;
+
 export const bundleSchemas = {
 	manifest: manifestSchema,
 	portfolio: portfolioSchema,
@@ -419,6 +439,7 @@ export const bundleSchemas = {
 	company: companySchema,
 	evidence: evidenceSchema,
 	alerts: alertsSchema,
+	invoices_due: invoicesDueSchema,
 	receipt: receiptSchema
 } as const;
 

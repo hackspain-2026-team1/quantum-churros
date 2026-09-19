@@ -32,6 +32,7 @@
 		backHref={groupHref}
 		backLabel={`Volver a ${group.id}`}
 		technicalHref={monthStore.href(`/?tab=tecnico&focus=${group.id}`)}
+		invoicesDue={data.invoicesDue}
 	/>
 {:else}
 	<div class="mx-auto max-w-[1540px] space-y-5 px-4 py-6 lg:px-8 lg:py-8">

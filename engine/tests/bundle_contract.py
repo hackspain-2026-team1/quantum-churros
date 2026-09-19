@@ -30,6 +30,7 @@ SINGLE_FILES = {
     "manifest.json": "manifest",
     "portfolio.json": "portfolio",
     "alerts.json": "alerts",
+    "invoices_due.json": "invoices_due",
     "receipt.json": "receipt",
 }
 ENTITY_FOLDERS = {"groups": "group", "companies": "company", "evidence": "evidence"}

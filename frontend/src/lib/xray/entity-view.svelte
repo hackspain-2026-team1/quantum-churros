@@ -8,9 +8,10 @@
 	import AbstainedState from './abstained-state.svelte';
 	import { fullPlanTenths } from './actions.js';
 	import CompanyAvatar from './company-avatar.svelte';
-	import type { EntityContext, EntityMonth, Series } from './contract.js';
+	import type { EntityContext, EntityMonth, InvoicesDue, Series } from './contract.js';
 	import EmptyState from './empty-state.svelte';
 	import EntityActions from './entity-actions.svelte';
+	import InvoiceReminders from './invoice-reminders.svelte';
 	import EntityHero from './entity-hero.svelte';
 	import MonthSlider from './month-slider.svelte';
 	import { monthStore } from './month-store.svelte.js';
@@ -27,6 +28,7 @@
 		backHref,
 		backLabel,
 		technicalHref,
+		invoicesDue = null,
 		children
 	}: {
 		id: string;
@@ -39,6 +41,8 @@
 		backLabel: string;
 		/** Technical tab of the dashboard focused on this entity's group. */
 		technicalHref: string;
+		/** Optional: the top overdue open AR invoices of the bundle, for the reminders. */
+		invoicesDue: InvoicesDue | null;
 		/** Extra blocks below the diagnosis, e.g. the companies of a group. */
 		children?: Snippet;
 	} = $props();
@@ -87,6 +91,7 @@
 				{/if}
 				<EntityHero {entry} {entries} {series} targetTenths={target} />
 				<EntityActions entityId={id} {entry} />
+				<InvoiceReminders entityId={id} {invoicesDue} />
 				<div class="flex flex-wrap items-end justify-between gap-3 pt-2">
 					<div>
 						<p class="eyebrow">De dónde sale el score</p>

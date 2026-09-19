@@ -64,6 +64,7 @@ function kindOf(path: string): BundleKind | null {
 	if (path === BUNDLE_FILES.manifest) return 'manifest';
 	if (path === BUNDLE_FILES.portfolio) return 'portfolio';
 	if (path === BUNDLE_FILES.alerts) return 'alerts';
+	if (path === BUNDLE_FILES.invoices_due) return 'invoices_due';
 	if (path === BUNDLE_FILES.receipt) return 'receipt';
 	const [folder, file, ...rest] = path.split('/');
 	if (rest.length > 0 || !file) return null;
@@ -125,10 +126,13 @@ function readBundle(root: string) {
 				const company = parseBundleFile(kind, data);
 				if (company.id !== name) failures.push(`${path}: id ${company.id} does not match`);
 				companies.push(company);
-			} else {
+			} else if (kind === 'evidence') {
 				const evidence = parseBundleFile(kind, data);
 				if (evidence.entity_id !== name) failures.push(`${path}: entity_id does not match`);
 				evidenceIds.push(evidence.entity_id);
+			} else {
+				// single files without an entity key (invoices_due, ...)
+				parseBundleFile(kind, data);
 			}
 		} catch (reason) {
 			const detail = reason instanceof Error ? reason.message.slice(0, 300) : String(reason);

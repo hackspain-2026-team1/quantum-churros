@@ -2,7 +2,7 @@
 
 Files: ``manifest.json``, ``portfolio.json``, ``groups/<id>.json``,
 ``companies/<id>.json``, ``evidence/<id>.json``, ``alerts.json``,
-``receipt.json``. Every number comes from a ``ScoreResult``; evidence rows are
+``invoices_due.json`` (the collect-earlier work lists), ``receipt.json``. Every number comes from a ``ScoreResult``; evidence rows are
 aggregates, never raw descriptions. Output is byte-identical for identical
 inputs: sorted keys, fixed separators, no wall-clock values.
 """
@@ -19,6 +19,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import polars as pl
 
 from . import contracts
 from .contracts import (
@@ -39,7 +41,7 @@ if TYPE_CHECKING:  # the result object is only read through its public fields
 
 BUNDLE_SCHEMA = "xray-export-v1"
 DEFAULT_VALIDATION_PATH = Path("artifacts/validation.json")
-SINGLE_FILES = ("manifest.json", "portfolio.json", "alerts.json", "receipt.json")
+SINGLE_FILES = ("manifest.json", "portfolio.json", "alerts.json", "invoices_due.json", "receipt.json")
 ENTITY_FOLDERS = ("groups", "companies", "evidence")
 SCORES_FILE = "scores.parquet"
 FALLBACK_GATE = "unavailable"
@@ -852,6 +854,33 @@ def _clean_target(out_dir: Path) -> None:
             path.unlink()
 
 
+MAX_REMINDERS = 20  # top open overdue AR invoices per entity in the reminder list
+
+
+def _reminder_row(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "operation_id": row["operation_id"],
+        "counterparty_id": row["counterparty_id"],
+        "due_date": row["due_date"].isoformat() if row["due_date"] is not None else None,
+        "amount": round(row["amount"], 2),
+        "days_overdue": int(row["days_overdue"]),
+    }
+
+
+def _reminders(due_ar: pl.DataFrame) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    """Top overdue open AR invoices per company and per group, for the reminders."""
+
+    def side(key: str) -> dict[str, list[dict[str, Any]]]:
+        rows: dict[str, list[dict[str, Any]]] = {}
+        ids = due_ar[key].drop_nulls().unique().sort().to_list()
+        for entity_id in ids:
+            picked = due_ar.filter(pl.col(key) == entity_id).head(MAX_REMINDERS)
+            rows[entity_id] = [_reminder_row(row) for row in picked.to_dicts()]
+        return rows
+
+    return {"companies": side("company_id"), "groups": side("group_id")}
+
+
 def export_bundle(
     result: ScoreResult,
     out_dir: Path,
@@ -1024,6 +1053,12 @@ def export_bundle(
     # alerts of entities the bundle does not describe cannot be shown
     written = {name.split("/")[1][:-5] for name in files if not name.startswith("evidence/")}
     alerts = [alert for alert in alerts if alert["entity_id"] in written]
+    files["invoices_due.json"] = {
+        "schema": BUNDLE_SCHEMA,
+        "kind": "invoices_due",
+        "month": _month(result.window.last_month),
+        "rows": _reminders(result.due_ar),
+    }
     files["portfolio.json"] = {"schema": BUNDLE_SCHEMA, "kind": "portfolio", "months": axis, "groups": portfolio_rows}
     files["alerts.json"] = {"schema": BUNDLE_SCHEMA, "kind": "alerts", "alerts": alerts}
 
