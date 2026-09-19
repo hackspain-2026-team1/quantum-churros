@@ -99,22 +99,42 @@ actualiza el guion; nunca se fija el motor para conservar esta historia.
 No buscar, escribir ni cambiar de mes durante los tres minutos. Cambiar de pestaña es más
 rápido y reproducible que navegar en vivo.
 
-### Dejar `FIN-024` listo
+### Preparar la sala y `FIN-024`
 
-Antes de entrar en la sala:
+La fuente de verdad para esta demo es este documento. `docs/engine/DEMO_SCRIPT.md` describe un recorrido anterior, con otras rutas, entidades y comprador; no se debe usar para grabar ni mezclar con este guion.
+
+#### Preflight antes de grabar
+
+Ejecutar en una terminal separada, nunca durante el vídeo:
+
+```bash
+make validate
+make forecast
+cd frontend && bun run check && bun test && bun run prueba
+```
+
+Después arrancar la aplicación con `make up`, comprobar que API/PostgreSQL/web están saludables y abrir las seis pestañas de esta sección. Si se usa el servidor Vite local, `frontend/public/rumbo` debe apuntar al `rumbo/` generado junto al bundle actual; un `rumbo/` antiguo hace que nombres y previsiones parezcan obsoletos aunque el código esté correcto.
+
+#### Dejar `FIN-024` preparado
 
 1. Confirmar `FINANCING_DEMO_ENABLED=true` y API/PostgreSQL saludables.
-2. Abrir **Financiación** y ejecutar **Iniciar escenario FIN-024**.
-3. Cambiar a **Empresa** y pulsar **Autorizar la ronda**, manteniendo identidad oculta hasta
-   la preselección.
+2. Abrir **Financiación** y ejecutar **Iniciar escenario FIN-024** una sola vez.
+3. Cambiar a **Empresa** y pulsar **Autorizar la ronda** con estas opciones:
+   - banco habitual y mercado alternativo activados;
+   - garantías personales excluidas;
+   - identidad oculta hasta la preselección.
 4. Volver a **Consultor** y pulsar **Abrir ronda de ofertas**.
-5. Entrar como **Norte Capital** y **Banco Atlas** y dejar una oferta de cada uno.
-6. Volver a **Empresa**. Dejar visibles la necesidad, las dos ofertas y la actividad en vivo.
-7. No aceptar ninguna: la decisión debe quedar abierta para que el CFO la pruebe delante
-   de ustedes.
+5. Entrar como **Norte Capital** y presentar una oferta indicativa.
+6. Cambiar a **Banco Atlas** y presentar una segunda oferta indicativa.
+7. Volver a **Empresa** y verificar que se ven la necesidad de **240.000–330.000 €**, el centro de **285.000 €**, diciembre–febrero, las dos ofertas y la actividad en vivo.
+8. **No preseleccionar ni aceptar ninguna oferta.** La decisión debe quedar abierta para que el CFO la pruebe delante del jurado.
 
 La demo no debe comenzar en «Iniciar escenario»: ese botón prueba infraestructura, no valor.
 El CFO debe ver directamente el resultado de la cadena y puede rehacerla si lo pide.
+
+#### Qué hacer durante el vídeo
+
+No lanzar `make`, `bun`, migraciones, regeneraciones ni scripts de preparación durante la grabación. El único script que puede ejecutarse antes es el preflight anterior; durante el vídeo se navega por las pestañas ya cargadas. Si financiación falla, no se intenta reparar PostgreSQL o SSE: se usa el fallback del §8 y se continúa con **Acciones**.
 
 ## 4. Guion exacto
 
@@ -258,6 +278,40 @@ Se mantienen preparadas para preguntas. La demo enseña **resultado**, no invent
 | Demo navegable | Ficha propia, palancas y espacio transaccional abiertos delante del CFO |
 | Anticipación medida · bonus | Forecast temporal y caso canónico 45→65; cifras solo tras regenerar evaluación |
 | Monitor que avisa · bonus | Alerta estructural de Maravia sin consulta manual |
+
+### Lo que aún hay que cerrar para la entrega del reto
+
+La demo cubre la historia y el producto, pero hay un punto obligatorio que no se puede
+simular: **la predicción sobre el test oculto**. El motor ya puntúa cualquier carpeta de
+entrada y el ensayo aislado de 60 grupos comprueba que el resultado no depende de tener la
+cartera completa, pero eso todavía es un *proxy*, no el envío al leaderboard. En cuanto el
+organizador entregue el test y su contrato, hay que hacer este recorrido, sin cambiar los
+parámetros del motor después de mirar resultados:
+
+1. Confirmar con el equipo de Embat la unidad (`group` o `company`), el mes evaluado, la
+   columna de identificador, el formato de entrega y la métrica del leaderboard. Es una
+   ambigüedad real del brief: hay 250 grupos y 1.286 empresas.
+2. Ejecutar `xray-score predict <test> --out <run>` con los parámetros congelados y conservar
+   `scores_groups.csv`, `scores_companies.csv`, `dataset_hash`, `params_hash` y la versión del
+   motor en el mismo expediente.
+3. Entregar únicamente el CSV que corresponda al contrato del organizador; no ajustar el
+   score, los umbrales ni el orden usando el resultado del test. Guardar el resultado del
+   leaderboard junto con la huella del run.
+4. Añadir al cierre de la demo la métrica real del test. Hasta entonces, decir «proxy de
+   generalización», nunca «resultado del test oculto».
+
+Hay tres extras que sí están implementados pero deben enseñarse o dejarse preparados si el
+jurado pregunta:
+
+- **Anticipación medida:** abrir `make eval-anticipation` y enseñar AUC, número de onsets,
+  distribución y mediana de meses. La cartera real mide onsets internos; la inyección mide
+  retardo desde un cambio conocido. Ninguna de las dos es precisión sobre quiebras.
+- **Monitor proactivo:** ejecutar `make mailpit-notify` y dejar disponible
+  `http://localhost:8025` como prueba de que una alerta `fired` genera un aviso accionable;
+  el dashboard sigue siendo la prueba principal y Mailpit es solo infraestructura de demo.
+- **Caso sin datos:** tener preparado `GROUP_0083` para demostrar abstención, feed caído y
+  ausencia de financiación. Es una señal de confianza del producto: el sistema sabe decir
+  «todavía no» y no rellena huecos con datos inventados.
 
 ## 6. Orden de verificación
 
