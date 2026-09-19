@@ -88,6 +88,7 @@ export interface Acciones {
 	abrirEmpresa(id: string): void;
 	abrirGrupo(id: string): void;
 	irSeccion(s: Seccion, accion?: string, filtro?: FiltroEvidencia): void;
+	irBandeja(): void;
 	repintarArena(): void;
 }
 
@@ -131,7 +132,7 @@ function monitorProactivo(d: DatosFicha, acc: Acciones): HTMLElement | null {
 			: s.fase === 'pausa' ? 'El motor reconoce el cambio, pero el aviso está silenciado o en abstención.'
 				: 'Todavía no hay evidencia suficiente para tratar el movimiento como estructural ni avisar por correo.';
 	const boton = s.alerta ? h('button', { type: 'button', class: 'as-enlace' }, 'Abrir en la bandeja') : null;
-	boton?.addEventListener('click', () => acc.irSeccion('tecnico'));
+	boton?.addEventListener('click', () => acc.irBandeja());
 	return h('aside', {
 		class: `monitor ${mejora ? 'sube' : 'baja'} fase-${s.fase}`,
 		'data-monitor-phase': s.fase,

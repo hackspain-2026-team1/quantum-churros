@@ -79,7 +79,10 @@ export function seccionTecnica(d: DatosFicha, acc: Acciones, filtro: FiltroEvide
 
 	// 7. Avisos, todos.
 	const todos = d.ent.alerts.filter((a) => a.month <= d.corte).sort((a, b) => (a.month < b.month ? 1 : -1));
-	raiz.append(seccion(`Avisos del motor · ${f.numero(todos.length)}`, bandejaAvisos(d, todos)));
+	const avisos = seccion(`Avisos del motor · ${f.numero(todos.length)}`, bandejaAvisos(d, todos));
+	avisos.id = 'bandeja-avisos';
+	avisos.tabIndex = -1;
+	raiz.append(avisos);
 
 	// 8. Las acciones, con el texto original del motor.
 	const accs = m.actions ?? [];

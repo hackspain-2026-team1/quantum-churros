@@ -9,7 +9,8 @@
 		"build:despliegue": "VITE_DATOS=/data/v1/ VITE_RUMBO=/data/rumbo/ vite build --base / && bun scripts/comprobar-build.mjs /",
 		"preview": "vite preview --host 127.0.0.1 --port 5318",
 		"check": "tsc --noEmit",
-		"test": "bun run build:despliegue",
+		"test:unit": "bun test",
+		"test": "bun run test:unit && bun run build:despliegue",
 		"prueba": "bun pruebas/recorrido.mjs",
 		"datos": "bash scripts/datos/preparar.sh"
 	},

@@ -43,7 +43,7 @@ test-backend: ## Run API tests
 
 .PHONY: test-frontend
 test-frontend: ## Type-check and build the production frontend
-	cd frontend && bun run check && bun run build:despliegue
+	cd frontend && bun run check && bun run test
 
 .PHONY: test-engine-data
 test-engine-data: ## Run the engine tests that need the real dataset (XRAY_DATA=<folder>)
