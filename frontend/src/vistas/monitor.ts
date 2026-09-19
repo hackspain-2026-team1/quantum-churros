@@ -596,7 +596,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 					if (g[`dn_${b}`]) { et(g.x1 + 10, g[`d_${b}`], 'mr-dato', `${nombreBandaM(c, b)} · ${f.numero(g[`dn_${b}`])}`); ocupado.push(g[`d_${b}`]); }
 				}
 				// Las que van hacia crítico, con nombre donde acaba su cinta y sin pisar los rótulos de banda.
-				const riesgo = vis.filter((e) => e.band !== 'critical' && (e.hz?.pCritico ?? 0) >= 0.5 && g[`fin:${e.id}`] !== undefined).sort((a, b) => g[`fin:${a.id}`] - g[`fin:${b.id}`]).slice(0, 10);
+				const riesgo = vis.filter((e) => e.band !== 'critical' && (e.hz?.pCritico ?? 0) >= 0.5 && g[`fin:${e.id}`] !== undefined).sort((a, b) => (b.hz!.pCritico ?? 0) - (a.hz!.pCritico ?? 0)).slice(0, 10).sort((a, b) => g[`fin:${a.id}`] - g[`fin:${b.id}`]);
 				let ultimo = -Infinity;
 				for (const e of riesgo) {
 					let y = Math.max(g[`fin:${e.id}`], ultimo + 14);
