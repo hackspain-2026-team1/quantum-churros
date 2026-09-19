@@ -79,6 +79,23 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 			etiquetas.append(el);
 		}
 
+		// Eje temporal: raya y año donde empieza cada año, la convención estándar de un eje x.
+		let ano = '';
+		for (const p of ctx.periodos) {
+			const mes0 = c.months[Math.min(...p.meses)] ?? '';
+			const este = mes0.slice(0, 4);
+			if (!este || este === ano) continue;
+			ano = este;
+			const t = tramo(M, p.meses);
+			const raya = h('span', { class: 'regla-ano-raya', 'aria-hidden': 'true' });
+			raya.style.left = `${x(t.x0)}px`;
+			raya.style.top = `${base + (M.movil ? 40 : 44)}px`;
+			const marca = h('span', { class: 'regla-ano', 'aria-hidden': 'true' }, este);
+			marca.style.left = `${x(t.x0) + 4}px`;
+			marca.style.top = `${base + (M.movil ? 38 : 42)}px`;
+			etiquetas.append(raya, marca);
+		}
+
 		// Zonas sensibles por periodo: arriba mejoras, abajo deterioros.
 		vaciar(zonas);
 		const giSel = (e.vista === 'organizacion' || e.vista === 'empresa') && e.sel ? c.groups.findIndex((g) => g.id === e.sel) : -1;

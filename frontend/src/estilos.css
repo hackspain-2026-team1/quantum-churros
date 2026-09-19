@@ -766,11 +766,12 @@ button.filtro-opcion[aria-pressed='true'] { color: var(--tinta); border-color: v
 
 /* Organización: la flota. */
 .flota-plano { position: relative; height: 220px; margin: 4px 0 12px; }
-.flota-etq { position: absolute; transform: translate(8px, -50%); font: 500 11px var(--sans); color: var(--tinta-2); padding: 1px 3px; border-radius: 5px; }
+.flota-etq { position: absolute; transform: translate(8px, -50%); font: 500 11px var(--sans); color: var(--tinta-2); padding: 1px 3px; border-radius: 5px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flota-etq:hover { background: var(--info-s); color: var(--info-t); }
 .flota-eje { position: absolute; font: italic 12px var(--serif); color: var(--tenue); }
 .flota-eje.x { right: 0; bottom: -18px; }
-.flota-eje.y { left: 0; top: -2px; }
+.regla-ano { position: absolute; font: italic 400 12px/1 var(--serif); color: var(--tenue); pointer-events: none; }
+.regla-ano-raya { position: absolute; width: 1px; height: 10px; background: var(--borde-2); pointer-events: none; }
 
 /* Entrada. */
 .entrada { display: grid; justify-items: center; text-align: center; padding-top: 10px; }
