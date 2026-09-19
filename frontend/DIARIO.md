@@ -4,6 +4,41 @@ Registro de lo que se hace en `frontend/`, en qué orden y por qué. Lo lleva el
 
 ---
 
+## 20 de septiembre de 2026, el horizonte contesta: dónde cae la acción y contra qué se compara
+
+Cinco cosas pedidas mirando la gráfica y las pestañas.
+
+### El globo sigue al ratón
+
+La cifra que se lee al pasar por la gráfica se clavaba arriba, en la columna del mes, y había que buscarla. Ahora sale **debajo y a la derecha del cursor**, pegada a la mano. Solo se aparta cuando no cabe: encima si el ratón está muy abajo, a la izquierda si se sale por el borde derecho. La posición la fija `leer()` en píxeles de la caja del gráfico (`ficha.ts`), no en porcentajes de columna.
+
+### Las cinco pestañas se leen igual
+
+Desglose iba a 13,5 px y en gris tenue, Conciliación a 15 px en el color de las demás: dos pestañas del mismo grupo con dos pesos distintos. `.sec-marca.reverso` deja de cambiar letra y color y solo conserva el `margin-left: auto` que las aparta a la derecha. Detalle, Acciones, Productos, Desglose y Conciliación son ahora la misma pestaña.
+
+### «Extender», donde se lee
+
+El mando vivía al final de la barra de pestañas y **casi siempre decía «Fijar el horizonte»**: la palabra que importa —extender— no se veía nunca, porque el estado extendido es el de partida. Se muda a la fila de mandos del horizonte, junto a «Qué se dibuja» y los casos, y **la palabra ya no cambia**: dice «Extender» siempre, con `aria-pressed` y el relieve de pulsado para el estado. Lo que cambia es el título, que cuenta qué pasa al pulsarlo.
+
+### Con una acción marcada no desaparece el resto
+
+Marcar o tantear una acción escondía los otros dos casos y comparaba contra «si sigue al mismo ritmo», que en muchas fichas se dispara a 100: se leía «100 → 44 (−56)», como si la acción hundiera la empresa.
+
+- La referencia pasa a ser **el caso que se está mirando** (de partida, «si todo sigue igual»). El rótulo dice `46 → 44`, y sin paréntesis cuando no hay diferencia.
+- **Los tres casos siguen dibujados** y los tres llevan su score a un año al borde derecho: `todo igual · 46`, `mismo ritmo · 100`, `peor trimestre · 46`. El que se mira, en firme; los otros dos, tenues y todavía pulsables.
+
+### La acción marca su punto
+
+Una acción tarda lo suyo en notarse —un mes, seis, un año— y eso estaba solo en la prosa. Ahora la gráfica **marca el punto a esa distancia**, con su grano y con su cifra: `a 6 meses · 44`. Con varias marcadas se marca la de cada una y, si el motor da la cifra combinada, `las 2 juntas · 62`. Dos rótulos solo se apilan si además caen a la misma altura.
+
+Contado eso en la gráfica, la ficha de cada acción se limpia: fuera «+5,4 puntos según el motor» (ya está en grande a la derecha) y fuera «a seis meses, 50 en vez de 46» (ya está en el horizonte). Queda una línea: `se nota a un mes · esfuerzo bajo · pilar de liquidez`.
+
+### Pruebas
+
+`bun run check`, `bun test` (31 de 31) y el recorrido, **58 de 58**. La comprobación de «qué pasaría si» estaba muerta: comparaba contra `.esc.leyenda`, una clase que ya no existe, así que daba 0 = 0 con una acción marcada. Ahora cuenta los casos de verdad y se le suman dos comprobaciones nuevas, las del punto de la acción.
+
+---
+
 ## 20 de septiembre de 2026, aire, el scoring que se explica y la estantería por necesidad
 
 Tres cosas que se pidieron mirando la ficha: que respire, que el scoring cuente lo que pasa y que los productos empiecen por lo que hace falta.
