@@ -56,6 +56,23 @@ export function granos3(label: string): SVGSVGElement {
 	return s;
 }
 
+const PALABRAS_GENERICAS = new Set(['banco', 'bank', 'caja', 'caixa', 'de', 'del', 'la', 'el', 'las', 'los', 'sa', 's']);
+
+/** Monograma grabado de una entidad financiera: disco con las iniciales de sus palabras
+ *  significativas (Banco Bilbao Vizcaya Argentaria → BV). No hay logotipos de terceros ni
+ *  imágenes remotas: la marca es tipográfica y vive en la tinta de la interfaz. */
+export function marcaBanco(nombre: string | null | undefined, tam = 20): SVGSVGElement | null {
+	if (!nombre) return null;
+	const palabras = nombre.toLowerCase().split(/[^a-zñáéíóúü]+/).filter((p) => p && !PALABRAS_GENERICAS.has(p));
+	const iniciales = (palabras.length >= 2 ? palabras[0][0] + palabras[1][0] : (palabras[0] ?? nombre.toLowerCase()).slice(0, 2)).toUpperCase();
+	const s = svg(tam, tam, 'marca-banco');
+	s.append(el('circle', { cx: tam / 2, cy: tam / 2, r: tam / 2 - 1, class: 'mb-aro' }), el('circle', { cx: tam / 2, cy: tam / 2, r: tam / 2 - 3.5, class: 'mb-aro fino' }));
+	const t = el('text', { x: tam / 2, y: tam / 2 + tam * 0.15, class: 'mb-iniciales', 'text-anchor': 'middle', 'font-size': String(Math.round(tam * 0.42)) });
+	t.textContent = iniciales;
+	s.append(t);
+	return s;
+}
+
 const CONFIANZA: Record<string, string> = { high: 'alta', medium: 'media', low: 'baja' };
 
 /** La línea de estado. `nota` es la frase del motor cuando los dos horizontes se contradicen. */

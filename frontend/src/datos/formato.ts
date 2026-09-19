@@ -27,6 +27,13 @@ export const f = {
 		if (a >= 1e3) return `${nf(0, 0).format(v / 1e3)}${NBSP}k€`;
 		return `${nf(0, 0).format(v)}${NBSP}€`;
 	},
+	/** Importe en una unidad fija y sin sufijo: la unidad vive en la cabecera de la columna
+	 *  cuando se repite en todas las filas (docs/DESIGN_UX.mdx, «Tablas»). */
+	eurosEn: (v: number | null | undefined, unidad: '€' | 'k€' | 'M€') => {
+		if (v === null || v === undefined) return '—';
+		const escala = unidad === 'M€' ? 1e6 : unidad === 'k€' ? 1e3 : 1;
+		return nf(0, unidad === 'M€' ? 1 : 0).format(v / escala);
+	},
 	porcentaje: (ratio: number | null | undefined, dec = 1) => (ratio === null || ratio === undefined ? '—' : `${nf(0, dec).format(ratio * 100)}${NBSP}%`),
 	puntosPorcentaje: (v: number, dec = 1) => `${nf(0, dec).format(v)}${NBSP}%`,
 	dias: (v: number | null | undefined) => {

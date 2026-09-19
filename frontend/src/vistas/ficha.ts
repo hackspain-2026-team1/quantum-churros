@@ -20,7 +20,7 @@ import { ESFUERZO, ESTADO_AVISO, explicacionAccion, lineaAvisoM, movimiento, nom
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
 import { iconoProducto } from './iconos';
-import { asiento, cifraC, hilo, lineaEstado, llamadas, seccion, sello, type Nudo } from './primitivos';
+import { asiento, cifraC, hilo, lineaEstado, llamadas, marcaBanco, seccion, sello, type Nudo } from './primitivos';
 import { placa } from './registro';
 import { seccionTecnica } from './tecnico';
 import { triaje } from './triaje';
@@ -429,9 +429,19 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 	}
 	if (!tenenciaDe(d).length) tiene.append(h('p', { class: 'nota' }, 'Ninguno de los siete productos consta en sus datos.'));
 	const otras = d.prodE?.other_debt.filter((x) => !x.closed) ?? [];
+	// La unidad que se repite entre las filas sube a la cabecera y las celdas quedan limpias;
+	// el cero no lastra la unidad (0 € = 0 k€). Si se mezclan, cada fila lleva la suya (docs/DESIGN_UX.mdx).
+	const unidadDe = (v: number | null) => (v === null || v === 0 ? null : Math.abs(v) >= 1e6 ? 'M€' : Math.abs(v) >= 1e3 ? 'k€' : '€');
+	const unidadComun = (vs: (number | null)[]) => {
+		const us = new Set(vs.filter((v) => v !== null && v !== 0).map(unidadDe));
+		return us.size === 1 ? [...us][0]! : null;
+	};
+	const uConcedido = unidadComun(otras.map((x) => x.granted));
+	const uPendiente = unidadComun(otras.map((x) => x.outstanding));
+	const importe = (v: number | null, u: '€' | 'k€' | 'M€' | null) => (v === null ? '—' : u ? f.eurosEn(v, u) : f.eurosCorto(v));
 	const otrasEl = otras.length ? seccion('Otras deudas', h('table', { class: 'tabla-sutil' },
-		h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, 'Entidad'), h('th', { class: 'num' }, 'Concedido'), h('th', { class: 'num' }, 'Pendiente'), h('th', { class: 'num' }, 'Interés'), h('th', {}, 'Próxima cuota'))),
-		h('tbody', {}, ...otras.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, x.bank ?? '—'), h('td', { class: 'num' }, f.eurosCorto(x.granted)), h('td', { class: 'num' }, f.eurosCorto(x.outstanding)), h('td', { class: 'num' }, x.rate === null ? '—' : `${f.numero(x.rate, 2)} %`), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—'))))),
+		h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, 'Entidad'), h('th', { class: 'num' }, uConcedido ? `Concedido (${uConcedido})` : 'Concedido'), h('th', { class: 'num' }, uPendiente ? `Pendiente (${uPendiente})` : 'Pendiente'), h('th', { class: 'num' }, 'Interés (%)'), h('th', {}, 'Próxima cuota'))),
+		h('tbody', {}, ...otras.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, x.bank ? h('span', { class: 'banco' }, marcaBanco(x.bank), x.bank) : '—'), h('td', { class: 'num' }, importe(x.granted, uConcedido)), h('td', { class: 'num' }, importe(x.outstanding, uPendiente)), h('td', { class: 'num' }, x.rate === null ? '—' : f.numero(x.rate, 2)), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—'))))),
 		h('p', { class: 'nota' }, 'No son de los siete productos, pero pesan en el pilar de deuda.')) : null;
 
 	// Lo que le encajaría: ordenado por el efecto del motor.
