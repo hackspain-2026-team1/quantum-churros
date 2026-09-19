@@ -1969,18 +1969,6 @@ body[data-vista="metodologia"] .regla {
   font-size: 10.5px;
   color: var(--tenue);
 }
-.g-etq.boya.fin {
-  transform: translate(-100%, 24px);
-}
-.g-etq.boya {
-  transform: translate(-50%, 24px);
-  font: 500 11px var(--sans);
-  color: var(--tinta-2);
-  pointer-events: auto;
-  cursor: help;
-  border-top: 1px solid var(--borde-2);
-  padding-top: 3px;
-}
 .g-etq.abanico {
   font: 500 11px var(--sans);
   color: var(--tinta-2);
@@ -2036,15 +2024,34 @@ body[data-vista="metodologia"] .regla {
   max-width: 80ch;
   line-height: 1.5;
 }
+/* Los desplegables llevan la misma ropa que los demás mandos: sin cromo del navegador. */
 .sel-sutil {
+  appearance: none;
+  -webkit-appearance: none;
   width: auto;
   max-width: 280px;
+  text-overflow: ellipsis;
   font: 500 13px var(--sans);
   color: var(--tinta);
   border: 1px solid var(--borde);
   border-radius: 9px;
-  padding: 5px 8px;
-  background: #fff;
+  padding: 5px 28px 5px 10px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236e707c' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      no-repeat right 9px center,
+    #fff;
+  cursor: pointer;
+  transition:
+    border-color 160ms var(--salida),
+    background-color 160ms var(--salida),
+    box-shadow 200ms var(--salida);
+}
+.sel-sutil:hover {
+  border-color: var(--borde-2);
+  box-shadow: var(--sombra-1);
+}
+.sel-sutil:active {
+  background-color: var(--fondo-3);
 }
 .buscar-sutil {
   font: 13px var(--sans);
@@ -3069,7 +3076,7 @@ button.filtro-opcion[aria-pressed="true"] {
 	.entrada-rosa { width: 120px; height: 120px; margin: 4px 0; }
 	.dl-tecnica { grid-template-columns: 1fr; }
 	.g-etq.eje-banda { display: none; }
-	.g-etq.boya { font-size: 10px; }
+	.g-etq.boya { font-size: 11px; }
 	.buscar-sutil { min-width: 0; width: 100%; }
 	.sel-sutil { max-width: 100%; }
 	.ct-fila { grid-template-columns: 1fr 60px 60px; }
@@ -3222,10 +3229,11 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .g-etq.zona-t.despues { transform: translate(4px, 0); font-size: 12px; color: var(--tenue); }
 .g-etq.referencia-tendencia { transform: translate(6px, -50%); font: italic 11.5px var(--serif); color: var(--tellme, #9d4bdd); pointer-events: auto; cursor: help; }
 .g-etq.sin-validar { transform: translate(-50%, -20px); font: italic 11.5px var(--serif); color: var(--tenue); pointer-events: auto; cursor: help; border-bottom: 1px dotted var(--borde-2); }
-.g-etq.boya { transform: translate(-50%, 26px); font: 500 11px var(--sans); color: var(--tinta-2); border-left: 1px solid var(--borde-2); padding: 0 0 0 5px; white-space: nowrap; }
+/* Las boyas del horizonte cuelgan de su mes: rótulos del gráfico, no una caja con bordes. */
+.g-etq.boya { transform: translate(-50%, 26px); font: italic 12.5px var(--serif); color: var(--apagado); white-space: nowrap; pointer-events: auto; cursor: help; }
 .g-etq.boya.h3 { transform: translate(-1px, 26px); }
 .g-etq.boya.h6 { transform: translate(-1px, 40px); }
-.g-etq.boya.fin { transform: translate(-100%, 26px); border-left: 0; border-right: 1px solid var(--borde-2); padding: 0 5px 0 0; }
+.g-etq.boya.fin { transform: translate(-100%, 26px); }
 .horizonte .grafico { margin-bottom: 58px; }
 .g-etq.alternativa { transform: translate(6px, -50%); pointer-events: auto; cursor: pointer; }
 .g-etq.alternativa.esc-drift { --c: #9d4bdd; }
