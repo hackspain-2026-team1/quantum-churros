@@ -1110,10 +1110,14 @@ def verdict_persistence(
     against the first month of its drift window); ``by_age`` of a pending call
     (its first month or a later one); ``by_shock_direction`` of a bump (in the
     direction of the shock it undoes). Graded on the falls of
-    ``grade_kind`` called with the short horizon: fail when structural ones do
-    not persist more than pending ones; pass when they reach
-    ``P_PERSIST_STRUCTURAL_MIN``, beat pending ones by ``PERSIST_GAP_MIN`` and
-    bumps stay under ``P_PERSIST_BUMP_MAX``; a warning in between.
+    ``grade_kind`` the short horizon takes part in (``short_horizon_calls``:
+    short or both, the verdicts whose claim is the move against
+    ``t - horizon_months``): fail when structural ones do not persist more
+    than pending ones; pass when they reach ``P_PERSIST_STRUCTURAL_MIN``, beat
+    pending ones by ``PERSIST_GAP_MIN`` and bumps stay under
+    ``P_PERSIST_BUMP_MAX``; a warning in between. A pending call makes no
+    claim of its own: its first month is pending by construction, whatever
+    comes next.
     """
     cfg = scored.params.trajectory
     horizon, move, lags = cfg.horizon_months, cfg.min_delta_points, tuple(lags)
@@ -1244,18 +1248,18 @@ def verdict_persistence(
     metrics = []
     for kind in (grade_kind, *(name for name in ("group", "company") if name != grade_kind)):
         for name in ("falls", "rises"):
-            item, where = graded[f"{kind}_{name}"], f"{labels[name]} de {words[kind]}"
+            item, where = graded[f"{kind}_{name}"], f"a +{lags[0]} meses · {labels[name]} de {words[kind]}"
             metrics += [
-                _metric(f"Estructurales que persisten a +{lags[0]} meses · {where}", item["structural"][first]["persist"], "proporción"),
-                _metric(f"Pendientes que persisten a +{lags[0]} meses · {where}", item["pending"][first]["persist"], "proporción"),
-                _metric(f"Baches revertidos que persisten a +{lags[0]} meses · {where}", item["bump"][first]["persist"], "proporción"),
-                _metric(f"Tasa base a +{lags[0]} meses · {where}", item["base_rate"][first], "proporción"),
+                _metric(f"Estructurales que persisten {where}", item["structural"][first]["persist"], "proporción"),
+                _metric(f"Pendientes que persisten {where}", item["pending"][first]["persist"], "proporción"),
+                _metric(f"Baches revertidos que persisten {where}", item["bump"][first]["persist"], "proporción"),
+                _metric(f"Tasa base {where}", item["base_rate"][first], "proporción"),
             ]
             if kind == grade_kind:
-                metrics.append(_metric(f"Veredictos estructurales con desenlace · {where}", item["structural"][first]["n"], "casos"))
+                metrics.append(_metric(f"Estructurales con desenlace {where}", item["structural"][first]["n"], "casos"))
                 if len(lags) > 1:
                     metrics.append(_metric(
-                        f"Estructurales que persisten a +{lags[-1]} meses · {where}",
+                        f"Estructurales que persisten a +{lags[-1]} meses · {labels[name]} de {words[kind]}",
                         item["structural"][f"lag{lags[-1]}"]["persist"], "proporción",
                     ))
     return {

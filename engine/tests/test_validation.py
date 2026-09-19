@@ -324,7 +324,8 @@ def test_verdict_persistence_grades_the_separation(scored, score_parts, params) 
     few = v.verdict_persistence(replace(scored, months=tuple(cases)))
     assert (few["pass"], few["warning"]) == (None, False) and "insuficientes" in few["summary"]
     # the labels the other way round: what is called structural persists less than what is pending
-    swapped = v.verdict_persistence(replace(scored, months=tuple(_verdict_cases(score_parts, params, swap=True))), min_cases=1)
+    other_way = replace(scored, months=tuple(_verdict_cases(score_parts, params, swap=True)))
+    swapped = v.verdict_persistence(other_way, min_cases=1)
     falls = swapped["short_horizon_calls"]["group_falls"]
     assert falls["structural"]["lag3"]["persist"] == 0.5 and falls["pending"]["lag3"]["persist"] == 1.0
     assert swapped["pass"] is False and "no discriminan" in swapped["summary"]
