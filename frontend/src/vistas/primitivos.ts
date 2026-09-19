@@ -152,3 +152,51 @@ export function llamadas(textos: string[]): { marcas: HTMLElement[]; notas: HTML
 export function cifraC(valor: string, que: string, comparacion?: string | Node | null, tono?: 'sube' | 'baja' | ''): HTMLElement {
 	return h('div', { class: `cifra-c ${tono ?? ''}` }, h('div', { class: 'cc-valor' }, valor), h('div', { class: 'cc-que' }, que), comparacion ? h('div', { class: 'cc-comp' }, comparacion) : null);
 }
+
+export interface ColumnaOrden<T> {
+	titulo: string;
+	/** Columna numérica: cabecera alineada a la derecha, como el .num del cuerpo. */
+	num?: boolean;
+	/** Clave de ordenación de cada fila; null (dato ausente) queda siempre al final. */
+	clave: (fila: T) => string | number | null;
+}
+
+/** Cabeceras ordenables de una tabla: cada th es un botón con aria-sort y su flecha, y al pulsarlo
+ *  se reordenan las filas del tbody reutilizando los tr existentes (los oyentes no se pierden).
+ *  `inicial` deja una columna ordenada al pintar; sin ella, la tabla nace sin orden activo. */
+export function cabecerasOrdenables<T>(columnas: ColumnaOrden<T>[], filas: { dato: T; tr: HTMLTableRowElement }[], tbody: HTMLElement, inicial?: { col: number; dir: 1 | -1 }): { thead: HTMLElement } {
+	let activa = inicial?.col ?? -1;
+	let dir = inicial?.dir ?? 1;
+	const flechas: (HTMLElement | null)[] = columnas.map(() => null);
+	const ths = columnas.map((c, i) => {
+		const flecha = h('span', { class: 'orden-flecha', 'aria-hidden': 'true' });
+		flechas[i] = flecha;
+		const b = h('button', { type: 'button', 'aria-label': `Ordenar por ${c.titulo}` }, c.titulo, flecha);
+		b.addEventListener('click', () => {
+			if (activa === i) dir = (dir * -1) as 1 | -1;
+			else { activa = i; dir = 1; }
+			ordenar();
+		});
+		return h('th', { scope: 'col', class: c.num ? 'num' : undefined }, b);
+	});
+	function ordenar() {
+		const col = columnas[activa];
+		if (!col) return;
+		const ordenadas = filas.slice().sort((a, b) => {
+			const va = col.clave(a.dato), vb = col.clave(b.dato);
+			if (va === null && vb === null) return 0;
+			if (va === null) return 1;
+			if (vb === null) return -1;
+			const r = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es', { numeric: true, sensitivity: 'base' });
+			return r * dir;
+		});
+		for (const f of ordenadas) tbody.append(f.tr);
+		ths.forEach((th, i) => {
+			if (i === activa) th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
+			else th.removeAttribute('aria-sort');
+			flechas[i]!.textContent = i === activa ? (dir === 1 ? '↑' : '↓') : '';
+		});
+	}
+	if (activa >= 0) ordenar();
+	return { thead: h('thead', {}, h('tr', {}, ...ths)) };
+}

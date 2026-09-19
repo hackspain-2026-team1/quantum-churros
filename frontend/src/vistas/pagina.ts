@@ -13,7 +13,7 @@ import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
 import { cola, h, vaciar } from './dom';
 import { cabecera, cargarFicha, contenidoSeccion, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia, type OpcionesGrafico } from './ficha';
 import { iconoProducto } from './iconos';
-import { granos3, seccion } from './primitivos';
+import { cabecerasOrdenables, granos3, seccion } from './primitivos';
 import { medirPlacas, placa } from './registro';
 
 export interface Paginas {
@@ -185,22 +185,34 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			plano.append(et);
 		}
 		plano.append(h('span', { class: 'flota-eje x' }, 'score →'), h('span', { class: 'flota-eje y' }, 'cambio en tres meses ↑'));
-		const tabla = h('table', { class: 'tabla-sutil empresas' },
-			h('thead', {}, h('tr', {}, h('th', {}, 'Empresa'), h('th', {}, 'Papel y tesorería'), h('th', { class: 'num' }, 'Score'), h('th', {}, 'Movimiento'), h('th', {}, 'Confianza'), h('th', {}, 'Productos'), h('th', { class: 'num' }, 'Acciones'))),
-			h('tbody', {}, ...filas.sort((a, b) => (a.mes?.shown ?? 9999) - (b.mes?.shown ?? 9999)).map(({ em, mes }) => {
-				const tr = h('tr', { class: 'tocable', tabindex: '0' },
-					h('td', {}, h('b', {}, f.empresa(em.res.id))),
-					h('td', {}, em.res.role, h('span', { class: 'sub' }, em.res.inherits_liquidity ? 'hereda la liquidez del grupo' : em.res.treasury_class ?? '')),
-					h('td', { class: 'num' }, mes ? h('span', {}, h('b', {}, f.score(mes.shown)), ' ', h('span', { class: 'sub' }, nombreBanda(man, mes.band).toLowerCase())) : '—'),
-					h('td', {}, mes ? movimiento(mes) : 'sin datos'),
-					h('td', {}, mes ? granos3(mes.conf.label) : ''),
-					h('td', { class: 'mini-prods' }, ...(em.prod?.held ?? []).map((t) => iconoProducto(t.product, { tam: 18, titulo: true, sinFilete: true }))),
-					h('td', { class: 'num' }, mes?.actions?.length ? f.numero(mes.actions.length) : '—'),
-					h('td', {}, cola(em.res.shown.map((v) => v), 88, 20)));
-				tr.addEventListener('click', () => acc.abrirEmpresa(em.res.id));
-				tr.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') acc.abrirEmpresa(em.res.id); });
-				return tr;
-			})));
+		const ordenConfianza: Record<string, number> = { high: 3, medium: 2, low: 1 };
+		const cuerpotabla = h('tbody', {});
+		const pares = filas.map((dato) => {
+			const { em, mes } = dato;
+			const tr = h('tr', { class: 'tocable', tabindex: '0' },
+				h('td', {}, h('b', {}, f.empresa(em.res.id))),
+				h('td', {}, em.res.role, h('span', { class: 'sub' }, em.res.inherits_liquidity ? 'hereda la liquidez del grupo' : em.res.treasury_class ?? '')),
+				h('td', { class: 'num' }, mes ? h('span', {}, h('b', {}, f.score(mes.shown)), ' ', h('span', { class: 'sub' }, nombreBanda(man, mes.band).toLowerCase())) : '—'),
+				h('td', {}, mes ? movimiento(mes) : 'sin datos'),
+				h('td', {}, mes ? granos3(mes.conf.label) : ''),
+				h('td', { class: 'mini-prods' }, ...(em.prod?.held ?? []).map((t) => iconoProducto(t.product, { tam: 18, titulo: true, sinFilete: true }))),
+				h('td', { class: 'num' }, mes?.actions?.length ? f.numero(mes.actions.length) : '—'),
+				h('td', {}, cola(em.res.shown.map((v) => v), 88, 20)));
+			tr.addEventListener('click', () => acc.abrirEmpresa(em.res.id));
+			tr.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') acc.abrirEmpresa(em.res.id); });
+			cuerpotabla.append(tr);
+			return { dato, tr };
+		});
+		const { thead } = cabecerasOrdenables([
+			{ titulo: 'Empresa', clave: (x) => f.empresa(x.em.res.id) },
+			{ titulo: 'Papel y tesorería', clave: (x) => `${x.em.res.role} ${x.em.res.inherits_liquidity ? 'hereda la liquidez del grupo' : x.em.res.treasury_class ?? ''}` },
+			{ titulo: 'Score', num: true, clave: (x) => x.mes?.shown ?? null },
+			{ titulo: 'Movimiento', clave: (x) => (x.mes ? movimiento(x.mes) : null) },
+			{ titulo: 'Confianza', clave: (x) => (x.mes ? ordenConfianza[x.mes.conf.label] ?? null : null) },
+			{ titulo: 'Productos', clave: (x) => (x.em.prod?.held ?? []).length },
+			{ titulo: 'Acciones', num: true, clave: (x) => x.mes?.actions?.length ?? null },
+		], pares, cuerpotabla, { col: 2, dir: 1 });
+		const tabla = h('table', { class: 'tabla-sutil empresas' }, thead, cuerpotabla);
 		const hereda = g.companies.filter((x) => x.inherits_liquidity).length;
 		return seccion(`Sus ${f.plural(g.companies.length, 'empresa', 'empresas')}`, plano, h('div', { class: 'tabla-caja' }, tabla), hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
 	}

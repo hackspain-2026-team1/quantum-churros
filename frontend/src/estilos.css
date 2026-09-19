@@ -676,6 +676,9 @@ button.miga-paso:hover { color: var(--tinta); border-bottom-color: var(--borde-2
 .tabla-sutil .sub { display: block; font-size: 12px; color: var(--apagado); }
 .tabla-sutil tr.tocable { cursor: pointer; transition: background 120ms; }
 .tabla-sutil tr.tocable:hover { background: var(--fondo-3); }
+.tabla-sutil th button { display: inline-flex; align-items: baseline; gap: 3px; font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.tabla-sutil th button:hover, .tabla-sutil th[aria-sort] button { color: var(--tinta); }
+.tabla-sutil .orden-flecha { min-width: 8px; font-size: 10px; line-height: 1; }
 .mini-prods { display: flex; gap: 2px; }
 .matriz-caja { overflow-x: auto; }
 .matriz { border-collapse: collapse; font-size: 13px; }
