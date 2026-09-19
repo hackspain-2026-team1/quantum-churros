@@ -1,4 +1,5 @@
-"""Direction and nature: own-noise threshold, shock then structural, bump, perimeter shift."""
+"""Direction and nature: own-noise threshold, shock then structural (confirmed, not moving back,
+expected to hold or spread over the window), bump, perimeter shift."""
 
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ from datetime import date
 import pytest
 from xray_engine.aggregate import aggregate
 from xray_engine.contracts import PILLAR_KEYS, PanelRow, PillarResult
-from xray_engine.trajectory import own_sigma, trajectories, trajectory, trajectory_note
+from xray_engine.trajectory import own_level, own_sigma, trajectories, trajectory, trajectory_note
 
 TOL = 1e-9
 START = date(2025, 1, 1)
@@ -114,9 +115,127 @@ def test_a_spike_that_reverts_is_a_bump(score_parts, params) -> None:
     up = _verdicts(_history(score_parts, params, [50] * 8 + [64, 51, 50]), params)
     assert [item.nature for item in up[8:]] == ["shock_pending", "bump", "bump"]
     assert up[8].direction == "improving"
-    # half undone is the bar
+    # half undone is the bar of a bump; short of it the call stands, unconfirmed while the score comes back
     partial = _verdicts(_history(score_parts, params, [70] * 8 + [56, 62.9, 62.9]), params)
-    assert partial[9].direction == "deteriorating" and partial[9].nature == "structural"
+    assert (partial[9].direction, partial[9].nature) == ("deteriorating", "shock_pending")
+    assert partial[9].shock_month == partial[8].shock_month and partial[9].persistence_months == 2
+
+
+def _natures(score_parts, params, scores) -> list[str]:
+    codes = {("deteriorating", "shock_pending"): "d?", ("deteriorating", "structural"): "D",
+             ("improving", "shock_pending"): "i?", ("improving", "structural"): "I",
+             ("stable", "bump"): "b", ("stable", None): "-"}
+    return [codes[(item.direction, item.nature)] for item in _verdicts(_history(score_parts, params, scores), params)]
+
+
+def test_a_spike_on_its_way_back_is_not_a_second_month(score_parts, params) -> None:
+    """A one-month event often takes two months to leave the score: the month in between is
+    still beyond the threshold, and already six points or more on its way back."""
+    spike = [70] * 8 + [40, 55, 69, 70, 70]
+    assert _natures(score_parts, params, spike)[8:11] == ["d?", "d?", "b"]
+    verdicts = _verdicts(_history(score_parts, params, spike), params)
+    assert verdicts[9].delta3 == pytest.approx(-15.0) and verdicts[9].persistence_months == 2
+    assert _natures(score_parts, params, [50] * 8 + [80, 66, 51, 50, 50])[8:11] == ["i?", "i?", "b"]
+    # under six points back the second month confirms
+    assert _natures(score_parts, params, [70] * 8 + [40, 45.9, 46, 46])[8:10] == ["d?", "D"]
+    assert _natures(score_parts, params, [70] * 8 + [40, 46, 46, 46])[8:10] == ["d?", "d?"]
+
+
+def test_a_two_month_dip_is_not_structural_unless_half_of_it_still_makes_a_move(score_parts, params) -> None:
+    shallow = _natures(score_parts, params, [70] * 8 + [60, 60, 70, 70, 70])
+    assert shallow[8:11] == ["d?", "d?", "b"] and "D" not in shallow
+    # a deep one cannot be told from a step in its second month; the month it comes back says so
+    deep = _verdicts(_history(score_parts, params, [70] * 8 + [50, 50, 70, 70, 70]), params)
+    assert [(item.direction, item.nature) for item in deep[8:11]] == [
+        ("deteriorating", "shock_pending"), ("deteriorating", "structural"), ("stable", "bump"),
+    ]
+    assert deep[10].shock_month == score_parts.month_add(START, 8)
+
+
+def test_a_step_is_structural_when_it_is_expected_to_hold(score_parts, params) -> None:
+    """Own level 70: a score is expected to keep half of its gap to it, and what is left
+    must still be six points beyond the pre-move level."""
+    cfg = params.trajectory
+    assert (cfg.own_level_months, cfg.own_level_min_months, cfg.structural_retention) == (12, 4, 0.5)
+    assert _natures(score_parts, params, [70] * 8 + [58] * 4)[8:] == ["d?", "D", "D", "-"]  # 6 left
+    small = _natures(score_parts, params, [70] * 8 + [58.1] * 8)  # 5.95 left: never by the short horizon
+    assert small[8:11] == ["d?", "d?", "d?"] and small[11] == "-"
+    assert small[12:15] == ["d?", "D", "D"]  # the long horizon sees the new level some months later
+    assert _natures(score_parts, params, [50] * 8 + [62] * 4)[8:] == ["i?", "I", "I", "-"]
+    # back to the own level from an unusual quarter: nothing left to give back
+    back = _natures(score_parts, params, [60] * 8 + [78, 78, 78, 61, 60, 60, 60])
+    assert back[8:] == ["i?", "I", "I", "d?", "D", "D", "-"]
+    # the same nine points away from the own level: half of them is not a move
+    assert _natures(score_parts, params, [60] * 8 + [51] * 4)[8:] == ["d?", "d?", "d?", "-"]
+
+
+def test_own_level_is_the_median_of_the_live_months_before_the_window(score_parts, params) -> None:
+    history = _history(score_parts, params, [10, 20, 30, 40, 50, 60, 70, 80])
+    assert own_level(history[:6], params) is None  # three months up to t - 3
+    assert own_level(history[:7], params) == pytest.approx(25.0)  # months 0..3
+    assert own_level(history, params) == pytest.approx(30.0)  # months 0..4; the window under test is left out
+    long = _history(score_parts, params, list(range(20)))
+    assert own_level(long, params) == pytest.approx(10.5)  # the twelve months 5..16
+    stale = [score_parts.stale(item.month, 0.0, params, score=99.0, carried_from=START) if index in (1, 2) else item
+             for index, item in enumerate(history)]
+    assert own_level(stale, params) is None and own_level([], params) is None  # carried months do not count
+    later = stale + _history(score_parts, params, [0] * 8 + [90])[8:]
+    assert own_level(later, params) == pytest.approx(45.0)  # live months up to t - 3: 10, 40, 50, 60
+
+
+def test_a_steady_decline_is_confirmed_by_its_spread_or_by_the_drift(score_parts, params) -> None:
+    """The own level of a declining entity trails far above it, so the move is never expected
+    to hold; it is confirmed because it does not rest on a single month."""
+    fast = _verdicts(_history(score_parts, params, [70] * 8 + [70 - 3 * step for step in range(1, 9)]), params)
+    assert [(item.nature, item.horizon) for item in fast[9:12]] == [
+        ("shock_pending", "short"), ("structural", "short"), ("structural", "both"),
+    ]
+    assert fast[10].delta3 == pytest.approx(-9.0)  # without its largest step: six points, the bar
+    slow = _verdicts(_history(score_parts, params, [70] * 8 + [70 - 2.5 * step for step in range(1, 9)]), params)
+    assert [(item.nature, item.horizon) for item in slow[10:14]] == [
+        ("shock_pending", "short"), ("shock_pending", "short"), ("shock_pending", "both"), ("structural", "both"),
+    ]
+    assert slow[13].delta3 == pytest.approx(-7.5) and slow[12].drift_call == slow[13].drift_call == "deteriorating"
+    # one large step and two small ones: the move rests on one month
+    lumpy = _natures(score_parts, params, [70] * 8 + [69, 68, 59, 59])
+    assert lumpy[10:] == ["d?", "d?"]
+
+
+def test_a_drift_is_not_confirmed_in_a_month_that_moves_back(score_parts, params) -> None:
+    ramp = _ramp(82.0, 62.0)
+    ramp[18] += 7.0  # one month six points or more against the drift
+    verdicts = _verdicts(_history(score_parts, params, ramp), params)
+    assert {item.drift_call for item in verdicts[10:]} == {"deteriorating"}  # the median slope does not move
+    assert [item.nature for item in verdicts[16:21]] == [
+        "structural", "structural", "shock_pending", "structural", "structural",
+    ]
+    assert verdicts[18].persistence_months == verdicts[17].persistence_months + 1  # the run goes on
+    ramp[18] -= 1.5  # five and a half points back: still confirmed
+    assert trajectory(_history(score_parts, params, ramp)[:19], params).nature == "structural"
+
+
+def test_noise_around_a_level_is_seldom_structural(score_parts, params) -> None:
+    rng = random.Random(65)
+    cfg = params.trajectory
+    structural = available = 0
+    for _ in range(60):
+        scores = [60.0 + rng.uniform(-4.0, 4.0) for _ in range(36)]
+        history = _history(score_parts, params, scores)
+        verdicts = trajectories(history, params)
+        for index, item in enumerate(verdicts):
+            available += item.available
+            if item.nature != "structural":
+                continue
+            structural += 1
+            sign = 1.0 if item.direction == "improving" else -1.0
+            assert (scores[index] - scores[index - 1]) * sign > -cfg.min_delta_points  # never on its way back
+            if item.horizon == "short":
+                own = own_level(history[: index + 1], params)
+                left = (own + cfg.structural_retention * (scores[index] - own) - scores[index - 3]) * sign
+                steps = [(after - before) * sign for before, after in zip(scores[index - 3:], scores[index - 2: index + 1])]
+                threshold = max(cfg.min_delta_points, cfg.min_sigma_multiple * item.sigma)
+                assert left >= cfg.min_delta_points - TOL or sum(steps) - max(steps) >= threshold - TOL
+    assert available > 1500 and structural <= 0.005 * available
 
 
 def test_perimeter_shift_replaces_the_direction_call(score_parts, params) -> None:
