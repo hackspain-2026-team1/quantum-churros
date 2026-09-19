@@ -263,6 +263,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const marcas: [number, number][] = [];
 	const etFuturo: { t: string; clase: string } = { t: '', clase: '' };
 	const boyas: { h: number; texto: string; titulo?: string }[] = [];
+	let referenciaTendencia: { col: number; value: number; texto: string } | null = null;
 	const alternativas: { texto: string; clase: string; v: number; k: Escenario }[] = [];
 	const validado = d.validado || 12;
 	const base = d.hor?.scenarios?.base;
@@ -279,20 +280,26 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			return r;
 		};
 		if (accs.length) {
-			// «No hacer nada» queda como contorno fantasma; las acciones, en azul, con su mediana.
-			lineas.push({ puntos: base.q.p10.map((v, i) => [hoy + i + 1, v / 10]), tono: TONO.apagado, alfa: 0.7, punteada: true });
-			lineas.push({ puntos: base.q.p90.map((v, i) => [hoy + i + 1, v / 10]), tono: TONO.apagado, alfa: 0.7, punteada: true });
-			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...base.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: TONO.apagado, alfa: 0.8, punteada: true });
+			const tendencia = d.hor!.scenarios?.drift ?? base;
+			const tonoTendencia = tendencia === base ? TONO.apagado : TONO.tellme;
+			const p10 = 'p10' in tendencia.q ? tendencia.q.p10 : [];
+			const p90 = 'p90' in tendencia.q ? tendencia.q.p90 : [];
+			if (p10.length) lineas.push({ puntos: p10.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.45, punteada: true });
+			if (p90.length) lineas.push({ puntos: p90.map((v, i) => [hoy + i + 1, v / 10]), tono: tonoTendencia, alfa: 0.45, punteada: true });
+			lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...tendencia.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: tonoTendencia, alfa: 0.9, punteada: true });
 			const principal = accs.length === 1 ? accs[0] : accs.reduce((a, b) => (a.q.p50[5] > b.q.p50[5] ? a : b));
 			for (const a of accs) futuros.push(...conValidez(a, TONO.info, a === principal ? 0.72 : 0.3).map((x) => (a === principal ? x : { ...x, mediana: undefined })));
 			const lag = Math.max(...accs.map((a) => a.lag_months));
 			const ids = accs.map((a) => a.id).sort().join();
 			const cifra = accs.length === 1 ? accs[0].engine_new_score : d.hor!.combos?.find((c) => [...c.ids].sort().join() === ids)?.new_score;
 			if (cifra !== undefined) marcas.push([hoy + lag, cifra / 10]);
+			const nombreReferencia = tendencia === base ? 'la referencia base' : 'la tendencia actual';
+			const ultimo = tendencia.q.p50.length - 1;
+			if (ultimo >= 0) referenciaTendencia = { col: hoy + ultimo + 1, value: tendencia.q.p50[ultimo] / 10, texto: tendencia === base ? 'referencia base' : 'tendencia actual' };
 			for (const hz of [3, 6, 12]) {
 				const k = hz - 1;
-				const dif = Math.round((principal.q.p50[k] - base.q.p50[k]) / 10);
-				boyas.push({ h: hz, texto: `${hz === 12 ? 'un año' : `${hz} meses`}: ${f.score(base.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana sin hacer nada → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
+				const dif = Math.round((principal.q.p50[k] - tendencia.q.p50[k]) / 10);
+				boyas.push({ h: hz, texto: `${hz === 12 ? 'un año' : `${hz} meses`}: ${f.score(tendencia.q.p50[k])} → ${f.score(principal.q.p50[k])} (${dif >= 0 ? '+' : '−'}${Math.abs(dif)})`, titulo: `Mediana de ${nombreReferencia} → con ${accs.length > 1 ? 'la mejor de las acciones marcadas' : 'la acción'}` });
 			}
 			etFuturo.t = o.previa?.length && !o.previa.every((x) => o.acciones.has(x)) ? 'vista previa · con esta acción' : accs.length > 1 ? `con ${accs.length} acciones` : 'con la acción marcada';
 			etFuturo.clase = 'con-acciones';
@@ -371,6 +378,10 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const zp = eti('zona-t pasado', 'lo que ha pasado', '0', '0'); void zp;
 	const zfFondo = h('div', { class: 'zona-futuro' }); zfFondo.style.left = `${((hoy + 1) / columnas) * 100}%`; caja.prepend(zfFondo);
 	if (etFuturo.t) { const zf = eti(`zona-t futuro ${etFuturo.clase}`, etFuturo.t, `${((hoy + 1) / columnas) * 100}%`, '0'); void zf; }
+	if (referenciaTendencia) {
+		const et = eti('referencia-tendencia', referenciaTendencia.texto, X(Math.min(columnas - 1, referenciaTendencia.col)), Y(referenciaTendencia.value));
+		et.title = 'Trayectoria de referencia para comparar la acción seleccionada.';
+	}
 	if (despues.length && esScore) eti('zona-t despues', 'lo que pasó después', X(Math.min(columnas - 1, hoy + 1)), '14px');
 	if (esScore && hayFuturo(d) && validado < 12) { const ev = eti('sin-validar', 'sin validar', X(hoy + validado + 1), '0'); ev.title = `La previsión está validada fuera de muestra hasta ${validado} meses. Más allá, el modelo no se ha podido comprobar con lo que pasó.`; }
 	for (const b of boyas) { const el = eti(`boya h${b.h} ${b.h === 12 ? 'fin' : ''}`, b.texto, X(hoy + b.h), '100%'); if (b.titulo) el.title = b.titulo; }
@@ -673,7 +684,8 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	recs.forEach((r, i) => {
 		const a = r.accion;
 		const marca = h('input', { type: 'checkbox', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
-		marca.addEventListener('change', () => { acc.horizonte.alternar(a.id, marca.checked); li.classList.toggle('elegida', marca.checked); });
+		const fijarMarca = (v: boolean) => { marca.checked = v; acc.horizonte.alternar(a.id, v); li.classList.toggle('elegida', v); };
+		marca.addEventListener('change', () => fijarMarca(marca.checked));
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 24, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
 		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id },
 			h('label', { class: 'rec-marca' }, marca, h('span', { class: 'rec-n' }, String(i + 1))),
@@ -683,9 +695,10 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 				h('p', { class: 'rec-hechos' }, efectoAccion(d, a) ?? '', ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
 				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
 			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')));
-		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija.
+		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija — también al pulsar la fila.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
+		li.addEventListener('click', (e) => { if ((e.target as Element).closest('.rec-marca')) return; fijarMarca(!marca.checked); });
 		lista.append(li);
 	});
 	const base = d.hor?.scenarios?.base;
