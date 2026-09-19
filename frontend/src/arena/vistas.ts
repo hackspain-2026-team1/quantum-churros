@@ -93,6 +93,8 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 	const pintores = new Map<string, (add: Add) => void>();
 	type Add = (x: number, y: number, tono: number, alfa: number, talla: number) => void;
 	const k = v.k;
+	// Con pocos granos por entidad (las empresas son muchas más), el grano engorda para que la masa se vea igual.
+	const gordo = (base: number) => (k < 80 ? base * 1.7 : base);
 	const disco = (cx: number, cy: number, r: number, tono: number, alfa: number, talla = 1.5) => (add: Add) => {
 		// Girasol: los granos cubren el disco de forma pareja, sin grumos ni calvas.
 		for (let i = 0; i < k; i++) { const a = i * 2.399963, d = Math.sqrt((i + 0.5) / k) * r; add(cx + Math.cos(a) * d, cy + Math.sin(a) * d, tono, alfa, talla); }
@@ -137,11 +139,11 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 					const [p, q] = r2(i, s);
 					if (i < enBloque * 2) {
 						const izq = i < enBloque;
-						add((izq ? X0 : xb) + p * bw, (izq ? ya : yb) + q * u, TONO.tinta, 0.85, 1.5);
+						add((izq ? X0 : xb) + p * bw, (izq ? ya : yb) + q * u, TONO.tinta, 0.85, gordo(1.5));
 					} else {
 						// Un poco de azar para que la secuencia no dibuje un rayado.
 						const y = ya + (yb - ya) * suave(p) + q * u + azar(0.8);
-						add(xa + p * (xb - xa) + azar(3), y, cambia ? (baja ? TONO.peligro : TONO.exito) : TONO.apagado, cambia ? 0.9 : 0.22, cambia ? 1.6 : 1.4);
+						add(xa + p * (xb - xa) + azar(3), y, cambia ? (baja ? TONO.peligro : TONO.exito) : TONO.apagado, cambia ? 0.9 : 0.22, gordo(cambia ? 1.6 : 1.4));
 					}
 				}
 			});
@@ -163,12 +165,12 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 				// aparte: en rojo hacia donde estaba si ha bajado, en verde desde donde estaba si ha subido.
 				const cambio = Math.abs(s - p) >= 10;
 				// El tramo del cambio lleva granos según su largo, para que se vea igual de denso sea corto o largo.
-				const nTallo = Math.round(k * 0.16), nCambio = cambio ? Math.round(Math.min(k * 0.45, Math.max(10, Math.abs(X(s) - X(p)) / 2.5))) : 0, nPunto = k - nTallo - nCambio;
+				const nTallo = Math.round(k * (k < 80 ? 0.08 : 0.16)), nCambio = cambio ? Math.round(Math.min(k * (k < 80 ? 0.55 : 0.45), Math.max(10, Math.abs(X(s) - X(p)) / 2.5))) : 0, nPunto = k - nTallo - nCambio;
 				pintores.set(e.id, (add) => {
 					const xs = X(s), xp = X(p), fin = cambio && p < s ? xp : xs;
-					for (let i = 0; i < nTallo; i++) add(X0 + ((i + 0.5) / nTallo) * (fin - X0), y, TONO.apagado, 0.45, 1.2);
-					for (let i = 0; i < nCambio; i++) add(xs + ((i + 0.5) / nCambio) * (xp - xs), y + azar(1.2), s < p ? TONO.peligro : TONO.exito, 0.9, 1.7);
-					for (let i = 0; i < nPunto; i++) { const a = i * 2.399963, d = Math.sqrt((i + 0.5) / nPunto) * rPunto; add(xs + Math.cos(a) * d, y + Math.sin(a) * d, TONO.tinta, 0.95, 1.5); }
+					for (let i = 0; i < nTallo; i++) add(X0 + ((i + 0.5) / nTallo) * (fin - X0), y, TONO.apagado, 0.45, gordo(1.2));
+					for (let i = 0; i < nCambio; i++) add(xs + ((i + 0.5) / nCambio) * (xp - xs), y + azar(1.2), s < p ? TONO.peligro : TONO.exito, 0.9, gordo(1.7));
+					for (let i = 0; i < nPunto; i++) { const a = i * 2.399963, d = Math.sqrt((i + 0.5) / nPunto) * rPunto; add(xs + Math.cos(a) * d, y + Math.sin(a) * d, TONO.tinta, 0.95, gordo(1.5)); }
 				});
 			}
 			break;
@@ -240,7 +242,7 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 						const d = e.serie[c0]! + (e.serie[c1]! - e.serie[c0]!) * u;
 						const r0 = rango(e.bandas[c0]), r1 = rango(e.bandas[c1]);
 						const tono = r1 < r0 ? TONO.peligro : r1 > r0 ? TONO.exito : TONO.tinta;
-						add(X0 + (c0 + 0.5 + (c1 - c0) * u) * ancho, Ys(base, d) + azar(0.6), tono, 0.9, 1.6);
+						add(X0 + (c0 + 0.5 + (c1 - c0) * u) * ancho, Ys(base, d) + azar(0.6), tono, 0.9, gordo(1.6));
 					}
 				});
 			}
@@ -281,7 +283,7 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 					e.avisos.forEach(([c, f], j) => {
 						const tono = v.tipos[f].tono === 'baja' ? TONO.peligro : v.tipos[f].tono === 'sube' ? TONO.exito : TONO.apagado;
 						const x0 = X0 + (c + 0.5) * cw - anchoPila / 2, y0 = pie(f) - (escalon.get(`${e.id}#${j}`)! + 1) * uh;
-						for (let q = 0; q < porAviso && i < k; q++, i++) { const [a, b2] = r2(q, sm); add(x0 + a * anchoPila, y0 + b2 * uh, tono, 0.9, 1.5); }
+						for (let q = 0; q < porAviso && i < k; q++, i++) { const [a, b2] = r2(q, sm); add(x0 + a * anchoPila, y0 + b2 * uh, tono, 0.9, gordo(1.5)); }
 					});
 					// Los granos que sobran esperan, invisibles, en su último aviso.
 					for (; i < k; i++) add(X0 + (c0 + 0.5) * cw, pie(f0), TONO.apagado, 0, 1);
