@@ -83,10 +83,10 @@ The time ruler (`div.regla` in `frontend/src/vistas/regla.ts`) is a control, not
 it selects the interval every screen reads.
 
 - It renders wherever the selected interval changes the reading: portfolio (plano, tapiz),
-  organization and company scoring, acciones, técnico, entrada.
-- It is **hidden on the Productos tab** of an organization or company: the product
-  inventory does not change with the selected window, and a date range there suggests a
-  filtering that does not exist.
+  and the **Scoring tab** of an organization or company.
+- On an organization or company it is **hidden on every tab but Scoring** (productos,
+  acciones, técnico): the window selector belongs to the screen that reads it, and a
+  ruler elsewhere suggests a filtering that does not exist.
 - The playback (`reproducir`) and window-mode (`modo`) controls belong to the ruler and hide
   with it.
 
@@ -99,4 +99,5 @@ it selects the interval every screen reads.
 | Zero under a hoisted unit         | Render `0` (unit-agnostic)                      |
 | Missing value                     | `—`, sorts last in sortable tables              |
 | Bank or counterparty row          | Real logo (vendored locally) + name; monogram fallback |
-| Productos tab                     | No time ruler, no playback controls             |
+| Comparative data (`cifraC` tono)  | `baja` in red (`--peligro-t`), `sube` in green (`--exito-t`), value and comparison |
+| Entity pages                      | Time ruler only on the Scoring tab; no playback elsewhere |

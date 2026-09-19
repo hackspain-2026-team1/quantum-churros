@@ -607,6 +607,8 @@ button.miga-paso:hover { color: var(--tinta); border-bottom-color: var(--borde-2
 .cifra-c .cc-valor { font: 500 30px/1 var(--serif); letter-spacing: -0.01em; }
 .cifra-c .cc-que { font-size: 12.5px; color: var(--apagado); margin-top: 4px; }
 .cifra-c .cc-comp { font-size: 12.5px; color: var(--tinta-2); margin-top: 2px; line-height: 1.4; }
+.cifra-c.baja .cc-valor, .cifra-c.baja .cc-comp { color: var(--peligro-t); }
+.cifra-c.sube .cc-valor, .cifra-c.sube .cc-comp { color: var(--exito-t); }
 
 /* Partitura de pilares. */
 .partitura { display: grid; gap: 2px; }

@@ -37,9 +37,9 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 
 	// ─── Pintado ────────────────────────────────────────────
 	function pintar(e: Estado, ctx: Contexto, M: Marco, visita: number | null) {
-		// La regla manda sobre el intervalo que se lee; en la pestaña de productos el tiempo no
-		// cambia nada: se retira, con sus mandos de reproducción y modo.
-		const sinTiempo = (e.vista === 'organizacion' || e.vista === 'empresa') && e.sec === 'productos';
+		// La regla manda sobre el intervalo que se lee. En una organización o empresa solo la
+		// pestaña de scoring depende de la ventana: en las demás se retira, con sus mandos.
+		const sinTiempo = (e.vista === 'organizacion' || e.vista === 'empresa') && e.sec !== 'scoring';
 		raiz.hidden = sinTiempo;
 		reproducir.hidden = sinTiempo;
 		modoBtn.hidden = sinTiempo;
