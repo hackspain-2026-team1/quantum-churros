@@ -1,0 +1,1 @@
+quantum-deploy ALL=(root) NOPASSWD: /usr/local/sbin/quantum-churros-deploy *
