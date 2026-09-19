@@ -469,7 +469,7 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			case 'plano': return movil ? 320 : 430;
 			case 'tapiz': return d.filas * (movil ? 14 : 16) + 50;
 			case 'flujo': return movil ? 380 : 440;
-			case 'avisos': return Math.max(1, d.tipos.length) * (movil ? 36 : 44) + 34;
+			case 'avisos': return Math.max(1, d.tipos.length) * (movil ? 44 : 58) + 34;
 			case 'horizonte': return movil ? 380 : 440;
 		}
 	}
@@ -583,10 +583,10 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 				const tiposVis = TIPOS_AVISO.filter((tp) => datos.tipos.length && vis.some((e) => e.historia.some((a) => a.kind === tp.id && a.state === 'fired' && a.month >= tt - MESES_AVISOS + 1)));
 				tiposVis.forEach((tp, i) => et(g.x0 - 10, g.y0 + (i + 0.5) * g.fila, 'mr-nombre', tp.nombre));
 				for (let i = 0; i < datos.meses; i += movil ? 3 : 2) { const iso = c.months[tt - datos.meses + 1 + i]; if (iso) et(g.x0 + (i + 0.5) * g.col, g.y1 + 6, 'mr-eje x', f.mesCorto(iso)); }
-				// La cifra de cada celda, pequeña, arriba a la derecha del montón.
+				// La cifra de cada celda, encima de su pila.
 				const cuenta = new Map<string, number>();
 				for (const e of datos.ents) if (e.visible) for (const [cc, ff] of e.avisos) cuenta.set(`${cc}:${ff}`, (cuenta.get(`${cc}:${ff}`) ?? 0) + 1);
-				for (const [k, n] of cuenta) { const [cc, ff] = k.split(':').map(Number); et(g.x0 + (cc + 0.5) * g.col, g.y0 + ff * g.fila + 2, 'mr-cuenta', f.numero(n)); }
+				for (const [k, n] of cuenta) { const [cc, ff] = k.split(':').map(Number); et(g.x0 + (cc + 0.5) * g.col, g.y0 + (ff + 1) * g.fila - 2 - n * g.unidad - 13, 'mr-cuenta', f.numero(n)); }
 				break;
 			}
 			case 'horizonte': {

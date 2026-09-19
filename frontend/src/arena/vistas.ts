@@ -254,21 +254,35 @@ export function disponer(v: DatosVista, w: number, h: number): Disposicion {
 			const filas = Math.max(1, v.tipos.length), cols = Math.max(1, v.meses);
 			const cw = (X1 - X0) / cols, ch = (Y1 - Y0) / filas;
 			guias.col = cw; guias.fila = ch;
-			const cuenta = new Map<string, number>();
-			for (const e of v.ents) if (e.visible) for (const [c, f] of e.avisos) cuenta.set(`${c}:${f}`, (cuenta.get(`${c}:${f}`) ?? 0) + 1);
+			// Cada celda es una pila: cada aviso ocupa un escalón del mismo alto con los mismos granos, así el alto
+			// de la pila es el recuento y la densidad no depende de cuántos avisos tenga cada entidad.
+			const cuenta = new Map<string, number>(), escalon = new Map<string, number>();
+			let maxEnt = 1;
+			for (const e of v.ents) {
+				if (!e.visible) continue;
+				maxEnt = Math.max(maxEnt, e.avisos.length);
+				e.avisos.forEach(([c, f], j) => { const cl = `${c}:${f}`, n = cuenta.get(cl) ?? 0; escalon.set(`${e.id}#${j}`, n); cuenta.set(cl, n + 1); });
+			}
 			const maxC = Math.max(1, ...cuenta.values());
-			const radio = (c: number, f: number) => (Math.min(cw, ch) / 2 - 2) * Math.sqrt((cuenta.get(`${c}:${f}`) ?? 0) / maxC);
+			const uh = Math.max(0.5, (ch - 16) / maxC), anchoPila = Math.min(cw * 0.6, 26);
+			guias.unidad = uh;
+			const porAviso = Math.max(1, Math.floor(k / maxEnt));
+			const pie = (f: number) => Y0 + (f + 1) * ch - 2;
 			for (const e of v.ents) {
 				if (!e.visible || !e.avisos.length) continue;
 				const [c0, f0] = e.avisos[e.avisos.length - 1];
-				anclas.set(e.id, { x: X0 + (c0 + 0.5) * cw, y: Y0 + (f0 + 0.5) * ch, r: 6 });
+				const j0 = escalon.get(`${e.id}#${e.avisos.length - 1}`)!;
+				anclas.set(e.id, { x: X0 + (c0 + 0.5) * cw, y: pie(f0) - (j0 + 0.5) * uh, r: Math.max(4, uh) });
+				const sm = semilla(e.id);
 				pintores.set(e.id, (add) => {
-					for (let i = 0; i < k; i++) {
-						const [c, f] = e.avisos[i % e.avisos.length];
-						const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * radio(c, f);
+					let i = 0;
+					e.avisos.forEach(([c, f], j) => {
 						const tono = v.tipos[f].tono === 'baja' ? TONO.peligro : v.tipos[f].tono === 'sube' ? TONO.exito : TONO.apagado;
-						add(X0 + (c + 0.5) * cw + Math.cos(a) * d, Y0 + (f + 0.5) * ch + Math.sin(a) * d, tono, 0.8, 1.4);
-					}
+						const x0 = X0 + (c + 0.5) * cw - anchoPila / 2, y0 = pie(f) - (escalon.get(`${e.id}#${j}`)! + 1) * uh;
+						for (let q = 0; q < porAviso && i < k; q++, i++) { const [a, b2] = r2(q, sm); add(x0 + a * anchoPila, y0 + b2 * uh, tono, 0.9, 1.5); }
+					});
+					// Los granos que sobran esperan, invisibles, en su último aviso.
+					for (; i < k; i++) add(X0 + (c0 + 0.5) * cw, pie(f0), TONO.apagado, 0, 1);
 				});
 			}
 			break;
