@@ -50,10 +50,11 @@ export function flechaGranos(dir: string, naturaleza: string | null): SVGSVGElem
 	return s;
 }
 
+/** Confianza: tres granos que se llenan y suben de color con el nivel (baja, media, alta). */
 export function granos3(label: string): SVGSVGElement {
-	const s = svg(20, 8, 'granos3');
+	const s = svg(20, 8, `granos3 conf-${label}`);
 	const n = label === 'high' ? 3 : label === 'medium' ? 2 : 1;
-	for (let i = 0; i < 3; i++) s.append(el('circle', { cx: 3 + i * 7, cy: 4, r: 2.4, class: i < n ? 'lleno' : 'vacio' }));
+	for (let i = 0; i < 3; i++) s.append(el('circle', { cx: 3 + i * 7, cy: 4, r: 2.4, class: i < n ? `lleno g${i + 1}` : 'vacio' }));
 	return s;
 }
 
@@ -80,7 +81,7 @@ const CONFIANZA: Record<string, string> = { high: 'alta', medium: 'media', low: 
 /** La línea de estado. `nota` es la frase del motor cuando los dos horizontes se contradicen. */
 export function lineaEstado(man: Manifiesto, m: MesM, nota?: string | null, sinBanda = false): HTMLElement {
 	const partes: (Node | string)[] = [];
-	if (!sinBanda) partes.push(h('span', { class: 'le-banda', title: `Bandas del motor: ${man.bands.map((b) => `${b.label} desde ${f.score(b.min)}`).join(', ')}` }, h('span', { class: 'versalita' }, nombreBanda(man, m.band)), ' ', h('b', {}, f.score(m.shown)), reglaBanda(man, m.shown, m.band)));
+	if (!sinBanda) partes.push(h('span', { class: `le-banda banda-${m.band}`, title: `Bandas del motor: ${man.bands.map((b) => `${b.label} desde ${f.score(b.min)}`).join(', ')}` }, h('span', { class: 'versalita' }, nombreBanda(man, m.band)), ' ', h('b', {}, f.score(m.shown)), reglaBanda(man, m.shown, m.band)));
 	if (!sinBanda) partes.push(h('span', { class: 'le-sep' }, '·'));
 	partes.push(h('span', { class: `le-mov ${m.verdict.direction}`, title: m.verdict.available ? `Δ3 ${m.verdict.delta3 === null ? '—' : f.delta(m.verdict.delta3)} frente a ${m.verdict.compared_to ? f.mes(m.verdict.compared_to) : '—'}` : (m.verdict.reason ?? 'Sin veredicto') }, flechaGranos(m.verdict.direction, m.verdict.nature), h('span', {}, movimiento(m))));
 	partes.push(h('span', { class: 'le-sep' }, '·'));

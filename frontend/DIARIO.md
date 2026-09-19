@@ -4,6 +4,70 @@ Registro de lo que se hace en `frontend/`, en qué orden y por qué. Lo lleva el
 
 ---
 
+## 20 de septiembre de 2026, el horizonte contesta: dónde cae la acción y contra qué se compara
+
+Cinco cosas pedidas mirando la gráfica y las pestañas.
+
+### El globo sigue al ratón
+
+La cifra que se lee al pasar por la gráfica se clavaba arriba, en la columna del mes, y había que buscarla. Ahora sale **debajo y a la derecha del cursor**, pegada a la mano. Solo se aparta cuando no cabe: encima si el ratón está muy abajo, a la izquierda si se sale por el borde derecho. La posición la fija `leer()` en píxeles de la caja del gráfico (`ficha.ts`), no en porcentajes de columna.
+
+### Las cinco pestañas se leen igual
+
+Desglose iba a 13,5 px y en gris tenue, Conciliación a 15 px en el color de las demás: dos pestañas del mismo grupo con dos pesos distintos. `.sec-marca.reverso` deja de cambiar letra y color y solo conserva el `margin-left: auto` que las aparta a la derecha. Detalle, Acciones, Productos, Desglose y Conciliación son ahora la misma pestaña.
+
+### «Extender», donde se lee
+
+El mando vivía al final de la barra de pestañas y **casi siempre decía «Fijar el horizonte»**: la palabra que importa —extender— no se veía nunca, porque el estado extendido es el de partida. Se muda a la fila de mandos del horizonte, junto a «Qué se dibuja» y los casos, y **la palabra ya no cambia**: dice «Extender» siempre, con `aria-pressed` y el relieve de pulsado para el estado. Lo que cambia es el título, que cuenta qué pasa al pulsarlo.
+
+### Con una acción marcada no desaparece el resto
+
+Marcar o tantear una acción escondía los otros dos casos y comparaba contra «si sigue al mismo ritmo», que en muchas fichas se dispara a 100: se leía «100 → 44 (−56)», como si la acción hundiera la empresa.
+
+- La referencia pasa a ser **el caso que se está mirando** (de partida, «si todo sigue igual»). El rótulo dice `46 → 44`, y sin paréntesis cuando no hay diferencia.
+- **Los tres casos siguen dibujados** y los tres llevan su score a un año al borde derecho: `todo igual · 46`, `mismo ritmo · 100`, `peor trimestre · 46`. El que se mira, en firme; los otros dos, tenues y todavía pulsables.
+
+### La acción marca su punto
+
+Una acción tarda lo suyo en notarse —un mes, seis, un año— y eso estaba solo en la prosa. Ahora la gráfica **marca el punto a esa distancia**, con su grano y con su cifra: `a 6 meses · 44`. Con varias marcadas se marca la de cada una y, si el motor da la cifra combinada, `las 2 juntas · 62`. Dos rótulos solo se apilan si además caen a la misma altura.
+
+Contado eso en la gráfica, la ficha de cada acción se limpia: fuera «+5,4 puntos según el motor» (ya está en grande a la derecha) y fuera «a seis meses, 50 en vez de 46» (ya está en el horizonte). Queda una línea: `se nota a un mes · esfuerzo bajo · pilar de liquidez`.
+
+### Pruebas
+
+`bun run check`, `bun test` (31 de 31) y el recorrido, **58 de 58**. La comprobación de «qué pasaría si» estaba muerta: comparaba contra `.esc.leyenda`, una clase que ya no existe, así que daba 0 = 0 con una acción marcada. Ahora cuenta los casos de verdad y se le suman dos comprobaciones nuevas, las del punto de la acción.
+
+---
+
+## 20 de septiembre de 2026, aire, el scoring que se explica y la estantería por necesidad
+
+Tres cosas que se pidieron mirando la ficha: que respire, que el scoring cuente lo que pasa y que los productos empiecen por lo que hace falta.
+
+### El aire
+
+- **Un solo margen lateral.** Era un 44 repetido a mano en la barra, en el escenario, en la hoja y otra vez en TypeScript (`geometria.ts` y `main.ts`). Ahora es `--pad-lateral` (64 px, 40 en pantallas estrechas y 20 en móvil) y los dos sitios de TypeScript llevan los mismos números, así que la regla del tiempo sigue cayendo a plomo sobre el texto. Nada toca el borde.
+- **Hueco bajo la línea del tiempo.** `--aire-escenario` (34 px) separa la regla del nombre de la entidad: antes había 16 px y el título se pegaba a los meses.
+
+### El scoring cuenta lo que pasa (`seccionScoring` en `src/vistas/ficha.ts`)
+
+La pestaña que se abre primero decía «De dónde sale» y tres nudos sueltos. Ahora contesta, en el orden en que se pregunta:
+
+- **Qué dice este número.** La banda y dónde empieza, cuánto margen queda antes de caer a la de abajo, qué es el score (y qué no: ni rating de crédito ni probabilidad de impago) y **la cuenta entera en una línea**: punto de partida + lo que aportan los pilares − penalización − tope = score. Debajo, la confianza, que no entra en la cuenta.
+- **Qué lo empuja y qué lo frena.** Los pilares ordenados por aportación, con el cero en el centro: a la derecha lo que aporta, a la izquierda lo que resta, y la frase del motor de cada uno. Pasar por encima lo señala en el horizonte; pulsar abre su evidencia. La partitura, la cascada y las curvas siguen en Desglose: aquí se cuenta, allí se audita.
+- **Qué está pasando.** El veredicto en palabras: cuánto se mueve en tres meses, frente a qué mes, cuántas veces su vaivén normal, si es confirmado, un bache o un golpe por confirmar, cuántos meses lleva y qué pilares lo mueven. Con los avisos del mes debajo.
+- **Qué lo está limitando.** Topes, penalización del pilar más débil, compuertas, abstención, feed parado y cambios de perímetro, con el texto del glosario del manifiesto. La sección no existe si no hay nada que limite.
+- **Qué lo cambiaría.** Una línea con la acción que más mueve y lo que darían todas juntas, y el paso a Acciones.
+
+### Los productos, por necesidad
+
+En la ficha de una empresa la estantería empieza por **lo que le encajaría ahora** (lo que encaja y lo que ya tiene pero el motor pide ampliar o usar más), ordenado por los puntos que promete. Debajo, «El resto de la estantería», con sus familias de siempre. La matriz del grupo no cambia.
+
+### Pruebas
+
+`bun run check`, `bun test` (31 de 31) y el recorrido, **55 de 55**.
+
+---
+
 ## 19 de septiembre de 2026, la portada como monitor (propuesta 08)
 
 La portada deja de ser una puerta y pasa a ser el monitor de la cartera. Sigue la propuesta `hackspain/08-propuesta-portada-monitor.md`, con las decisiones tomadas: organizaciones por defecto (con conmutador a empresas), la regla de gravedad propuesta, siete formas y Jev en un Worker propio.
