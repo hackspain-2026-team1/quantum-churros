@@ -1,30 +1,37 @@
 """Suggested actions with their expected score uplift. Pure: no I/O, no frames.
 
-For every available pillar below ``TARGET_CEILING`` a realistic target is set
-(the next anchor step of its table, at most ``MAX_STEP`` pillar points, never
-above ``TARGET_CEILING``), the anchor table is inverted to the input that gives
-that score (days, ratio, share) and turned into money with the facts of the
-row. The uplift is never estimated: the score is recomputed by ``aggregate``
-with the pillar replaced, so the penalty and the caps react as they would.
-Abstained, stale and carried months give no actions; an inherited liquidity is
-not the company's lever and is skipped.
+Each action is a delta over the measured inputs of the month: the row is
+transformed, every pillar is recomputed and ``aggregate`` reacts with its
+penalty and caps. The uplift is the score the engine gives the modified month,
+never an estimate, so a lever that spends cash (paying suppliers earlier) pays
+its liquidity cost and a lever that brings cash (collecting earlier, lighter
+debt service) gets its liquidity reward, including the negative-liquidity cap
+when a lever flips the month-end sign.
+
+Every lever is bounded to what a finance team can plausibly move in about two
+quarters (see ``MAX_*``). The plan is a ladder: stage 1 acts on the current
+month, each next stage acts on the month the previous one produced, up to
+``MAX_STAGES``, so the product can show the whole path to the best achievable
+score. Abstained, stale and carried months give no actions; an inherited
+liquidity is not the company's lever and is skipped.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Mapping
+from dataclasses import dataclass, field, replace
+from typing import Callable, Mapping
 
 from .aggregate import aggregate
 from .contracts import PILLAR_KEYS, Anchors, PanelRow, Params, PillarResult, ScoreParts
-from .pillars import format_es, liquidity_anchors
+from .pillars import compute_pillars, format_es, liquidity_anchors
 
 TARGET_CEILING = 80.0  # a pillar at or above it needs no action
-MAX_STEP = 25.0  # pillar points one action may promise
+MAX_STEP = 25.0  # pillar points one action may promise (kept: the anchor-step search)
 MIN_UPLIFT = 0.5  # score points; smaller actions are not worth showing
 MAX_ACTIONS = 4
+MAX_STAGES = 3
 # What a finance team can plausibly move in about two quarters. A lever never asks for
-# more: the action promises the pillar score reached at the bounded lever, not the anchor.
+# more: the action promises the score the engine gives the bounded lever, not the anchor.
 MAX_EXTRA_BUFFER_DAYS = 30.0  # one more month of payments covered
 MAX_DAYS_GAIN = 30.0  # days of delay recovered with suppliers or customers
 MAX_COVERAGE_GAIN = 0.15  # relative rise of operating inflows over outflows
@@ -32,6 +39,8 @@ MAX_BURDEN_CUT = 0.30  # relative cut of debt service, what a refinancing gives
 EFFORT_STEPS: tuple[tuple[float, str], ...] = ((10.0, "bajo"), (20.0, "medio"))
 EFFORT_HIGH = "alto"
 _EPS = 1e-9
+
+RowDelta = Callable[[PanelRow], PanelRow]
 
 
 @dataclass(frozen=True)
@@ -43,10 +52,11 @@ class Action:
     current: float
     target: float
     unit: str  # "días" | "ratio" | "%"
-    pillar_target: float  # pillar score the action reaches
-    new_score: float  # aggregate() with the pillar at pillar_target
+    pillar_target: float  # pillar score the lever reaches
+    new_score: float  # aggregate() over the month with the lever applied
     uplift: float  # new_score - parts.score
     effort: str
+    row_delta: RowDelta = field(compare=False, repr=False)  # the lever; ladder and tests
 
     @property
     def uplift_tenths(self) -> int:
@@ -58,10 +68,21 @@ class Action:
 
 
 @dataclass(frozen=True)
-class ActionPlan:
+class Stage:
+    number: int
     actions: tuple[Action, ...]
-    combined_score: float  # every suggested pillar target applied at once
+    score: float  # score after this stage's actions
+    uplift: float  # cumulative: stage.score minus the original score
+
+
+@dataclass(frozen=True)
+class ActionPlan:
+    actions: tuple[Action, ...]  # stage 1: the contract that existed
+    combined_score: float  # every stage-1 lever applied at once
     combined_uplift: float
+    stages: tuple[Stage, ...] = ()
+    max_score: float | None = None  # score after the last stage
+    max_uplift: float | None = None  # max_score minus the original score
 
     @property
     def combined_score_tenths(self) -> int:
@@ -84,6 +105,10 @@ def _eur(value: float) -> str:
 def _days(value: float) -> str:
     count = abs(round(value))
     return f"{count} día" if count == 1 else f"{count} días"
+
+
+def _known(value: float | None) -> bool:
+    return value is not None
 
 
 def _effort(gap: float) -> str:
@@ -112,7 +137,32 @@ def invert(table: Anchors, target: float, near: float) -> float | None:
     return min(found, key=lambda x: (abs(x - near), x)) if found else None
 
 
-def _liquidity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, dict] | None:
+def _cash_delta(row: PanelRow, money: float) -> PanelRow:
+    """Shift both cash figures by ``money`` and keep the negative-liquidity
+    month count consistent with the month-end sign the cap reads."""
+    if abs(money) <= _EPS:
+        return row
+    changes: dict[str, float | int] = {}
+    if _known(row.cash_month_end):
+        end_now = row.cash_month_end + money
+        headroom = row.headroom or 0.0
+        end_was_negative = row.cash_month_end + headroom < 0
+        end_is_negative = end_now + headroom < 0
+        if end_was_negative != end_is_negative:
+            changes["neg_liquidity_months_6m"] = (row.neg_liquidity_months_6m or 0) + (
+                -1 if end_was_negative else 1
+            )
+        changes["cash_month_end"] = end_now
+    if _known(row.cash_intra_month_min):
+        changes["cash_intra_month_min"] = row.cash_intra_month_min + money
+    return replace(row, **changes) if changes else row
+
+
+def _set_attr(name: str, value: float) -> RowDelta:
+    return lambda row: replace(row, **{name: value})
+
+
+def _buffer(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta, dict] | None:
     inputs = result.inputs
     end, low = inputs.get("buffer_days_month_end"), inputs.get("buffer_days_intra_min")
     monthly = inputs.get("monthly_outflow")
@@ -135,16 +185,15 @@ def _liquidity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, d
     extra = hi
     if extra <= _EPS:
         return None
-    score = min(target, blended(extra))
     money = extra * monthly / cfg.days_per_month
     shown_end = max(0.0, end)
-    return score, {
+    return lambda row_: _cash_delta(row_, money), {
         "kind": "buffer",
         "title": f"Sube tu colchón de caja de {round(shown_end)} a {_days(end + extra)}",
         "detail": (
-            f"Necesitas unos {_eur(money)} más entre caja y líneas de crédito sin disponer: "
+            f"Necesitas unos {_eur(money)} de caja nueva, de capital o financiación a largo plazo: "
             f"son {_days(extra)} más de pagos cubiertos, a fin de mes y en el peor día del mes. "
-            "El colchón de liquidez es lo que más pesa cuando la nota es baja."
+            "Una póliza de crédito no sirve aquí: su disponible ya está contado en el colchón."
         ),
         "current": end,
         "target": end + extra,
@@ -152,20 +201,27 @@ def _liquidity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, d
     }
 
 
-def _punctuality(result: PillarResult, p: Params) -> tuple[float, dict] | None:
+def _punctuality(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta, dict] | None:
+    key = result.key
+    side = "ap" if key == "payments" else "ar"
     days = result.inputs.get("days_beyond_terms")
     if days is None:
         return None
-    table = p.anchors[result.key]
+    table = p.anchors[key]
     target = step_target(result.score, table)
     goal = invert(table, target, days) if target is not None else None
     if goal is None or goal >= days - _EPS:
         return None
     if days - goal > MAX_DAYS_GAIN:
         goal = days - MAX_DAYS_GAIN
-        target = table(goal)
     gain = days - goal
-    if result.key == "payments":
+    # The as-of cohort covers the invoices due in the last 90 days, so a month of
+    # payments is about a third of it: paying (or collecting) G days earlier is a
+    # one-time cash move of cohort * G / 90.
+    cohort = getattr(row, f"{side}_amount") or 0.0
+    cash = cohort * gain / 90.0 if cohort > 0 else 0.0
+    if key == "payments":
+        delta: RowDelta = lambda row_: _cash_delta(_set_attr("ap_days_beyond_terms", goal)(row_), -cash)
         title = (
             f"Reduce el retraso medio con proveedores de {round(days)} a {_days(goal)}"
             if round(goal) > 0 else f"Paga a tus proveedores {_days(gain)} antes"
@@ -173,28 +229,31 @@ def _punctuality(result: PillarResult, p: Params) -> tuple[float, dict] | None:
         detail = (
             f"Hoy pagas de media {_days(days)} {'después' if days >= 0 else 'antes'} del vencimiento, "
             f"ponderado por importe. Adelantar {_days(gain)} los pagos, empezando por las facturas "
-            "grandes, mejora la puntualidad y puede levantar el tope que limita la nota."
+            f"grandes, cuesta unos {_eur(cash)} de caja este mes: el efecto en tu colchón y en la nota "
+            "final ya está descontado."
         )
         kind = "punctuality"
     else:
+        delta = lambda row_: _cash_delta(_set_attr("ar_days_beyond_terms", goal)(row_), cash)
         title = f"Cobra a tus clientes {_days(gain)} antes"
         detail = (
             f"Tus clientes pagan de media {_days(days)} {'después' if days >= 0 else 'antes'} del vencimiento, "
-            f"ponderado por importe. {'Bajar a ' + _days(goal) + ' de retraso' if round(goal) > 0 else 'Cobrar al vencimiento'} con recordatorios, anticipo de facturas o "
-            "domiciliación mejora el pilar de cobros y acorta el ciclo de caja."
+            f"ponderado por importe. {'Bajar a ' + _days(goal) + ' de retraso' if round(goal) > 0 else 'Cobrar al vencimiento'} "
+            f"con recordatorios o anticipo de facturas te da unos {_eur(cash)} de caja este mes, ya sumados "
+            "al resultado, y acorta el ciclo de caja."
         )
         kind = "speed"
-    return target, {"kind": kind, "title": title, "detail": detail, "current": days, "target": goal, "unit": "días"}
+    return delta, {"kind": kind, "title": title, "detail": detail, "current": days, "target": goal, "unit": "días"}
 
 
-def _activity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, dict] | None:
+def _coverage(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta, dict] | None:
     inputs = result.inputs
     coverage, sub = inputs.get("coverage"), inputs.get("score_coverage")
-    inflow, outflow = inputs.get("op_in_6m"), inputs.get("outflow_6m")
-    if coverage is None or sub is None or inflow is None or not outflow or outflow <= 0:
+    inflow = inputs.get("op_in_6m")
+    momentum = inputs.get("score_momentum")
+    if coverage is None or sub is None or inflow is None:
         return None
     table = p.anchors["activity_coverage"]
-    momentum = inputs.get("score_momentum")
     target = step_target(result.score, table if momentum is None else Anchors(((0.0, 0.0), (1.0, 100.0))))
     if target is None:
         return None
@@ -207,22 +266,30 @@ def _activity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, di
         return None
     if goal > coverage * (1 + MAX_COVERAGE_GAIN):
         goal = coverage * (1 + MAX_COVERAGE_GAIN)
-        sub_target = table(goal)
-        if goal <= coverage + _EPS or sub_target <= sub + _EPS:
-            return None  # no operating inflow to grow from: not something one action fixes
-    score = sub_target if momentum is None else (sub_target + momentum) / 2
-    months = max(1, row.months_in_6m_window or p.activity.coverage_window_months)
-    more_in = (goal * outflow - inflow) / months
-    less_out = (outflow - inflow / goal) / months
-    return score, {
+    factor = goal / coverage
+    # More inflows: the 6m and 12m operating sums and the like-for-like recent
+    # mean all grow by the same factor, and one month of the extra inflow lands
+    # in cash. The lighter burden (same debt service over more inflows) is the
+    # engine's own reaction, not a promise.
+    monthly_gain = (factor - 1.0) * inflow / 6.0
+    changes = {
+        name: value * factor
+        for name, value in (
+            ("op_in_sum_6m_w", row.op_in_sum_6m_w),
+            ("op_in_sum_12m_w", row.op_in_sum_12m_w),
+            ("op_in_lfl_recent_mean", row.op_in_lfl_recent_mean),
+        )
+        if _known(value)
+    }
+    return lambda row_: _cash_delta(replace(row_, **changes), monthly_gain), {
         "kind": "coverage",
         "title": (
             f"Lleva la cobertura de tus pagos de {format_es(coverage, 2)} a {format_es(goal, 2)} veces"
         ),
         "detail": (
             f"Tus cobros operativos cubren {format_es(coverage, 2)} veces tus pagos. Llegar a "
-            f"{format_es(goal, 2)} supone unos {_eur(more_in)} más de cobros al mes o "
-            f"{_eur(less_out)} menos de pagos al mes. Un negocio que cubre sus salidas con ventas sostiene la nota."
+            f"{format_es(goal, 2)} supone unos {_eur(monthly_gain)} más de cobros al mes; "
+            "también alivia el peso de tu deuda y suma caja, y todo eso ya está en el resultado."
         ),
         "current": coverage,
         "target": goal,
@@ -230,7 +297,7 @@ def _activity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, di
     }
 
 
-def _debt(result: PillarResult, p: Params) -> tuple[float, dict] | None:
+def _debt(result: PillarResult, p: Params) -> tuple[RowDelta, dict] | None:
     inputs = result.inputs
     burden, inflow = inputs.get("burden"), inputs.get("op_in_12m")
     if burden is None or not inflow or inflow <= 0:
@@ -242,10 +309,12 @@ def _debt(result: PillarResult, p: Params) -> tuple[float, dict] | None:
         return None
     if goal < burden * (1 - MAX_BURDEN_CUT):
         goal = burden * (1 - MAX_BURDEN_CUT)
-        target = table(goal)
-    months = max(1.0, inputs.get("months") or float(p.debt.window_months))
-    yearly = (burden - goal) * inflow * 12.0 / months
-    return target, {
+    service_now, service_new = burden * inflow, goal * inflow
+    monthly_freed = (service_now - service_new) / 12.0
+    delta = lambda row_: _cash_delta(
+        _set_attr("debt_service_sum_12m_w", service_new)(row_), monthly_freed
+    )
+    return delta, {
         "kind": "burden",
         "title": (
             f"Baja el peso de tu deuda del {format_es(burden * 100, 1)} % al "
@@ -253,8 +322,8 @@ def _debt(result: PillarResult, p: Params) -> tuple[float, dict] | None:
         ),
         "detail": (
             f"El servicio de la deuda consume el {format_es(burden * 100, 1)} % de lo que cobras. "
-            f"Pagar unos {_eur(yearly)} menos al año en cuotas e intereses (refinanciando a más plazo "
-            "o amortizando lo más caro) libera caja y mejora el pilar de deuda."
+            f"Refinanciar a más plazo o amortizar lo más caro libera unos {_eur(monthly_freed)} de caja "
+            "al mes: el pilar de deuda y el colchón suben, y todo eso ya está en el resultado."
         ),
         "current": burden * 100,
         "target": goal * 100,
@@ -262,16 +331,70 @@ def _debt(result: PillarResult, p: Params) -> tuple[float, dict] | None:
     }
 
 
-def _proposal(result: PillarResult, row: PanelRow, p: Params, group_row: PanelRow | None):
+def _propose(result: PillarResult, row: PanelRow, p: Params) -> tuple[RowDelta, dict] | None:
     if result.key == "liquidity":
         if "inherited_from_group" in result.gates:
             return None
-        return _liquidity(result, row, p)
+        return _buffer(result, row, p)
     if result.key in ("payments", "collections"):
-        return _punctuality(result, p)
+        return _punctuality(result, row, p)
     if result.key == "activity":
-        return _activity(result, row, p)
+        return _coverage(result, row, p)
     return _debt(result, p)
+
+
+def _apply(row: PanelRow, deltas: tuple[RowDelta, ...]) -> PanelRow:
+    for delta in deltas:
+        row = delta(row)
+    return row
+
+
+def _candidates(
+    row: PanelRow,
+    pillars: Mapping[str, PillarResult],
+    parts: ScoreParts,
+    p: Params,
+    group_row: PanelRow | None,
+) -> list[tuple[Action, RowDelta]]:
+    """Every lever worth showing on this month: the delta, the row it produces
+    and the full recomputed score. Sorted by uplift, at most ``MAX_ACTIONS``."""
+    found: list[tuple[Action, RowDelta]] = []
+    for key in PILLAR_KEYS:
+        result = pillars.get(key)
+        if result is None or result.score is None or result.score >= TARGET_CEILING:
+            continue
+        proposal = _propose(result, row, p)
+        if proposal is None:
+            continue
+        delta, text = proposal
+        new_row = delta(row)
+        new_pillars = compute_pillars(new_row, p, group_row)
+        new_parts = aggregate(new_pillars, new_row, p, group_row)
+        uplift = new_parts.score - parts.score
+        pillar_target = new_pillars[key].score
+        if pillar_target is None or uplift < MIN_UPLIFT:
+            continue
+        found.append(
+            (
+                Action(
+                    id=f"{key}-{text['kind']}",
+                    pillar=key,
+                    title=text["title"],
+                    detail=text["detail"],
+                    current=text["current"],
+                    target=text["target"],
+                    unit=text["unit"],
+                    pillar_target=pillar_target,
+                    new_score=new_parts.score,
+                    uplift=uplift,
+                    effort=_effort(pillar_target - (result.score or 0.0)),
+                    row_delta=delta,
+                ),
+                delta,
+            )
+        )
+    found.sort(key=lambda pair: (-pair[0].uplift, PILLAR_KEYS.index(pair[0].pillar)))
+    return found[:MAX_ACTIONS]
 
 
 def plan_actions(
@@ -283,47 +406,53 @@ def plan_actions(
 ) -> ActionPlan:
     """Actions of one entity-month and the score with all of them applied.
 
-    Every ``uplift`` is ``aggregate(pillars with one score replaced).score -
-    parts.score``; ``combined_score`` replaces every suggested pillar at once.
-    Kept: uplift ``>= MIN_UPLIFT``, sorted by uplift (ties in ``PILLAR_KEYS``
-    order), at most ``MAX_ACTIONS``. Empty on abstained, stale or carried months.
+    Every ``uplift`` is ``aggregate(compute_pillars(lever applied)).score -
+    parts.score``; ``combined_score`` applies every stage-1 lever at once. The
+    ladder re-scores the month each stage produces, up to ``MAX_STAGES``, so
+    ``max_score`` is the best the bounded levers can reach. Empty on abstained,
+    stale or carried months.
     """
-    empty = ActionPlan((), parts.score, 0.0)
     if parts.abstained or not parts.feed_live or parts.carried_from is not None:
-        return empty
-    found: list[Action] = []
-    for key in PILLAR_KEYS:
-        result = pillars.get(key)
-        if result is None or result.score is None or result.score >= TARGET_CEILING:
-            continue
-        proposal = _proposal(result, row, params, group_row)
-        if proposal is None:
-            continue
-        pillar_target, text = proposal
-        if pillar_target <= result.score + _EPS:
-            continue
-        changed = {**pillars, key: replace(result, score=pillar_target)}
-        new_score = aggregate(changed, row, params, group_row).score
-        uplift = new_score - parts.score
-        if uplift < MIN_UPLIFT:
-            continue
-        found.append(
-            Action(
-                id=f"{key}-{text['kind']}", pillar=key, title=text["title"], detail=text["detail"],
-                current=text["current"], target=text["target"], unit=text["unit"],
-                pillar_target=pillar_target, new_score=new_score, uplift=uplift,
-                effort=_effort(pillar_target - result.score),
-            )
+        return ActionPlan((), parts.score, 0.0, max_score=parts.score, max_uplift=0.0)
+
+    def rescore(state: PanelRow) -> tuple[Mapping[str, PillarResult], ScoreParts]:
+        new_pillars = compute_pillars(state, params, group_row)
+        return new_pillars, aggregate(new_pillars, state, params, group_row)
+
+    first = _candidates(row, pillars, parts, params, group_row)
+    if not first:
+        return ActionPlan((), parts.score, 0.0, max_score=parts.score, max_uplift=0.0)
+    first_actions = tuple(action for action, _ in first)
+    combined_row = _apply(row, tuple(delta for _, delta in first))
+    combined_score = rescore(combined_row)[1].score
+
+    stages: list[Stage] = []
+    state, state_parts = row, parts
+    kept: tuple[Action, ...] = first_actions
+    deltas: tuple[RowDelta, ...] = tuple(delta for _, delta in first)
+    while kept and len(stages) < MAX_STAGES:
+        end_row = _apply(state, deltas)
+        end_score = rescore(end_row)[1].score
+        stages.append(
+            Stage(len(stages) + 1, kept, end_score, end_score - parts.score)
         )
-    found.sort(key=lambda action: (-action.uplift, PILLAR_KEYS.index(action.pillar)))
-    kept = tuple(found[:MAX_ACTIONS])
-    if not kept:
-        return empty
-    changed = dict(pillars)
-    for action in kept:
-        changed[action.pillar] = replace(pillars[action.pillar], score=action.pillar_target)
-    combined = aggregate(changed, row, params, group_row).score
-    return ActionPlan(kept, combined, combined - parts.score)
+        state = end_row
+        state_pillars, state_parts = rescore(state)
+        next_found = _candidates(state, state_pillars, state_parts, params, group_row)
+        if not next_found:
+            break
+        kept = tuple(action for action, _ in next_found)
+        deltas = tuple(delta for _, delta in next_found)
+
+    last = stages[-1]
+    return ActionPlan(
+        first_actions,
+        combined_score,
+        combined_score - parts.score,
+        stages=tuple(stages),
+        max_score=last.score,
+        max_uplift=last.uplift,
+    )
 
 
 def suggest_actions(
