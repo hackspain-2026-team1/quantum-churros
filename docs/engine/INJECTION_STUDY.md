@@ -201,7 +201,7 @@ Regenera con `make validate` y consulta `validation.json` → `outlook_fan`.
 | «La erosión lenta tarda más» | Retraso mediano rampa = 3 meses |
 | «Medimos anticipación, no magia» | R8: retrasos en `injection` · R9: AUC(h) + lead-time en `natural_anticipation` |
 | «No inflamos falsas alarmas en calma» | P(estructural\|pico) en ventanas tranquilas = 3,7 % |
-| «Publicamos números en cartera real» | AUC-3 = 0,48 · lead mediano = 1 mes · ver `make eval-anticipation` |
+| «Publicamos números en cartera real» | Regenerar AUC-3/AUC-6 con predictor de trayectoria y citar siempre soporte · ver `make eval-anticipation` |
 
 ---
 
