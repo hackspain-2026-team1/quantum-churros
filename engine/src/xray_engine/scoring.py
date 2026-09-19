@@ -1,15 +1,42 @@
 """Orchestrator: folder with the eight CSVs -> scores, alerts and profile cards.
 
-``io -> cleaning -> panel -> (pillars -> aggregate -> trajectory) per entity
--> alerts -> profile``. Every entity is scored from its own rows (plus the
-group row of the same month for the liquidity inheritance) and ``Params``.
+``io -> cleaning (-> invoices) -> panel -> (pillars -> aggregate -> carry
+forward -> trajectory) per entity -> alerts -> profile``. Every entity is
+scored from its own rows (plus the group row of the same month for the
+liquidity inheritance) and ``Params``.
+
+Stale months. ``aggregate`` decides per month whether the bank feed is live.
+A month that is not live is first scored on its own, with penalty and caps
+off, and is abstained with reason ``stale_feed``. If the entity has an earlier
+live month, ``carry_forward`` then replaces the explanation block with the one
+of the LAST LIVE month L, verbatim:
+
+  copied from L : branch, pillar_scores, weights_effective, level_weighted,
+                  penalty, cap_adjustment, caps_fired, base, contributions,
+                  score, band
+  kept from t   : month, months_observed, months_since_perimeter_change,
+                  level (own level, penalty and caps off), feed_live = False,
+                  confidence, confidence_parts, confidence_label, flags
+                  (``stale_feed`` among them), abstained, abstain_reason,
+                  unlock_hint
+  set           : carried_from = L.month
+
+The pillar results of a carried month are those of L with the gate
+``carried_forward`` appended, so scores, notes and drivers describe the same
+month as the number. The source is always a live month, never another carried
+one: a long stale spell repeats L. Both identities of ``ScoreParts`` hold on a
+carried month because the block is copied whole, and its month-on-month delta
+is 0 term by term. Without an earlier live month nothing is copied and the
+own arithmetic stands. The first live month after the spell is scored normally.
+A carried month has no trajectory (reason ``stale_feed``) and can only emit
+the ``stale_feed`` alert.
 """
 
 from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -20,6 +47,7 @@ from . import cleaning, io, panel as panel_module, profile
 from .aggregate import aggregate, delta_parts, explain
 from .alerts import build_alerts
 from .contracts import (
+    CARRIED_GATE,
     ENGINE_VERSION,
     FEATURE_VERSION,
     PILLAR_KEYS,
@@ -31,14 +59,31 @@ from .contracts import (
     IndustryClassification,
     PanelRow,
     Params,
+    PillarResult,
     ProfileCard,
+    ScoreParts,
 )
 from .params import load_params
-from .pillars import compute_pillars, smooth_pillars
+from .pillars import compute_pillars
 from .trajectory import trajectory
 
 # Deprecated alias kept for older readers of the score run metadata.
 MODEL_VERSION = ENGINE_VERSION
+
+# Fields of ScoreParts a carried month copies from the last live month.
+CARRIED_FIELDS: tuple[str, ...] = (
+    "branch",
+    "pillar_scores",
+    "weights_effective",
+    "level_weighted",
+    "penalty",
+    "cap_adjustment",
+    "caps_fired",
+    "base",
+    "contributions",
+    "score",
+    "band",
+)
 
 
 @dataclass(frozen=True)
@@ -53,6 +98,26 @@ class ScoreResult:
     window: io.Window
 
 
+def carry_forward(own: ScoreParts, last_live: ScoreParts) -> ScoreParts:
+    """Stale month: the explanation block of the last live month, verbatim.
+
+    ``own`` is the stale month as ``aggregate`` scored it; ``last_live`` is the
+    most recent earlier month with ``feed_live``. See the module docstring.
+    """
+    if own.feed_live or not last_live.feed_live:
+        raise ValueError("carry_forward copies a live month into a stale one")
+    copied = {name: getattr(last_live, name) for name in CARRIED_FIELDS}
+    return replace(own, carried_from=last_live.month, **copied)
+
+
+def carried_pillars(pillars: Mapping[str, PillarResult]) -> dict[str, PillarResult]:
+    """Pillar results of the last live month, marked with ``CARRIED_GATE``."""
+    return {
+        key: replace(pillars[key], gates=(*pillars[key].gates, CARRIED_GATE))
+        for key in PILLAR_KEYS
+    }
+
+
 def score_entity(
     rows: Sequence[PanelRow],
     params: Params,
@@ -61,18 +126,25 @@ def score_entity(
     """Scores one entity month by month, past-only.
 
     ``rows`` belong to a single entity; ``group_rows`` (companies only) maps a
-    month to the row of the owning group.
+    month to the row of the owning group. Stale months are carried forward from
+    the last live month (module docstring); the trajectory reads the final
+    parts, carried months included.
     """
-    history = []
+    history: list[ScoreParts] = []
     months: list[EntityMonth] = []
-    previous: dict[str, float | None] | None = None
+    last_live: EntityMonth | None = None
     for row in sorted(rows, key=lambda item: item.month):
         group_row = group_rows.get(row.month) if group_rows else None
-        pillars = smooth_pillars(compute_pillars(row, params, group_row), previous, params)
+        pillars = compute_pillars(row, params, group_row)
         parts = aggregate(pillars, row, params)
+        if not parts.feed_live and last_live is not None:
+            parts = carry_forward(parts, last_live.parts)
+            pillars = carried_pillars(last_live.pillars)
         history.append(parts)
-        months.append(EntityMonth(row, pillars, parts, trajectory(history, params)))
-        previous = {key: pillars[key].score for key in PILLAR_KEYS}
+        month = EntityMonth(row, pillars, parts, trajectory(history, params))
+        months.append(month)
+        if parts.feed_live:
+            last_live = month
     return months
 
 
@@ -108,6 +180,8 @@ def _bounded(value: float) -> float:
 
 
 def _series(month: EntityMonth) -> dict[str, float | None]:
+    # facts come from the row of the month; pillar inputs follow the pillars
+    # shown for it (those of the last live month when carried)
     row, pillars = month.row, month.pillars
     values: dict[str, float | None] = {
         "cash_month_end": row.cash_month_end,
@@ -116,12 +190,13 @@ def _series(month: EntityMonth) -> dict[str, float | None]:
         "drawn": row.drawn,
         "op_inflow_1m": row.op_inflow_1m,
         "op_outflow_1m": row.op_outflow_1m,
+        "debt_service_1m": row.debt_service_1m,
         "buffer_days": pillars["liquidity"].inputs.get("buffer_days_month_end"),
         "ap_days_beyond_terms": pillars["payments"].inputs.get("days_beyond_terms"),
         "ar_days_beyond_terms": pillars["collections"].inputs.get("days_beyond_terms"),
-        "activity_ratio": pillars["activity"].inputs.get("ratio"),
-        "dscr": pillars["debt"].inputs.get("dscr"),
-        "lines_utilisation": pillars["debt"].inputs.get("utilisation"),
+        "activity_coverage": pillars["activity"].inputs.get("coverage"),
+        "activity_momentum": pillars["activity"].inputs.get("momentum"),
+        "debt_burden": pillars["debt"].inputs.get("burden"),
     }
     return {key: values[key] for key in SERIES_KEYS}
 
@@ -135,7 +210,8 @@ def build_snapshot(
     """``EntityMonth`` -> serialisable snapshot, deprecated v1 fields included.
 
     ``previous`` is the month before of the same entity (None on the first
-    one: ``delta`` 0 and no ``delta_parts``).
+    one: ``delta`` 0 and no ``delta_parts``). ``score`` is the number on screen
+    (carried on a stale month) and ``level`` the own level of the month.
     """
     row, parts, verdict = month.row, month.parts, month.trajectory
     change = delta_parts(parts, previous.parts) if previous is not None else None
@@ -145,33 +221,37 @@ def build_snapshot(
         group_id=row.group_id,
         month=row.month,
         score=_bounded(parts.score),
-        level_raw=parts.level_raw,
+        band=parts.band,
+        level=parts.level,
         base=parts.base,
         pillars=_by_pillar(parts.pillar_scores),
-        pillars_raw={key: month.pillars[key].raw_score for key in PILLAR_KEYS},
         weights_effective=_by_pillar(parts.weights_effective),
         contributions=_by_pillar(parts.contributions),
         penalty=parts.penalty,
         cap_adjustment=parts.cap_adjustment,
         caps_fired=list(parts.caps_fired),
         branch=parts.branch,
+        feed_live=parts.feed_live,
+        carried_from=parts.carried_from,
         confidence=parts.confidence,
+        confidence_label=parts.confidence_label,
         confidence_parts=parts.confidence_parts,
         delta=change.score if change is not None else 0.0,
         delta_parts=change,
-        trend=verdict.direction,
+        trend="stable" if verdict.direction == "perimeter_shift" else verdict.direction,
         persistence_months=verdict.persistence_months,
         detected_since=verdict.detected_since,
         trajectory=verdict,
         gates={key: list(month.pillars[key].gates) for key in PILLAR_KEYS},
         flags=list(parts.flags),
         abstained=parts.abstained,
+        abstain_reason=parts.abstain_reason,
         unlock_hint=parts.unlock_hint,
         months_observed=row.months_observed,
         perimeter_changed=row.perimeter_changed,
         drivers=explain(parts, month.pillars, params),
         series=_series(month),
-        observed_score=_bounded(parts.level_raw),
+        observed_score=_bounded(parts.level),
         predicted_future_score=_bounded(parts.score),
         forecast_delta=0.0,
         shap_base_value=parts.base,
@@ -195,10 +275,24 @@ def snapshots_frame(snapshots: Sequence[EntitySnapshot]) -> pl.DataFrame:
             )
         record["gates"] = {key: record["gates"].get(key, []) for key in PILLAR_KEYS}
         record["series"] = {key: record["series"].get(key) for key in SERIES_KEYS}
-        for name in ("pillars", "pillars_raw", "weights_effective", "contributions"):
+        for name in ("pillars", "weights_effective", "contributions"):
             record[name] = _by_pillar(record[name])
         records.append({name: record[name] for name in SNAPSHOT_SCHEMA})
     return pl.DataFrame(records, schema=SNAPSHOT_SCHEMA)
+
+
+def classify_industry(input_dir: Path) -> dict[str, IndustryClassification]:
+    """Industry archetype per company, for the profile cards.
+
+    Context only: when its reader fails on a folder the cards lose the
+    attribute and every score is still produced.
+    """
+    try:
+        from .industry_classifier import classify_dataset
+
+        return {item.entity_id: item for item in classify_dataset(Path(input_dir))[1]}
+    except Exception:  # noqa: BLE001 - nothing in the number depends on this reader
+        return {}
 
 
 def score_dataset(
@@ -231,11 +325,7 @@ def score_dataset(
             previous = month
         alerts.extend(build_alerts(entity_months, params))
 
-    industry = industry_override
-    if industry is None:
-        from .industry_classifier import classify_dataset
-
-        industry = {item.entity_id: item for item in classify_dataset(Path(input_dir))[1]}
+    industry = industry_override if industry_override is not None else classify_industry(input_dir)
     return ScoreResult(
         snapshots=snapshots_frame(snapshots),
         panel=panel,
@@ -301,11 +391,15 @@ ALERT_SCHEMA: dict[str, Any] = {
 
 __all__ = [
     "ALERT_SCHEMA",
+    "CARRIED_FIELDS",
     "ENGINE_VERSION",
     "FEATURE_VERSION",
     "MODEL_VERSION",
     "ScoreResult",
     "build_snapshot",
+    "carried_pillars",
+    "carry_forward",
+    "classify_industry",
     "flat_scores",
     "score_dataset",
     "score_entity",

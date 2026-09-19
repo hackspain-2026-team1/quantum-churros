@@ -20,6 +20,14 @@ from .scoring import ScoreResult
 
 DEFAULT_VALIDATION_PATH = Path("artifacts/validation.json")
 TRUNCATION_MONTHS: tuple[str, ...] = ("2025-08", "2026-02", "2026-05")
+NEUTRALITY_DIMENSIONS: tuple[str, ...] = (
+    "size_band", "erp_tier", "main_bank", "calendar_month", "coverage_branch",
+)
+CHECK_KEYS: tuple[str, ...] = (
+    "isolation", "truncation", "additivity", "scale", "determinism", "ablation", "neutrality",
+    "penalty_by_branch", "rank_stability", "history_truncation", "persistence",
+    "netting_placebo", "injection",
+)
 
 
 def compare_scores(
@@ -66,12 +74,17 @@ def check_truncation(
 
 
 def check_additivity(result: ScoreResult, tol: float = 1e-9) -> dict[str, Any]:
-    """Score and delta identities on every real row, plus the integer-tenths sum."""
+    """Score and delta identities on every real row, carried months included,
+    plus the integer-tenths sum."""
     raise NotImplementedError
 
 
 def check_scale_invariance(result: ScoreResult, factor: float = 1024.0) -> dict[str, Any]:
-    """Re-scores the panel with every EUR column multiplied by ``factor``."""
+    """Re-scores the panel with every EUR column multiplied by ``factor``.
+
+    Pure core only: the mirror gate and the size band are set in EUR on
+    purpose, so the panel keeps its ``size_band`` labels.
+    """
     raise NotImplementedError
 
 
@@ -80,31 +93,63 @@ def check_determinism(input_dir: Path, result: ScoreResult) -> dict[str, Any]:
     raise NotImplementedError
 
 
-def branch_parity_psi(result: ScoreResult) -> dict[str, Any]:
-    """PSI of group scores between branches with and without invoices (< 0.1)."""
+def paired_ablation(result: ScoreResult) -> dict[str, Any]:
+    """Same groups scored with and without the invoice pillars (payments and
+    collections set to None on the pillar results, then re-aggregated): mean
+    shift of the score and Spearman of the two rankings on the last month.
+    Replaces any comparison between populations with and without invoices.
+    Also run with the debt pillar removed on debt-bearing groups."""
     raise NotImplementedError
 
 
 def neutrality(result: ScoreResult) -> dict[str, Any]:
-    """Score level and alert rate by size band and by months since connection."""
+    """Excess eta-squared of the group score over a random partition with the
+    same cell sizes, for every one of ``NEUTRALITY_DIMENSIONS``; plus the alert
+    rate by calendar month."""
+    raise NotImplementedError
+
+
+def penalty_by_branch(result: ScoreResult) -> dict[str, Any]:
+    """Mean penalty and share of months with a penalty, by coverage branch."""
+    raise NotImplementedError
+
+
+def rank_stability(
+    result: ScoreResult, *, draws: int = 500, seed: int = 7
+) -> dict[str, Any]:
+    """Re-aggregates the last month under weight perturbations of +-10 points
+    (renormalised) and ``lam`` in [0.3, 0.7]: Spearman of group ranks against
+    the baseline and share of groups changing band, overall and by branch."""
+    raise NotImplementedError
+
+
+def history_truncation(
+    result: ScoreResult, *, lengths: Sequence[int] = (3, 4, 6, 9, 12)
+) -> dict[str, Any]:
+    """Groups with the full window re-scored from panels cut to their last k
+    months: median absolute score difference against the full history, per k.
+    Justifies ``abstention.min_months_observed`` and the history table."""
     raise NotImplementedError
 
 
 def persistence(result: ScoreResult) -> dict[str, Any]:
-    """P(state at t+6 | state at t) against the base rate, for level states."""
+    """P(cash + headroom < 0 at t+6 | same at t) against the rate when positive
+    at t, group level; same for the score bands."""
     raise NotImplementedError
 
 
 def netting_placebo(clean: CleanTables, params: Params) -> dict[str, Any]:
-    """Mirror pairs found across different groups (placebo) over real pairs."""
+    """Mirror recipe re-run with the positive leg shifted 9 to 11 days: pairs
+    and outflow value netted by the placebo over the real ones."""
     raise NotImplementedError
 
 
 def injection_study(
     input_dir: Path, result: ScoreResult, *, seed: int = 7
 ) -> dict[str, Any]:
-    """Injects controlled deteriorations into healthy groups and re-scores only
-    those groups: detection delay distribution, false alerts, bump vs fall."""
+    """Injects spikes, steps and ramps into healthy groups, by size band, and
+    re-scores only those groups: detection delay distribution,
+    P(structural | spike) and the false-alert rate without injection."""
     raise NotImplementedError
 
 
@@ -117,9 +162,8 @@ def run_validation(
     quick: bool = False,
 ) -> dict[str, Any]:
     """Runs every check and writes ``out_path``. ``quick`` skips the injection
-    study and uses fewer isolation groups. Returns the written document:
-    ``{dataset_hash, params_hash, engine_version, isolation, truncation,
-    additivity, scale, determinism, branch_parity, neutrality, persistence,
-    netting_placebo, injection}``.
+    study, uses fewer isolation groups and fewer perturbation draws. Returns
+    the written document: ``{dataset_hash, params_hash, engine_version,
+    **{key: result for key in CHECK_KEYS}}``.
     """
     raise NotImplementedError

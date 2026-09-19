@@ -22,8 +22,11 @@ from typing import Any
 from . import contracts
 from .contracts import (
     ANCHOR_KEYS,
+    BAND_KEYS,
     DASH_LABELS,
+    FLOW_CLASSES,
     PILLAR_KEYS,
+    SIZE_BANDS,
     Anchors,
     Params,
 )
@@ -155,6 +158,11 @@ def _check_anchors(name: str, anchors: Anchors, low: float, high: float) -> None
         raise ParamsError(f"{name}: anchor y values must lie in [{low}, {high}]")
 
 
+def _check_share(name: str, value: float) -> None:
+    if not 0 <= value <= 1:
+        raise ParamsError(f"{name} must lie in [0, 1]")
+
+
 def validate_params(params: Params) -> None:
     """Structural checks only; raises ``ParamsError`` on the first violation."""
     if set(params.weights) != set(PILLAR_KEYS):
@@ -167,67 +175,116 @@ def validate_params(params: Params) -> None:
         raise ParamsError(f"anchors must define exactly {ANCHOR_KEYS}")
     for key, anchors in params.anchors.items():
         _check_anchors(f"anchors.{key}", anchors, 0.0, 100.0)
+
+    bounds = params.size_bands.upper_bounds_eur
+    if len(bounds) != len(SIZE_BANDS) - 1 or any(b <= a for a, b in zip((0.0, *bounds), bounds)):
+        raise ParamsError("size_bands.upper_bounds_eur: one increasing positive bound per band but the last")
+    if params.size_bands.window_months < 1:
+        raise ParamsError("size_bands.window_months must be positive")
+
+    liquidity = params.liquidity
+    if abs(liquidity.month_end_weight + liquidity.intra_min_weight - 1.0) > 1e-9:
+        raise ParamsError("liquidity weights must sum to 1")
+    if not 1 <= liquidity.outflow_window_months <= liquidity.outflow_fallback_months:
+        raise ParamsError("liquidity: outflow windows must satisfy 1 <= window <= fallback")
+    if set(liquidity.band_anchors) != set(SIZE_BANDS):
+        raise ParamsError(f"liquidity.band_anchors must define exactly {SIZE_BANDS}")
+    quantiles, scores = liquidity.band_quantiles, liquidity.band_scores
+    if len(quantiles) != len(scores) or not quantiles:
+        raise ParamsError("liquidity: one band score per band quantile")
+    if any(b <= a for a, b in zip(quantiles, quantiles[1:])) or not 0 < quantiles[0] <= quantiles[-1] < 1:
+        raise ParamsError("liquidity.band_quantiles must be strictly increasing inside (0, 1)")
+    for key, anchors in liquidity.band_anchors.items():
+        _check_anchors(f"liquidity.band_anchors.{key}", anchors, 0.0, 100.0)
+        if tuple(y for _, y in anchors.points) != (0.0, *scores) or anchors.points[0][0] != 0.0:
+            raise ParamsError(f"liquidity.band_anchors.{key}: (0, 0) followed by one point per band score")
+
+    invoices = params.invoices
+    if invoices.window_days < 1 or invoices.clip_days[0] >= invoices.clip_days[1]:
+        raise ParamsError("invoices: positive window and clip low below clip high")
+    if invoices.min_invoices < 1 or invoices.min_effective_n <= 0:
+        raise ParamsError("invoices: gates must be positive")
+    _check_share("invoices.stamped_share_max", invoices.stamped_share_max)
+
+    activity = params.activity
+    if not 1 <= activity.coverage_min_months <= activity.coverage_window_months:
+        raise ParamsError("activity: coverage_min_months must lie in [1, coverage_window_months]")
+    if not 1 <= activity.min_prior_months <= activity.prior_months or activity.recent_months < 1:
+        raise ParamsError("activity: min_prior_months must lie in [1, prior_months]")
+    if not 1 <= params.debt.min_months <= params.debt.window_months:
+        raise ParamsError("debt: min_months must lie in [1, window_months]")
+    if params.robust.monthly_winsor_multiple < 1:
+        raise ParamsError("robust.monthly_winsor_multiple must be at least 1")
+
+    if params.penalty.lam < 0 or not 0 <= params.penalty.tau <= 100:
+        raise ParamsError("penalty: lam >= 0 and tau in [0, 100] (points)")
+    caps = params.caps
+    if any(not 0 <= value <= 100 for value in (caps.negative_liquidity_ceiling, caps.weak_payments_ceiling)):
+        raise ParamsError("caps: ceilings must lie in [0, 100]")
+    if not 1 <= caps.negative_liquidity_min_months <= caps.negative_liquidity_window_months:
+        raise ParamsError("caps: negative_liquidity_min_months must lie in [1, window]")
+    _check_share("caps.negative_liquidity_max_no_anchor_share", caps.negative_liquidity_max_no_anchor_share)
+    if set(params.bands) != set(BAND_KEYS):
+        raise ParamsError(f"bands must define exactly {BAND_KEYS}")
+    minimums = [params.bands[key] for key in BAND_KEYS]
+    if minimums[0] != 0.0 or any(b <= a for a, b in zip(minimums, minimums[1:])) or minimums[-1] > 100:
+        raise ParamsError("bands: minimums start at 0 and increase strictly")
+
+    feed = params.live_feed
+    if not 0 < feed.threshold <= 1:
+        raise ParamsError("live_feed.threshold must lie in (0, 1]")
+    if not feed.base_from_months >= feed.base_to_months > feed.recent_months - 1 >= 0:
+        raise ParamsError("live_feed: the base window must end before the recent months")
     confidence = params.confidence
     for key in (
         "history",
         "coverage",
-        "quality_uncategorised",
+        "quality_dash",
         "quality_fx_excluded",
-        "quality_cash_anchor",
+        "quality_orphan",
+        "quality_no_cash_anchor",
     ):
         _check_anchors(f"confidence.{key}", getattr(confidence, key), 0.0, 1.0)
-    if not 0 < confidence.abstain_below < 1 or not 0 <= confidence.stale_feed_factor <= 1:
-        raise ParamsError("confidence thresholds must lie in (0, 1)")
+    _check_share("confidence.limit_assumed_constant_factor", confidence.limit_assumed_constant_factor)
+    _check_share("confidence.stale_feed_factor", confidence.stale_feed_factor)
+    if not 0 < confidence.label_medium_min < confidence.label_high_min <= 1:
+        raise ParamsError("confidence labels: 0 < label_medium_min < label_high_min <= 1")
+    if params.abstention.min_months_observed < 1:
+        raise ParamsError("abstention.min_months_observed must be positive")
+    if not params.abstention.bank_pillars or set(params.abstention.bank_pillars) - set(PILLAR_KEYS):
+        raise ParamsError("abstention.bank_pillars must be pillar keys")
+
+    trajectory = params.trajectory
+    if trajectory.horizon_months < 1 or trajectory.min_scored_months <= trajectory.horizon_months:
+        raise ParamsError("trajectory: min_scored_months must exceed horizon_months")
+    if trajectory.sigma_floor <= 0 or trajectory.min_delta_points <= 0:
+        raise ParamsError("trajectory: thresholds must be positive")
+    _check_share("trajectory.perimeter_shift_share", trajectory.perimeter_shift_share)
+    _check_share("trajectory.bump_revert_fraction", trajectory.bump_revert_fraction)
+    _check_share("profile.concentration_top1_share", params.profile.concentration_top1_share)
+    if not 1 <= params.profile.concentration_min_months <= params.profile.concentration_window_months:
+        raise ParamsError("profile: concentration_min_months must lie in [1, window]")
+
     if set(params.reference.medians) != set(PILLAR_KEYS):
         raise ParamsError("reference.medians must define every pillar")
     if any(not 0 <= value <= 100 for value in params.reference.medians.values()):
         raise ParamsError("reference.medians must lie in [0, 100]")
-    if params.penalty.lam < 0 or not 0 <= params.penalty.tau <= 100:
-        raise ParamsError("penalty: lam >= 0 and tau in [0, 100] (points)")
-    if not 0 < params.ewma_alpha <= 1:
-        raise ParamsError("ewma_alpha must lie in (0, 1]")
-    caps = params.caps
-    ceilings = (
-        caps.negative_liquidity_ceiling,
-        caps.lines_drawn_ceiling,
-        caps.weak_pillar_ceiling,
-    )
-    if any(not 0 <= value <= 100 for value in ceilings):
-        raise ParamsError("caps: ceilings must lie in [0, 100]")
-    if set(caps.weak_pillars) - set(PILLAR_KEYS):
-        raise ParamsError("caps.weak_pillars must be pillar keys")
-    if not 0 < params.live_feed.threshold <= 1:
-        raise ParamsError("live_feed.threshold must lie in (0, 1]")
-    liquidity = params.liquidity
-    if abs(liquidity.month_end_weight + liquidity.intra_min_weight - 1.0) > 1e-9:
-        raise ParamsError("liquidity weights must sum to 1")
-    if abs(params.debt.dscr_weight + params.debt.utilisation_weight - 1.0) > 1e-9:
-        raise ParamsError("debt weights must sum to 1")
-    if set(params.invoices.prior_days) != {"payments", "collections"}:
-        raise ParamsError("invoices.prior_days must define payments and collections")
-    if params.trajectory.structural_required_pillar not in PILLAR_KEYS:
-        raise ParamsError("trajectory.structural_required_pillar must be a pillar key")
     if params.fx.rates.get(params.fx.base) != 1.0:
         raise ParamsError("fx: the base currency must have rate 1")
     if any(rate <= 0 for rate in params.fx.rates.values()):
         raise ParamsError("fx: rates must be positive")
-    factors = params.seasonality.month_factors
-    if len(factors) != 12 or any(factor <= 0 for factor in factors):
-        raise ParamsError("seasonality.month_factors: 12 positive values")
-    edges = params.psi.edges
-    if len(edges) < 2 or any(b <= a for a, b in zip(edges, edges[1:])):
-        raise ParamsError("psi.edges must be strictly increasing")
-    if any(len(shares) != len(edges) - 1 for shares in params.psi.reference.values()):
-        raise ParamsError("psi.reference: one share per bin")
-    if any(low >= high for low, high in params.winsor.values()):
-        raise ParamsError("winsor: low must be below high")
-    if 0 not in params.mirror.day_offsets:
-        raise ParamsError("mirror.day_offsets must include 0")
+    mirror = params.mirror
+    if mirror.min_amount_eur < 0 or not 0 <= mirror.max_day_gap <= mirror.weekend_bridge_day_gap:
+        raise ParamsError("mirror: min_amount_eur >= 0 and max_day_gap <= weekend_bridge_day_gap")
+    if any(not 0 <= day <= 6 for day in mirror.weekend_bridge_weekdays) or mirror.reversal_max_day_gap < 0:
+        raise ParamsError("mirror: weekdays follow date.weekday() and gaps are not negative")
     seen: set[str] = set()
     for rule in params.dash_rules:
         if rule.id in seen:
             raise ParamsError(f"dash_rules: duplicated id {rule.id}")
         seen.add(rule.id)
+        if rule.flow_class not in FLOW_CLASSES:
+            raise ParamsError(f"dash_rules.{rule.id}: unknown flow_class {rule.flow_class}")
         if rule.label not in DASH_LABELS:
             raise ParamsError(f"dash_rules.{rule.id}: unknown label {rule.label}")
         if rule.precision is not None and not 0 <= rule.precision <= 1:

@@ -1,23 +1,23 @@
-"""Scores read money only through ratios: the currency scale must not matter."""
+"""Scores read money only through ratios: the currency scale must not matter.
+
+Tested on the pure core. The row-level cleaning is not scale free on purpose:
+the mirror recipe has a 100 EUR gate and the size band has EUR thresholds, so
+the panel hands the band over as a label.
+"""
 
 from __future__ import annotations
 
 import random
-from dataclasses import asdict
+from dataclasses import asdict, replace
+from datetime import date
 
 import pytest
-from xray_engine.aggregate import aggregate
-from xray_engine.contracts import PANEL_COLUMNS, PANEL_MONEY_COLUMNS, PILLAR_KEYS
-from xray_engine.pillars import compute_pillars
-from xray_engine.scoring import score_dataset
+from xray_engine.aggregate import aggregate, explain
+from xray_engine.contracts import PANEL_COLUMNS, PANEL_MONEY_COLUMNS, PILLAR_KEYS, SIZE_BANDS
+from xray_engine.pillars import compute_pillars, pillar_note
+from xray_engine.trajectory import trajectories
 
 TOL = 1e-9
-# descriptive columns that carry EUR amounts by design
-MONEY_BEARING_SNAPSHOT_COLUMNS = ("series", "drivers", "dataset_hash")
-
-stub = pytest.mark.xfail(
-    raises=NotImplementedError, strict=False, reason="engine modules are stubs"
-)
 
 
 def _close(left: object, right: object) -> bool:
@@ -31,27 +31,28 @@ def _close(left: object, right: object) -> bool:
 
 
 def test_scaling_a_row_touches_money_columns_only(panel_rows) -> None:
-    row = panel_rows.random(random.Random(21), cash_month_end=1000.0)
+    row = panel_rows.random(random.Random(21), cash_month_end=1000.0, size_band="small")
     scaled = panel_rows.scale(row, 1024.0)
     assert scaled.cash_month_end == 1024000.0 and len(PANEL_MONEY_COLUMNS) > 20
+    assert scaled.size_band == "small"  # the band is a label of the panel, not a function of the row
     for name in PANEL_COLUMNS:
         value, other = getattr(row, name), getattr(scaled, name)
         if name not in PANEL_MONEY_COLUMNS or value is None:
             assert other == value, name
-        elif isinstance(value, tuple):
-            assert other == tuple(None if item is None else item * 1024.0 for item in value)
         else:
             assert other == value * 1024.0, name
 
 
-@stub
-@pytest.mark.parametrize("exponent", [-10, 10])
-def test_pure_core_is_scale_invariant(panel_rows, params, exponent) -> None:
+@pytest.mark.parametrize("exponent", [-10, -1, 3, 10])
+@pytest.mark.parametrize("segmented", [True, False])
+def test_pure_core_is_scale_invariant(panel_rows, params, exponent, segmented) -> None:
+    """Money fields times 2**k: same scores, gates, aggregate, drivers and notes."""
     rng = random.Random(22)
+    params = replace(params, liquidity=replace(params.liquidity, segmented=segmented))
+    factor = 2.0**exponent
     for _ in range(500):
         row = panel_rows.random(rng)
-        group_row = panel_rows.random(rng, entity_kind="group")
-        factor = 2.0**exponent
+        group_row = panel_rows.random(rng, entity_kind="group", size_band=rng.choice(SIZE_BANDS))
         results = compute_pillars(row, params, group_row)
         scaled = compute_pillars(
             panel_rows.scale(row, factor), params, panel_rows.scale(group_row, factor)
@@ -59,20 +60,26 @@ def test_pure_core_is_scale_invariant(panel_rows, params, exponent) -> None:
         for key in PILLAR_KEYS:
             assert _close(results[key].score, scaled[key].score), key
             assert results[key].gates == scaled[key].gates, key
+            assert pillar_note(results[key], params) == pillar_note(scaled[key], params), key
         before = aggregate(results, row, params)
         after = aggregate(scaled, panel_rows.scale(row, factor), params)
         assert _close(asdict(before), asdict(after))
+        drivers = [item.model_dump() for item in explain(before, results, params)]
+        assert _close(drivers, [item.model_dump() for item in explain(after, scaled, params)])
 
 
-@stub
-def test_dataset_times_1024_gives_the_same_scores(
-    synthetic, datasets, params, same_frames, tmp_path
-) -> None:
-    scaled_dir = datasets.scale(synthetic.path, tmp_path / "scaled", 1024)
-    base = score_dataset(synthetic.path, params, cache_dir=tmp_path / "cache")
-    scaled = score_dataset(scaled_dir, params, cache_dir=tmp_path / "cache")
-    same_frames(
-        base.snapshots, scaled.snapshots, keys=["entity_kind", "entity_id", "month"],
-        tol=TOL, ignore=MONEY_BEARING_SNAPSHOT_COLUMNS,
-    )
-    assert [(a.id, a.state) for a in base.alerts] == [(a.id, a.state) for a in scaled.alerts]
+def test_a_trajectory_does_not_see_the_money_scale(panel_rows, params) -> None:
+    rng = random.Random(23)
+    rows = [
+        panel_rows.random(rng, month=date(2025, 1 + index, 1), months_observed=12 + index,
+                          entity_kind="group", perimeter_changed=False)
+        for index in range(12)
+    ]
+    history = [aggregate(compute_pillars(row, params), row, params) for row in rows]
+    scaled = [
+        aggregate(compute_pillars(bigger, params), bigger, params)
+        for bigger in (panel_rows.scale(row, 4096.0) for row in rows)
+    ]
+    one, other = trajectories(history, params), trajectories(scaled, params)
+    assert any(verdict.available for verdict in one)
+    assert _close([asdict(verdict) for verdict in one], [asdict(verdict) for verdict in other])

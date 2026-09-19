@@ -9,8 +9,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from xray_engine import io
-from xray_engine.industry_classifier import classify_dataset
+from xray_engine import io, scoring
 
 
 def _records(path: Path) -> list[dict[str, str]]:
@@ -77,56 +76,126 @@ def test_statuses_and_pending_rows(synthetic) -> None:
     assert all(records[item]["status"] == "" for item in synthetic.blank_status_transaction_ids)
 
 
-def test_mirror_pairs_are_the_only_opposite_twins(synthetic, datasets) -> None:
+def test_mirror_pairs_are_the_only_opposite_twins(synthetic, datasets, params) -> None:
     records = _records(synthetic.path / "transactions.csv")
     companies = {row["company_id"]: row["group_id"] for row in _records(synthetic.path / "companies.csv")}
+    currency = {row["product_id"]: row["currency"] for row in _records(synthetic.path / "banking_products.csv")}
+    currency |= {row["product_id"]: row["currency"] for row in _records(synthetic.path / "debt_products.csv")}
     by_id = {row["transaction_id"]: row for row in records}
     scopes = Counter(pair.scope for pair in synthetic.mirror_pairs)
     assert scopes["intra_company"] > 20 and scopes["intra_group"] > 100
+    # the category is no criterion: most pairs are not labelled transfer on both legs
     mislabelled = [pair for pair in synthetic.mirror_pairs if pair.out_category == "payment"]
     assert mislabelled and all(pair.in_category == "collection" for pair in mislabelled)
-    assert {pair.day_offset for pair in synthetic.mirror_pairs} == {-2, -1, 0, 1, 2}
+    assert {pair.day_offset for pair in synthetic.mirror_pairs} == {-3, -1, 0, 1, 2, 3}
     assert sum(pair.ambiguous for pair in synthetic.mirror_pairs) == 2
-    for pair in synthetic.mirror_pairs:
+    assert Counter(pair.kind for pair in synthetic.mirror_decoys) == {
+        "day_gap": 3, "below_gate": 1, "cross_currency": 1,
+    }
+
+    def legs(pair):
         out_leg, in_leg = by_id[pair.out_id], by_id[pair.in_id]
         assert datasets.to_cents(out_leg["amount"]) == -pair.amount_cents
         assert datasets.to_cents(in_leg["amount"]) == pair.amount_cents
         assert out_leg["product_id"] != in_leg["product_id"]
-        assert out_leg["date"][:7] == in_leg["date"][:7]
+        assert companies[out_leg["company_id"]] == companies[in_leg["company_id"]] == pair.group_id
         same_company = out_leg["company_id"] == in_leg["company_id"]
         assert pair.scope == ("intra_company" if same_company else "intra_group")
-    # no accidental twin: every (group, month, |amount|) outside the pairs is unique
-    paired = {pair.out_id for pair in synthetic.mirror_pairs} | {
-        pair.in_id for pair in synthetic.mirror_pairs
-    }
-    eur = {row["product_id"] for row in _records(synthetic.path / "banking_products.csv") if row["currency"] == "EUR"}
-    eur |= {row["product_id"] for row in _records(synthetic.path / "debt_products.csv")}
+        return out_leg, in_leg
+
+    def recipe_allows(pair) -> bool:
+        out_leg, in_leg = legs(pair)
+        same_currency = currency[out_leg["product_id"]] == currency[in_leg["product_id"]]
+        rate = params.fx.rates.get(currency[out_leg["product_id"]])
+        return same_currency and datasets.may_net(
+            date.fromisoformat(out_leg["date"][:10]), date.fromisoformat(in_leg["date"][:10]),
+            pair.amount_cents, rate, params,
+        )
+
+    for pair in synthetic.mirror_pairs:
+        assert recipe_allows(pair), pair
+        if pair.kind == "weekend_bridge":
+            out_leg, in_leg = legs(pair)
+            earlier = min(out_leg["date"], in_leg["date"])[:10]
+            assert date.fromisoformat(earlier).weekday() in params.mirror.weekend_bridge_weekdays
+    for pair in synthetic.mirror_decoys:
+        assert not recipe_allows(pair), pair
+    for negative_id, positive_id in synthetic.reversal_pairs:
+        negative, positive = by_id[negative_id], by_id[positive_id]
+        assert negative["product_id"] == positive["product_id"]
+        assert datasets.to_cents(negative["amount"]) == -datasets.to_cents(positive["amount"]) < 0
+        gap = date.fromisoformat(negative["date"][:10]) - date.fromisoformat(positive["date"][:10])
+        assert abs(gap.days) <= params.mirror.reversal_max_day_gap
+
+    # no accidental twin: every (group, month, |amount|) outside the handles is unique
+    handled = {item for pair in synthetic.mirror_pairs + synthetic.mirror_decoys
+               for item in (pair.out_id, pair.in_id)}
+    handled |= {item for pair in synthetic.reversal_pairs for item in pair}
+    handled |= set(synthetic.dash_adjustment_ids)
     seen: dict[tuple, str] = {}
     for row in records:
-        if row["transaction_id"] in paired or row["product_id"] not in eur:
+        if row["transaction_id"] in handled or currency.get(row["product_id"]) != "EUR":
             continue
         key = (companies[row["company_id"]], row["date"][:7], abs(datasets.to_cents(row["amount"])))
         assert key not in seen, (key, seen.get(key), row["transaction_id"])
         seen[key] = row["transaction_id"]
 
 
-def test_dash_rows_carry_debt_narratives(synthetic, params) -> None:
-    import re
-
+def test_dash_rows_follow_the_rule_table(synthetic, datasets, params) -> None:
     records = {row["transaction_id"]: row for row in _records(synthetic.path / "transactions.csv")}
-    rules = {rule.label: rule for rule in params.dash_rules}
-    assert len(synthetic.dash_installment_ids) == 12
-    for transaction_id in synthetic.dash_installment_ids:
+    dash = {key for key, row in records.items() if row["category"] == "-" and row["status"] != "pending"}
+    assert dash == set(synthetic.dash_expected)
+    for transaction_id, expected in synthetic.dash_expected.items():
         row = records[transaction_id]
-        assert row["category"] == "-" and row["amount"].startswith("-")
-        assert re.search(rules["debt_installment"].pattern, row["description"], re.IGNORECASE)
-    for transaction_id in synthetic.dash_drawdown_ids:
-        row = records[transaction_id]
-        assert row["category"] == "-" and not row["amount"].startswith("-")
-        assert re.search(rules["debt_drawdown"].pattern, row["description"], re.IGNORECASE)
-    for transaction_id in synthetic.dash_unrecoverable_ids[:20]:
-        description = records[transaction_id]["description"]
-        assert not any(re.search(rule.pattern, description, re.IGNORECASE) for rule in params.dash_rules)
+        verdict = datasets.classify_dash(row["description"], datasets.to_cents(row["amount"]), params)
+        assert verdict == expected, (row["description"], verdict, expected)
+    fired = Counter(rule for _, rule in synthetic.dash_expected.values())
+    assert set(fired) == {rule.id for rule in params.dash_rules} | {None}
+    assert fired[None] > fired["commission"] > 0  # the sign default carries most rows
+    assert len(synthetic.dash_debt_service_ids) == 12
+    for transaction_id in synthetic.dash_debt_service_ids:
+        assert synthetic.dash_expected[transaction_id][0] == "debt_service"
+        assert records[transaction_id]["amount"].startswith("-")
+    # narratives the rule table leaves out on purpose stay with the sign default
+    for text, cents in (("NOMINA [PERSON]", -1), ("ABONO POR DISPOSICION", 1), ("CUOTA NUMERO 12", -1),
+                        ("TRASPASO ENTRE CUENTAS", -1), ("LIQUIDACION PERIODICA", -1)):
+        assert datasets.classify_dash(text, cents, params)[1] is None, text
+    holds = [records[item] for item in synthetic.dash_adjustment_ids]
+    assert sum(datasets.to_cents(row["amount"]) for row in holds) == 0
+    assert all(abs(datasets.to_cents(row["amount"])) >= 100_000_000 for row in holds)
+
+
+def test_input_traps(synthetic) -> None:
+    raw = (synthetic.path / "transactions.csv").read_bytes()
+    assert raw.count(b"\x00") == 1
+    records = {row["transaction_id"]: row for row in _records(synthetic.path / "transactions.csv")}
+    assert "\x00" in records[synthetic.nul_transaction_id]["description"]
+    products = {row["product_id"] for row in _records(synthetic.path / "banking_products.csv")}
+    products |= {row["product_id"] for row in _records(synthetic.path / "debt_products.csv")}
+    orphans = [row for row in records.values() if row["product_id"] not in products]
+    assert {row["transaction_id"] for row in orphans} == set(synthetic.orphan_transaction_ids)
+    assert {row["product_id"] for row in orphans} == {synthetic.orphan_product_id}
+    assert len(orphans) == 3
+
+
+def test_feed_and_revenue_archetypes(synthetic, datasets) -> None:
+    records = _records(synthetic.path / "transactions.csv")
+    months = Counter(
+        row["date"][:7] for row in records
+        if row["company_id"] == synthetic.stale_company_id and row["status"] != "pending"
+    )
+    last = synthetic.stale_company_last_active_month
+    assert max(months) == last.strftime("%Y-%m") and len(months) >= 12
+    assert last < synthetic.last_month
+    # the captive company only receives mirror legs: no inflow survives the netting
+    paired = {pair.in_id for pair in synthetic.mirror_pairs}
+    inflows = [
+        row for row in records
+        if row["company_id"] == synthetic.no_external_revenue_company_id
+        and not row["amount"].startswith("-")
+    ]
+    assert inflows and all(row["transaction_id"] in paired for row in inflows)
+    assert {row["category"] for row in inflows} == {"transfer", "collection"}
 
 
 def test_currencies_lines_and_balances(synthetic, datasets, params) -> None:
@@ -256,7 +325,8 @@ def test_transforms_keep_the_files_consistent(tmp_path, synthetic, datasets) -> 
     )
 
 
-def test_existing_readers_accept_the_files(synthetic) -> None:
-    fingerprint, classified = classify_dataset(synthetic.path)
-    assert fingerprint == io.dataset_fingerprint(synthetic.path) or len(fingerprint) == 64
-    assert {item.entity_id for item in classified} == set(synthetic.company_ids)
+def test_context_reader_never_blocks_a_run(synthetic, tmp_path) -> None:
+    found = scoring.classify_industry(synthetic.path)
+    assert set(found) <= set(synthetic.company_ids)
+    assert all(item.entity_id == key for key, item in found.items())
+    assert scoring.classify_industry(tmp_path) == {}  # no files: no context, no exception

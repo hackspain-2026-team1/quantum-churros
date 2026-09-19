@@ -6,14 +6,25 @@ here depends on ``Params``: the cache is a faithful, typed copy of the source.
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import json
+import os
+import sys
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 
 DEFAULT_CACHE_DIR = Path("artifacts/cache")
+CACHE_VERSION = 1  # bump when the cached layout changes: older folders are rebuilt
+MANIFEST_FILE = "manifest.json"
+PENDING_STATUS = "pending"
+BOOKED_STATUS = "booked"
+DASH_CATEGORY = "-"
 
 # Raw CSV headers, in file order, with the dtype every reader must force.
 # Small folders have all-null columns, so nothing is ever inferred.
@@ -211,6 +222,38 @@ CACHE_SCHEMAS: dict[str, dict[str, pl.DataType]] = {
         "countable_cents": pl.Int64,
     },
 }
+# Cached cents column -> source column.
+CENTS_SOURCES: dict[str, dict[str, str]] = {
+    "debt_products": {
+        "granted_cents": "granted",
+        "outstanding_cents": "outstanding",
+        "liquidity_cents": "liquidity",
+    },
+    "debt_schedule_config": {
+        "granted_cents": "granted_balance",
+        "outstanding_cents": "outstanding_balance",
+    },
+    "transactions": {"amount_cents": "amount"},
+    "invoices": {"amount_cents": "amount", "pending_cents": "pending_amount"},
+    "balances": {
+        "balance_cents": "balance",
+        "available_cents": "available",
+        "granted_cents": "granted",
+        "liquidity_cents": "liquidity",
+        "countable_cents": "countable",
+    },
+}
+# Sort key of every cached table.
+PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
+    "groups": ("group_id",),
+    "companies": ("company_id",),
+    "banking_products": ("product_id",),
+    "debt_products": ("product_id",),
+    "debt_schedule_config": ("product_id", "settlement_product_id"),
+    "transactions": ("transaction_id",),
+    "invoices": ("operation_id",),
+    "balances": ("product_id", "date"),
+}
 
 
 @dataclass(frozen=True)
@@ -261,9 +304,18 @@ def count_csv_records(path: Path) -> int:
     """Records in a CSV (header excluded) counted with the stdlib ``csv`` reader.
 
     Oracle for the row-count assertion: descriptions hold quoted newlines, so
-    physical lines overcount.
+    physical lines overcount, and ``transactions.csv`` holds NUL bytes, which
+    the reader rejects. ``\x00`` is stripped from every physical line before
+    it reaches the reader (per line, so multi-line quoted fields still parse).
     """
-    raise NotImplementedError
+    limit = csv.field_size_limit(sys.maxsize)
+    try:
+        with Path(path).open(newline="", encoding="utf-8-sig") as source:
+            reader = csv.reader(line.replace("\x00", "") for line in source)
+            next(reader, None)
+            return sum(1 for _ in reader)
+    finally:
+        csv.field_size_limit(limit)
 
 
 def derive_window(transactions: pl.DataFrame, balances: pl.DataFrame) -> Window:
@@ -274,20 +326,145 @@ def derive_window(transactions: pl.DataFrame, balances: pl.DataFrame) -> Window:
     before it. ``first_month`` is the month of the earliest transaction.
     Raises ValueError when no complete month exists.
     """
-    raise NotImplementedError
+    first_day = transactions["date"].min()
+    if first_day is None:
+        raise ValueError("No booked transaction: the window is undefined")
+    as_of = max(day for day in (transactions["date"].max(), balances["date"].max()) if day is not None)
+    last_month = as_of.replace(day=1)
+    if (as_of + timedelta(days=1)).day != 1:  # the month of as_of is not complete
+        last_month = (last_month - timedelta(days=1)).replace(day=1)
+    first_month = first_day.replace(day=1)
+    if last_month < first_month:
+        raise ValueError(f"No complete month between {first_day} and {as_of}")
+    return Window(first_month=first_month, last_month=last_month, as_of=as_of)
+
+
+def _read_csv(path: Path, table: str) -> pl.DataFrame:
+    """Every record of the file, limited to the columns the cache keeps."""
+    with path.open(newline="", encoding="utf-8-sig") as source:
+        header = next(csv.reader(line.replace("\x00", "") for line in source), [])
+    missing = [name for name in SCHEMAS[table] if name not in header]
+    if missing:
+        raise ValueError(f"{path.name}: missing columns {missing}")
+    sources = {*CACHE_SCHEMAS[table], *CENTS_SOURCES.get(table, {}).values()}
+    # every dtype is forced: small folders have all-null columns
+    scan = pl.scan_csv(path, schema_overrides=SCHEMAS[table], infer_schema=False)
+    return scan.select([name for name in SCHEMAS[table] if name in sources]).collect()
+
+
+def _text(name: str) -> pl.Expr:
+    text = pl.col(name).str.replace_all("\x00", "", literal=True)
+    return pl.when(text.str.len_bytes() > 0).then(text).alias(name)
+
+
+def _day(name: str) -> pl.Expr:
+    return pl.col(name).str.slice(0, 10).str.to_date("%Y-%m-%d")
+
+
+def _to_cache(raw: pl.DataFrame, table: str) -> pl.DataFrame:
+    """Raw frame (``SCHEMAS`` dtypes) -> ``CACHE_SCHEMAS``, sorted by the primary key."""
+    frame = raw.lazy().with_columns(
+        _text(name) for name, dtype in raw.schema.items() if dtype == pl.String
+    )
+    if table == "transactions":
+        frame = frame.filter(pl.col("status").is_null() | (pl.col("status") != PENDING_STATUS))
+        frame = frame.with_columns(
+            pl.col("status").fill_null(BOOKED_STATUS), pl.col("category").fill_null(DASH_CATEGORY)
+        )
+    columns: list[pl.Expr] = []
+    for name, dtype in CACHE_SCHEMAS[table].items():
+        if name in CENTS_SOURCES.get(table, {}):
+            amount = pl.col(CENTS_SOURCES[table][name])
+            columns.append((amount * 100).round().cast(pl.Int64).alias(name))
+        elif name == "month":
+            columns.append(_day("date").dt.month_start().alias(name))
+        elif dtype == pl.Date:
+            columns.append(_day(name))
+        else:
+            columns.append(pl.col(name))
+    cached = frame.select(columns).collect()
+    key = list(PRIMARY_KEYS[table])
+    if cached.select(key).is_duplicated().any():  # the other columns break the ties
+        key += [name for name in cached.columns if name not in key]
+    return cached.sort(key)
+
+
+def _replace(path: Path, write: Callable[[Path], object]) -> None:
+    # whole files only: a concurrent reader never sees a half-written one
+    partial = path.with_name(f".{path.name}.{os.getpid()}.partial")
+    try:
+        write(partial)
+        os.replace(partial, path)
+    finally:
+        partial.unlink(missing_ok=True)
+
+
+def _cache_table(input_dir: Path, folder: Path, table: str) -> dict[str, int]:
+    source = input_dir / f"{table}.csv"
+    raw = _read_csv(source, table)
+    records = count_csv_records(source)
+    if raw.height != records:
+        raise ValueError(f"{source.name}: {raw.height} records parsed, the csv recount gives {records}")
+    pending = raw.filter(pl.col("status") == PENDING_STATUS).height if table == "transactions" else 0
+    target = folder / f"{table}.parquet"
+    _replace(target, _to_cache(raw, table).write_parquet)
+    cached = pl.scan_parquet(target).select(pl.len()).collect().item()
+    if cached != records - pending:
+        raise ValueError(f"{target.name}: {cached} rows cached, expected {records - pending}")
+    return {"records": records, "pending_dropped": pending, "cached": cached}
+
+
+def _manifest(folder: Path) -> dict[str, Any] | None:
+    """Manifest of a complete cache folder of this layout, else None."""
+    try:
+        manifest = json.loads((folder / MANIFEST_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    complete = all((folder / f"{table}.parquet").is_file() for table in TABLE_NAMES)
+    return manifest if complete and manifest.get("cache_version") == CACHE_VERSION else None
+
+
+def _ensure_cache(input_dir: Path, cache_dir: Path, dataset_hash: str) -> tuple[Path, dict[str, Any]]:
+    folder = cache_dir / dataset_hash
+    manifest = _manifest(folder)
+    if manifest is not None:
+        return folder, manifest
+    folder.mkdir(parents=True, exist_ok=True)
+    tables = {table: _cache_table(input_dir, folder, table) for table in TABLE_NAMES}
+    window = derive_window(
+        pl.read_parquet(folder / "transactions.parquet", columns=["date"]),
+        pl.read_parquet(folder / "balances.parquet", columns=["date"]),
+    )
+    manifest = {
+        "cache_version": CACHE_VERSION,
+        "dataset_hash": dataset_hash,
+        "tables": tables,
+        "window": {
+            "first_month": window.first_month.isoformat(),
+            "last_month": window.last_month.isoformat(),
+            "as_of": window.as_of.isoformat(),
+        },
+    }
+    text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    _replace(folder / MANIFEST_FILE, lambda partial: partial.write_text(text, encoding="utf-8"))
+    return folder, manifest
 
 
 def build_cache(input_dir: Path, cache_dir: Path = DEFAULT_CACHE_DIR) -> Path:
     """Write ``<cache_dir>/<dataset_hash>/<table>.parquet`` for the eight tables.
 
     Reads with ``pl.scan_csv(schema_overrides=SCHEMAS[table])`` (quoted
-    newlines), asserts the parsed record count of every file against
-    ``count_csv_records``, converts to ``CACHE_SCHEMAS`` and sinks to parquet.
-    Also writes ``manifest.json`` with dataset_hash, per-table raw row counts,
+    newlines), removes NUL bytes from text, asserts the parsed record count of
+    every file against ``count_csv_records`` (any difference raises), converts
+    to ``CACHE_SCHEMAS`` and sinks to parquet. Every record is kept except
+    pending transactions: rows of products missing from both product files and
+    rows in any currency stay, cleaning decides what they may feed. Also
+    writes ``manifest.json`` with dataset_hash, per-table raw row counts,
     pending rows dropped and the window. Idempotent: an existing complete cache
     is returned untouched. Returns the cache folder.
     """
-    raise NotImplementedError
+    input_dir = Path(input_dir)
+    return _ensure_cache(input_dir, Path(cache_dir), dataset_fingerprint(input_dir))[0]
 
 
 def load_tables(input_dir: Path, cache_dir: Path = DEFAULT_CACHE_DIR) -> Tables:
@@ -297,4 +474,9 @@ def load_tables(input_dir: Path, cache_dir: Path = DEFAULT_CACHE_DIR) -> Tables:
     (transaction_id, operation_id, product_id + date, ...), so shuffled input
     files give identical frames.
     """
-    raise NotImplementedError
+    input_dir = Path(input_dir)
+    dataset_hash = dataset_fingerprint(input_dir)
+    folder, manifest = _ensure_cache(input_dir, Path(cache_dir), dataset_hash)
+    frames = {table: pl.read_parquet(folder / f"{table}.parquet") for table in TABLE_NAMES}
+    window = Window(**{key: date.fromisoformat(day) for key, day in manifest["window"].items()})
+    return Tables(**frames, dataset_hash=dataset_hash, window=window)
