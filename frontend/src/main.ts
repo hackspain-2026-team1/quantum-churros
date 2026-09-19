@@ -182,8 +182,17 @@ barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, b
 		prepararInforme(paginas?.informe() ?? null);
 		print();
 	}
-	addEventListener('beforeprint', () => { if (!hayInforme()) prepararInforme(paginas?.informe() ?? null); });
-	addEventListener('afterprint', () => quitarInforme());
+	addEventListener('beforeprint', () => {
+		if (document.querySelector('.panel-propuesta')) {
+			document.body.classList.add('imprimir-propuesta');
+			return;
+		}
+		if (!hayInforme()) prepararInforme(paginas?.informe() ?? null);
+	});
+	addEventListener('afterprint', () => {
+		document.body.classList.remove('imprimir-propuesta');
+		quitarInforme();
+	});
 	void capaExp;
 
 	ayuda.append(h('h2', {}, 'Cómo se usa'), h('p', {}, 'La frase de arriba dice lo que ves. Toca cualquier trozo para cambiarlo, o escribe en cualquier parte.'));
@@ -219,7 +228,11 @@ barra.append(marca, hueco, lentes, selector, nota, campana, botonFinanciacion, b
 			const ctx = ctxDe(e.q);
 			const propios = paginas.avisosPropios()?.map((a) => ({ month: c.months.indexOf(a.month), mejora: a.mejora })).filter((a) => a.month >= 0) ?? null;
 			const regla = e.vista === 'organizacion' || e.vista === 'empresa' ? reglaPagina(ctx, M, propios) : undefined;
-			arena.fijar(escenaPlacas(paginas.placas(), arena.n, M.W, M.H, M.movil, regla));
+			// Los granos que sobran reposan debajo de toda la página, no solo del viewport:
+			// si no, en la portada queda una franja blanca al final del monitor.
+			const cuerpo = paginas.raiz.querySelector('.pagina-cuerpo') as HTMLElement | null;
+			const altoPagina = Math.max(M.H, (cuerpo?.getBoundingClientRect().top ?? 0) + (cuerpo?.scrollHeight ?? paginas.raiz.scrollHeight));
+			arena.fijar(escenaPlacas(paginas.placas(), arena.n, M.W, altoPagina, M.movil, regla));
 			posiciones = []; filas = [];
 			return;
 		}

@@ -54,7 +54,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	let clave = '';
 	let datos: DatosFicha | null = null;
 	const financiacion = crearFinanciacion(S, () => cb.alCambiarArena());
-	const estadoUI = { metrica: 'score', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, supuestos: new Set<'drift' | 'stress'>(), filtro: null as FiltroEvidencia | null, ancla: null as string | null };
+	const estadoUI = { metrica: 'score', escenario: 'base' as 'base' | 'drift' | 'stress', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, filtro: null as FiltroEvidencia | null, ancla: null as string | null };
 	let accionPendiente: string | null = null;
 
 	const acc: Acciones = {
@@ -90,7 +90,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		temporizadorH = window.setTimeout(() => {
 			const d = datos!;
 			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
-			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, acciones: estadoUI.acciones, previa: estadoUI.previa, supuestos: estadoUI.supuestos, pilar: estadoUI.pilar, alto, alHilo: (hs) => cb.hilo(hs) }, true));
+			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
 			pintarControles(d);
 			cb.alCambiarArena();
 		}, estadoUI.previa || estadoUI.pilar ? 40 : 0);
@@ -102,10 +102,12 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		selM.addEventListener('change', () => { estadoUI.metrica = selM.value; pintarHorizonte(); });
 		controles.append(selM);
 		if (estadoUI.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte) {
-			const sup = h('div', { class: 'escenarios', role: 'group', 'aria-label': 'Qué pasaría si' }, h('span', { class: 'esc-t' }, 'qué pasaría si'));
-			for (const k of ['drift', 'stress'] as const) {
-				const b = h('button', { type: 'button', class: `esc esc-${k} ${estadoUI.supuestos.has(k) ? 'activo' : ''}`, 'aria-pressed': String(estadoUI.supuestos.has(k)), title: k === 'drift' ? 'Prolonga su pendiente de 12 meses. No es una predicción.' : 'Resta a la previsión su peor caída de tres meses del último año. No es una predicción.' }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), k === 'drift' ? 'sigue la deriva' : 'se repite su peor trimestre');
-				b.addEventListener('click', () => { if (estadoUI.supuestos.has(k)) estadoUI.supuestos.delete(k); else estadoUI.supuestos.add(k); pintarHorizonte(); });
+			const sup = h('div', { class: 'escenarios', role: 'radiogroup', 'aria-label': 'Escenario' });
+			const nombres = { base: 'Si todo sigue igual', drift: 'Si sigue la deriva', stress: 'Si se repite su peor trimestre' } as const;
+			for (const k of ['base', 'drift', 'stress'] as const) {
+				if (k !== 'base' && !d.hor.scenarios[k]) continue;
+				const b = h('button', { type: 'button', class: `esc esc-${k} ${estadoUI.escenario === k ? 'activo' : ''}`, 'data-escenario': k, role: 'radio', 'aria-checked': String(estadoUI.escenario === k), title: k === 'drift' ? 'Qué pasaría si: prolonga su pendiente de 12 meses. No es una predicción.' : k === 'stress' ? 'Los tres primeros meses repiten su peor trimestre observado. No es una predicción.' : undefined }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), nombres[k]);
+				b.addEventListener('click', () => { if (estadoUI.escenario !== k) { estadoUI.escenario = k; pintarHorizonte(); } });
 				sup.append(b);
 			}
 			controles.append(sup);
@@ -129,9 +131,8 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			pasos.append(b);
 		};
 		const sep = () => pasos.append(h('span', { class: 'miga-sep', 'aria-hidden': 'true' }, '›'));
-		paso('Rumbo', e.vista === 'entrada' ? null : () => S.fijar({ vista: 'entrada', sel: null, emp: null }, true), e.vista === 'entrada');
-		if (e.vista === 'metodologia') { sep(); paso('Metodología', null, true); }
-		if (e.vista === 'financiacion') { sep(); paso('Financiación', null, true); }
+		if (e.vista === 'metodologia') paso('Metodología', null, true);
+		if (e.vista === 'financiacion') paso('Financiación', null, true);
 		if ((e.vista === 'organizacion' || e.vista === 'empresa') && e.sel) {
 			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion');
 			if (e.vista === 'empresa' && e.emp) { sep(); paso(f.empresa(e.emp), null, true); }
@@ -396,7 +397,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		hoja.append(h('header', { class: 'informe-cab' },
 			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
 			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
-		hoja.append(cabecera(d, false), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', acciones: new Set(estadoUI.acciones), previa: null, supuestos: new Set(estadoUI.supuestos), pilar: null, alto: 240 }, true)));
+		hoja.append(cabecera(d, false), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, alto: 240 }, true)));
 		for (const sec of SECCIONES) {
 			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, NOMBRE_SECCION[sec]));
 			cuerpo.append(contenidoSeccion(d, sec, quieto, null, d.kind === 'group' && sec === 'scoring' ? flota(d) : null));
@@ -425,8 +426,10 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 function validacion(ix: NonNullable<Awaited<ReturnType<typeof carga.horizontesIndice>>>): HTMLElement {
 	const v = ix.validation;
 	const caja = h('div', { class: 'validacion' });
-	caja.append(h('p', {}, `El motor aprende de la historia de toda la cartera cómo cambia el score en los meses siguientes: un modelo por horizonte (${ix.model.type}). Cada previsión solo usa lo que se sabía en su mes.`));
-	const filas = Object.entries(v.por_horizonte).map(([k, r]) => ({ h: Number(k.slice(1)), ...r })).sort((a, b) => a.h - b.h);
+	const tipo = ix.model?.type ?? 'previsión';
+	caja.append(h('p', {}, `El motor aprende de la historia de toda la cartera cómo cambia el score en los meses siguientes: un modelo por horizonte (${tipo}). Cada previsión solo usa lo que se sabía en su mes.`));
+	const por = v?.por_horizonte ?? {};
+	const filas = Object.entries(por).map(([k, r]) => ({ h: Number(k.slice(1)), ...r })).sort((a, b) => a.h - b.h);
 	if (filas.length) {
 		const maxE = Math.max(...filas.map((r) => Math.max(r.error_mediana, r.error_sin_cambio)));
 		caja.append(h('div', { class: 'tabla-caja' }, h('table', { class: 'tabla-sutil validacion-t' },
@@ -435,7 +438,21 @@ function validacion(ix: NonNullable<Awaited<ReturnType<typeof carga.horizontesIn
 				h('td', {}, h('span', { class: 'vt-barras' }, h('i', { class: 'modelo', style: { width: `${(r.error_mediana / maxE) * 100}%` } }), h('i', { class: 'naive', style: { width: `${(r.error_sin_cambio / maxE) * 100}%` } })), ` ${f.numero(r.error_mediana, 1)} frente a ${f.numero(r.error_sin_cambio, 1)}`),
 				h('td', { class: 'num' }, f.porcentaje(r.acierta_80, 0)), h('td', { class: 'num' }, f.numero(r.n))))))));
 	}
-	caja.append(h('p', {}, `Validado fuera de muestra hasta ${f.plural(v.validado_hasta, 'mes', 'meses')}: en cada corte de ${f.mes(v.cortes[0])} a ${f.mes(v.cortes[v.cortes.length - 1])} se entrenó solo con lo anterior y se comparó con lo que pasó. Más allá, la arena se aclara y se marca «sin validar».`));
+	const cortes = v?.cortes ?? [];
+	if (cortes.length && v) {
+		caja.append(h('p', {}, `Validado fuera de muestra hasta ${f.plural(v.validado_hasta, 'mes', 'meses')}: en cada corte de ${f.mes(cortes[0])} a ${f.mes(cortes[cortes.length - 1])} se entrenó solo con lo anterior y se comparó con lo que pasó. Más allá, la arena se aclara y se marca «sin validar».`));
+	} else {
+		const viejo = ix as unknown as { calibration?: { eval_cut?: string; mae_median?: number; mae_naive?: number; h6?: { cov80?: number; n?: number } } };
+		const c = viejo.calibration;
+		if (c) {
+			const trozos = [`Prueba hacia atrás${c.eval_cut ? ` desde ${f.mes(c.eval_cut)}` : ''}, comparando con lo que pasó de verdad`];
+			if (c.mae_median != null && c.mae_naive != null) trozos.push(`: se equivoca ${f.numero(c.mae_median, 1)} puntos de media, frente a ${f.numero(c.mae_naive, 1)} de suponer que no cambia nada`);
+			if (c.h6?.cov80 != null) trozos.push(`; la franja del 80 % acierta el ${f.porcentaje(c.h6.cov80, 0)}${c.h6.n != null ? ` (${f.numero(c.h6.n)} casos)` : ''}`);
+			caja.append(h('p', {}, trozos.join(''), '.'));
+		} else {
+			caja.append(h('p', { class: 'aviso-datos' }, 'Este índice de horizontes no trae la validación en el formato que lee Rumbo.'));
+		}
+	}
 	caja.append(h('p', {}, `Las acciones no son predicciones: el motor da el score con el pilar en su objetivo y el modelo prevé desde ahí. «Si sigue la deriva» y «si se repite su peor trimestre» son supuestos, no previsiones.`));
 	return caja;
 }

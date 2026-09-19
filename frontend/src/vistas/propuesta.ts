@@ -957,7 +957,10 @@ export function abrirPropuesta(
     pintar();
   };
 
-  botonPdf.addEventListener("click", () => window.print());
+  botonPdf.addEventListener("click", () => {
+    document.body.classList.add("imprimir-propuesta");
+    window.print();
+  });
 
   // — Montaje.
   fondo.append(
@@ -1014,8 +1017,7 @@ export function abrirPropuesta(
         checked: sel.has(a.id),
       }) as HTMLInputElement;
       marca.addEventListener("change", () => {
-        if (marca.checked) sel.add(a.id);
-        else sel.delete(a.id);
+        acc.horizonte.alternar(a.id, marca.checked);
         acc.repintarArena();
         repintarResumen();
         // tocar la elección vuelve el documento al borrador en vivo

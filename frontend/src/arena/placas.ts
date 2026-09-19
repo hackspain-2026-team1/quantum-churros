@@ -27,6 +27,11 @@ export interface Futuro {
 	mediana?: number[];
 	/** Columna desde la que empieza (por defecto, la de hoy). */
 	desde?: number;
+	/**
+	 * 0 = definido (el escenario elegido: granos apretados); 1 = suelto (las alternativas:
+	 * más dispersos y más finos). Al elegir otro, la arena se reorganiza.
+	 */
+	suelto?: number;
 }
 export interface LineaSerie { puntos: [number, number][]; tono: number; alfa: number; punteada?: boolean; grosor?: number }
 export interface PlacaSerie {
@@ -184,9 +189,11 @@ function serie(l: Lote, s: PlacaSerie) {
 	// Futuro: arena suelta, pero precisa: cada trayectoria cae en su mes, sin salirse de la columna.
 	for (const fu of s.futuros ?? []) {
 		const c0 = fu.desde ?? s.hoy;
+		const su = fu.suelto ?? 0;
+		const jx = cw * (0.9 + su * 1.4), jy = 3 + su * 11, talla = 1.55 - su * 0.25;
 		for (const [m, d] of fu.granos) {
 			const x0 = X(c0 + m), y0 = Y(d / 10);
-			for (let k = 0; k < 3; k++) l.add([x0 + (Math.random() - 0.5) * cw * 1.05, y0 + (Math.random() - 0.5) * 3], fu.tono, fu.alfa, 1.55);
+			for (let k = 0; k < 3; k++) l.add([x0 + (Math.random() - 0.5) * jx, y0 + (Math.random() - 0.5) * jy], fu.tono, fu.alfa, talla);
 		}
 		if (fu.mediana) {
 			const ini = s.pasado.filter((q) => q[1] !== null && q[0] === c0).at(-1)?.[1] ?? fu.mediana[0] / 10;
