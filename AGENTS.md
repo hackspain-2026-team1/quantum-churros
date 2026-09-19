@@ -25,6 +25,12 @@
 - Never render a raw float in the UI (e.g. `-0.9976`, `60.68`). Format through the shared helpers in `frontend/src/lib/format.ts`; never call `toLocaleString()` without an explicit `'es-ES'` locale.
 - Do not duplicate `Intl` formatting per component. Extend `frontend/src/lib/format.ts` centrally when a new format is needed.
 
+## Pre-redesign UI catalog
+
+- The frontend at commit `cad5b5a` is the **pre-redesign interface**. It is documented exhaustively in [`docs/ui-catalog-pre-redesign/`](docs/ui-catalog-pre-redesign/README.md): every screen, element, state, URL parameter, calculation and source file, with 113 real screenshots (desktop, tablet, mobile).
+- Consult `docs/ui-catalog-pre-redesign/CATALOGO.md` before redesigning or replacing a screen, to know what the old one did and which behaviors, states and texts must be kept or deliberately dropped. Search it with `rg`; screenshots live in `capturas/`.
+- The catalog is a frozen snapshot: do not update it to match new UI. Pages added after `cad5b5a` (such as `/wiki`) are not covered.
+
 ## Dependency direction
 
 - `frontend` may consume generated contracts but must not import Python code or research artifacts.
