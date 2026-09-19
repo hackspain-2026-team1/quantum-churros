@@ -10,9 +10,9 @@
 	import DiagnosisView from '$lib/xray/diagnosis-view.svelte';
 	import ActionsView from '$lib/xray/actions-view.svelte';
 	import CompanyAvatar from '$lib/xray/company-avatar.svelte';
+	import { type DebtProduct } from '$lib/xray/debt-products-panel.svelte';
 	import ScoreGauge from '$lib/xray/score-gauge.svelte';
 	import TrajectoryChart from '$lib/xray/trajectory-chart.svelte';
-	import { formatPercent } from '$lib/format.js';
 	import type { DemoOverview, CompanySignal, RecommendedAction } from '$lib/xray/demo-data.js';
 
 	const companyId = $derived((page.params.id ?? '').toUpperCase());
@@ -20,14 +20,24 @@
 	let error = $state<string | null>(null);
 	let loading = $state(true);
 	let companyActions = $state<RecommendedAction[]>([]);
+	let debtProducts = $state<DebtProduct[]>([]);
 
 	const loadDemo = async () => {
 		loading = true;
 		error = null;
 		try {
-			const response = await fetch('/api/v1/demo');
-			if (!response.ok) throw new Error(`La API respondió ${response.status}`);
-			demo = (await response.json()) as DemoOverview;
+			const [demoResponse, debtResponse] = await Promise.all([
+				fetch('/api/v1/demo'),
+				fetch(`/api/v1/companies/${companyId}/debt-products`)
+			]);
+			if (!demoResponse.ok) throw new Error(`La API respondió ${demoResponse.status}`);
+			demo = (await demoResponse.json()) as DemoOverview;
+			if (debtResponse.ok) {
+				const payload = (await debtResponse.json()) as { products: DebtProduct[] };
+				debtProducts = payload.products;
+			} else {
+				debtProducts = [];
+			}
 			await loadActions();
 		} catch (reason) {
 			error = reason instanceof Error ? reason.message : 'No se pudo cargar la empresa';
@@ -98,7 +108,7 @@
 	<div class="mx-auto max-w-[1540px] space-y-5 px-4 py-6 lg:px-8 lg:py-8">
 		<Button variant="ghost" size="sm" href="/"><ArrowLeft class="size-4" /> Volver al radar</Button>
 		{#if hasDiagnosis}
-			<DiagnosisView {demo} />
+			<DiagnosisView {demo} {debtProducts} />
 		{:else}
 			{@const info: CompanySignal = company}
 			<section class="space-y-5" aria-labelledby="company-heading">
@@ -110,7 +120,7 @@
 							<h1 id="company-heading" class="text-2xl font-semibold">{info.name}</h1>
 							{#if info.industry}
 								<Badge variant="outline" title={info.industry.reason}>
-									{info.industry.industry_label} · {formatPercent(info.industry.confidence)}
+									{info.industry.industry_label}
 								</Badge>
 							{/if}
 						</div>

@@ -16,6 +16,15 @@
 - Extend shared primitives centrally when a behavior or style must propagate across the application. Do not fork a primitive per screen or reproduce it with page-local markup.
 - Preserve keyboard interaction, focus states, semantic labels, loading states, empty states and error states when composing or adapting components.
 
+## UI number, currency and date formatting
+
+- All number, currency, percentage and date rendering rules are documented in [`docs/UI_FORMATTING.mdx`](docs/UI_FORMATTING.mdx). Read it before rendering any numeric or monetary value, and follow it for every new component.
+- Locale is Spanish (Spain): `es-ES`. Decimals use a comma, thousands use a dot (`1.234,56`).
+- The euro symbol goes after the amount with a non-breaking space: `1.234,56 €`. Never write `€1.234,56`.
+- Percentages are `NN,N %` with a non-breaking space; scores are integers without decimals.
+- Never render a raw float in the UI (e.g. `-0.9976`, `60.68`). Format through the shared helpers in `frontend/src/lib/format.ts`; never call `toLocaleString()` without an explicit `'es-ES'` locale.
+- Do not duplicate `Intl` formatting per component. Extend `frontend/src/lib/format.ts` centrally when a new format is needed.
+
 ## Dependency direction
 
 - `frontend` may consume generated contracts but must not import Python code or research artifacts.

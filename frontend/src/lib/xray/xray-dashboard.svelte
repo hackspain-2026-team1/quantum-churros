@@ -14,6 +14,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
+	import { formatNumber } from '$lib/format.js';
 	import ActionsView from './actions-view.svelte';
 	import DiagnosisView from './diagnosis-view.svelte';
 	import RadarView from './radar-view.svelte';
@@ -99,7 +100,7 @@
 									<span
 										class="font-data text-lg font-semibold"
 										class:text-[var(--danger)]={company.intent === 'danger'}
-										>{company.score}</span
+										>{formatNumber(company.score)}</span
 									>
 								</button>
 							</li>
@@ -151,7 +152,11 @@
 				><Tabs.Content value="radar"
 					><RadarView {demo} onInspect={() => (active = 'diagnosis')} /></Tabs.Content
 				><Tabs.Content value="diagnosis"><DiagnosisView {demo} /></Tabs.Content><Tabs.Content
-					value="scenario"><ScenarioView trajectory={demo.trajectory} months={demo.trajectory_months} /></Tabs.Content
+					value="scenario"
+					><ScenarioView
+						trajectory={demo.trajectory}
+						months={demo.trajectory_months}
+					/></Tabs.Content
 				><Tabs.Content value="actions"><ActionsView actions={demo.actions} /></Tabs.Content
 				></Tabs.Root
 			>

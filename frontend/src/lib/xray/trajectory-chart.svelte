@@ -112,10 +112,9 @@
 		{:else}
 			<span class="metric-label">{currentLabel}</span>
 		{/if}
-		<span class="text-xs text-muted-foreground">
-			{currentLabel}{#if currentUnit}
-				· {currentUnit}{/if}
-		</span>
+		{#if currentUnit}
+			<span class="text-xs text-muted-foreground">Unidad · {currentUnit}</span>
+		{/if}
 	</div>
 	<div
 		class="chart relative w-full overflow-visible rounded-xl bg-[linear-gradient(to_bottom,transparent_24%,var(--border)_25%,transparent_26%,transparent_49%,var(--border)_50%,transparent_51%,transparent_74%,var(--border)_75%,transparent_76%)]"

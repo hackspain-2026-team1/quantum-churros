@@ -281,6 +281,11 @@ def load_model(model_dir: Path) -> tuple[CatBoostRegressor, dict[str, Any]]:
     return model, metadata
 
 
+def _es_number(value: float, decimals: int = 2) -> str:
+    formatted = f"{value:,.{decimals}f}"
+    return formatted.replace(",", "\u0000").replace(".", ",").replace("\u0000", ".")
+
+
 def _drivers(
     row: dict[str, Any], shap_row: np.ndarray, medians: dict[str, float]
 ) -> tuple[list[dict[str, Any]], float]:
@@ -305,7 +310,10 @@ def _drivers(
                 "contribution": round(contribution, 4),
                 "observed": round(observed, 4),
                 "baseline": round(baseline, 4),
-                "evidence": f"Valor observado {observed:.2f} frente a una referencia de {baseline:.2f}.",
+                "evidence": (
+                    f"Valor observado {_es_number(observed)} frente a una referencia de "
+                    f"{_es_number(baseline)}."
+                ),
                 "source": "predictive",
             }
         )

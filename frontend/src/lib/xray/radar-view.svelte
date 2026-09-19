@@ -10,7 +10,7 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
-	import { formatPercent } from '$lib/format.js';
+	import { formatNumber, formatSigned } from '$lib/format.js';
 	import type { DemoOverview } from './demo-data.js';
 	import CompanyAvatar from './company-avatar.svelte';
 	import ScoreGauge from './score-gauge.svelte';
@@ -86,11 +86,8 @@
 								<div class="font-medium">{company.name}</div>
 								<div class="font-data mt-1 text-xs text-muted-foreground">{company.id}</div>
 								{#if company.industry}
-									<div class="mt-2 space-y-1">
+									<div class="mt-2">
 										<Badge variant="outline">{company.industry.industry_label}</Badge>
-										<p class="text-xs text-muted-foreground">
-											Confianza {formatPercent(company.industry.confidence)}
-										</p>
 									</div>
 								{/if}
 								<Badge
@@ -101,14 +98,14 @@
 							</div>
 						</div>
 						<div class="text-right">
-							<div class="font-data text-2xl font-semibold">{company.score}</div>
+							<div class="font-data text-2xl font-semibold">{formatNumber(company.score)}</div>
 							<span
 								class:positive={company.delta > 0}
 								class:negative={company.delta < -3}
 								class="font-data mt-2 inline-flex items-center gap-1 text-sm font-semibold"
 								>{#if company.delta > 0}<ArrowUpRight class="size-4" />{:else}<ArrowDownRight
 										class="size-4"
-									/>{/if}{company.delta > 0 ? '+' : ''}{company.delta}</span
+									/>{/if}{formatSigned(company.delta, 0)}</span
 							>
 							<div class="mt-2 text-xs text-muted-foreground">
 								Confianza {company.confidence.toLowerCase()}
@@ -119,14 +116,12 @@
 			<div class="hidden md:block">
 				<Table.Root
 					><Table.Header
-							><Table.Row
+						><Table.Row
 							><Table.Head>Empresa</Table.Head><Table.Head>Sector</Table.Head><Table.Head
 								>Score</Table.Head
 							><Table.Head>Trayectoria</Table.Head><Table.Head>Señal</Table.Head><Table.Head
 								>Confianza</Table.Head
-							><Table.Head
-								><span class="sr-only">Abrir</span></Table.Head
-							></Table.Row
+							><Table.Head><span class="sr-only">Abrir</span></Table.Head></Table.Row
 						></Table.Header
 					><Table.Body
 						>{#each companies as company (company.id)}<Table.Row class="group"
@@ -142,17 +137,13 @@
 									</div></Table.Cell
 								><Table.Cell
 									>{#if company.industry}
-										<div class="space-y-1">
-											<Badge variant="outline">{company.industry.industry_label}</Badge>
-											<p class="text-xs text-muted-foreground">
-												{formatPercent(company.industry.confidence)}
-											</p>
-										</div>
+										<Badge variant="outline">{company.industry.industry_label}</Badge>
 									{:else}
 										<span class="text-sm text-muted-foreground">—</span>
 									{/if}</Table.Cell
 								><Table.Cell
-									><span class="font-data text-xl font-semibold">{company.score}</span></Table.Cell
+									><span class="font-data text-xl font-semibold">{formatNumber(company.score)}</span
+									></Table.Cell
 								><Table.Cell
 									><span
 										class:positive={company.delta > 0}
@@ -160,7 +151,7 @@
 										class="font-data inline-flex items-center gap-1 font-semibold"
 										>{#if company.delta > 0}<ArrowUpRight class="size-4" />{:else}<ArrowDownRight
 												class="size-4"
-											/>{/if}{company.delta > 0 ? '+' : ''}{company.delta}</span
+											/>{/if}{formatSigned(company.delta, 0)}</span
 									></Table.Cell
 								><Table.Cell
 									><Badge variant={company.intent === 'danger' ? 'destructive' : 'outline'}

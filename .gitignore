@@ -25,3 +25,6 @@ artifacts/*
 # opencode local infra
 .opencode/node_modules/
 .opencode/package-lock.json
+
+# IDE
+.idea/
