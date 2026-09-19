@@ -686,7 +686,7 @@ def _frames(tables: Any, cleaned: Any, params: Params, month: date | None) -> _F
     if month is None and window is not None:
         month = window.last_month
     if month is None:  # no window given: last complete month, sentinel balance rows aside
-        usable = balances.filter(pl.col("balance_cents").abs() / 100 < params.flows.sentinel_abs_balance)
+        usable = balances.filter(pl.col("balance_cents").is_not_null() & ~_sentinel_reading(balances, params))
         latest = max(transactions["date"].max(), usable["date"].max() or date.min)
         month = latest.replace(day=1) if latest == _month_end(latest) else _month_add(latest.replace(day=1), -1)
     return _Frames(
@@ -820,9 +820,14 @@ def _sweep_pairs(recent: pl.DataFrame) -> list[dict[str, Any]]:
     return pairs.drop_nulls(["out_company", "in_company"]).sort("mirror_id").to_dicts()
 
 
+def _sentinel_reading(balances: pl.DataFrame, params: Params) -> pl.Expr:
+    from .panel import sentinel_reading  # local import: panel may import this module
+
+    return sentinel_reading(balances, params)
+
+
 def _anchors(frames: _Frames, params: Params) -> pl.DataFrame:
     """Latest usable balance row per product, with product facts and the limit."""
-    flows = params.flows
     rates = pl.DataFrame(
         {"currency": list(params.fx.rates), "fx_rate": list(params.fx.rates.values())},
         schema={"currency": pl.String, "fx_rate": pl.Float64},
@@ -832,7 +837,7 @@ def _anchors(frames: _Frames, params: Params) -> pl.DataFrame:
         pl.col("granted_cents").alias("product_granted_cents"),
     ).join(rates, on="currency", how="left")
     usable = frames.balances.filter(
-        pl.col("balance_cents").abs() / 100 < flows.sentinel_abs_balance
+        pl.col("balance_cents").is_not_null() & ~_sentinel_reading(frames.balances, params)
     ).sort("product_id", "date")
     latest = usable.group_by("product_id", maintain_order=True).agg(
         pl.col("company_id").last(), pl.col("date").last().alias("anchor_date"),

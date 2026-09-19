@@ -113,6 +113,47 @@ def test_roll_balances_names_an_anchor_rolled_over_the_sentinel(scored, params) 
     assert rolled.filter(at_cut)["balance_cents"][0] == balances.filter(at_cut)["balance_cents"][0] + 2 * sentinel_cents
 
 
+def test_truncation_holds_when_a_rolled_balance_reaches_the_sentinel_magnitude(scored, params) -> None:
+    # the sentinel rule reads snapshot rows only: a legitimately large balance at the cut,
+    # rolled back from a small snapshot, stays the anchor of the cut run
+    cut_month, cut = date(2026, 2, 1), date(2026, 2, 28)
+    sentinel_cents = int(params.flows.sentinel_abs_balance * 100)
+    cash = scored.clean.products.filter(pl.col("product_type").is_in(list(params.flows.cash_product_types)))
+    reading = (
+        scored.tables.balances.filter(
+            (pl.col("date") > cut) & (pl.col("balance_cents").abs() < sentinel_cents // 2)
+            & pl.col("product_id").is_in(cash["product_id"].to_list())
+        ).sort("product_id", "date").group_by("product_id", maintain_order=True).last().row(0, named=True)
+    )
+    product = reading["product_id"]
+    booked = scored.tables.transactions.filter(pl.col("product_id") == product).head(1)
+    legs = [("T-HUGE-IN", date(2025, 12, 10), 2 * sentinel_cents), ("T-HUGE-OUT", date(2026, 3, 12), -2 * sentinel_cents)]
+    huge = pl.concat([
+        booked.with_columns(
+            pl.lit(name).alias("transaction_id"), pl.lit(day).alias("date"), pl.lit(day.replace(day=1)).alias("month"),
+            pl.lit(cents).cast(pl.Int64).alias("amount_cents"),
+        )
+        for name, day, cents in legs
+    ])
+    tables = replace(scored.tables, transactions=pl.concat([scored.tables.transactions, huge]).sort("transaction_id"))
+    rolled, crossers = v.roll_balances(tables, cut, params)
+    assert crossers == [product]
+    marked = rolled.filter((pl.col("product_id") == product) & (pl.col("date") == cut))
+    assert marked["rolled_back"].to_list() == [True] and abs(marked["balance_cents"][0]) >= sentinel_cents
+    full = v.score_core(tables, params)
+    owner = full.clean.products.filter(pl.col("product_id") == product)["company_id"][0]
+    at_cut = full.panel.filter((pl.col("entity_id") == owner) & (pl.col("month") == cut_month))
+    assert at_cut["cash_month_end"][0] >= params.flows.sentinel_abs_balance  # the back-rolled balance is kept
+    found = v.check_truncation(full, months=[cut_month])
+    assert found["pass"], found["summary"]
+    assert found["accounts_rolled_over_sentinel"] == 1 and found["max_abs_diff"] <= 1e-9
+    # without the mark the same reading is a placeholder: dropped, and the cut run differs
+    unmarked = v.truncate_tables(tables, cut_month, params)
+    unmarked = replace(unmarked, balances=unmarked.balances.drop("rolled_back"))
+    dropped = v.score_core(unmarked, params).panel.filter((pl.col("entity_id") == owner) & (pl.col("month") == cut_month))
+    assert dropped["sentinel_balances_dropped"][0] == at_cut["sentinel_balances_dropped"][0] + 1
+
+
 def test_isolation_truncation_determinism_pass(scored) -> None:
     isolation = v.check_isolation(scored, n_groups=3)
     assert isolation["pass"] and isolation["n_groups"] == 3 and isolation["max_abs_diff"] <= 1e-9

@@ -31,6 +31,7 @@ from .contracts import (
     EntityMonth,
 )
 from .pillars import NOTE_TEMPLATES, pillar_note
+from .trajectory import trajectory_note
 
 if TYPE_CHECKING:  # the result object is only read through its public fields
     from .scoring import ScoreResult
@@ -465,6 +466,9 @@ def _entity_facts(month: EntityMonth) -> list[dict[str, Any]]:
         start = month.row.month.year * 12 + month.row.month.month - int(span)
         period = f"{start // 12:04d}-{start % 12 + 1:02d}..{label}"
         facts.append(_fact("Deriva acumulada del score (pendiente robusta)", _number(drift, 1), "puntos", period, int(span)))
+    note = trajectory_note(verdict)
+    if note:  # the two horizons disagree: the recent move makes the call, unconfirmed
+        facts.append(_fact(_text(note, 120), "pendiente de confirmar", "", label))
     return facts
 
 

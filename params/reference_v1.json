@@ -267,7 +267,7 @@
   },
   "penalty": {
     "lam": 0.5,
-    "tau": 45.0
+    "tau": 40.0
   },
   "profile": {
     "concentration_min_months": 6,
@@ -287,7 +287,7 @@
   "robust": {
     "monthly_winsor_multiple": 3.0
   },
-  "sha256": "f1a2765db35eb722648faf62aab4451e1f6ec440793fb5aa54dfd6bf422b33cd",
+  "sha256": "c9918db28e91608fb5f83c70adea2aa3a95026ca4c1e321ec9771018103060a1",
   "size_bands": {
     "hold_months": 3,
     "upper_bounds_eur": [2000000.0, 10000000.0, 50000000.0],

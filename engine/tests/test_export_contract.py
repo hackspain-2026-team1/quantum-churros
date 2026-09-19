@@ -209,6 +209,27 @@ def test_export_validates_against_the_schema(exported) -> None:
     assert company["context"]["industry"]["slug"] == "wholesale"
 
 
+def test_a_horizon_conflict_is_told_in_the_evidence(exported) -> None:
+    from dataclasses import replace
+
+    from xray_engine import export as export_module
+
+    month = next(
+        item for item in exported.result.months
+        if item.trajectory.available and not item.parts.abstained and item.trajectory.drift_points is not None
+    )
+    agreed = replace(month.trajectory, direction="stable", nature=None, horizon=None, drift_call=None)
+    assert not any("todavía apunta" in fact["label"] for fact in export_module._entity_facts(replace(month, trajectory=agreed)))
+    rebound = replace(
+        month.trajectory, direction="improving", nature="shock_pending", shock_pending=True, horizon="short",
+        drift_points=-33.0, drift_months=12, drift_call="deteriorating",
+    )
+    facts = export_module._entity_facts(replace(month, trajectory=rebound))
+    told = [fact for fact in facts if "todavía apunta a la baja" in fact["label"]]
+    assert len(told) == 1 and told[0]["pillar"] is None and len(told[0]["label"]) <= 120
+    assert "12 meses" in told[0]["label"] and "-33,0" in told[0]["label"]
+
+
 def test_integer_identity_holds_for_every_group_month(exported) -> None:
     checked = _assert_integer_identity(exported.path)
     snapshots = exported.result.snapshots

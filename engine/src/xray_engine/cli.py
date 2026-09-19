@@ -70,6 +70,7 @@ def _predict(
     export_dir: Optional[Path],
     params_path: Optional[Path],
     cache_dir: Path,
+    evidence_months: int = 24,
 ) -> None:
     from .scoring import score_dataset, write_outputs
 
@@ -79,10 +80,15 @@ def _predict(
     typer.echo(f"Wrote {result.snapshots.height} entity-months to {paths['scores']}")
     typer.echo(f"params {params.sha256[:12]} · dataset {result.dataset_hash[:12]}")
     if export_dir is not None:
-        from .export import export_from_result
+        from .export import DEFAULT_VALIDATION_PATH, export_from_result
 
-        # the receipt is the validation report of the same output folder, when there is one
-        manifest = export_from_result(result, export_dir, validation_path=out / "validation.json")
+        # the receipt is the validation report of the same output folder, else the default one;
+        # a report of other params or another dataset is told apart inside the receipt
+        own = out / "validation.json"
+        manifest = export_from_result(
+            result, export_dir, validation_path=own if own.is_file() else DEFAULT_VALIDATION_PATH,
+            evidence_months=evidence_months,
+        )
         typer.echo(f"Wrote bundle {manifest['bundle_id'][:12]} to {export_dir}")
 
 
@@ -93,9 +99,10 @@ def predict(
     export_dir: Optional[Path] = typer.Option(None, help="Also write the JSON bundle here"),
     params_path: Optional[Path] = typer.Option(None, "--params", help="Params file"),
     cache_dir: Path = typer.Option(DEFAULT_CACHE_DIR, help="Parquet cache root"),
+    evidence_months: int = typer.Option(24, min=0, help="Months of evidence kept per entity in the bundle"),
 ) -> None:
     """Score every group and company of any folder with the eight CSVs."""
-    _predict(input_dir, out, export_dir, params_path, cache_dir)
+    _predict(input_dir, out, export_dir, params_path, cache_dir, evidence_months)
 
 
 @app.command(hidden=True)
@@ -105,9 +112,10 @@ def score(
     export_dir: Optional[Path] = typer.Option(None, help="Also write the JSON bundle here"),
     params_path: Optional[Path] = typer.Option(None, "--params", help="Params file"),
     cache_dir: Path = typer.Option(DEFAULT_CACHE_DIR, help="Parquet cache root"),
+    evidence_months: int = typer.Option(24, min=0, help="Months of evidence kept per entity in the bundle"),
 ) -> None:
     """Alias of predict."""
-    _predict(input_dir, out, export_dir, params_path, cache_dir)
+    _predict(input_dir, out, export_dir, params_path, cache_dir, evidence_months)
 
 
 @app.command()
@@ -117,7 +125,7 @@ def export(
     receipt: Optional[Path] = typer.Option(
         None, help="validation.json to embed as the receipt (default: artifacts/validation.json when present)"
     ),
-    evidence_months: int = typer.Option(24, help="Months of evidence kept per entity"),
+    evidence_months: int = typer.Option(24, min=0, help="Months of evidence kept per entity"),
     generated_at: Optional[str] = typer.Option(None, help="Manifest stamp (default: extraction date of the dataset)"),
     params_path: Optional[Path] = typer.Option(None, "--params", help="Params file"),
     cache_dir: Path = typer.Option(DEFAULT_CACHE_DIR, help="Parquet cache root"),

@@ -221,10 +221,10 @@ def test_penalty_and_cap_drivers_explain_themselves(panel_rows, params) -> None:
     pillars = _fixed(liquidity=20.0, payments=80.0, activity=90.0)
     parts = aggregate(pillars, row, params)
     penalty, cap = explain(parts, pillars, params)[-2:]
-    assert (penalty.feature, penalty.observed, penalty.baseline) == ("penalty", 20.0, 45.0)
-    assert penalty.contribution == pytest.approx(-12.5, abs=TOL)
+    assert (penalty.feature, penalty.observed, penalty.baseline) == ("penalty", 20.0, 40.0)
+    assert penalty.contribution == pytest.approx(-10.0, abs=TOL)
     assert penalty.evidence == (
-        "El pilar más débil (liquidez, 20,0 puntos) queda por debajo de 45: resta 12,5 puntos."
+        "El pilar más débil (liquidez, 20,0 puntos) queda por debajo de 40: resta 10,0 puntos."
     )
     assert (cap.feature, cap.baseline, cap.evidence) == ("cap", 40.0, CAP_TEXTS["negative_liquidity"])
     assert cap.observed == pytest.approx(parts.level_weighted - parts.penalty, abs=TOL)

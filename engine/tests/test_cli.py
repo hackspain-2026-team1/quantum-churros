@@ -56,6 +56,29 @@ def test_csv_views_lead_with_the_answer(predicted, kind) -> None:
     assert all(0.0 <= float(row["score"]) <= 100.0 for row in rows)
 
 
+def test_predict_exports_the_bundle_with_the_asked_months_of_evidence(synthetic, tmp_path) -> None:
+    sizes = {}
+    for months in (2, 24):
+        bundle = tmp_path / f"bundle{months}"
+        done = runner.invoke(app, [
+            "predict", str(synthetic.path), "--out", str(tmp_path / "run"), "--export-dir", str(bundle),
+            "--evidence-months", str(months), "--cache-dir", str(tmp_path / "cache"),
+        ])
+        assert done.exit_code == 0, done.output
+        assert "Wrote bundle" in done.output and (bundle / "receipt.json").is_file()
+        files = sorted((bundle / "evidence").glob("*.json"))
+        assert files
+        kept = [len(json.loads(path.read_text(encoding="utf-8"))["months"]) for path in files]
+        assert max(kept) == min(months, max(kept)) and max(kept) <= months
+        sizes[months] = sum(path.stat().st_size for path in files)
+    assert sizes[2] < sizes[24]
+    # groups and companies keep every month whatever the evidence depth
+    group = synthetic.group_ids[0]
+    short, full = (json.loads((tmp_path / f"bundle{months}" / "groups" / f"{group}.json").read_text(encoding="utf-8"))
+                   for months in (2, 24))
+    assert short == full
+
+
 def test_a_tampered_params_file_is_refused(synthetic, tmp_path) -> None:
     data = json.loads(DEFAULT_PARAMS_PATH.read_text(encoding="utf-8"))
     data["penalty"]["lam"] = 0.4  # content no longer matches the stamped sha256

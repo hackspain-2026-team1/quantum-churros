@@ -73,7 +73,7 @@ def test_hand_set_values_follow_the_spec(params) -> None:
     assert (activity.min_prior_months, activity.min_months_observed) == (4, 7)
     assert (params.debt.window_months, params.debt.min_months) == (12, 6)
     assert params.robust.monthly_winsor_multiple == 3.0
-    assert (params.penalty.lam, params.penalty.tau) == (0.5, 45.0)
+    assert (params.penalty.lam, params.penalty.tau) == (0.5, 40.0)  # tau = the critical-band boundary
     caps = params.caps
     assert (caps.negative_liquidity_ceiling, caps.weak_payments_ceiling) == (40.0, 50.0)
     assert (caps.negative_liquidity_min_months, caps.negative_liquidity_window_months) == (3, 6)

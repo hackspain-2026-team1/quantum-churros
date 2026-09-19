@@ -4,6 +4,7 @@ COMPOSE := docker compose -f compose.yaml -f compose.dev.yaml
 XRAY_DATA ?= data/raw
 XRAY_BUNDLE ?= frontend/static/data/v1
 XRAY_OUT ?= artifacts
+EVIDENCE_MONTHS ?= 24
 
 .PHONY: dev
 dev: ## Build and start the complete development stack
@@ -60,8 +61,8 @@ validate: ## Run the label-free validation suite and write XRAY_OUT/validation.j
 	uv run --package xray-engine xray-score validate $(XRAY_DATA) --out $(XRAY_OUT)/validation.json
 
 .PHONY: export
-export: ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE
-	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out $(XRAY_OUT) --export-dir $(XRAY_BUNDLE)
+export: ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE (EVIDENCE_MONTHS of evidence per entity)
+	uv run --package xray-engine xray-score predict $(XRAY_DATA) --out $(XRAY_OUT) --export-dir $(XRAY_BUNDLE) --evidence-months $(EVIDENCE_MONTHS)
 
 .PHONY: db-migrate
 db-migrate: ## Apply pending Alembic migrations

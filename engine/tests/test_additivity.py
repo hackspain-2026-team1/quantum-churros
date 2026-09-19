@@ -134,12 +134,12 @@ def test_penalty_and_the_two_caps(panel_rows, params) -> None:
     weak_liquidity = _fixed(liquidity=20.0, payments=80.0, collections=80.0, activity=80.0, debt=80.0)
     parts = aggregate(weak_liquidity, row, params)
     assert parts.feed_live and parts.caps_fired == ()  # a weak liquidity pillar is no cap any more
-    assert parts.penalty == pytest.approx(0.5 * (45 - 20), abs=TOL)
-    assert parts.score == pytest.approx(0.3 * 20 + 0.7 * 80 - 12.5, abs=TOL)
+    assert parts.penalty == pytest.approx(0.5 * (40 - 20), abs=TOL)
+    assert parts.score == pytest.approx(0.3 * 20 + 0.7 * 80 - 10.0, abs=TOL)
 
     drained = aggregate(weak_liquidity, replace(row, neg_liquidity_months_6m=3), params)
     assert drained.caps_fired == ("negative_liquidity",) and drained.score == pytest.approx(40.0, abs=TOL)
-    assert drained.cap_adjustment == pytest.approx(62.0 - 12.5 - 40.0, abs=TOL)
+    assert drained.cap_adjustment == pytest.approx(62.0 - 10.0 - 40.0, abs=TOL)
     short = aggregate(weak_liquidity, replace(row, neg_liquidity_months_6m=2), params)
     assert short.caps_fired == ()
     # under-stated cash cannot trigger the negative-liquidity cap

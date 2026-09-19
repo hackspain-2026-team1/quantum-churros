@@ -474,7 +474,7 @@ class FlowParams:
     cash_product_types: tuple[str, ...]
     revolving_product_types: tuple[str, ...]
     excluded_debt_types: tuple[str, ...]  # contingent, outside has_debt_products
-    sentinel_abs_balance: float  # |balance| >= sentinel is dropped
+    sentinel_abs_balance: float  # a balances.csv reading with |balance| >= sentinel is dropped; never a back-rolled balance
     pending_status: str
 
 
@@ -911,6 +911,7 @@ class Trajectory:
     horizon: Horizon | None = None  # which horizon makes the call; None without a call
     drift_points: float | None = None  # Theil-Sen slope x drift_months; None when not measurable
     drift_months: int | None = None  # months behind drift_points (long_min_months..long_horizon)
+    drift_call: Direction | None = None  # call of the long condition on its own, before confirmation
 
 
 @dataclass(frozen=True)
@@ -1106,6 +1107,7 @@ SNAPSHOT_SCHEMA: dict[str, Any] = {
             "horizon": pl.String,
             "drift_points": pl.Float64,
             "drift_months": pl.Int64,
+            "drift_call": pl.String,
         }
     ),
     "gates": pl.Struct({key: pl.List(pl.String) for key in PILLAR_KEYS}),

@@ -45,6 +45,7 @@ from .contracts import (
     band_of,
 )
 from .io import DEFAULT_CACHE_DIR
+from .panel import ROLLED_BACK, sentinel_reading
 from .params import load_params
 from .scoring import score_entity, score_panel
 
@@ -223,17 +224,20 @@ def subset_tables(tables: io.Tables, group_ids: Sequence[str]) -> io.Tables:
 def roll_balances(tables: io.Tables, cut: date, params: Params) -> tuple[pl.DataFrame, list[str]]:
     """Balance rows as read on ``cut``: per product the latest real reading
     after the cut, rolled back in cents through the booked rows in between and
-    dated at the cut; sentinel readings keep their value. Also returns the
-    products whose rolled balance reaches the sentinel magnitude: a reading the
-    engine would have dropped on that day."""
+    dated at the cut; sentinel readings keep their value. Rolled rows are marked
+    ``rolled_back``: the sentinel rule reads snapshot rows only, so a rolled
+    balance of sentinel magnitude stays an anchor. Also returns the products
+    whose rolled balance reaches that magnitude."""
     balances = tables.balances
+    if ROLLED_BACK not in balances.columns:
+        balances = balances.with_columns(pl.lit(False).alias(ROLLED_BACK))
     after = balances.filter(pl.col("date") > cut)
     if after.is_empty():
         return balances, []
-    sentinel = pl.col("balance_cents").abs() / 100 >= params.flows.sentinel_abs_balance
+    sentinel = sentinel_reading(after, params)
     placeholders = after.filter(sentinel).with_columns(pl.lit(cut).cast(pl.Date).alias("date"))
     real = (
-        after.filter(~sentinel.fill_null(False)).sort("product_id", "date")
+        after.filter(~sentinel).sort("product_id", "date")
         .group_by("product_id", maintain_order=True).last()
     )
     moved = (
@@ -247,9 +251,10 @@ def roll_balances(tables: io.Tables, cut: date, params: Params) -> tuple[pl.Data
     rolled = rolled.with_columns(
         [(pl.col(name) - pl.col("moved")).alias(name)
          for name in ("balance_cents", "liquidity_cents", "countable_cents") if name in rolled.columns]
-        + [pl.lit(cut).cast(pl.Date).alias("date")]
+        + [pl.lit(cut).cast(pl.Date).alias("date"), pl.lit(True).alias(ROLLED_BACK)]
     ).select(balances.columns)
-    crossers = rolled.filter(sentinel)["product_id"].to_list()
+    magnitude = pl.col("balance_cents").abs() / 100 >= params.flows.sentinel_abs_balance
+    crossers = rolled.filter(magnitude)["product_id"].to_list()
     # a reading at the cut itself is replaced by the rolled one
     kept = balances.filter(pl.col("date") <= cut).join(
         rolled.select("product_id", "date"), on=["product_id", "date"], how="anti"
@@ -518,9 +523,9 @@ def check_truncation(
 ) -> dict[str, Any]:
     """For every cut month t: tables cut at the end of t, scored, and the rows
     with month <= t must equal those of the full run (alerts included). Panel
-    facts are compared too, to name the column behind a difference. Groups
-    holding an account whose rolled balance reaches the sentinel magnitude are
-    also left out once, to tell that cause apart from a real look-ahead."""
+    facts are compared too, to name the column behind a difference. Accounts
+    whose rolled balance reaches the sentinel magnitude are counted: the rule
+    reads snapshot rows only, so they must not differ either."""
     window = scored.tables.window
     if months is None:
         months = [_shift_month(window.last_month, -offset) for offset in TRUNCATION_OFFSETS]
@@ -561,7 +566,7 @@ def check_truncation(
             accounts = sum(item["accounts_rolled_over_sentinel"] for item in failing)
             summary += (
                 f"Causa: en {accounts} cuenta(s) el saldo retrocedido hasta el corte alcanza la magnitud de centinela "
-                "y el motor lo descarta como marcador; fuera de esos grupos el resultado es idéntico."
+                "y se trató como marcador; fuera de esos grupos el resultado es idéntico."
             )
         else:
             columns = Counter()
@@ -1332,6 +1337,13 @@ def injection_study(
                 f"en {total - long_calls} de {total} picos el horizonte corto sigue bajo el umbral dos meses seguidos"
             )
         summary += " Causa probable: " + "; ".join(causes) + "."
+        calm = by_kind.get("spike", {}).get("quiet_base") or {}
+        if spike is not None and spike > P_STRUCTURAL_SPIKE_MAX and calm.get("n"):
+            # windows where the untouched run calls no deterioration of its own: the clean reading
+            summary += (
+                f" En las {calm['n']} ventanas sin veredicto de deterioro propio, P(estructural | pico) es "
+                f"{_pct(calm.get('p_structural'))}: el resto son grupos que ya rozaban su propio umbral."
+            )
     bars = [
         {"label": f"mes +{delay}", "value": count}
         for delay, count in sorted(by_kind.get("step", {}).get("verdict_delay_distribution", {}).items())

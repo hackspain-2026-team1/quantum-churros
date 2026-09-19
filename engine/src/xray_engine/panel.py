@@ -207,9 +207,27 @@ def _universe(clean: CleanTables, perimeter: pl.DataFrame, params: Params) -> pl
     )
 
 
+ROLLED_BACK = "rolled_back"  # optional balances column: a reading derived by back-roll, not read from the snapshot
+
+
+def sentinel_reading(balances: pl.DataFrame, params: Params) -> pl.Expr:
+    """Balance rows that carry a placeholder instead of a balance.
+
+    The magnitude rule (``|balance| >= params.flows.sentinel_abs_balance``)
+    reads the snapshot rows of balances.csv only. A row marked ``rolled_back``
+    is a snapshot rolled through the booked rows to an earlier day: it may be
+    legitimately large and is never a placeholder. Back-rolled daily balances
+    are never tested either.
+    """
+    large = (pl.col("balance_cents").abs() / 100 >= params.flows.sentinel_abs_balance).fill_null(False)
+    if ROLLED_BACK in balances.columns:
+        return large & ~pl.col(ROLLED_BACK).fill_null(False)
+    return large
+
+
 def _anchors(clean: CleanTables, params: Params) -> pl.DataFrame:
     """Latest balance row per product that is not a sentinel, on its own date."""
-    sentinel = pl.col("balance_cents").abs() / 100 >= params.flows.sentinel_abs_balance
+    sentinel = sentinel_reading(clean.balances, params)
     return (
         clean.balances.filter(pl.col("balance_cents").is_not_null() & ~sentinel)
         .sort("product_id", "date")
@@ -267,7 +285,9 @@ def backroll_balances(clean: CleanTables, params: Params) -> pl.DataFrame:
     """End-of-day balances per anchored product, as ``DAILY_BALANCE_COLUMNS``.
 
     Anchor = the latest balance row of the product that is not a sentinel
-    (``|balance| >= params.flows.sentinel_abs_balance``), on its own date.
+    (``|balance| >= params.flows.sentinel_abs_balance`` on a snapshot row, see
+    ``sentinel_reading``), on its own date. The rule reads the anchor only: a
+    back-rolled balance of any size is kept.
     ``balance(d) = anchor - sum(amount_cents of booked rows with d < date <=
     anchor_date)`` before the anchor and ``anchor + sum(rows with anchor_date <
     date <= d)`` after it. Every booked row of the product moves the balance,
@@ -373,8 +393,7 @@ def _prepare(clean: CleanTables, params: Params) -> _Base:
         pl.coalesce("mirror_id", "reversal_id").alias("pair_id"),
         pl.col("amount_cents").abs().alias("netted"),
     )
-    sentinel = pl.col("balance_cents").abs() / 100 >= params.flows.sentinel_abs_balance
-    sentinels = clean.balances.filter(sentinel).group_by("product_id").agg(
+    sentinels = clean.balances.filter(sentinel_reading(clean.balances, params)).group_by("product_id").agg(
         pl.len().cast(pl.Int64).alias("sentinel_rows")
     )
     facts = universe.select("product_id", "company_id", "group_id", "product_type", "currency", "fx_rate")

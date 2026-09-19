@@ -171,6 +171,28 @@ def _owner(synthetic, frame: pl.DataFrame, product_id: str) -> str:
 # --------------------------------------------------------------------------
 
 
+def test_sentinel_rule_reads_snapshot_rows_only(clean, synthetic, params) -> None:
+    sentinel_cents = int(params.flows.sentinel_abs_balance * 100)
+    rows = pl.DataFrame({
+        "product_id": ["a", "b", "c", "d"],
+        "balance_cents": [sentinel_cents, -sentinel_cents, sentinel_cents - 1, None],
+        panel.ROLLED_BACK: [False, True, False, None],
+    }, schema_overrides={"balance_cents": pl.Int64})
+    assert rows.filter(panel.sentinel_reading(rows, params))["product_id"].to_list() == ["a"]
+    plain = rows.drop(panel.ROLLED_BACK)
+    assert plain.filter(panel.sentinel_reading(plain, params))["product_id"].to_list() == ["a", "b"]
+    # the placeholder of the synthetic dataset is dropped; the same value marked as rolled is an anchor
+    product = synthetic.sentinel_product_id
+    assert product not in panel._anchors(clean, params)["product_id"].to_list()
+    marked = replace(clean, balances=clean.balances.with_columns(
+        (pl.col("product_id") == product).alias(panel.ROLLED_BACK)
+    ))
+    anchors = panel._anchors(marked, params).filter(pl.col("product_id") == product)
+    assert anchors.height == 1 and abs(anchors["anchor_cents"][0]) >= sentinel_cents
+    daily = panel.backroll_balances(marked, params).filter(pl.col("product_id") == product)
+    assert daily.height > 0 and daily["balance_cents"].abs().min() >= sentinel_cents // 2  # no magnitude filter
+
+
 def test_cash_is_the_ledger_of_the_cash_accounts_in_perimeter(frame, clean, synthetic, params) -> None:
     kinds = set(params.flows.cash_product_types)
     types = dict(zip(clean.products["product_id"], clean.products["product_type"]))
@@ -562,6 +584,7 @@ def _truncated(tables: io.Tables, month: date, sentinel_cents: int) -> io.Tables
         pl.when(after & real).then(pl.col("balance_cents") - pl.col("moved").fill_null(0))
         .otherwise("balance_cents").alias("balance_cents"),
         pl.when(after).then(pl.lit(cut)).otherwise("date").alias("date"),
+        (after & real).alias(panel.ROLLED_BACK),  # a rolled reading is never a sentinel
     ).drop("row", "moved")
     transactions = tables.transactions.filter(pl.col("date") <= cut)
     return replace(
@@ -662,21 +685,15 @@ def test_real_panel_invariants(real_data_dir, params, same_frames) -> None:
     alone = panel.build_panel(cleaning.clean(subset, params), params)
     same_frames(alone, frame.filter(pl.col("group_id").is_in(chosen)), keys=KEYS, tol=1e-6)
 
-    # as-of reading: the panel of the data cut at t equals the rows up to t. A rolled-back
-    # balance that crosses the sentinel threshold is dropped by the cut run only: left out
+    # as-of reading: the panel of the data cut at t equals the rows up to t, including the
+    # accounts whose rolled-back balance reaches the sentinel magnitude (snapshot rows only)
     month = date(2025, 11, 1)
     sentinel_cents = int(params.flows.sentinel_abs_balance * 100)
     cut_tables = _truncated(tables, month, sentinel_cents)
     assert cut_tables.window.last_month == month
-    crossed = cut_tables.balances.join(
-        tables.balances.select("product_id", pl.col("balance_cents").alias("declared")), on="product_id"
-    ).filter((pl.col("balance_cents").abs() >= sentinel_cents) & (pl.col("declared").abs() < sentinel_cents))
-    owners = crossed["company_id"].to_list()
-    skipped = tables.companies.filter(pl.col("company_id").is_in(owners))["group_id"].unique().to_list()
-    assert len(skipped) <= 5
-    cut = panel.build_panel(cleaning.clean(cut_tables, params), params)
-    same_frames(
-        cut.filter(~pl.col("group_id").is_in(skipped)),
-        frame.filter((pl.col("month") <= month) & ~pl.col("group_id").is_in(skipped)),
-        keys=KEYS, tol=1e-6,
+    crossed = cut_tables.balances.filter(
+        pl.col(panel.ROLLED_BACK) & (pl.col("balance_cents").abs() >= sentinel_cents)
     )
+    assert crossed.height >= 1  # the case exists in the real data
+    cut = panel.build_panel(cleaning.clean(cut_tables, params), params)
+    same_frames(cut, frame.filter(pl.col("month") <= month), keys=KEYS, tol=1e-6)

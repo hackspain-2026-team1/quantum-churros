@@ -10,7 +10,7 @@ from datetime import date
 import pytest
 from xray_engine.aggregate import aggregate
 from xray_engine.contracts import PILLAR_KEYS, PanelRow, PillarResult
-from xray_engine.trajectory import own_sigma, trajectories, trajectory
+from xray_engine.trajectory import own_sigma, trajectories, trajectory, trajectory_note
 
 TOL = 1e-9
 START = date(2025, 1, 1)
@@ -266,7 +266,7 @@ def test_switching_to_the_cash_of_the_group_is_not_a_trajectory(score_parts, par
 
 def test_forward_pass_equals_every_prefix_and_is_past_only(score_parts, params) -> None:
     rng = random.Random(62)
-    seen, horizons = set(), set()
+    seen, horizons, conflicts = set(), set(), []
     for _ in range(40):
         history, score, last_live = [], rng.uniform(30, 80), None
         for index in range(30):
@@ -288,8 +288,25 @@ def test_forward_pass_equals_every_prefix_and_is_past_only(score_parts, params) 
             seen.add((verdict.reason, verdict.direction, verdict.nature))
             if verdict.nature == "structural" and verdict.horizon == "short":
                 assert verdict.persistence_months >= params.trajectory.structural_consecutive_months
-            if verdict.nature == "shock_pending":
-                assert verdict.horizon == "short"
+            threshold = None if verdict.delta3 is None else max(
+                params.trajectory.min_delta_points, params.trajectory.min_sigma_multiple * verdict.sigma)
+            if verdict.nature == "structural":
+                # one horizon held its own condition, same sign, the month before too
+                before = verdicts[size - 2]
+                held_short = verdict.horizon in ("short", "both") and before.horizon in ("short", "both") \
+                    and before.direction == verdict.direction
+                held_long = verdict.drift_call == verdict.direction and before.drift_call == verdict.direction
+                assert held_short or held_long
+                assert history[size - 2].month == score_parts.month_add(history[size - 1].month, -1)
+                # never a structural call against a three-month move beyond the threshold
+                against = -verdict.delta3 if verdict.direction == "improving" else verdict.delta3
+                assert against < threshold
+            if verdict.drift_call not in (None, verdict.direction) and verdict.direction in ("improving", "deteriorating"):
+                assert (verdict.nature, verdict.horizon) == ("shock_pending", "short")
+                assert trajectory_note(verdict) is not None
+                conflicts.append(verdict)
+            else:
+                assert trajectory_note(verdict) is None
             if verdict.direction in ("stable", "perimeter_shift"):
                 assert verdict.persistence_months == 0 and verdict.detected_since is None
                 assert verdict.horizon is None
@@ -301,6 +318,7 @@ def test_forward_pass_equals_every_prefix_and_is_past_only(score_parts, params) 
     assert {reason for reason, _, _ in seen} == {None, "short_history", "stale_feed"}
     assert {direction for _, direction, _ in seen} >= {"improving", "deteriorating", "perimeter_shift"}
     assert horizons == {None, "short", "long", "both"}
+    assert conflicts  # the conflict branch is exercised
     assert trajectory([], params).reason == "short_history"
 
 
@@ -328,6 +346,10 @@ def test_a_slow_drift_is_seen_by_the_long_horizon_only(score_parts, params) -> N
                              if abs(slope) * h >= cfg.long_threshold)
         assert called == list(range(months_needed - 1, 24))
         assert [verdicts[index].persistence_months for index in called] == list(range(1, len(called) + 1))
+        # the drift is confirmed like a short call: pending in its first month, structural from the next
+        assert [verdicts[index].nature for index in called[:3]] == ["shock_pending", "structural", "structural"]
+        assert verdicts[called[0]].shock_pending and {verdicts[index].horizon for index in called} == {"long"}
+        assert all(verdicts[index].drift_call == expected for index in called)
         assert {verdicts[index].detected_since for index in called} == {history[called[0]].month}
         for index in range(cfg.min_scored_months - 1, called[0]):
             assert verdicts[index].direction == "stable" and verdicts[index].horizon is None
@@ -364,17 +386,48 @@ def test_long_horizon_is_robust_to_a_spike_and_needs_six_months(score_parts, par
     assert trajectory(stale + _history(score_parts, params, [0] * 6 + [60.0])[6:], params).drift_points is None
 
 
-def test_both_horizons_and_the_long_one_wins_a_conflict(score_parts, params) -> None:
+def test_both_horizons_agree_and_the_short_one_makes_the_call_on_a_conflict(score_parts, params) -> None:
     falling = _ramp(90.0, 68.0, 12) + [58.0]  # a slow fall that ends with a drop
     verdict = trajectory(_history(score_parts, params, falling), params)
     assert (verdict.direction, verdict.horizon, verdict.nature) == ("deteriorating", "both", "structural")
-    assert verdict.persistence_months >= 1 and not verdict.shock_pending
+    assert verdict.persistence_months >= 1 and not verdict.shock_pending and trajectory_note(verdict) is None
 
-    # a year of steady decline and a rebound in the last month: the long horizon keeps the call
-    rebound = _ramp(90.0, 57.0, 12) + [72.0]
-    verdict = trajectory(_history(score_parts, params, rebound), params)
-    assert verdict.delta3 > params.trajectory.min_delta_points and verdict.drift_points < 0
-    assert (verdict.direction, verdict.horizon, verdict.nature) == ("deteriorating", "long", "structural")
+    # a year of steady decline and a sharp rebound: the recent move makes the call, unconfirmed,
+    # for as long as the twelve-month drift points the other way
+    rebound = _ramp(90.0, 57.0, 12) + [72.0, 74.0, 75.0]
+    history = _history(score_parts, params, rebound)
+    verdicts = trajectories(history, params)
+    assert (verdicts[11].direction, verdicts[11].nature) == ("deteriorating", "structural")
+    for verdict in verdicts[12:]:
+        assert verdict.delta3 > params.trajectory.min_delta_points and verdict.drift_points < 0
+        assert verdict.drift_call == "deteriorating"
+        assert (verdict.direction, verdict.horizon, verdict.nature) == ("improving", "short", "shock_pending")
+        note = trajectory_note(verdict)
+        assert "todavía apunta a la baja" in note and f"{verdict.drift_months} meses" in note
+    assert [verdict.persistence_months for verdict in verdicts[12:]] == [1, 2, 3]
+    # the mirror case reads the other way
+    slump = _history(score_parts, params, _ramp(40.0, 73.0, 12) + [58.0])
+    verdict = trajectory(slump, params)
+    assert (verdict.direction, verdict.horizon, verdict.nature) == ("deteriorating", "short", "shock_pending")
+    assert "todavía apunta al alza" in trajectory_note(verdict)
+
+
+def test_a_one_month_spike_never_confirms_the_long_horizon(score_parts, params) -> None:
+    # a mild decline, under the long bar, and one bad month that pushes the fitted drift over it
+    mild = [71.0, 69.4, 68.8, 69.2, 66.6, 67.5, 65.9, 64.8, 64.7, 63.6, 64.0, 63.9, 62.3]
+    spike = mild + [mild[-1] - 25.0]
+    history = _history(score_parts, params, spike)
+    verdict = trajectory(history, params)
+    assert verdict.drift_call == "deteriorating" and trajectory(history[:-1], params).drift_call is None
+    assert (verdict.direction, verdict.horizon, verdict.nature) == ("deteriorating", "both", "shock_pending")
+    # the month after, the score is back: a bump, never structural
+    back = _history(score_parts, params, spike + [mild[-1] - 0.6])
+    after = trajectory(back, params)
+    assert (after.direction, after.nature, after.shock_month) == ("stable", "bump", history[-1].month)
+    # a step that stays is structural in its second month
+    step = _history(score_parts, params, spike + [mild[-1] - 25.0])
+    stayed = trajectory(step, params)
+    assert (stayed.direction, stayed.nature, stayed.persistence_months) == ("deteriorating", "structural", 2)
 
 
 def test_long_window_only_holds_months_measured_like_the_last_one(score_parts, params) -> None:
