@@ -12,6 +12,7 @@ import type { Cartera } from '../datos/modelo';
 import { nombreBanda, movimiento } from '../datos/redaccion';
 import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
 import { cola, h, vaciar } from './dom';
+import { desplegable } from './desplegable';
 import { cabecera, cargarFicha, contenidoSeccion, graficoHorizonte, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
 import { crearFinanciacion } from './financiacion';
 import { iconoProducto } from './iconos';
@@ -98,9 +99,12 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	function pintarControles(d: DatosFicha) {
 		vaciar(controles);
 		const metricas: [string, string][] = [['score', 'Score'], ...d.ent.series.filter((s) => ['buffer_days', 'cash_month_end', 'headroom', 'ar_days_beyond_terms', 'ap_days_beyond_terms', 'activity_coverage', 'debt_burden', 'op_inflow_1m', 'op_outflow_1m'].includes(s.key)).map((s) => [s.key, s.label] as [string, string])];
-		const selM = h('select', { class: 'sel-sutil', 'aria-label': 'Qué se dibuja' }, ...metricas.map(([k, n]) => h('option', { value: k, selected: k === estadoUI.metrica }, n)));
-		selM.addEventListener('change', () => { estadoUI.metrica = selM.value; pintarHorizonte(); });
-		controles.append(selM);
+		const selM = desplegable({
+			etiqueta: 'Qué se dibuja', valor: estadoUI.metrica,
+			opciones: metricas.map(([k, n]) => ({ valor: k, texto: n })),
+			alElegir: (v) => { estadoUI.metrica = v; pintarHorizonte(); },
+		});
+		controles.append(selM.raiz);
 		if (estadoUI.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte) {
 			// Los dos supuestos se dibujan siempre: esto es su leyenda.
 			const sup = h('div', { class: 'escenarios', role: 'group', 'aria-label': 'Qué pasaría si' }, h('span', { class: 'esc-t' }, 'qué pasaría si'));

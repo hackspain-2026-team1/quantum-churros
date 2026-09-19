@@ -19,6 +19,7 @@ import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
 import { ESFUERZO, ESTADO_AVISO, claveDeMirada, explicacionAccion, lineaAvisoM, nombreBanda, nombrePilar, tituloAccion, voz } from '../datos/redaccion';
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
+import { desplegable } from './desplegable';
 import { abrirPropuesta } from './propuesta';
 import { iconoProducto } from './iconos';
 import { hilo, lineaEstado, llamadas, seccion, sello, type Nudo } from './primitivos';
@@ -602,9 +603,12 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		const marca = h('input', { type: 'checkbox', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
 		marca.addEventListener('change', () => { acc.horizonte.alternar(a.id, marca.checked); li.classList.toggle('elegida', marca.checked); });
 		// «Propuesta» es la palabra del comercial; para quien la va a hacer, está pendiente.
-		const estadoSel = h('select', { class: 'sel-sutil', 'aria-label': 'Estado de la acción' }, ...(['propuesta', 'en curso', 'hecha'] as EstadoAccion[]).map((x) => h('option', { value: x, selected: (estadosG[clave] ?? 'propuesta') === x }, x === 'propuesta' ? voz('propuesta', 'pendiente') : x)));
-		estadoSel.addEventListener('change', () => { guardarEstado(clave, estadoSel.value as EstadoAccion); li.dataset.estado = estadoSel.value; });
-		estadoSel.addEventListener('click', (ev) => ev.stopPropagation());
+		const estadoSel = desplegable<EstadoAccion>({
+			etiqueta: 'Estado de la acción', clase: 'sutil', valor: estadosG[clave] ?? 'propuesta',
+			opciones: (['propuesta', 'en curso', 'hecha'] as EstadoAccion[]).map((x) => ({ valor: x, texto: x === 'propuesta' ? voz('propuesta', 'pendiente') : x })),
+			alElegir: (v) => { guardarEstado(clave, v); li.dataset.estado = v; },
+		});
+		estadoSel.raiz.addEventListener('click', (ev) => ev.stopPropagation());
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 24, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
 		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-estado': estadosG[clave] ?? 'propuesta', 'data-accion': a.id },
 			h('label', { class: 'rec-marca' }, marca, h('span', { class: 'rec-n' }, String(i + 1))),
@@ -614,7 +618,7 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 				h('p', { class: 'rec-hechos' }, efectoAccion(d, a) ?? '', ' · ', ESFUERZO[a.effort], ' · ', `pilar de ${nombrePilar(d.man, a.pillar).toLowerCase()}`),
 				prods.length ? h('p', { class: 'rec-productos' }, ...prods, ' ', r.productos.map((p) => producto(p).nombre.toLowerCase()).join(' o ')) : r.propia ? h('p', { class: 'rec-productos propia' }, r.propia) : null),
 			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
-			h('div', { class: 'rec-estado' }, estadoSel));
+			h('div', { class: 'rec-estado' }, estadoSel.raiz));
 		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));

@@ -9,6 +9,8 @@ import type { AlertaM, EmpresaM, FilaEvidenciaM, Tabla } from '../datos/contrato
 import { f } from '../datos/formato';
 import { importes, nombrePilar } from '../datos/redaccion';
 import { h, vaciar } from './dom';
+import { desplegable } from './desplegable';
+import { primeraMayuscula } from '../datos/formato';
 import { hilo, seccion } from './primitivos';
 import { triaje } from './triaje';
 import { lineaAviso, nudosScore, type Acciones, type DatosFicha, type FiltroEvidencia } from './ficha';
@@ -250,11 +252,20 @@ function evidencia(d: DatosFicha, filtro: FiltroEvidencia | null): HTMLElement {
 	const caja = h('div', { class: 'evidencia' });
 	if (!d.evid) { caja.append(h('p', { class: 'nota' }, 'El bundle no trae evidencia de esta entidad.')); return caja; }
 	const meses = d.evid.months.map((x) => x.month).filter((x) => x <= d.corte);
-	const selMes = h('select', { class: 'sel-sutil', 'aria-label': 'Mes' }, h('option', { value: '*' }, 'Todos los meses'), ...[...meses].reverse().map((x) => h('option', { value: x, selected: x === d.corte }, f.mes(x))));
+	const selMes = desplegable({
+		etiqueta: 'Mes', valor: d.corte, alElegir: () => pintar(),
+		opciones: [{ valor: '*', texto: 'Todos los meses' }, ...[...meses].reverse().map((x) => ({ valor: x, texto: primeraMayuscula(f.mes(x)) }))],
+	});
 	const pilares = [...new Set(d.evid.months.flatMap((x) => x.rows.map((r) => r.pillar ?? '·')))];
-	const selPil = h('select', { class: 'sel-sutil', 'aria-label': 'Pilar' }, h('option', { value: '*' }, 'Todos los pilares'), ...pilares.map((p) => h('option', { value: p }, p === '·' ? 'Toda la entidad' : nombrePilar(d.man, p))));
+	const selPil = desplegable({
+		etiqueta: 'Pilar', valor: '*', alElegir: () => pintar(),
+		opciones: [{ valor: '*', texto: 'Todos los pilares' }, ...pilares.map((p) => ({ valor: p, texto: p === '·' ? 'Toda la entidad' : nombrePilar(d.man, p) }))],
+	});
 	const ficheros = [...new Set(d.evid.months.flatMap((x) => x.rows.map((r) => r.source_file)))];
-	const selFic = h('select', { class: 'sel-sutil', 'aria-label': 'Fichero' }, h('option', { value: '*' }, 'Todos los ficheros'), ...ficheros.map((x) => h('option', { value: x }, x)));
+	const selFic = desplegable({
+		etiqueta: 'Fichero', valor: '*', alElegir: () => pintar(),
+		opciones: [{ valor: '*', texto: 'Todos los ficheros' }, ...ficheros.map((x) => ({ valor: x, texto: x }))],
+	});
 	const buscar = h('input', { class: 'buscar-sutil', type: 'search', placeholder: 'Buscar en la evidencia', 'aria-label': 'Buscar en la evidencia' }) as HTMLInputElement;
 	const cuerpo = h('tbody');
 	const cuenta = h('p', { class: 'nota' });
@@ -263,10 +274,10 @@ function evidencia(d: DatosFicha, filtro: FiltroEvidencia | null): HTMLElement {
 		const q = buscar.value.trim().toLowerCase();
 		const filas: [string, FilaEvidenciaM][] = [];
 		for (const mm of d.evid!.months) {
-			if (mm.month > d.corte || (selMes.value !== '*' && mm.month !== selMes.value)) continue;
+			if (mm.month > d.corte || (selMes.valor !== '*' && mm.month !== selMes.valor)) continue;
 			for (const r of mm.rows) {
-				if (selPil.value !== '*' && (r.pillar ?? '·') !== selPil.value) continue;
-				if (selFic.value !== '*' && r.source_file !== selFic.value) continue;
+				if (selPil.valor !== '*' && (r.pillar ?? '·') !== selPil.valor) continue;
+				if (selFic.valor !== '*' && r.source_file !== selFic.valor) continue;
 				if (q && !`${r.label} ${r.source_file}`.toLowerCase().includes(q)) continue;
 				filas.push([mm.month, r]);
 			}
@@ -276,13 +287,12 @@ function evidencia(d: DatosFicha, filtro: FiltroEvidencia | null): HTMLElement {
 	};
 	// Desde un nudo del hilo, la evidencia llega ya filtrada en ese dato.
 	if (filtro) {
-		if (filtro.pilar !== undefined) selPil.value = filtro.pilar ?? '·';
-		if (filtro.fichero) selFic.value = filtro.fichero;
+		if (filtro.pilar !== undefined) selPil.fijar(filtro.pilar ?? '·');
+		if (filtro.fichero) selFic.fijar(filtro.fichero);
 		if (filtro.texto) buscar.value = filtro.texto;
 	}
-	for (const c of [selMes, selPil, selFic]) c.addEventListener('change', pintar);
 	buscar.addEventListener('input', pintar);
-	caja.append(h('div', { class: 'filtros' }, selMes, selPil, selFic, buscar),
+	caja.append(h('div', { class: 'filtros' }, selMes.raiz, selPil.raiz, selFic.raiz, buscar),
 		h('div', { class: 'tabla-caja' }, h('table', { class: 'tabla-sutil' }, h('thead', {}, h('tr', {}, h('th', {}, 'Mes'), h('th', {}, 'Pilar'), h('th', {}, 'Dato'), h('th', { class: 'num' }, 'Valor'), h('th', {}, 'Periodo'), h('th', {}, 'Fichero'), h('th', { class: 'num' }, 'Filas'))), cuerpo)), cuenta);
 	pintar();
 	return caja;
