@@ -35,7 +35,20 @@ cells carry bare numbers:
 - Reference implementation: the *Otras deudas* table in `frontend/src/vistas/ficha.ts`
   (unit detection + `f.eurosEn` in `frontend/src/datos/formato.ts`).
 
-### 1.2 Sortable headers
+### 1.2 Category filter above the table
+
+When a table's first column repeats a small set of categories (the *Tipo* column of
+*Otras deudas*: Préstamo, Aval, …), the section exposes a pill filter row between the
+title and the table:
+
+- Buttons `button.filtro-opcion` inside a `role="group"` with a Spanish `aria-label`;
+  state via `aria-pressed`, first pill is *Todos*.
+- The filter only renders when there is more than one distinct category.
+- Filtering re-renders the table and **re-measures the hoisted units on the visible
+  rows**: a filter can change the common unit of a column (§1.1).
+- Reference implementation: *Otras deudas* in `frontend/src/vistas/ficha.ts`.
+
+### 1.3 Sortable headers
 
 Wide entity tables (the fleet of companies of a group) expose sortable columns through the
 shared primitive `cabecerasOrdenables` in `frontend/src/vistas/primitivos.ts`:
@@ -51,18 +64,18 @@ shared primitive `cabecerasOrdenables` in `frontend/src/vistas/primitivos.ts`:
 
 ## 2. Entity marks (banks and counterparties)
 
-Counterparties (banks, lenders) open with an **engraved typographic monogram**, not a
-third-party logo:
+Counterparties (banks, lenders) open with their **real logo**:
 
-- `marcaBanco(nombre)` in `frontend/src/vistas/primitivos.ts` draws a small double-ring disc
-  with the initials of the significant words (`Banco Bilbao Vizcaya Argentaria` → `BV`);
-  generic tokens (*banco, bank, caja, caixa*, articles) are skipped.
-- No remote images and no third-party assets ever enter the interface: the mark is inline
-  SVG in the current ink (`--tinta`), consistent with the engraved seals of the product
-  cards.
-- The mark sits before the entity name in table cells (`span.banco`) and decorative
-  (`aria-hidden`) — the name itself is always text next to it.
-- Unknown or anonymous entities (`—`, *Entidad sin nombre*) render no mark.
+- `marcaBanco(nombre)` in `frontend/src/vistas/primitivos.ts` resolves the entity to a
+  vendored logo via `logoBanco()` (`frontend/src/vistas/logos.ts`), matched by normalized
+  name keywords (accents stripped, product suffixes like "Empresas" or "Net Cash" ignored).
+- Logos are **local data-URIs** committed in `logos.ts` (sourced from the Google favicon
+  service and Simple Icons): no third-party request ever happens at runtime or in the build.
+  The trademarks belong to their owners; they only identify the bank of each product.
+- **Fallback**: an entity without a vendored logo (unknown bank, "In-house bank", "Other")
+  renders the engraved typographic monogram — double-ring disc, initials of the significant
+  words, current ink (`--tinta`). Anonymous entities (`—`) render no mark.
+- Size is 20 px in tables; `alt=""` because the entity name is always text next to it.
 
 ## 3. Time ruler and playback controls
 
@@ -85,5 +98,5 @@ it selects the interval every screen reads.
 | Column mixes € and k€             | Keep per-row suffixes, plain header             |
 | Zero under a hoisted unit         | Render `0` (unit-agnostic)                      |
 | Missing value                     | `—`, sorts last in sortable tables              |
-| Bank or counterparty row          | `marcaBanco` monogram + name, no third-party logo |
+| Bank or counterparty row          | Real logo (vendored locally) + name; monogram fallback |
 | Productos tab                     | No time ruler, no playback controls             |
