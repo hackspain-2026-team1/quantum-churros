@@ -1,6 +1,6 @@
 # Quantum Churros frontend
 
-SvelteKit application for the Embat X-Ray product demo. Bun is the only supported JavaScript package manager and task runner.
+SvelteKit application for the Rumbo product demo. Bun is the only supported JavaScript package manager and task runner.
 
 ## Development
 

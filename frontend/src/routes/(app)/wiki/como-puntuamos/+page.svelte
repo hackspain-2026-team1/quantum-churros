@@ -48,7 +48,7 @@
 </script>
 
 <svelte:head>
-	<title>Cómo puntuamos · Embat X-Ray</title>
+	<title>Cómo puntuamos · Rumbo</title>
 	<meta
 		name="description"
 		content="El método de X-Ray de primeras: qué medimos, por qué lo medimos así y qué hacemos cuando falta información."
