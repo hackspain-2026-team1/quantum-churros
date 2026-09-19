@@ -5,6 +5,8 @@ from pathlib import Path
 
 from sqlmodel import Session, create_engine
 from xray_engine.export import export_from_result
+from xray_engine.forecast import prever
+from xray_engine.params import load_params
 from xray_engine.scoring import score_dataset, write_outputs
 
 from .industry import run_classification
@@ -20,6 +22,7 @@ class SyncResult:
     source_counts: dict[str, int]
     published_counts: dict[str, int]
     bundle_id: str
+    horizons: str | None = None
 
 
 def _classify(input_dir: Path, database_url: str) -> tuple[dict[str, int], bool]:
@@ -39,6 +42,8 @@ def sync_dataset(
     bundle_dir: Path,
     database_url: str,
     evidence_months: int = 24,
+    horizons_dir: Path | None = None,
+    past_from: str | None = "2025-03",
 ) -> SyncResult:
     dataset_hash, source_counts, ingest_skipped = ingest_dataset(
         input_dir, database_url
@@ -65,6 +70,19 @@ def sync_dataset(
             f"Published dataset {published_hash} does not match ingested dataset {dataset_hash}"
         )
 
+    # La previsión del score se entrena aquí, con la historia recién puntuada, y se escribe
+    # donde la lee Rumbo (horizons/). Sin carpeta configurada, el ciclo no la calcula.
+    horizons = None
+    if horizons_dir is not None:
+        from xray_engine.forecast import mindex
+
+        index = prever(
+            out_dir, bundle_dir, load_params(), horizons_dir,
+            pasados=(mindex(past_from), 10**6) if past_from else None, log=lambda _msg: None,
+        )
+        ref = index["validation"].get("corte_de_referencia") or {}
+        horizons = f"{len(index['entities'])} entities, validated to {index['validation']['validado_hasta']} months, reference error {ref.get('error_mediana')} vs {ref.get('error_sin_cambio')}"
+
     return SyncResult(
         dataset_hash=dataset_hash,
         ingest_skipped=ingest_skipped,
@@ -72,4 +90,5 @@ def sync_dataset(
         source_counts=source_counts,
         published_counts=published_counts,
         bundle_id=str(manifest["bundle_id"]),
+        horizons=horizons,
     )

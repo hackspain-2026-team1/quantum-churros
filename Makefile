@@ -4,6 +4,7 @@ COMPOSE := docker compose -f compose.yaml -f compose.dev.yaml
 XRAY_DATA ?= data/raw
 XRAY_BUNDLE ?= frontend/static/data/v1
 XRAY_OUT ?= artifacts
+XRAY_HORIZONS ?= interfaz/public/rumbo/horizons
 EVIDENCE_MONTHS ?= 24
 
 .PHONY: dev
@@ -59,6 +60,10 @@ score: predict ## Alias of predict
 .PHONY: validate
 validate: ## Run the label-free validation suite and write XRAY_OUT/validation.json
 	uv run --package xray-engine xray-score validate $(XRAY_DATA) --out $(XRAY_OUT)/validation.json
+
+.PHONY: forecast
+forecast: ## Train the score forecast on XRAY_OUT (scores + panel) and write Rumbo's horizons to XRAY_HORIZONS
+	uv run --package xray-engine xray-score forecast --artifacts $(XRAY_OUT) --bundle $(XRAY_BUNDLE) --out $(XRAY_HORIZONS)
 
 .PHONY: export
 export: ## Score XRAY_DATA and write the static JSON bundle to XRAY_BUNDLE (EVIDENCE_MONTHS of evidence per entity)

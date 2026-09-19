@@ -3,7 +3,7 @@
 #   1. Bundle del motor (xray-export-v1) con validación, desde el repositorio del motor.
 #   2. params.json: copia de los parámetros verificada contra el bundle.
 #   3. products/: productos contratados por empresa y grupo.
-#   4. horizons/: el futuro, simulado y puntuado con el motor, con su prueba hacia atrás.
+#   4. horizons/: la previsión del score, entrenada y validada por el motor (xray-score forecast).
 #   5. Enlaces public/datos y public/rumbo.
 # Uso: scripts/datos/preparar.sh [carpeta_datos] [repositorio_motor]
 set -euo pipefail
@@ -20,8 +20,8 @@ python3 "$AQUI/scripts/datos/parametros.py" --params "$MOTOR/params/reference_v1
 python3 "$AQUI/scripts/datos/indice.py" --bundle "$BUNDLE" --out "$RUMBO/indice-empresas.json"
 echo "3/5 · productos contratados"
 uv run --no-project --with polars --with pyarrow python "$AQUI/scripts/datos/productos.py" --parquet "$DATOS/parquet" --raw "$DATOS/raw" --params "$MOTOR/params/reference_v1.json" --out "$RUMBO/products" --cut 2026-08
-echo "4/5 · horizontes"
-( cd "$MOTOR" && uv run --package xray-engine python "$AQUI/scripts/datos/horizontes.py" --panel "$ART/panel.parquet" --bundle "$BUNDLE" --params "$MOTOR/params/reference_v1.json" --out "$RUMBO/horizons" --cut 2026-08 --sims 400 --seed 7 )
+echo "4/5 · previsión del score (el motor la entrena y la valida)"
+( cd "$MOTOR" && uv run --package xray-engine xray-score forecast --artifacts "$ART" --bundle "$BUNDLE" --params "$MOTOR/params/reference_v1.json" --out "$RUMBO/horizons" --past 2025-03: )
 echo "5/5 · enlaces"
 ln -sfn "$BUNDLE" "$AQUI/public/datos"
 ln -sfn "$RUMBO" "$AQUI/public/rumbo"
