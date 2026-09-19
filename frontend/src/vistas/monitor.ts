@@ -16,7 +16,7 @@ import { porJev, porPalabras, aplicar, URL_VISTA, type Campo, type Interpretacio
 import type { Cartera } from '../datos/modelo';
 import {
 	BANDAS, ESTADO_INICIAL, FORMAS, MOVIMIENTOS_M, ORDENES, TIPOS_AVISO, atencion, entidades, escribirEstadoURL, flujo, leerEstadoURL, nombreBandaM, ordenar, pasa,
-	piezasFiltro, resumen, vocabulario, type Entidad, type EstadoMonitor, type FiltrosM, type Forma, type Resumen, type Unidad,
+	piezasFiltro, resumen, vocabulario, type Entidad, type EstadoMonitor, type FiltrosM, type Resumen, type Unidad,
 } from '../datos/monitorCartera';
 import { producto, PRODUCTOS } from '../datos/productos';
 import { cola, h, vaciar } from './dom';
@@ -428,19 +428,9 @@ export function crearMonitor(ctx: CtxMonitor): Monitor {
 			return;
 		}
 		const cuerpo = est.modo === 'arena' ? lienzo(vis) : tabla(vis);
-		vistaSec.append(cuerpo, h('p', { class: 'nota mon-explica' }, EXPLICA[est.forma]));
+		vistaSec.append(cuerpo);
 		void vis;
 	}
-
-	const EXPLICA: Record<Forma, string> = {
-		ranking: 'Cada barra es el score de hoy. Lo que se ha perdido este mes se ve suelto en rojo; lo que se ha ganado, en verde. Toca una fila para abrirla.',
-		bandas: 'Un montón por banda; cada puñado de arena es una entidad. Arriba de cada montón, las que acaban de entrar: en rojo si vienen de una banda mejor, en verde si suben.',
-		plano: 'El score en horizontal y el ritmo (puntos al mes, doce meses) en vertical. La raya vertical es el corte de 60; la horizontal, ritmo cero.',
-		tapiz: 'Una fila por entidad: su score de los últimos 24 meses, de 0 a 100 dentro de la fila. En rojo, el mes en que baja de banda; en verde, en el que sube.',
-		flujo: 'A la izquierda, la banda del mes pasado; a la derecha, la de este. El alto de cada bloque y el grosor de cada cinta son cuántas hay: en rojo, las que bajan de banda; en verde, las que suben; en gris, las que se quedan.',
-		avisos: 'Los avisos del motor de los últimos doce meses, por tipo. El tamaño de cada montón es cuántos hubo.',
-		horizonte: 'A la izquierda, la banda de hoy; a la derecha, la de dentro de seis meses si nada cambia (lo más probable). En rojo, las que bajan de banda; en verde, las que suben. Con nombre, las que tienen al menos un 50 % de probabilidad de acabar en crítico.',
-	};
 
 	// ─── En arena ─────────────────────────────────────────
 	function datosArena(vis: Entidad[]): DatosVista {
