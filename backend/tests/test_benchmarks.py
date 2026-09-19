@@ -4,11 +4,6 @@ from app.main import app
 from httpx import ASGITransport, AsyncClient
 
 
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
-
-
 @pytest.mark.anyio
 async def test_list_benchmarks_includes_tesorio_study() -> None:
     async with AsyncClient(

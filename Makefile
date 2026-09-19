@@ -82,6 +82,16 @@ db-classify: ## Classify companies into industry archetypes for the mounted data
 data-extract: ## Extract the local challenge archive into the ignored data directory
 	unzip -j -n "$(archive)" 'output/*' -d data/raw
 
+NO_MOCKS_PATTERN := COMP_0680|Velasco|4,1 meses|74\.5|[Cc]at[Bb]oost|SHAP
+
+.PHONY: no-mocks
+no-mocks: ## Fail when demo literals or retired model copy remain in shipped code
+	@if grep -rnIE '$(NO_MOCKS_PATTERN)' frontend/src backend/app; then \
+		echo 'no-mocks: demo literals found in shipped code (listed above)'; exit 1; \
+	else \
+		echo 'no-mocks: clean'; \
+	fi
+
 .PHONY: help
 help: ## Show available targets
 	@rg '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST)

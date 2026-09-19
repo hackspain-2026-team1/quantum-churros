@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./xray.db"
     cors_origins: str = "http://localhost:5173"
     scores_path: Path = Path("artifacts/scores.parquet")
+    # Static export bundle written by `make export`; the API serves it as-is for local dev.
+    bundle_dir: Path = Field(
+        default=Path("frontend/static/data/v1"),
+        validation_alias=AliasChoices("XRAY_BUNDLE_DIR", "BUNDLE_DIR"),
+    )
     data_dir: Path = Field(
         default=Path("data/raw"),
         validation_alias=AliasChoices("XRAY_DATA_DIR", "DATA_DIR"),
