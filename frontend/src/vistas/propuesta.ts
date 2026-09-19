@@ -37,6 +37,7 @@ import {
 import {
   ESFUERZO,
   explicacionAccion,
+  voz,
   nombreBanda,
   nombrePilar,
   tituloAccion,
@@ -467,14 +468,14 @@ async function construirInforme(
     h(
       "header",
       { class: "informe-cabecera" },
-      h("p", { class: "versalita" }, "Rumbo · Embat · informe al cliente"),
+      h("p", { class: "versalita" }, voz("Rumbo · Embat · informe al cliente", "Rumbo · plan para el banco")),
       h("h1", {}, `Plan de mejora de ${nombreDe(d.kind, d.id)}`),
       h(
         "p",
         { class: "informe-sub" },
         `${d.kind === "company" ? "Empresa" : "Organización"} · corte ${f.mes(plan.corte)} · ${
           p
-            ? `propuesta ${p.id} del ${f.fecha(p.fecha)}`
+            ? `${voz("propuesta", "plan")} ${p.id} del ${f.fecha(p.fecha)}`
             : "borrador, aún sin enviar"
         }`,
       ),
@@ -602,7 +603,7 @@ async function construirInforme(
       h(
         "p",
         { class: "informe-nota" },
-        "Las tasas marcadas como estimación de mercado no son ofertas del banco: son referencias para la conversación. Este informe es una propuesta, no una oferta vinculante.",
+        voz("Las tasas marcadas como estimación de mercado no son ofertas del banco: son referencias para la conversación. Este informe es una propuesta, no una oferta vinculante.", "Las tasas marcadas como estimación de mercado no son ofertas de tu banco: son referencias para la conversación. Este plan no es una solicitud firmada ni una oferta vinculante."),
       ),
     ),
   );
@@ -617,7 +618,7 @@ async function construirInforme(
         "p",
         {},
         p
-          ? `Id de propuesta ${p.id} · bundle ${p.bundle_id.slice(0, 12)} · parámetros ${(d.params?.sha256 ?? "").slice(0, 12)} · motor ${d.man.engine_version}.`
+          ? `Id de ${voz("propuesta", "plan")} ${p.id} · bundle ${p.bundle_id.slice(0, 12)} · parámetros ${(d.params?.sha256 ?? "").slice(0, 12)} · motor ${d.man.engine_version}.`
           : `Borrador · bundle ${d.man.bundle_id.slice(0, 12)} · motor ${d.man.engine_version}.`,
       ),
       h(
@@ -674,7 +675,7 @@ export function abrirPropuesta(
     h(
       "div",
       {},
-      h("p", { class: "versalita" }, "Propuesta al cliente"),
+      h("p", { class: "versalita" }, voz("Propuesta al cliente", "Tu plan")),
       h(
         "h2",
         {},
@@ -688,7 +689,7 @@ export function abrirPropuesta(
     {
       type: "button",
       class: "propuesta-cerrar",
-      "aria-label": "Cerrar la propuesta",
+      "aria-label": voz("Cerrar la propuesta", "Cerrar el plan"),
     },
     "Cerrar",
   );
@@ -715,7 +716,7 @@ export function abrirPropuesta(
     pestañas.append(b);
   };
   botonPestaña("documento", "Documento");
-  botonPestaña("historial", "Historial");
+  botonPestaña("historial", voz("Historial", "Planes enviados"));
   const zonaDoc = h("div", { class: "propuesta-doc" });
   const colDoc = h(
     "div",
@@ -788,7 +789,7 @@ export function abrirPropuesta(
         h(
           "p",
           { class: "vacio" },
-          "Todavía no se envió ninguna propuesta para esta entidad. Elegí acciones a la derecha y enviá la primera por mail.",
+          voz("Todavía no se ha enviado ninguna propuesta para esta entidad. Elige acciones a la derecha y envía la primera por correo.", "Todavía no has enviado ningún plan. Elige acciones a la derecha y envía el primero a tu banco."),
         ),
       );
       zonaDoc.append(zona);
@@ -864,7 +865,7 @@ export function abrirPropuesta(
   const botonMail = h(
     "button",
     { type: "button", class: "boton-propuesta", "data-mail": "" },
-    "Enviar reporte por mail",
+    voz("Enviar reporte por mail", "Enviar el plan a mi banco"),
   );
   botonMail.addEventListener("click", () => enviar());
   zonaResumen.append(
@@ -887,7 +888,7 @@ export function abrirPropuesta(
     avisoPie.hidden = hayPlan;
     avisoPie.textContent = hayPlan
       ? ""
-      : "Marcá al menos una acción o una financiación para enviar el reporte.";
+      : voz("Marca al menos una acción o una financiación para enviar el reporte.", "Marca al menos una acción o una financiación para enviar el plan.");
     vaciar(zonaCifras);
     if (!hayPlan) {
       zonaCifras.append(
@@ -899,7 +900,7 @@ export function abrirPropuesta(
         h(
           "p",
           { class: "propuesta-nota" },
-          "Score de este mes. El efecto del plan aparece cuando elegís acciones o un banco.",
+          "Score de este mes. El efecto del plan aparece cuando eliges acciones o un banco.",
         ),
       );
       return;
@@ -936,7 +937,7 @@ export function abrirPropuesta(
     if (!acciones.length && !financiacion.length) {
       avisoPie.hidden = false;
       avisoPie.textContent =
-        "Marcá al menos una acción o una financiación para enviar el reporte.";
+        voz("Marca al menos una acción o una financiación para enviar el reporte.", "Marca al menos una acción o una financiación para enviar el plan.");
       return;
     }
     const p: PropuestaGuardada = {
@@ -974,7 +975,7 @@ export function abrirPropuesta(
       h(
         "p",
         { class: "vacio" },
-        `Sin datos de ${d.id} en ${f.mes(d.corte)}: no hay propuesta que armar.`,
+        `Sin datos de ${nombreDe(d.kind, d.id)} en ${f.mes(d.corte)}: no hay plan que preparar.`,
       ),
     );
     pintar();
@@ -988,11 +989,11 @@ export function abrirPropuesta(
       1,
       "Tus bancos conectados",
       conectados.length
-        ? `${f.plural(conectados.length, "banco conectado", "bancos conectados")}. El sello «ya te financia» marca a los que ya le dan crédito.`
-        : "El fichero no declara bancos para esta entidad.",
+        ? `${f.plural(conectados.length, "banco conectado", "bancos conectados")}. El sello «ya te financia» marca a los que ya ${voz("le dan", "te dan")} crédito.`
+        : voz("El fichero no declara bancos para esta entidad.", "No hay bancos declarados en tus datos."),
       conectados.length
         ? h("div", { class: "propuesta-bancos" }, ...conectados.map(tarjetaBanco))
-        : h("p", { class: "vacio" }, "El fichero no declara bancos para esta entidad."),
+        : h("div", {}),
     ),
   );
 
@@ -1001,7 +1002,7 @@ export function abrirPropuesta(
   cajaPasos.append(
     paso(
       2,
-      "Acciones que le ofreces",
+      voz("Acciones que le ofreces", "Acciones que vas a hacer"),
       "Cada cifra la calcula el motor: la acción aplicada al mes, re-puntuado entero.",
       cajaAcciones,
     ),
@@ -1060,8 +1061,8 @@ export function abrirPropuesta(
   cajaPasos.append(
     paso(
       3,
-      "Financiación: el banco que la otorga",
-      "Cada instrumento del motor, con los bancos conectados. Marcá uno o varios; la tasa es la del banco o una estimación de mercado.",
+      voz("Financiación: el banco que la otorga", "Financiación: a quién se la pides"),
+      "Cada instrumento del motor, con tus bancos conectados. Marca uno o varios; la tasa es la del banco o una estimación de mercado.",
       cajaFinanciacion,
     ),
   );
@@ -1106,7 +1107,7 @@ export function abrirPropuesta(
               h(
                 "span",
                 { class: "propuesta-titulo" },
-                "Ninguno de tus bancos: Embat lo licita",
+                voz("Ninguno de tus bancos: Embat lo licita", "Ninguno de tus bancos: que Embat busque ofertas"),
               ),
             ),
             h("span", { class: "propuesta-oferta-tasa" }, ""),
@@ -1129,7 +1130,7 @@ export function abrirPropuesta(
             h(
               "p",
               { class: "propuesta-nota" },
-              "La entidad no tiene bancos en el fichero: Embat lo licita.",
+              voz("La entidad no tiene bancos en el fichero: Embat lo licita.", "No tienes bancos declarados: que Embat busque ofertas."),
             ),
           );
         }
@@ -1154,7 +1155,7 @@ export function abrirPropuesta(
         h(
           "p",
           { class: "vacio" },
-          "Este mes el motor no encuentra financiación que ofrecer.",
+          voz("Este mes el motor no encuentra financiación que ofrecer.", "Este mes el motor no ve financiación que recomendarte."),
         ),
       );
   };

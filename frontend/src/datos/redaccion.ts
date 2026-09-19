@@ -21,10 +21,16 @@ export interface Importe {
 }
 
 let tuteo = false;
+let quienMira = '';
 /** Fija la voz: `true` cuando Rumbo se dirige al CFO de la empresa que enseña. */
-export const fijarVoz = (tu: boolean) => { tuteo = tu; };
+export const fijarVoz = (tu: boolean, quien = '') => { tuteo = tu; quienMira = tu ? quien : ''; };
 /** El par de la misma frase: la de Embat y la del CFO. */
 export const voz = (deEl: string, deTu: string) => (tuteo ? deTu : deEl);
+/**
+ * La clave de almacenamiento de quien mira. Lo que Embat marca (avisos vistos, vistas guardadas,
+ * planes enviados) no es lo que marca un CFO: cada mirada guarda lo suyo en este navegador.
+ */
+export const claveDeMirada = (base: string) => (quienMira ? `${base}|${quienMira}` : base);
 
 const numeroMotor = (s: string) => Number(s.replace(/\./g, '').replace(',', '.'));
 

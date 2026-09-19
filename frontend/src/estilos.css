@@ -3605,3 +3605,132 @@ body[data-modo='cfo'] .nota-datos { display: none; }
 	.mirada-btn { max-width: 42vw; overflow: hidden; text-overflow: ellipsis; }
 	.mirada-panel { width: 86vw; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+ * El plan para el banco: a la izquierda el documento, a la derecha
+ * lo que se elige. Mismo papel que el informe; el editor, más sobrio.
+ * ═══════════════════════════════════════════════════════════════ */
+.panel-propuesta {
+	position: fixed; inset: 0; z-index: 60; background: rgba(5, 11, 44, 0.28);
+	display: grid; place-items: center; padding: 22px; pointer-events: auto;
+}
+.propuesta-hoja {
+	display: flex; flex-direction: column; width: min(1240px, 100%); height: min(92vh, 100%);
+	background: #fff; border-radius: 18px; box-shadow: var(--sombra-3); overflow: hidden;
+}
+.propuesta-cabecera {
+	display: flex; align-items: center; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--borde);
+}
+.propuesta-cabecera h2 { font: 600 21px var(--serif); }
+.propuesta-cabecera .versalita { color: var(--tenue); }
+.propuesta-cabecera-acciones { margin-left: auto; display: flex; gap: 8px; }
+.boton-propuesta {
+	font: 500 13px var(--sans); color: var(--tinta); padding: 7px 14px; border-radius: 10px;
+	border: 1px solid var(--borde-2); background: #fff; transition: border-color 140ms, background 140ms;
+}
+.boton-propuesta:hover:not(:disabled) { background: var(--fondo-3); border-color: var(--tinta-2); }
+.boton-propuesta:disabled { color: var(--tenue); border-color: var(--borde); cursor: not-allowed; }
+.boton-peligro { font: 500 13px var(--sans); color: var(--peligro-t); padding: 7px 10px; border-radius: 10px; }
+.boton-peligro:hover { background: var(--peligro-s); }
+.propuesta-cerrar { font: 500 13px var(--sans); color: var(--apagado); padding: 7px 10px; border-radius: 10px; }
+.propuesta-cerrar:hover { color: var(--tinta); background: var(--fondo-3); }
+.propuesta-cuerpo { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.85fr); flex: 1; min-height: 0; }
+.propuesta-col { min-width: 0; overflow-y: auto; scrollbar-width: thin; }
+.propuesta-col-doc { background: var(--fondo-3); border-right: 1px solid var(--borde); padding: 0 0 40px; }
+.propuesta-col-editor { padding: 18px 22px 0; display: flex; flex-direction: column; gap: 18px; }
+
+/* Pestañas del documento. */
+.propuesta-pestanas { position: sticky; top: 0; z-index: 2; display: flex; gap: 2px; padding: 10px 24px 0; background: var(--fondo-3); border-bottom: 1px solid var(--borde); }
+.propuesta-pestana { font: 500 13.5px var(--sans); color: var(--apagado); padding: 7px 12px 9px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.propuesta-pestana:hover { color: var(--tinta); }
+.propuesta-pestana.activa { color: var(--tinta); border-bottom-color: var(--tinta); }
+.propuesta-doc { padding: 22px 24px; }
+.propuesta-doc .informe { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 30px 34px; box-shadow: var(--sombra-1); }
+
+/* El documento. */
+.informe-cabecera { border-bottom: 1px solid var(--borde); padding-bottom: 12px; margin-bottom: 16px; }
+.informe-cabecera h1 { font: 600 27px/1.15 var(--serif); margin: 4px 0 6px; }
+.informe-sub, .informe-nota { font-size: 12.5px; color: var(--apagado); }
+.informe-nota { margin-top: 10px; font-style: italic; }
+.informe-bloque { margin-top: 20px; }
+.informe-bloque h2 { font: 600 17px var(--serif); padding-bottom: 5px; border-bottom: 1px solid var(--borde); margin-bottom: 10px; }
+.informe-item { padding: 8px 0; border-bottom: 1px dotted var(--borde); display: grid; gap: 2px; }
+.informe-item:last-child { border-bottom: 0; }
+.informe-cifra { font: 500 15px var(--serif); font-variant-numeric: tabular-nums; }
+.informe-score { font: 600 30px var(--serif); font-variant-numeric: tabular-nums; }
+.informe-metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px 18px; }
+.informe-metrica { display: grid; gap: 1px; }
+.informe-metrica-nombre { font-size: 11.5px; color: var(--apagado); }
+.informe-metrica-valor { font: 500 16px var(--serif); font-variant-numeric: tabular-nums; }
+.informe-chip { display: inline-block; font-size: 11px; color: var(--apagado); border: 1px solid var(--borde-2); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
+.informe-aviso { font-size: 12.5px; color: var(--aviso-t); background: var(--aviso-s); border-radius: 8px; padding: 6px 10px; margin-top: 8px; }
+.informe-seg { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; }
+.informe-seg-score { font-variant-numeric: tabular-nums; color: var(--tinta-2); }
+
+/* Los tres pasos. */
+.propuesta-pasos { display: grid; gap: 18px; }
+.propuesta-paso { display: grid; gap: 8px; }
+.propuesta-paso-cabeza { display: flex; align-items: baseline; gap: 9px; }
+.propuesta-paso-n { font: italic 500 15px var(--serif); color: var(--tenue); }
+.propuesta-paso-cabeza h3 { font: 600 16px var(--serif); }
+.propuesta-titulo { font: 500 14px var(--sans); color: var(--tinta); display: block; }
+.propuesta-nota { font-size: 12.5px; color: var(--apagado); display: block; }
+.propuesta-bancos { display: flex; flex-wrap: wrap; gap: 8px; }
+.propuesta-banco { border: 1px solid var(--borde); border-radius: 10px; padding: 8px 10px; min-width: 150px; }
+.propuesta-banco-cabeza { display: flex; align-items: center; gap: 8px; }
+.propuesta-badge { font-size: 10.5px; color: var(--apagado); border: 1px solid var(--borde-2); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.propuesta-badge-banco { color: var(--exito-t); border-color: var(--exito); background: var(--exito-s); }
+.propuesta-badge-mercado { color: var(--apagado); }
+
+/* Acciones y ofertas: la misma fila marcable. */
+.propuesta-acciones, .propuesta-ofertas, .propuesta-financiacion { display: grid; gap: 6px; }
+.propuesta-accion, .propuesta-oferta {
+	display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; gap: 10px;
+	padding: 9px 11px; border: 1px solid var(--borde); border-radius: 10px; cursor: pointer;
+	transition: border-color 140ms var(--salida), background 140ms var(--salida);
+}
+.propuesta-accion:hover, .propuesta-oferta:hover { border-color: var(--borde-2); background: var(--fondo-3); }
+.propuesta-accion.elegida, .propuesta-oferta.elegida { border-color: var(--info); background: var(--info-s); }
+.propuesta-accion-efecto, .propuesta-oferta-tasa { font: 500 14px var(--serif); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.propuesta-instrumento { display: grid; gap: 6px; padding: 10px 0; border-top: 1px dotted var(--borde); }
+.propuesta-instrumento:first-child { border-top: 0; }
+
+/* El resumen y el envío, pegados abajo. */
+.propuesta-resumen { position: sticky; bottom: 0; z-index: 2; background: #fff; border-top: 1px solid var(--borde); padding: 12px 0 18px; margin-top: auto; display: grid; gap: 8px; }
+.propuesta-resumen-cifras { display: flex; align-items: baseline; gap: 8px; }
+.propuesta-resumen-score { font: 600 28px var(--serif); font-variant-numeric: tabular-nums; }
+.propuesta-resumen-nueva { color: var(--info-t); }
+.propuesta-resumen-flecha { color: var(--tenue); }
+.propuesta-resumen-delta { font: 500 14px var(--serif); color: var(--apagado); }
+.propuesta-aviso { font-size: 12.5px; color: var(--aviso-t); }
+.propuesta-botones { display: flex; gap: 8px; }
+
+/* Planes ya enviados. */
+.propuesta-historial { display: grid; gap: 8px; padding: 4px 0; }
+.propuesta-fila { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: #fff; border: 1px solid var(--borde); border-radius: 12px; }
+.propuesta-hecha-info { min-width: 0; display: grid; gap: 2px; }
+.propuesta-hecha-botones { margin-left: auto; display: flex; gap: 6px; }
+.seguimiento-score { font-variant-numeric: tabular-nums; }
+
+@media screen and (max-width: 899px) {
+	.panel-propuesta { padding: 0; }
+	.propuesta-hoja { height: 100%; border-radius: 0; }
+	.propuesta-cuerpo { grid-template-columns: 1fr; grid-template-rows: auto auto; overflow-y: auto; }
+	.propuesta-col { overflow: visible; }
+	.propuesta-col-doc { border-right: 0; border-bottom: 1px solid var(--borde); }
+	.propuesta-resumen { position: static; }
+}
+@media print {
+	.panel-propuesta { position: static; background: none; padding: 0; display: block; }
+	.propuesta-hoja { width: auto; height: auto; box-shadow: none; }
+	.propuesta-cabecera, .propuesta-col-editor, .propuesta-pestanas { display: none; }
+	.propuesta-cuerpo { display: block; }
+	.propuesta-col-doc { background: none; border: 0; }
+	.propuesta-doc { padding: 0; }
+	.propuesta-doc .informe { border: 0; box-shadow: none; padding: 0; }
+}
+/* El «vacío» global va centrado con un translate; dentro del panel es un párrafo más. */
+.propuesta-col-editor .vacio, .propuesta-col-doc .vacio {
+	transform: none; text-align: left; max-width: 100%; margin: 0; white-space: normal;
+	font: italic 14px/1.45 var(--serif); color: var(--apagado);
+}

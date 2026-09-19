@@ -144,7 +144,7 @@ export class Almacen {
 	private url(e: Estado) {
 		const q = new URLSearchParams(location.search);
 		for (const k of ['v', 'c', 'g', 'emp', 'sec', 'lente', 'rol', 'caso', 'e', 'a', 'd', 'h', 'm', 'f', 'o', 'z', 'mv', 's', 'p', 't', 'mano', 'gr', 'pr', 'cfo']) q.delete(k);
-		// La mirada va en la URL: un enlace «?cfo=GROUP_0142» abre Rumbo como su CFO.
+		// La mirada va en la URL: un enlace «?cfo=<id de grupo>» abre Rumbo como su CFO.
 		if (e.modo === 'cfo' && e.cfo) q.set('cfo', e.cfo);
 		q.set('v', e.vista);
 		if (e.vista === 'organizacion' || e.vista === 'empresa') {
@@ -179,7 +179,7 @@ export class Almacen {
 
 	private leerUrl(): Partial<Estado> {
 		const q = new URLSearchParams(location.search);
-		// La mirada se lee antes que nada: «?cfo=GROUP_0142» a secas tiene que funcionar.
+		// La mirada se lee antes que nada: un «?cfo=» a secas tiene que funcionar.
 		const cfo = q.get('cfo');
 		const mirada: Partial<Estado> = cfo && this.c.groups.some((g) => g.id === cfo)
 			? { modo: 'cfo', cfo, sel: cfo, finRol: 'company' }

@@ -323,7 +323,7 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 
 	function pintarHtml(e: Estado) {
 		// Rumbo habla de tú cuando lo mira el CFO de la empresa que enseña.
-		fijarVoz(e.modo === 'cfo');
+		fijarVoz(e.modo === 'cfo', e.cfo ?? '');
 		const ctx = ctxDe(e.q);
 		frase.pintar(e, ctx);
 		pintarAnotaciones(e, ctx);
@@ -341,6 +341,8 @@ barra.append(marca, mirada.raiz, hueco, lentes, selector, nota, campana, botonFi
 	// ─── Reacción al estado ────────────────────────────────────
 	let temporizadorDeshacer = 0;
 	S.oir((e, a) => {
+		// Al cambiar de mirada, la voz y lo guardado en el navegador cambian con ella.
+		if (e.modo !== a.modo || e.cfo !== a.cfo) { fijarVoz(e.modo === 'cfo', e.cfo ?? ''); triaje.releer(); }
 		const vistaCambia = e.modo !== a.modo || e.cfo !== a.cfo || e.vista !== a.vista || (esPagina(e.vista) && (e.sel !== a.sel || e.emp !== a.emp || e.sec !== a.sec || e.finRol !== a.finRol || e.finCaso !== a.finCaso)) || e.lente !== a.lente;
 		const qCambia = JSON.stringify(e.q) !== JSON.stringify(a.q);
 		const soloTiempo = qCambia && JSON.stringify({ ...e.q, desde: 0, hasta: 0 }) === JSON.stringify({ ...a.q, desde: 0, hasta: 0 });

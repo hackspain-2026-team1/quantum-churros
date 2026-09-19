@@ -19,6 +19,7 @@ import {
 	piezasFiltro, resumen, vocabulario, type Entidad, type EstadoMonitor, type FiltrosM, type Resumen, type Unidad,
 } from '../datos/monitorCartera';
 import { producto, PRODUCTOS } from '../datos/productos';
+import { claveDeMirada } from '../datos/redaccion';
 import { cola, h, vaciar } from './dom';
 import { logotipo } from './marca';
 import { placa } from './registro';
@@ -41,10 +42,10 @@ export interface CtxMonitor {
 const NOMBRE_ZONA: Record<Zona, string> = { solida: 'sólidas', mejora: 'mejoran', tuerce: 'se tuercen', hunde: 'se hunden' };
 const UNIDAD: Record<Unidad, [string, string]> = { organizaciones: ['organización', 'organizaciones'], empresas: ['empresa', 'empresas'] };
 const MESES_TAPIZ = 24, MESES_AVISOS = 12;
-const CLAVE_VISTAS = 'rumbo.vistas.v1';
+const CLAVE_VISTAS = () => claveDeMirada('rumbo.vistas.v1');
 
-const leerVistas = (): { nombre: string; estado: EstadoMonitor }[] => { try { return JSON.parse(localStorage.getItem(CLAVE_VISTAS) ?? '[]'); } catch { return []; } };
-const guardarVistas = (v: { nombre: string; estado: EstadoMonitor }[]) => { try { localStorage.setItem(CLAVE_VISTAS, JSON.stringify(v)); } catch { /* sin almacenamiento: vale para la sesión */ } };
+const leerVistas = (): { nombre: string; estado: EstadoMonitor }[] => { try { return JSON.parse(localStorage.getItem(CLAVE_VISTAS()) ?? '[]'); } catch { return []; } };
+const guardarVistas = (v: { nombre: string; estado: EstadoMonitor }[]) => { try { localStorage.setItem(CLAVE_VISTAS(), JSON.stringify(v)); } catch { /* sin almacenamiento: vale para la sesión */ } };
 
 export interface Monitor {
 	raiz: HTMLElement;

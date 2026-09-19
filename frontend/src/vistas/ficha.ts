@@ -16,9 +16,10 @@ import type {
 import { estadosProductos, recomendaciones, type EstadoProducto } from '../datos/encaje';
 import { f, primeraMayuscula } from '../datos/formato';
 import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
-import { ESFUERZO, ESTADO_AVISO, explicacionAccion, lineaAvisoM, nombreBanda, nombrePilar, tituloAccion, voz } from '../datos/redaccion';
+import { ESFUERZO, ESTADO_AVISO, claveDeMirada, explicacionAccion, lineaAvisoM, nombreBanda, nombrePilar, tituloAccion, voz } from '../datos/redaccion';
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
+import { abrirPropuesta } from './propuesta';
 import { iconoProducto } from './iconos';
 import { hilo, lineaEstado, llamadas, seccion, sello, type Nudo } from './primitivos';
 import { placa } from './registro';
@@ -572,10 +573,10 @@ function productosGrupo(d: DatosFicha, acc: Acciones): HTMLElement {
 
 // ─── Sección · Acciones ───────────────────────────────────────
 
-const CLAVE_ESTADOS = 'rumbo.acciones.v1';
+const CLAVE_ESTADOS = () => claveDeMirada('rumbo.acciones.v1');
 type EstadoAccion = 'propuesta' | 'en curso' | 'hecha';
-function leerEstados(): Record<string, EstadoAccion> { try { return JSON.parse(localStorage.getItem(CLAVE_ESTADOS) ?? '{}'); } catch { return {}; } }
-function guardarEstado(clave: string, e: EstadoAccion) { const t = leerEstados(); t[clave] = e; try { localStorage.setItem(CLAVE_ESTADOS, JSON.stringify(t)); } catch { /* Sin almacenamiento, el estado dura solo esta sesión. */ } }
+function leerEstados(): Record<string, EstadoAccion> { try { return JSON.parse(localStorage.getItem(CLAVE_ESTADOS()) ?? '{}'); } catch { return {}; } }
+function guardarEstado(clave: string, e: EstadoAccion) { const t = leerEstados(); t[clave] = e; try { localStorage.setItem(CLAVE_ESTADOS(), JSON.stringify(t)); } catch { /* Sin almacenamiento, el estado dura solo esta sesión. */ } }
 
 /** El efecto de una acción: la cifra del motor y la mediana prevista a seis meses con y sin ella. */
 function efectoAccion(d: DatosFicha, a?: AccionM): string | null {
@@ -600,7 +601,8 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		const clave = `${d.id}:${d.corte}:${a.id}`;
 		const marca = h('input', { type: 'checkbox', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
 		marca.addEventListener('change', () => { acc.horizonte.alternar(a.id, marca.checked); li.classList.toggle('elegida', marca.checked); });
-		const estadoSel = h('select', { class: 'sel-sutil', 'aria-label': 'Estado de la acción' }, ...(['propuesta', 'en curso', 'hecha'] as EstadoAccion[]).map((x) => h('option', { value: x, selected: (estadosG[clave] ?? 'propuesta') === x }, x)));
+		// «Propuesta» es la palabra del comercial; para quien la va a hacer, está pendiente.
+		const estadoSel = h('select', { class: 'sel-sutil', 'aria-label': 'Estado de la acción' }, ...(['propuesta', 'en curso', 'hecha'] as EstadoAccion[]).map((x) => h('option', { value: x, selected: (estadosG[clave] ?? 'propuesta') === x }, x === 'propuesta' ? voz('propuesta', 'pendiente') : x)));
 		estadoSel.addEventListener('change', () => { guardarEstado(clave, estadoSel.value as EstadoAccion); li.dataset.estado = estadoSel.value; });
 		estadoSel.addEventListener('click', (ev) => ev.stopPropagation());
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 24, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
@@ -629,7 +631,15 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		lista.append(nada);
 	}
 	if (!recs.length) lista.prepend(h('li', { class: 'rec vacia' }, h('p', {}, m.abstain ? `El motor se abstiene este mes y no propone acciones: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}` : !m.feed_live ? 'Sin datos del banco al día, el motor no propone acciones.' : 'El motor no encuentra este mes ninguna palanca que suba el score al menos medio punto.')));
-	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), lista));
+	const titulo = d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo');
+	const sec = seccion(titulo, lista);
+	// El plan: lo que se marca aquí, escrito para llevarlo al banco.
+	if (voz('', 'cfo')) {
+		const plan = h('button', { type: 'button', class: 'miga-accion plan-boton' }, 'Mi plan para el banco');
+		plan.addEventListener('click', () => abrirPropuesta(d, sel, acc));
+		(sec.querySelector('.sec-titulo') as HTMLElement).after(plan);
+	}
+	raiz.append(sec);
 	if (d.kind === 'group') raiz.append(seccion(voz('Lo que proponen sus empresas', 'Lo que puede hacer cada una de tus empresas'), accionesEmpresas(d, acc)));
 	return raiz;
 }
