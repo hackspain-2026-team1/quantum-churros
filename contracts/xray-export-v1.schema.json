@@ -458,7 +458,8 @@
         "unit": { "enum": ["días", "ratio", "%"] },
         "uplift_tenths": { "type": "integer", "minimum": 0 },
         "new_score_tenths": { "$ref": "#/$defs/scoreTenths" },
-        "effort": { "enum": ["bajo", "medio", "alto"] }
+        "effort": { "enum": ["bajo", "medio", "alto"] },
+        "amount_eur": { "description": "Importe de caja requerido por la palanca cuando el motor puede calcularlo; null para acciones no monetarias o con varias equivalencias.", "type": ["number", "null"], "minimum": 0 }
       }
     },
     "verdict": {

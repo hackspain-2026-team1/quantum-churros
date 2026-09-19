@@ -46,6 +46,7 @@
 
 - PostgreSQL is the shared application database. Use the container from `compose.yaml`; SQLite is only a lightweight fallback for isolated unit tests.
 - Alembic owns schema changes only. Never place the challenge CSV contents or other bulk seed data inside an Alembic revision.
+- Application-domain migrations must set `SET LOCAL search_path TO public` or qualify every table explicitly. Once the `xray` schema exists, PostgreSQL resolves the default `"$user", public` path to `xray` for the `xray` database role, so an unqualified migration otherwise creates application tables in the engine-output schema.
 - `20260918_02_seed_baseline_dataset.py` is a frozen legacy demo seed already present in migration history. Do not regenerate it or use it as a pattern; all new dataset loads go through `xray-db ingest`.
 - Start the stack with `make up`; the API applies pending Alembic migrations before serving requests.
 - Local PostgreSQL binds to host port `5433` by default. Set `POSTGRES_PORT` when that port belongs to another project; container-to-container commands such as `make db-sync` keep using the internal `postgres:5432` address.

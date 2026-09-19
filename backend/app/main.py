@@ -1,14 +1,18 @@
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, select
 from xray_engine.artifacts import read_entity_scores
 
+from .api.financing import router as financing_router
 from .benchmarks import seed_benchmark_studies
 from .config import settings
+from .database import engine
 from .debt_products import list_debt_products
+from .events import run_outbox_worker
 from .industry import get_classification, get_classifications, industry_distribution
 from .models import (
     BenchmarkIndustryMetric,
@@ -16,11 +20,8 @@ from .models import (
     BenchmarkStudy,
     BenchmarkStudyRead,
     CompanyDebtProductsRead,
-    Entity,
     IndustryClassificationRead,
 )
-
-engine = create_engine(settings.require_database_url(), pool_pre_ping=True)
 
 
 @asynccontextmanager
@@ -29,7 +30,15 @@ async def lifespan(_: FastAPI):
     with Session(engine) as session:
         seed_benchmark_studies(session)
         session.commit()
-    yield
+    worker = asyncio.create_task(
+        run_outbox_worker(engine, settings.outbox_poll_seconds)
+    )
+    try:
+        yield
+    finally:
+        worker.cancel()
+        with suppress(asyncio.CancelledError):
+            await worker
 
 
 app = FastAPI(title=settings.app_name, version="0.2.0", lifespan=lifespan)
@@ -40,6 +49,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(financing_router)
 
 
 @app.get("/health")
@@ -66,7 +76,9 @@ def get_bundle_file(path: str) -> FileResponse:
     )
 
 
-def _build_benchmark_study(session: Session, study: BenchmarkStudy) -> BenchmarkStudyRead:
+def _build_benchmark_study(
+    session: Session, study: BenchmarkStudy
+) -> BenchmarkStudyRead:
     industries = session.exec(
         select(BenchmarkIndustryMetric)
         .where(BenchmarkIndustryMetric.study_id == study.id)
@@ -99,7 +111,9 @@ def _build_benchmark_study(session: Session, study: BenchmarkStudy) -> Benchmark
 @app.get("/api/v1/benchmarks", response_model=list[BenchmarkStudyRead])
 def list_benchmarks() -> list[BenchmarkStudyRead]:
     with Session(engine) as session:
-        studies = session.exec(select(BenchmarkStudy).order_by(BenchmarkStudy.report_year.desc())).all()
+        studies = session.exec(
+            select(BenchmarkStudy).order_by(BenchmarkStudy.report_year.desc())
+        ).all()
         return [_build_benchmark_study(session, study) for study in studies]
 
 
@@ -112,7 +126,10 @@ def get_benchmark(study_id: str) -> BenchmarkStudyRead:
         return _build_benchmark_study(session, study)
 
 
-@app.get("/api/v1/companies/{entity_id}/debt-products", response_model=CompanyDebtProductsRead)
+@app.get(
+    "/api/v1/companies/{entity_id}/debt-products",
+    response_model=CompanyDebtProductsRead,
+)
 def get_company_debt_products(entity_id: str) -> CompanyDebtProductsRead:
     normalized = entity_id.upper()
     with Session(engine) as session:
@@ -120,7 +137,9 @@ def get_company_debt_products(entity_id: str) -> CompanyDebtProductsRead:
     return CompanyDebtProductsRead(entity_id=normalized, products=products)
 
 
-@app.get("/api/v1/companies/{entity_id}/industry", response_model=IndustryClassificationRead)
+@app.get(
+    "/api/v1/companies/{entity_id}/industry", response_model=IndustryClassificationRead
+)
 def get_company_industry(
     entity_id: str,
     dataset_hash: str | None = None,

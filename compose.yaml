@@ -70,10 +70,13 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://xray:xray-local@postgres:5432/xray}
       XRAY_DATA_DIR: /data/raw
       XRAY_BUNDLE_DIR: /app/bundle
+      XRAY_ENTITY_ALIASES_PATH: /app/rumbo/entities.json
+      FINANCING_DEMO_ENABLED: "true"
     volumes:
       - ./data/raw:/data/raw:ro
       - ./artifacts:/app/artifacts
       - ./bundle:/app/bundle
+      - ./rumbo:/app/rumbo:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,8 +100,8 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
     volumes:
-      - ./bundle:/app/dist/data/v1:ro
-      - ./rumbo:/app/dist/data/rumbo:ro
+      - ./bundle:/usr/share/nginx/html/data/v1:ro
+      - ./rumbo:/usr/share/nginx/html/data/rumbo:ro
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:

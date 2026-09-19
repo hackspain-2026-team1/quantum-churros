@@ -12,11 +12,15 @@ services:
       - ./engine:/app/engine
       - ./data/raw:/data/raw:ro
       - ./artifacts:/app/artifacts
+      - ./bundle:/app/bundle
+      - ./rumbo:/app/rumbo:ro
     command: ["sh", "-c", "uv run --package quantum-churros-api alembic -c backend/alembic.ini upgrade head && uv run --package quantum-churros-api uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"]
     ports:
       - "8000:8000"
 
   web:
+    build:
+      target: build
     restart: "no"
     user: root
     working_dir: /workspace

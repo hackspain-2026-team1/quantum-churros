@@ -20,6 +20,10 @@ class Settings(BaseSettings):
         default=Path("bundle"),
         validation_alias=AliasChoices("XRAY_BUNDLE_DIR", "BUNDLE_DIR"),
     )
+    entity_aliases_path: Path = Field(
+        default=Path("rumbo/entities.json"),
+        validation_alias=AliasChoices("XRAY_ENTITY_ALIASES_PATH", "ENTITY_ALIASES_PATH"),
+    )
     data_dir: Path = Field(
         default=Path("data/raw"),
         validation_alias=AliasChoices("XRAY_DATA_DIR", "DATA_DIR"),
@@ -35,6 +39,8 @@ class Settings(BaseSettings):
     notification_from: str = "Embat X-Ray <xray@embat.test>"
     frontend_base_url: str = "http://localhost:3000"
     mailpit_api_url: str = "http://localhost:8025"
+    financing_demo_enabled: bool = False
+    outbox_poll_seconds: float = 0.5
 
     def require_database_url(self) -> str:
         if self.database_url is None or not self.database_url.strip():

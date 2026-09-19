@@ -5,11 +5,8 @@ RUN bun install --frozen-lockfile
 COPY frontend/ ./
 RUN bun run check && bun run build:despliegue
 
-FROM alpine:3.22 AS runtime
-WORKDIR /app
-RUN apk add --no-cache busybox-extras && addgroup -g 10001 rumbo && adduser -D -u 10001 -G rumbo rumbo
-COPY --from=build --chown=rumbo:rumbo /app/dist ./dist
-RUN mkdir -p ./dist/data/v1 ./dist/data/rumbo && chown -R rumbo:rumbo ./dist
-USER rumbo
+FROM nginxinc/nginx-unprivileged:1.29-alpine AS runtime
+COPY docker/frontend.nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build --chown=101:101 /app/dist /usr/share/nginx/html
+USER 101
 EXPOSE 3000
-CMD ["httpd", "-f", "-p", "3000", "-h", "/app/dist"]

@@ -12,6 +12,7 @@ import { nombreBanda, movimiento } from '../datos/redaccion';
 import { SECCIONES, type Almacen, type Estado, type Seccion } from '../estado';
 import { cola, h, vaciar } from './dom';
 import { cabecera, cargarFicha, contenidoSeccion, nombreEntidad, type Acciones, type DatosFicha, type FiltroEvidencia, type OpcionesGrafico } from './ficha';
+import { crearFinanciacion } from './financiacion';
 import { iconoProducto } from './iconos';
 import { granos3, seccion } from './primitivos';
 import { medirPlacas, placa } from './registro';
@@ -38,6 +39,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 
 	let clave = '';
 	let datos: DatosFicha | null = null;
+	const financiacion = crearFinanciacion(S, () => cb.alCambiarArena());
 	const estadoUI = { escenario: 'base' as OpcionesGrafico['escenario'], metrica: 'score', acciones: new Set<string>(), filtro: null as FiltroEvidencia | null, ancla: null as string | null };
 	let accionPendiente: string | null = null;
 
@@ -69,6 +71,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		const sep = () => miga.append(h('span', { class: 'miga-sep', 'aria-hidden': 'true' }, '›'));
 		paso('Rumbo', e.vista === 'entrada' ? null : () => S.fijar({ vista: 'entrada', sel: null, emp: null }, true), e.vista === 'entrada');
 		if (e.vista === 'metodologia') { sep(); paso('Metodología', null, true); }
+		if (e.vista === 'financiacion') { sep(); paso('Financiación', null, true); }
 		if ((e.vista === 'organizacion' || e.vista === 'empresa') && e.sel) {
 			sep();
 			paso(f.grupo(e.sel), e.vista === 'empresa' ? () => acc.abrirGrupo(e.sel!) : null, e.vista === 'organizacion');
@@ -97,13 +100,20 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		document.body.dataset.pagina = e.vista;
 		pintarMiga(e);
 		const corte = cb.corte();
-		const nueva = `${e.vista}|${e.sel}|${e.emp}|${corte}`;
-		const soloSeccion = nueva === clave && datos;
+		const nueva = `${e.vista}|${e.sel}|${e.emp}|${e.finRol}|${e.finCaso}|${corte}`;
+		const soloSeccion = (e.vista === 'organizacion' || e.vista === 'empresa') && nueva === clave && datos;
 		const k = `${nueva}|${e.sec}`;
 		if (soloSeccion) { pintarFicha(e); return; }
 		clave = nueva;
 		if (e.vista === 'entrada') return pintarEntrada();
 		if (e.vista === 'metodologia') return pintarMetodologia();
+		if (e.vista === 'financiacion') {
+			vaciar(raiz);
+			raiz.append(financiacion.raiz);
+			financiacion.pintar(e);
+			cb.alCambiarArena();
+			return;
+		}
 		vaciar(raiz);
 		raiz.append(h('div', { class: 'cargando' }, h('p', {}, 'Leyendo la ficha…')));
 		const kind = e.vista === 'empresa' ? 'company' : 'group';

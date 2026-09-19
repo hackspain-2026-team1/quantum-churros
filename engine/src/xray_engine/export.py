@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from . import contracts
+from .actions import plan_actions
 from .contracts import (
     BAND_KEYS,
     BAND_LABELS,
@@ -30,7 +31,6 @@ from .contracts import (
     UNLOCK_HINTS,
     EntityMonth,
 )
-from .actions import plan_actions
 from .pillars import NOTE_TEMPLATES, pillar_note
 from .trajectory import trajectory_note
 
@@ -46,7 +46,9 @@ FALLBACK_GATE = "unavailable"
 MAX_CHECK_METRICS = 12
 
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
-_PERIOD_PATTERN = re.compile(r"^[0-9]{4}-[0-9]{2}(-[0-9]{2})?(\.\.[0-9]{4}-[0-9]{2}(-[0-9]{2})?)?$")
+_PERIOD_PATTERN = re.compile(
+    r"^[0-9]{4}-[0-9]{2}(-[0-9]{2})?(\.\.[0-9]{4}-[0-9]{2}(-[0-9]{2})?)?$"
+)
 _SOURCE_PATTERN = re.compile(r"^[A-Za-z0-9_./-]{1,64}$")
 _CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _STAMP_PATTERN = re.compile(
@@ -144,10 +146,16 @@ CHECK_TEXTS: dict[str, tuple[str, str]] = {
     "netting_placebo": ("Placebo de traspasos", "El emparejamiento de traspasos internos casi no encuentra nada con las fechas desplazadas."),
     "injection": ("Deterioros inyectados", "Retraso de detección y falsas alertas al inyectar picos, escalones y rampas."),
 }  # fmt: skip
-CHECK_MISMATCH = "La validación disponible corresponde a otro dataset o a otros parámetros."
+CHECK_MISMATCH = (
+    "La validación disponible corresponde a otro dataset o a otros parámetros."
+)
 CHECK_NOT_RUN = "Comprobación no ejecutada en esta validación."
 CHECK_STATUSES = ("pass", "fail", "info", "not_run")
-HORIZON_LABELS = {"short": "corto (3 meses)", "long": "largo (deriva lenta)", "both": "corto y largo"}
+HORIZON_LABELS = {
+    "short": "corto (3 meses)",
+    "long": "largo (deriva lenta)",
+    "both": "corto y largo",
+}
 
 
 # --------------------------------------------------------------------------
@@ -178,7 +186,9 @@ def round_preserving_sum(
         scaled.append(float(nearest) if abs(exact - nearest) < 1e-7 else exact)
     floors = [math.floor(value) for value in scaled]
     missing = target - sum(floors)
-    order = sorted(range(len(parts)), key=lambda index: (-(scaled[index] - floors[index]), index))
+    order = sorted(
+        range(len(parts)), key=lambda index: (-(scaled[index] - floors[index]), index)
+    )
     # 0 <= missing <= len(parts) whenever the parts add up to the total
     every, first = divmod(missing, len(parts))
     rounded = [value + every for value in floors]
@@ -198,7 +208,9 @@ def _month(value: date) -> str:
 
 def _month_axis(first: date, last: date) -> list[str]:
     start, end = first.year * 12 + first.month - 1, last.year * 12 + last.month - 1
-    return [f"{index // 12:04d}-{index % 12 + 1:02d}" for index in range(start, end + 1)]
+    return [
+        f"{index // 12:04d}-{index % 12 + 1:02d}" for index in range(start, end + 1)
+    ]
 
 
 def _finite(value: Any) -> float | None:
@@ -250,7 +262,9 @@ def _codes(values: Iterable[Any]) -> list[str]:
 
 
 def _dump(data: Any) -> bytes:
-    text = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    text = json.dumps(
+        data, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    )
     return (text + "\n").encode("utf-8")
 
 
@@ -328,19 +342,25 @@ def _verdict(month: EntityMonth) -> dict[str, Any]:
         "compared_to": _month(verdict.compared_to) if verdict.compared_to else None,
         "pillars_moved": [key for key in PILLAR_KEYS if key in verdict.pillars_moved],
         "persistence_months": max(0, int(verdict.persistence_months or 0)),
-        "detected_since": _month(verdict.detected_since) if verdict.detected_since else None,
+        "detected_since": _month(verdict.detected_since)
+        if verdict.detected_since
+        else None,
     }
 
 
 def _unlock(parts: Any, params: Any) -> str:
     if parts.unlock_hint:
         return _text(parts.unlock_hint)
-    template = UNLOCK_HINTS.get(parts.abstain_reason or "", "Hacen falta más datos bancarios.")
+    template = UNLOCK_HINTS.get(
+        parts.abstain_reason or "", "Hacen falta más datos bancarios."
+    )
     minimum = getattr(getattr(params, "abstention", None), "min_months_observed", 4)
     return _text(template.format(months=minimum))
 
 
-def _actions(month: EntityMonth, params: Any, group_row: Any, shown: int) -> dict[str, Any]:
+def _actions(
+    month: EntityMonth, params: Any, group_row: Any, shown: int
+) -> dict[str, Any]:
     """Suggested actions of the month; uplifts are tenths against ``shown``."""
     plan = plan_actions(month.row, month.pillars, month.parts, params, group_row)
     actions = [
@@ -355,15 +375,22 @@ def _actions(month: EntityMonth, params: Any, group_row: Any, shown: int) -> dic
             "uplift_tenths": max(0, action.new_score_tenths - shown),
             "new_score_tenths": action.new_score_tenths,
             "effort": action.effort,
+            "amount_eur": _number(action.amount_eur, 2),
         }
         for action in plan.actions
     ]
     combined = max(shown, plan.combined_score_tenths) if actions else shown
-    return {"actions": actions, "actions_combined": {"new_score": combined, "uplift": combined - shown}}
+    return {
+        "actions": actions,
+        "actions_combined": {"new_score": combined, "uplift": combined - shown},
+    }
 
 
 def _entity_month(
-    month: EntityMonth, params: Any, bands: Sequence[Mapping[str, Any]], group_row: Any = None
+    month: EntityMonth,
+    params: Any,
+    bands: Sequence[Mapping[str, Any]],
+    group_row: Any = None,
 ) -> dict[str, Any]:
     row, parts = month.row, month.parts
     shown, base, contributions, penalty, cap = _waterfall(parts)
@@ -374,12 +401,18 @@ def _entity_month(
         gates = _codes(result.gates) if result is not None else []
         if score is None and not gates:
             gates = [FALLBACK_GATE]
-        note = pillar_note(result, params) if result is not None else NOTE_TEMPLATES["unavailable"]
+        note = (
+            pillar_note(result, params)
+            if result is not None
+            else NOTE_TEMPLATES["unavailable"]
+        )
         pillars.append(
             {
                 "key": key,
                 "score": score,
-                "w_eff": _share(parts.weights_effective.get(key, 0.0)) if score is not None else 0,
+                "w_eff": _share(parts.weights_effective.get(key, 0.0))
+                if score is not None
+                else 0,
                 "contrib": contributions.get(key, 0),
                 "gates": gates,
                 "note": _nullable_text(note, 400),
@@ -395,7 +428,11 @@ def _entity_month(
         "base": base,
         "pillars": pillars,
         "penalty": penalty,
-        "cap": {"amount": cap, "rule": fired[0] if cap > 0 and fired else None, "fired": fired},
+        "cap": {
+            "amount": cap,
+            "rule": fired[0] if cap > 0 and fired else None,
+            "fired": fired,
+        },
         "conf": {
             "value": _share(parts.confidence),
             "label": parts.confidence_label,
@@ -410,7 +447,10 @@ def _entity_month(
         "perimeter_changed": bool(row.perimeter_changed),
         "verdict": _verdict(month),
         "abstain": (
-            {"reason": parts.abstain_reason or "short_history", "unlock": _unlock(parts, params)}
+            {
+                "reason": parts.abstain_reason or "short_history",
+                "unlock": _unlock(parts, params),
+            }
             if parts.abstained
             else None
         ),
@@ -468,7 +508,9 @@ def _evidence_row(pillar: str | None, item: Any, month: str) -> dict[str, Any] |
     }
 
 
-def _fact(label: str, value: Any, unit: str, period: str, n_rows: int | None = None) -> dict[str, Any]:
+def _fact(
+    label: str, value: Any, unit: str, period: str, n_rows: int | None = None
+) -> dict[str, Any]:
     return {
         "pillar": None, "label": label, "value": value, "unit": unit,
         "period": period, "source_file": SCORES_FILE, "n_rows": n_rows,
@@ -481,17 +523,42 @@ def _entity_facts(month: EntityMonth) -> list[dict[str, Any]]:
     verdict, parts, label = month.trajectory, month.parts, _month(month.row.month)
     facts = []
     if parts.carried_from is not None:
-        facts.append(_fact("Score mantenido desde el último mes con feed vivo", _month(parts.carried_from), "", label))
+        facts.append(
+            _fact(
+                "Score mantenido desde el último mes con feed vivo",
+                _month(parts.carried_from),
+                "",
+                label,
+            )
+        )
     if not verdict.available or parts.abstained:
         return facts
     horizon = getattr(verdict, "horizon", None)
     if horizon in HORIZON_LABELS:
-        facts.append(_fact("Horizonte que decide la trayectoria", HORIZON_LABELS[horizon], "", label))
-    drift, span = _finite(getattr(verdict, "drift_points", None)), getattr(verdict, "drift_months", None)
+        facts.append(
+            _fact(
+                "Horizonte que decide la trayectoria",
+                HORIZON_LABELS[horizon],
+                "",
+                label,
+            )
+        )
+    drift, span = (
+        _finite(getattr(verdict, "drift_points", None)),
+        getattr(verdict, "drift_months", None),
+    )
     if drift is not None and span:
         start = month.row.month.year * 12 + month.row.month.month - int(span)
         period = f"{start // 12:04d}-{start % 12 + 1:02d}..{label}"
-        facts.append(_fact("Deriva acumulada del score (pendiente robusta)", _number(drift, 1), "puntos", period, int(span)))
+        facts.append(
+            _fact(
+                "Deriva acumulada del score (pendiente robusta)",
+                _number(drift, 1),
+                "puntos",
+                period,
+                int(span),
+            )
+        )
     note = trajectory_note(verdict)
     if note:  # the two horizons disagree: the recent move makes the call, unconfirmed
         facts.append(_fact(_text(note, 120), "pendiente de confirmar", "", label))
@@ -499,7 +566,11 @@ def _entity_facts(month: EntityMonth) -> list[dict[str, Any]]:
 
 
 def _evidence(
-    kind: str, entity_id: str, group_id: str, months: Sequence[EntityMonth], evidence_months: int
+    kind: str,
+    entity_id: str,
+    group_id: str,
+    months: Sequence[EntityMonth],
+    evidence_months: int,
 ) -> dict[str, Any]:
     chosen = list(months)[-evidence_months:] if evidence_months > 0 else []
     out = []
@@ -584,16 +655,24 @@ def _label_codes() -> dict[str, dict[str, str]]:
     }
 
 
-def _truth(card: Any, last: EntityMonth, codes: Mapping[str, Mapping[str, str]]) -> str | None:
+def _truth(
+    card: Any, last: EntityMonth, codes: Mapping[str, Mapping[str, str]]
+) -> str | None:
     """Treasury reading of a company inside its group, from panel and card facts."""
     row, parts = last.row, last.parts
     liquidity = last.pillars.get("liquidity")
     role = codes["role"].get(str(_attribute(card, "group_role")))
     treasury = codes["treasury"].get(str(_attribute(card, "treasury_structure")))
-    financing = codes["financing"].get(str(_attribute(card, "financing_profile")).split(" · ")[0])
+    financing = codes["financing"].get(
+        str(_attribute(card, "financing_profile")).split(" · ")[0]
+    )
     inherited = liquidity is not None and "inherited_from_group" in liquidity.gates
     keys = []
-    if inherited or getattr(row, "swept_subsidiary", False) or role == "swept_subsidiary":
+    if (
+        inherited
+        or getattr(row, "swept_subsidiary", False)
+        or role == "swept_subsidiary"
+    ):
         keys.append("swept")
     if role in ("treasury_centre", "financing_hub"):
         keys.append(role)
@@ -601,7 +680,10 @@ def _truth(card: Any, last: EntityMonth, codes: Mapping[str, Mapping[str, str]])
         keys.append("line_funded")
     if role == "captive" or financing == "intercompany":
         keys.append("group_funded")
-    if getattr(row, "no_external_revenue", False) or "no_external_revenue" in parts.flags:
+    if (
+        getattr(row, "no_external_revenue", False)
+        or "no_external_revenue" in parts.flags
+    ):
         keys.append("no_external_revenue")
     return _nullable_text(" ".join(TRUTH_TEXTS[key] for key in keys), 400)
 
@@ -654,10 +736,15 @@ def _engine_texts(name: str) -> dict[str, str]:
     return found
 
 
-def _glossary(entities: Iterable[Mapping[str, Any]], alerts: Iterable[Mapping[str, Any]]) -> dict[str, dict[str, str]]:
+def _glossary(
+    entities: Iterable[Mapping[str, Any]], alerts: Iterable[Mapping[str, Any]]
+) -> dict[str, dict[str, str]]:
     """Every code the engine can emit, plus any code the bundle uses."""
     glossary = {
-        "gates": {**_engine_texts("GATE_TEXTS"), FALLBACK_GATE: NOTE_TEMPLATES["unavailable"]},
+        "gates": {
+            **_engine_texts("GATE_TEXTS"),
+            FALLBACK_GATE: NOTE_TEMPLATES["unavailable"],
+        },
         "flags": _engine_texts("FLAG_TEXTS"),
         "caps": _engine_texts("CAP_TEXTS"),
         "reasons": _engine_texts("REASON_TEXTS"),
@@ -679,7 +766,9 @@ def _glossary(entities: Iterable[Mapping[str, Any]], alerts: Iterable[Mapping[st
     for section, codes in used.items():
         for code in sorted(codes):
             # a code without a text table entry still reads as Spanish on screen
-            glossary[section].setdefault(code, f"Código del motor: {code.replace('_', ' ')}.")
+            glossary[section].setdefault(
+                code, f"Código del motor: {code.replace('_', ' ')}."
+            )
     return glossary
 
 
@@ -688,18 +777,40 @@ def _metric_value(value: Any) -> Any:
         return value
     if isinstance(value, (int, float)):
         number = _finite(value)
-        return None if number is None else (int(number) if isinstance(value, int) else float(f"{number:.6g}"))
-    if isinstance(value, (list, tuple)) and all(not isinstance(item, (Mapping, list, tuple)) for item in value):
+        return (
+            None
+            if number is None
+            else (int(number) if isinstance(value, int) else float(f"{number:.6g}"))
+        )
+    if isinstance(value, (list, tuple)) and all(
+        not isinstance(item, (Mapping, list, tuple)) for item in value
+    ):
         return _text(", ".join(str(item) for item in value), 80, "")
     return _text(value, 80, "") if isinstance(value, str) else None
 
 
 def _check(key: str, raw: Any, mismatch: bool) -> dict[str, Any]:
-    title, question = CHECK_TEXTS.get(key, (key.replace("_", " ").capitalize(), "Comprobación sin etiquetas."))
+    title, question = CHECK_TEXTS.get(
+        key, (key.replace("_", " ").capitalize(), "Comprobación sin etiquetas.")
+    )
     if not isinstance(raw, Mapping):
-        return {"key": key, "title": title, "status": "not_run", "summary": CHECK_NOT_RUN, "metrics": []}
+        return {
+            "key": key,
+            "title": title,
+            "status": "not_run",
+            "summary": CHECK_NOT_RUN,
+            "metrics": [],
+        }
     passed = raw.get("pass")
-    status = "not_run" if mismatch else "pass" if passed is True else "fail" if passed is False else "info"
+    status = (
+        "not_run"
+        if mismatch
+        else "pass"
+        if passed is True
+        else "fail"
+        if passed is False
+        else "info"
+    )
     metrics: list[dict[str, Any]] = []
     bars: list[dict[str, Any]] = []
     for name, value in raw.items():
@@ -708,23 +819,39 @@ def _check(key: str, raw: Any, mismatch: bool) -> dict[str, Any]:
         label = _text(str(name).replace("_", " ").capitalize(), 400)
         if isinstance(value, Mapping):
             numeric = {str(k): _finite(v) for k, v in value.items()}
-            if not bars and numeric and all(item is not None for item in numeric.values()) and any(
-                word in str(name) for word in ("distribution", "bars", "histogram", "delay")
+            if (
+                not bars
+                and numeric
+                and all(item is not None for item in numeric.values())
+                and any(
+                    word in str(name)
+                    for word in ("distribution", "bars", "histogram", "delay")
+                )
             ):
                 bars = [{"label": _text(k, 40), "value": v} for k, v in numeric.items()]
                 continue
             for inner, item in value.items():
                 if not isinstance(item, (Mapping, list, tuple)):
-                    metrics.append({"label": _text(f"{label} · {inner}"), "value": _metric_value(item), "unit": ""})
+                    metrics.append(
+                        {
+                            "label": _text(f"{label} · {inner}"),
+                            "value": _metric_value(item),
+                            "unit": "",
+                        }
+                    )
             continue
-        if isinstance(value, (list, tuple)) and any(isinstance(item, (Mapping, list, tuple)) for item in value):
+        if isinstance(value, (list, tuple)) and any(
+            isinstance(item, (Mapping, list, tuple)) for item in value
+        ):
             continue
         metrics.append({"label": label, "value": _metric_value(value), "unit": ""})
     check = {
         "key": key,
         "title": _text(raw.get("title") or title),
         "status": status,
-        "summary": _text(CHECK_MISMATCH if mismatch else raw.get("summary") or question),
+        "summary": _text(
+            CHECK_MISMATCH if mismatch else raw.get("summary") or question
+        ),
         "metrics": [] if mismatch else metrics[:MAX_CHECK_METRICS],
     }
     if bars and not mismatch:
@@ -737,13 +864,17 @@ def _ready_check(item: Mapping[str, Any], mismatch: bool) -> dict[str, Any] | No
     key = str(item.get("key") or "")
     if not _CODE_PATTERN.match(key):
         return None
-    title, question = CHECK_TEXTS.get(key, (key.replace("_", " ").capitalize(), "Comprobación sin etiquetas."))
+    title, question = CHECK_TEXTS.get(
+        key, (key.replace("_", " ").capitalize(), "Comprobación sin etiquetas.")
+    )
     status = item.get("status")
     check: dict[str, Any] = {
         "key": key,
         "title": _text(item.get("title") or title),
         "status": "not_run" if mismatch or status not in CHECK_STATUSES else status,
-        "summary": _text(CHECK_MISMATCH if mismatch else item.get("summary") or question),
+        "summary": _text(
+            CHECK_MISMATCH if mismatch else item.get("summary") or question
+        ),
         # figures measured on another dataset or other params are never shown
         "metrics": [
             {
@@ -765,15 +896,22 @@ def _ready_check(item: Mapping[str, Any], mismatch: bool) -> dict[str, Any] | No
     return check
 
 
-def _checks(receipt: Mapping[str, Any] | None, params_hash: str, dataset_hash: str) -> list[dict[str, Any]]:
+def _checks(
+    receipt: Mapping[str, Any] | None, params_hash: str, dataset_hash: str
+) -> list[dict[str, Any]]:
     if not receipt:
         return []
     mismatch = any(
         receipt.get(name) not in (None, expected)
-        for name, expected in (("params_hash", params_hash), ("dataset_hash", dataset_hash))
+        for name, expected in (
+            ("params_hash", params_hash),
+            ("dataset_hash", dataset_hash),
+        )
     )
     ready = receipt.get("checks")
-    if isinstance(ready, list):  # already in bundle shape: only trimmed to the contract limits
+    if isinstance(
+        ready, list
+    ):  # already in bundle shape: only trimmed to the contract limits
         checks, seen = [], set()
         for item in ready:
             if not isinstance(item, Mapping) or item.get("key") in seen:
@@ -789,11 +927,19 @@ def _checks(receipt: Mapping[str, Any] | None, params_hash: str, dataset_hash: s
         known = tuple(CHECK_TEXTS)
     skipped = ("dataset_hash", "params_hash", "engine_version", "generated_at", "quick")
     keys = [key for key in known if key in receipt or key in CHECK_TEXTS]
-    keys += [key for key in receipt if key not in keys and key not in skipped and isinstance(receipt[key], Mapping)]
+    keys += [
+        key
+        for key in receipt
+        if key not in keys and key not in skipped and isinstance(receipt[key], Mapping)
+    ]
     seen: set[str] = set()
     checks = []
     for key in keys:
-        if key in seen or not _CODE_PATTERN.match(key) or (key not in receipt and key not in known):
+        if (
+            key in seen
+            or not _CODE_PATTERN.match(key)
+            or (key not in receipt and key not in known)
+        ):
             continue
         seen.add(key)
         checks.append(_check(key, receipt.get(key), mismatch))
@@ -867,13 +1013,19 @@ def export_bundle(
 
     group_rows = {
         (key[1], month.row.month): month.row
-        for key, months in by_entity.items() if key[0] == "group" for month in months
+        for key, months in by_entity.items()
+        if key[0] == "group"
+        for month in months
     }
     entries: dict[tuple[str, str], list[dict[str, Any]]] = {
         key: [
             _entity_month(
-                month, params, bands,
-                group_rows.get((month.row.group_id, month.row.month)) if key[0] == "company" else None,
+                month,
+                params,
+                bands,
+                group_rows.get((month.row.group_id, month.row.month))
+                if key[0] == "company"
+                else None,
             )
             for month in months
         ]
@@ -886,7 +1038,10 @@ def export_bundle(
     }
     alerts = sorted(
         (
-            _alert(alert, shown_at[(alert.entity_kind, alert.entity_id, _month(alert.month))])
+            _alert(
+                alert,
+                shown_at[(alert.entity_kind, alert.entity_id, _month(alert.month))],
+            )
             for alert in getattr(result, "alerts", ()) or ()
             if (alert.entity_kind, alert.entity_id, _month(alert.month)) in shown_at
         ),
@@ -905,7 +1060,9 @@ def export_bundle(
 
     all_months = [month.row.month for months in by_entity.values() for month in months]
     window = result.window
-    axis = _month_axis(min([window.first_month, *all_months]), max([window.last_month, *all_months]))
+    axis = _month_axis(
+        min([window.first_month, *all_months]), max([window.last_month, *all_months])
+    )
 
     codes = _label_codes()
     files: dict[str, dict[str, Any]] = {}
@@ -916,9 +1073,12 @@ def export_bundle(
             months_out = entries[("company", company_id)]
             head = {
                 "role": _nullable_text(_attribute(card, "group_role"), 80),
-                "treasury_class": _nullable_text(_attribute(card, "treasury_structure"), 80),
+                "treasury_class": _nullable_text(
+                    _attribute(card, "treasury_structure"), 80
+                ),
                 "truth": _truth(card, months[-1], codes),
-                "inherits_liquidity": "inherited_from_group" in months_out[-1]["pillars"][0]["gates"],
+                "inherits_liquidity": "inherited_from_group"
+                in months_out[-1]["pillars"][0]["gates"],
                 "first_month": months_out[0]["month"],
             }
             company_heads[company_id] = head
@@ -927,7 +1087,9 @@ def export_bundle(
                 **head, "profile": _profile(card), "context": _context(card), "months": months_out,
                 "series": _series(months), "alerts": alerts_of.get(company_id, []),
             }  # fmt: skip
-            files[f"evidence/{company_id}.json"] = _evidence("company", company_id, group_id, months, evidence_months)
+            files[f"evidence/{company_id}.json"] = _evidence(
+                "company", company_id, group_id, months, evidence_months
+            )
 
     portfolio_rows = []
     for group_id in group_ids:
@@ -936,13 +1098,20 @@ def export_bundle(
         own_axis = [entry["month"] for entry in months_out]
         companies = []
         for company_id in members[group_id]:
-            by_month = {entry["month"]: entry for entry in entries[("company", company_id)]}
+            by_month = {
+                entry["month"]: entry for entry in entries[("company", company_id)]
+            }
             companies.append(
                 {
                     "id": company_id,
                     **company_heads[company_id],
-                    "shown": [by_month[m]["shown"] if m in by_month else None for m in own_axis],
-                    "band": [by_month[m]["band"] if m in by_month else None for m in own_axis],
+                    "shown": [
+                        by_month[m]["shown"] if m in by_month else None
+                        for m in own_axis
+                    ],
+                    "band": [
+                        by_month[m]["band"] if m in by_month else None for m in own_axis
+                    ],
                 }
             )
         context = _context(card)
@@ -951,7 +1120,9 @@ def export_bundle(
             "profile": _profile(card), "context": context, "months": months_out, "companies": companies,
             "series": _series(months), "alerts": alerts_of.get(group_id, []),
         }  # fmt: skip
-        files[f"evidence/{group_id}.json"] = _evidence("group", group_id, group_id, months, evidence_months)
+        files[f"evidence/{group_id}.json"] = _evidence(
+            "group", group_id, group_id, months, evidence_months
+        )
 
         by_month = {entry["month"]: entry for entry in months_out}
         own_alerts = [alert for alert in alerts if alert["group_id"] == group_id]
@@ -966,7 +1137,9 @@ def export_bundle(
                 "first_month": own_axis[0],
                 "country": _nullable_text(_attribute(card, "country"), 80),
                 "size_band": _nullable_text(_attribute(card, "size_band"), 80),
-                "industry": _nullable_text((context["industry"] or {}).get("label"), 120),
+                "industry": _nullable_text(
+                    (context["industry"] or {}).get("label"), 120
+                ),
                 "shown": column(lambda entry: entry["shown"]),
                 "band": column(lambda entry: entry["band"]),
                 "direction": column(lambda entry: entry["verdict"]["direction"]),
@@ -975,28 +1148,53 @@ def export_bundle(
                 "abstained": column(lambda entry: entry["abstain"] is not None),
                 "perimeter_changed": column(lambda entry: entry["perimeter_changed"]),
                 "alerts_fired": [
-                    sum(1 for a in own_alerts if a["month"] == m and a["state"] == "fired") for m in axis
+                    sum(
+                        1
+                        for a in own_alerts
+                        if a["month"] == m and a["state"] == "fired"
+                    )
+                    for m in axis
                 ],
                 "alerts_muted": [
-                    sum(1 for a in own_alerts if a["month"] == m and a["state"] != "fired") for m in axis
+                    sum(
+                        1
+                        for a in own_alerts
+                        if a["month"] == m and a["state"] != "fired"
+                    )
+                    for m in axis
                 ],
             }
         )
 
     # alerts of entities the bundle does not describe cannot be shown
-    written = {name.split("/")[1][:-5] for name in files if not name.startswith("evidence/")}
+    written = {
+        name.split("/")[1][:-5] for name in files if not name.startswith("evidence/")
+    }
     alerts = [alert for alert in alerts if alert["entity_id"] in written]
-    files["portfolio.json"] = {"schema": BUNDLE_SCHEMA, "kind": "portfolio", "months": axis, "groups": portfolio_rows}
+    files["portfolio.json"] = {
+        "schema": BUNDLE_SCHEMA,
+        "kind": "portfolio",
+        "months": axis,
+        "groups": portfolio_rows,
+    }
     files["alerts.json"] = {"schema": BUNDLE_SCHEMA, "kind": "alerts", "alerts": alerts}
 
     params_hash = str(getattr(params, "sha256", "") or "unhashed")
     dataset_hash = str(getattr(result, "dataset_hash", "") or "unknown")
     weights = {key: float(params.weights[key]) for key in PILLAR_KEYS}
     signals = [
-        {"name": key, "label": PILLAR_LABELS[key], "weight": weights[key], "why": SIGNAL_WHY[key]}
+        {
+            "name": key,
+            "label": PILLAR_LABELS[key],
+            "weight": weights[key],
+            "why": SIGNAL_WHY[key],
+        }
         for key in PILLAR_KEYS
     ]
-    signals += [{"name": name, "label": label, "weight": 0.0, "why": why} for name, label, why in ZERO_WEIGHT_SIGNALS]
+    signals += [
+        {"name": name, "label": label, "weight": 0.0, "why": why}
+        for name, label, why in ZERO_WEIGHT_SIGNALS
+    ]
     abstentions = []
     for name in sorted(files):
         folder, _, _ = name.partition("/")
@@ -1014,7 +1212,9 @@ def export_bundle(
                     "unlock": last["abstain"]["unlock"],
                 }
             )
-    abstentions.sort(key=lambda item: (item["entity_kind"] != "group", item["entity_id"]))
+    abstentions.sort(
+        key=lambda item: (item["entity_kind"] != "group", item["entity_id"])
+    )
     files["receipt.json"] = {
         "schema": BUNDLE_SCHEMA, "kind": "receipt", "engine_version": ENGINE_VERSION,
         "params_hash": params_hash, "dataset_hash": dataset_hash, "signals": signals,
@@ -1027,7 +1227,11 @@ def export_bundle(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(_dump(files[name]))
 
-    entities = [data for name, data in files.items() if name.startswith(("groups/", "companies/"))]
+    entities = [
+        data
+        for name, data in files.items()
+        if name.startswith(("groups/", "companies/"))
+    ]
     manifest = {
         "schema": BUNDLE_SCHEMA,
         "kind": "manifest",
@@ -1077,7 +1281,11 @@ def export_from_result(
         except (OSError, ValueError):
             receipt = None
     return export_bundle(
-        result, export_dir, evidence_months=evidence_months, receipt=receipt, generated_at=generated_at
+        result,
+        export_dir,
+        evidence_months=evidence_months,
+        receipt=receipt,
+        generated_at=generated_at,
     )
 
 

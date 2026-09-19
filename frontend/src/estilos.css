@@ -845,3 +845,142 @@ button.miga-paso:hover { color: var(--tinta); border-bottom-color: var(--borde-2
 .bandeja { display: grid; gap: 10px; }
 .pt-fila.tocable { cursor: pointer; border-radius: 6px; transition: background 140ms; }
 .pt-fila.tocable:hover { background: var(--fondo-3); }
+
+/* Espacio de financiación: el mismo expediente cambia de acciones según el rol. */
+.boton-financiacion { height: 34px; padding: 0 13px; border-radius: 10px; border: 1px solid var(--tinta); background: var(--tinta); color: var(--fondo); font-size: 13px; font-weight: 600; transition: background 160ms var(--salida), transform 140ms var(--salida); }
+.boton-financiacion:hover { background: var(--tinta-2); }
+.boton-financiacion:active { transform: translateY(1px); }
+.financiacion { max-width: 1240px; margin: 0 auto; padding: 24px 44px 80px; }
+body[data-pagina='financiacion'] .miga, body[data-pagina='financiacion'] .pagina { background: var(--fondo); }
+.fin-cabecera { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 22px; align-items: end; padding-bottom: 24px; border-bottom: 1px solid var(--borde); }
+.fin-modo { display: block; color: var(--apagado); font-size: 13px; margin-bottom: 4px; }
+.fin-cabecera h1, .fin-caso-cab h1, .fin-proveedor h1 { font: 600 32px/1.1 var(--serif); letter-spacing: -0.02em; text-wrap: balance; }
+.fin-cabecera p, .fin-caso-cab p, .fin-seccion-cab p { max-width: 68ch; margin-top: 6px; color: var(--tinta-2); }
+.fin-directo { display: flex; align-items: center; gap: 8px; color: var(--apagado); font-size: 12px; white-space: nowrap; }
+.fin-directo span { width: 7px; height: 7px; border-radius: 50%; background: var(--exito); box-shadow: 0 0 0 4px var(--exito-s); }
+.fin-roles { grid-column: 1 / -1; display: flex; gap: 4px; padding-top: 8px; }
+.fin-roles button { display: flex; flex-direction: column; gap: 1px; min-width: 160px; padding: 9px 12px; border-radius: 10px; text-align: left; color: var(--apagado); transition: background 150ms var(--salida), color 150ms var(--salida); }
+.fin-roles button:hover { background: var(--fondo-3); color: var(--tinta); }
+.fin-roles button[aria-current='page'] { background: var(--fondo-2); color: var(--tinta); }
+.fin-roles strong { font-size: 13px; }
+.fin-roles span { font-size: 11.5px; }
+.fin-contenido { display: grid; gap: 36px; margin-top: 28px; }
+.fin-caso { display: grid; gap: 22px; }
+.fin-caso-cab { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+.fin-caso-cab h1 { margin-top: 8px; }
+.fin-trazabilidad { display: block; margin-top: 9px; color: var(--tenue); font-family: var(--mono); font-size: 11px; }
+.fin-estado { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 8px; border-radius: 999px; background: var(--fondo-2); color: var(--tinta-2); font-size: 11.5px; font-weight: 600; }
+.fin-estado.authorized, .fin-estado.published, .fin-estado.shortlisted { background: var(--info-s); color: var(--info-t); }
+.fin-estado.accepted { background: var(--exito-s); color: var(--exito-t); }
+.fin-score { display: flex; align-items: baseline; gap: 10px; flex: none; }
+.fin-score strong { font: 500 48px/0.9 var(--serif); }
+.fin-score span { font-size: 13px; }
+.fin-score .baja { color: var(--peligro-t); }
+.fin-necesidad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-block: 1px solid var(--borde); }
+.fin-necesidad > div { display: flex; flex-direction: column; gap: 3px; padding: 18px 20px 18px 0; }
+.fin-necesidad > div + div { padding-left: 20px; border-left: 1px solid var(--borde); }
+.fin-necesidad span, .fin-teaser span, .fin-form-oferta label > span { color: var(--apagado); font-size: 11.5px; }
+.fin-necesidad strong, .fin-teaser strong { font: 550 20px/1.2 var(--serif); }
+.fin-necesidad small, .fin-teaser small { color: var(--apagado); font-size: 12px; }
+.fin-factores { display: grid; grid-template-columns: 180px repeat(3, minmax(0, 1fr)); align-items: baseline; gap: 12px; }
+.fin-factores h2, .fin-seccion-cab h2, .fin-inicio h2, .fin-oportunidad h2 { font: 600 21px/1.2 var(--serif); }
+.fin-factores div { display: flex; flex-direction: column; padding: 9px 0; border-bottom: 1px solid var(--borde); }
+.fin-factores span { color: var(--apagado); font-size: 11.5px; }
+.fin-factores strong { font-size: 13px; }
+.fin-accion-principal, .fin-accion-secundaria { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 18px; border-radius: 12px; background: var(--info-s); }
+.fin-accion-principal div { display: flex; flex-direction: column; }
+.fin-accion-principal span, .fin-accion-secundaria span { color: var(--tinta-2); font-size: 12.5px; }
+.fin-accion-secundaria { background: var(--fondo-2); }
+.fin-boton { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border-radius: 9px; white-space: nowrap; font-size: 13px; font-weight: 600; transition: background 150ms var(--salida), border-color 150ms var(--salida), transform 120ms var(--salida); }
+.fin-boton.primario { background: var(--tinta); color: var(--fondo); border: 1px solid var(--tinta); }
+.fin-boton.primario:hover { background: var(--tinta-2); }
+.fin-boton.secundario { background: var(--fondo); color: var(--tinta); border: 1px solid var(--borde-2); }
+.fin-boton.secundario:hover { border-color: var(--tinta-2); }
+.fin-boton:active { transform: translateY(1px); }
+.fin-boton:disabled { cursor: not-allowed; opacity: 0.55; }
+.fin-preferencias { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 24px; align-items: end; padding-top: 22px; border-top: 1px solid var(--borde); }
+.fin-seccion-cab { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.fin-opciones { grid-column: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 22px; }
+.fin-casilla { display: flex; align-items: center; gap: 9px; min-height: 34px; color: var(--tinta-2); font-size: 13px; }
+.fin-casilla input { width: 16px; height: 16px; accent-color: var(--info); }
+.fin-ofertas { display: grid; gap: 14px; }
+.fin-tabla-ofertas { overflow-x: auto; border-block: 1px solid var(--borde); }
+.fin-oferta-fila { min-width: 820px; display: grid; grid-template-columns: 1.2fr repeat(4, minmax(100px, 0.8fr)) minmax(130px, 0.9fr); align-items: center; }
+.fin-oferta-fila > span { min-width: 0; padding: 12px 10px; font-size: 13px; }
+.fin-oferta-fila > span:first-child { display: flex; flex-direction: column; padding-left: 0; }
+.fin-oferta-fila + .fin-oferta-fila { border-top: 1px solid var(--borde); }
+.fin-oferta-fila.cabecera { color: var(--apagado); font-size: 11.5px; }
+.fin-oferta-fila.cabecera > span { padding-block: 8px; font-size: 11.5px; }
+.fin-oferta-fila.recomendada { background: var(--info-s); }
+.fin-oferta-fila small, .fin-oferta-estado { color: var(--apagado); font-size: 11.5px; }
+.fin-nota, .fin-oculto { color: var(--apagado); font-size: 12px; }
+.fin-proveedor { display: grid; gap: 20px; }
+.fin-selector-proveedor { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: var(--fondo-2); }
+.fin-selector-proveedor button { min-height: 34px; padding: 0 11px; border-radius: 8px; color: var(--apagado); font-size: 12px; }
+.fin-selector-proveedor button[aria-selected='true'] { background: var(--fondo); color: var(--tinta); box-shadow: var(--sombra-1); }
+.fin-oportunidad { display: grid; gap: 18px; padding: 20px; border: 1px solid var(--borde); border-radius: 14px; }
+.fin-oportunidad header { display: flex; justify-content: space-between; align-items: start; gap: 18px; }
+.fin-oportunidad header > div > span { color: var(--apagado); font-size: 11.5px; }
+.fin-teaser { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--borde); }
+.fin-teaser > div { display: flex; flex-direction: column; gap: 3px; padding: 14px 16px 14px 0; }
+.fin-teaser > div + div { padding-left: 16px; border-left: 1px solid var(--borde); }
+.fin-oculto { padding: 10px 12px; border-radius: 9px; background: var(--fondo-2); }
+.fin-form-oferta { display: grid; grid-template-columns: repeat(5, minmax(110px, 1fr)) auto; gap: 10px; align-items: end; }
+.fin-form-oferta label { display: flex; flex-direction: column; gap: 4px; }
+.fin-form-oferta input, .fin-form-oferta select { width: 100%; height: 40px; padding: 0 10px; border: 1px solid var(--borde-2); border-radius: 9px; outline: 2px solid transparent; background: var(--fondo); color: var(--tinta); font: 13px var(--sans); }
+.fin-form-oferta input:hover, .fin-form-oferta select:hover { border-color: var(--tenue); }
+.fin-form-oferta input:focus, .fin-form-oferta select:focus { border-color: var(--info); outline-color: var(--info-s); outline-offset: 1px; }
+.fin-form-oferta input:disabled, .fin-form-oferta select:disabled { cursor: not-allowed; opacity: 0.55; background: var(--fondo-2); }
+.fin-actividad { display: grid; grid-template-columns: 180px 1fr; gap: 18px; margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--borde); }
+.fin-actividad > div { display: flex; flex-direction: column; }
+.fin-actividad > div span { color: var(--apagado); font-size: 11.5px; }
+.fin-eventos { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 18px; list-style: none; padding: 0; }
+.fin-eventos li { display: flex; gap: 8px; padding-bottom: 7px; border-bottom: 1px solid var(--borde); font-size: 12.5px; }
+.fin-eventos time { color: var(--apagado); font-size: 11.5px; }
+.fin-eventos li.vacio { transform: none; text-align: left; }
+.fin-inicio { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 28px; padding: 24px 0; border-block: 1px solid var(--borde); }
+.fin-inicio p { max-width: 65ch; margin-top: 5px; color: var(--tinta-2); }
+.fin-vacio { display: flex; flex-direction: column; gap: 4px; padding: 22px 0; border-block: 1px solid var(--borde); }
+.fin-vacio span { color: var(--apagado); }
+.fin-error { display: flex; flex-direction: column; gap: 3px; margin-top: 20px; padding: 13px 15px; border-radius: 10px; background: var(--peligro-s); color: var(--peligro-t); }
+.fin-esqueleto { display: grid; gap: 12px; margin-top: 28px; }
+.fin-esqueleto span { display: block; height: 72px; border-radius: 10px; background: var(--fondo-2); animation: fin-pulso 1.2s ease-in-out infinite alternate; }
+@keyframes fin-pulso { to { opacity: 0.45; } }
+
+@media (max-width: 1099px) {
+	.financiacion { padding: 20px 28px 70px; }
+	.fin-necesidad { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.fin-necesidad > div:nth-child(3) { padding-left: 0; border-left: 0; border-top: 1px solid var(--borde); }
+	.fin-necesidad > div:nth-child(4) { border-top: 1px solid var(--borde); }
+	.fin-form-oferta { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
+	.fin-form-oferta .fin-boton { align-self: end; }
+	.fin-factores { grid-template-columns: 150px repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 699px) {
+	.boton-financiacion { height: 30px; padding-inline: 10px; }
+	.financiacion { padding: 14px 16px 60px; }
+	.fin-cabecera { grid-template-columns: 1fr; gap: 14px; }
+	.fin-cabecera h1, .fin-caso-cab h1, .fin-proveedor h1 { font-size: 27px; }
+	.fin-directo { justify-self: start; }
+	.fin-roles { overflow-x: auto; padding-bottom: 4px; }
+	.fin-roles button { min-width: 138px; }
+	.fin-caso-cab, .fin-seccion-cab, .fin-inicio, .fin-oportunidad header { align-items: flex-start; flex-direction: column; }
+	.fin-score strong { font-size: 40px; }
+	.fin-necesidad, .fin-teaser { grid-template-columns: 1fr; }
+	.fin-necesidad > div, .fin-teaser > div { padding: 12px 0; }
+	.fin-necesidad > div + div, .fin-teaser > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--borde); }
+	.fin-factores { grid-template-columns: 1fr; gap: 6px; }
+	.fin-factores h2 { margin-bottom: 4px; }
+	.fin-accion-principal, .fin-accion-secundaria, .fin-inicio { align-items: stretch; flex-direction: column; }
+	.fin-preferencias { grid-template-columns: 1fr; }
+	.fin-opciones { grid-column: 1; grid-template-columns: 1fr; }
+	.fin-form-oferta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.fin-form-oferta .fin-boton { grid-column: 1 / -1; }
+	.fin-selector-proveedor { width: 100%; overflow-x: auto; }
+	.fin-actividad { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.fin-esqueleto span { animation: none; }
+}

@@ -58,7 +58,8 @@ def _like_for_like(now: ScoreParts, then: ScoreParts, p: Params) -> float | None
     if not keys or total <= 0:
         return 0.0
     return sum(
-        p.weights[key] / total * (now.pillar_scores[key] - then.pillar_scores[key]) for key in keys
+        p.weights[key] / total * (now.pillar_scores[key] - then.pillar_scores[key])
+        for key in keys
     )
 
 
@@ -89,7 +90,9 @@ def own_sigma(history: Sequence[ScoreParts], p: Params) -> float:
     if len(changes) < 3:
         return cfg.sigma_floor
     mean = math.fsum(changes) / len(changes)
-    variance = math.fsum((change - mean) ** 2 for change in changes) / (len(changes) - 1)
+    variance = math.fsum((change - mean) ** 2 for change in changes) / (
+        len(changes) - 1
+    )
     return max(cfg.sigma_floor, math.sqrt(variance))
 
 
@@ -98,10 +101,14 @@ def _theil_sen(points: Sequence[tuple[int, float]]) -> float:
     slopes = sorted(
         (y1 - y0) / (x1 - x0)
         for index, (x0, y0) in enumerate(points)
-        for x1, y1 in points[index + 1:]
+        for x1, y1 in points[index + 1 :]
     )
     middle = len(slopes) // 2
-    return slopes[middle] if len(slopes) % 2 else (slopes[middle - 1] + slopes[middle]) / 2.0
+    return (
+        slopes[middle]
+        if len(slopes) % 2
+        else (slopes[middle - 1] + slopes[middle]) / 2.0
+    )
 
 
 def _drift(
@@ -165,16 +172,25 @@ def _verdict(
             short = "improving" if delta3 > 0 else "deteriorating"
     long = None
     drift = None if shifted else _drift(history, position, p)
-    if drift is not None and abs(drift[0]) >= max(cfg.long_threshold, cfg.long_sigma_mult * sigma):
+    if drift is not None and abs(drift[0]) >= max(
+        cfg.long_threshold, cfg.long_sigma_mult * sigma
+    ):
         long = "improving" if drift[0] > 0 else "deteriorating"
 
     direction, horizon = "stable", None
     conflict = short is not None and long is not None and short != long
     if shifted:
         direction = "perimeter_shift"
-    elif conflict:  # the recent move makes the call, unconfirmed while the drift opposes it
+    elif (
+        conflict
+    ):  # the recent move makes the call, unconfirmed while the drift opposes it
         direction, horizon = short, "short"
-    elif long is not None and short is None and abs(delta3) >= threshold and (delta3 > 0) != (drift[0] > 0):
+    elif (
+        long is not None
+        and short is None
+        and abs(delta3) >= threshold
+        and (delta3 > 0) != (drift[0] > 0)
+    ):
         pass  # the score moved the other way beyond the threshold (call vetoed by a guard): no call
     elif long is not None:
         direction, horizon = long, "both" if short == long else "long"
@@ -187,7 +203,8 @@ def _verdict(
         key
         for key in _available(now)
         if reference.pillar_scores.get(key) is not None
-        and abs(now.pillar_scores[key] - reference.pillar_scores[key]) >= cfg.pillar_move_points
+        and abs(now.pillar_scores[key] - reference.pillar_scores[key])
+        >= cfg.pillar_move_points
         and (now.pillar_scores[key] - reference.pillar_scores[key]) * sign > 0
     )
     common = dict(
@@ -205,38 +222,62 @@ def _verdict(
         drift_call=long,
     )
 
-    if direction in _CALLS:
-        run, first = 1, now.month
-        for item in range(position - 1, -1, -1):
-            if history[item].month != _shift(first, -1) or verdicts[item].direction != direction:
-                break
-            run, first = run + 1, history[item].month
-        # each horizon is confirmed by its own condition, month after month
-        held = max(
-            _own_run(history, position, verdicts, _short_call, short) if short == direction else 0,
-            _own_run(history, position, verdicts, _long_call, long) if long == direction else 0,
-        )
-        if conflict or held < cfg.structural_consecutive_months:
-            return Trajectory(
-                **common, nature="shock_pending", shock_pending=True, shock_month=first,
-                persistence_months=run, detected_since=first,
-            )
-        return Trajectory(
-            **common, nature="structural", persistence_months=run, detected_since=first
-        )
-
-    if direction == "stable":
+    if short is None:
         for back in range(1, cfg.bump_revert_months + 1):
             item = position - back
             if item < 0 or history[item].month != _shift(now.month, -back):
                 break
             spike = verdicts[item].delta3
-            # a spike is a short-horizon event: a pending drift that fades is not a bump
-            if verdicts[item].nature != "shock_pending" or _short_call(verdicts[item]) is None or not spike:
+            if (
+                verdicts[item].nature != "shock_pending"
+                or _short_call(verdicts[item]) is None
+                or not spike
+            ):
                 continue
             undone = (history[item].score - now.score) * (1.0 if spike > 0 else -1.0)
             if undone >= cfg.bump_revert_fraction * abs(spike):
-                return Trajectory(**common, nature="bump", shock_month=history[item].month)
+                return Trajectory(
+                    **{
+                        **common,
+                        "direction": "stable",
+                        "horizon": None,
+                        "pillars_moved": (),
+                    },
+                    nature="bump",
+                    shock_month=history[item].month,
+                )
+
+    if direction in _CALLS:
+        run, first = 1, now.month
+        for item in range(position - 1, -1, -1):
+            if (
+                history[item].month != _shift(first, -1)
+                or verdicts[item].direction != direction
+            ):
+                break
+            run, first = run + 1, history[item].month
+        # each horizon is confirmed by its own condition, month after month
+        held = max(
+            _own_run(history, position, verdicts, _short_call, short)
+            if short == direction
+            else 0,
+            _own_run(history, position, verdicts, _long_call, long)
+            if long == direction
+            else 0,
+        )
+        if conflict or held < cfg.structural_consecutive_months:
+            return Trajectory(
+                **common,
+                nature="shock_pending",
+                shock_pending=True,
+                shock_month=first,
+                persistence_months=run,
+                detected_since=first,
+            )
+        return Trajectory(
+            **common, nature="structural", persistence_months=run, detected_since=first
+        )
+
     return Trajectory(**common)
 
 
@@ -268,16 +309,24 @@ NOTE_DRIFT_OPPOSES = {
 def drift_opposes(verdict: Trajectory) -> bool:
     """The long horizon holds its condition against the direction called."""
     return (
-        verdict.direction in _CALLS and verdict.drift_call in _CALLS and verdict.drift_call != verdict.direction
+        verdict.direction in _CALLS
+        and verdict.drift_call in _CALLS
+        and verdict.drift_call != verdict.direction
     )
 
 
 def trajectory_note(verdict: Trajectory) -> str | None:
     """Spanish sentence for a verdict whose two horizons disagree, else None."""
-    if not verdict.available or not drift_opposes(verdict) or verdict.drift_points is None:
+    if (
+        not verdict.available
+        or not drift_opposes(verdict)
+        or verdict.drift_points is None
+    ):
         return None
     points = f"{verdict.drift_points:+.1f}".replace(".", ",")
-    return NOTE_DRIFT_OPPOSES[verdict.direction].format(months=verdict.drift_months, points=points)
+    return NOTE_DRIFT_OPPOSES[verdict.direction].format(
+        months=verdict.drift_months, points=points
+    )
 
 
 def trajectories(history: Sequence[ScoreParts], p: Params) -> list[Trajectory]:

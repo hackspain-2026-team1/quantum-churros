@@ -30,9 +30,12 @@ services:
       CORS_ORIGINS: ${ORIGIN:-http://localhost:3101}
       SCORES_PATH: /app/artifacts/scores.parquet
       XRAY_BUNDLE_DIR: /app/bundle
+      XRAY_ENTITY_ALIASES_PATH: /app/rumbo/entities.json
+      FINANCING_DEMO_ENABLED: ${FINANCING_DEMO_ENABLED:-true}
     volumes:
       - ./artifacts:/app/artifacts:ro
       - ./bundle:/app/bundle:ro
+      - ./rumbo:/app/rumbo:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,8 +58,8 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
     volumes:
-      - ./bundle:/app/dist/data/v1:ro
-      - ./rumbo:/app/dist/data/rumbo:ro
+      - ./bundle:/usr/share/nginx/html/data/v1:ro
+      - ./rumbo:/usr/share/nginx/html/data/rumbo:ro
     ports:
       - "127.0.0.1:${WEB_PORT:-3101}:3000"
     depends_on:

@@ -12,8 +12,8 @@ not the company's lever and is skipped.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from typing import Mapping
 
 from .aggregate import aggregate
 from .contracts import PILLAR_KEYS, Anchors, PanelRow, Params, PillarResult, ScoreParts
@@ -41,6 +41,7 @@ class Action:
     new_score: float  # aggregate() with the pillar at pillar_target
     uplift: float  # new_score - parts.score
     effort: str
+    amount_eur: float | None = None  # cash required by the lever, when it has one
 
     @property
     def uplift_tenths(self) -> int:
@@ -63,7 +64,9 @@ class ActionPlan:
 
     @property
     def combined_uplift_tenths(self) -> int:
-        return self.combined_score_tenths - _tenths(self.combined_score - self.combined_uplift)
+        return self.combined_score_tenths - _tenths(
+            self.combined_score - self.combined_uplift
+        )
 
 
 def _tenths(score: float) -> int:
@@ -87,7 +90,9 @@ def _effort(gap: float) -> str:
     return EFFORT_HIGH
 
 
-def step_target(score: float, table: Anchors, ceiling: float = TARGET_CEILING) -> float | None:
+def step_target(
+    score: float, table: Anchors, ceiling: float = TARGET_CEILING
+) -> float | None:
     """Next anchor level above ``score``, at most ``MAX_STEP`` points up and
     never above ``ceiling`` nor the top of the table. None when nothing is left."""
     top = min(ceiling, max(y for _, y in table.points))
@@ -106,7 +111,9 @@ def invert(table: Anchors, target: float, near: float) -> float | None:
     return min(found, key=lambda x: (abs(x - near), x)) if found else None
 
 
-def _liquidity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, dict] | None:
+def _liquidity(
+    result: PillarResult, row: PanelRow, p: Params
+) -> tuple[float, dict] | None:
     inputs = result.inputs
     end, low = inputs.get("buffer_days_month_end"), inputs.get("buffer_days_intra_min")
     monthly = inputs.get("monthly_outflow")
@@ -116,7 +123,9 @@ def _liquidity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, d
     cfg = p.liquidity
 
     def blended(extra: float) -> float:
-        return cfg.month_end_weight * table(end + extra) + cfg.intra_min_weight * table(low + extra)
+        return cfg.month_end_weight * table(end + extra) + cfg.intra_min_weight * table(
+            low + extra
+        )
 
     span = max(table.points[-1][0] - min(end, low), 0.0)
     target = step_target(result.score, table, min(TARGET_CEILING, blended(span)))
@@ -143,6 +152,7 @@ def _liquidity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, d
         "current": end,
         "target": end + extra,
         "unit": "días",
+        "amount_eur": money,
     }
 
 
@@ -159,7 +169,8 @@ def _punctuality(result: PillarResult, p: Params) -> tuple[float, dict] | None:
     if result.key == "payments":
         title = (
             f"Reduce el retraso medio con proveedores de {round(days)} a {_days(goal)}"
-            if round(goal) > 0 else f"Paga a tus proveedores {_days(gain)} antes"
+            if round(goal) > 0
+            else f"Paga a tus proveedores {_days(gain)} antes"
         )
         detail = (
             f"Hoy pagas de media {_days(days)} {'después' if days >= 0 else 'antes'} del vencimiento, "
@@ -175,10 +186,19 @@ def _punctuality(result: PillarResult, p: Params) -> tuple[float, dict] | None:
             "domiciliación mejora el pilar de cobros y acorta el ciclo de caja."
         )
         kind = "speed"
-    return target, {"kind": kind, "title": title, "detail": detail, "current": days, "target": goal, "unit": "días"}
+    return target, {
+        "kind": kind,
+        "title": title,
+        "detail": detail,
+        "current": days,
+        "target": goal,
+        "unit": "días",
+    }
 
 
-def _activity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, dict] | None:
+def _activity(
+    result: PillarResult, row: PanelRow, p: Params
+) -> tuple[float, dict] | None:
     inputs = result.inputs
     coverage, sub = inputs.get("coverage"), inputs.get("score_coverage")
     inflow, outflow = inputs.get("op_in_6m"), inputs.get("outflow_6m")
@@ -186,7 +206,9 @@ def _activity(result: PillarResult, row: PanelRow, p: Params) -> tuple[float, di
         return None
     table = p.anchors["activity_coverage"]
     momentum = inputs.get("score_momentum")
-    target = step_target(result.score, table if momentum is None else Anchors(((0.0, 0.0), (1.0, 100.0))))
+    target = step_target(
+        result.score, table if momentum is None else Anchors(((0.0, 0.0), (1.0, 100.0)))
+    )
     if target is None:
         return None
     top = max(y for _, y in table.points)
@@ -245,7 +267,9 @@ def _debt(result: PillarResult, p: Params) -> tuple[float, dict] | None:
     }
 
 
-def _proposal(result: PillarResult, row: PanelRow, p: Params, group_row: PanelRow | None):
+def _proposal(
+    result: PillarResult, row: PanelRow, p: Params, group_row: PanelRow | None
+):
     if result.key == "liquidity":
         if "inherited_from_group" in result.gates:
             return None
@@ -292,10 +316,18 @@ def plan_actions(
             continue
         found.append(
             Action(
-                id=f"{key}-{text['kind']}", pillar=key, title=text["title"], detail=text["detail"],
-                current=text["current"], target=text["target"], unit=text["unit"],
-                pillar_target=pillar_target, new_score=new_score, uplift=uplift,
+                id=f"{key}-{text['kind']}",
+                pillar=key,
+                title=text["title"],
+                detail=text["detail"],
+                current=text["current"],
+                target=text["target"],
+                unit=text["unit"],
+                pillar_target=pillar_target,
+                new_score=new_score,
+                uplift=uplift,
                 effort=_effort(pillar_target - result.score),
+                amount_eur=text.get("amount_eur"),
             )
         )
     found.sort(key=lambda action: (-action.uplift, PILLAR_KEYS.index(action.pillar)))
@@ -304,7 +336,9 @@ def plan_actions(
         return empty
     changed = dict(pillars)
     for action in kept:
-        changed[action.pillar] = replace(pillars[action.pillar], score=action.pillar_target)
+        changed[action.pillar] = replace(
+            pillars[action.pillar], score=action.pillar_target
+        )
     combined = aggregate(changed, row, params, group_row).score
     return ActionPlan(kept, combined, combined - parts.score)
 

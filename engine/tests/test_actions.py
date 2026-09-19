@@ -19,8 +19,14 @@ from xray_engine.aggregate import aggregate
 from xray_engine.contracts import PILLAR_KEYS
 from xray_engine.pillars import compute_pillars
 
-LIVE = dict(rows_month=100, rows_3m=300, rows_base_median=100.0, rows_base_months=9,
-            zero_row_month=False, months_observed=24)
+LIVE = dict(
+    rows_month=100,
+    rows_3m=300,
+    rows_base_median=100.0,
+    rows_base_months=9,
+    zero_row_month=False,
+    months_observed=24,
+)
 N_ROWS = 1_500
 
 
@@ -32,7 +38,9 @@ def _cases(panel_rows, params, seed: int, **overrides):
         yield row, pillars, aggregate(pillars, row, params)
 
 
-def test_uplift_is_the_aggregate_recomputed_with_the_pillar_at_its_target(panel_rows, params) -> None:
+def test_uplift_is_the_aggregate_recomputed_with_the_pillar_at_its_target(
+    panel_rows, params
+) -> None:
     seen: set[str] = set()
     for row, pillars, parts in _cases(panel_rows, params, 71):
         plan = plan_actions(row, pillars, parts, params)
@@ -40,14 +48,31 @@ def test_uplift_is_the_aggregate_recomputed_with_the_pillar_at_its_target(panel_
         for action in plan.actions:
             result = pillars[action.pillar]
             assert result.score is not None and result.score < TARGET_CEILING
-            assert result.score < action.pillar_target <= min(TARGET_CEILING, result.score + MAX_STEP) + 1e-9
-            changed = {**pillars, action.pillar: replace(result, score=action.pillar_target)}
+            assert (
+                result.score
+                < action.pillar_target
+                <= min(TARGET_CEILING, result.score + MAX_STEP) + 1e-9
+            )
+            changed = {
+                **pillars,
+                action.pillar: replace(result, score=action.pillar_target),
+            }
             again = aggregate(changed, row, params)
             assert action.new_score == again.score
             assert action.uplift == again.score - parts.score
-            assert action.uplift_tenths == action.new_score_tenths - round(parts.score * 10)
-            assert action.id.startswith(f"{action.pillar}-") and action.effort in ("bajo", "medio", "alto")
+            assert action.uplift_tenths == action.new_score_tenths - round(
+                parts.score * 10
+            )
+            assert action.id.startswith(f"{action.pillar}-") and action.effort in (
+                "bajo",
+                "medio",
+                "alto",
+            )
             assert action.title and action.detail and len(action.detail) <= 400
+            if action.pillar == "liquidity":
+                assert action.amount_eur is not None and action.amount_eur > 0
+            else:
+                assert action.amount_eur is None
             changed_all[action.pillar] = changed[action.pillar]
             seen.add(action.id)
         assert plan.combined_score == aggregate(changed_all, row, params).score
@@ -55,7 +80,9 @@ def test_uplift_is_the_aggregate_recomputed_with_the_pillar_at_its_target(panel_
     assert {key for key in PILLAR_KEYS} == {name.split("-")[0] for name in seen}
 
 
-def test_actions_never_lower_the_score_and_are_sorted_and_bounded(panel_rows, params) -> None:
+def test_actions_never_lower_the_score_and_are_sorted_and_bounded(
+    panel_rows, params
+) -> None:
     with_actions = 0
     for row, pillars, parts in _cases(panel_rows, params, 72):
         plan = plan_actions(row, pillars, parts, params)
@@ -72,7 +99,11 @@ def test_targets_move_the_input_in_the_right_direction(panel_rows, params) -> No
     for row, pillars, parts in _cases(panel_rows, params, 73):
         for action in suggest_actions(row, pillars, parts, params):
             lower_is_better = action.pillar in ("payments", "collections", "debt")
-            assert (action.target < action.current) if lower_is_better else (action.target > action.current)
+            assert (
+                (action.target < action.current)
+                if lower_is_better
+                else (action.target > action.current)
+            )
 
 
 def test_no_actions_on_abstained_or_stale_months(panel_rows, params) -> None:
@@ -81,7 +112,9 @@ def test_no_actions_on_abstained_or_stale_months(panel_rows, params) -> None:
         if parts.abstained:
             abstained += 1
             assert plan_actions(row, pillars, parts, params).actions == ()
-    for row, pillars, parts in _cases(panel_rows, params, 75, rows_month=0, rows_3m=0, zero_row_month=True):
+    for row, pillars, parts in _cases(
+        panel_rows, params, 75, rows_month=0, rows_3m=0, zero_row_month=True
+    ):
         if not parts.feed_live:
             stale += 1
             plan = plan_actions(row, pillars, parts, params)
@@ -98,7 +131,10 @@ def test_inherited_liquidity_is_not_a_lever(panel_rows, params) -> None:
         pillars = compute_pillars(row, params, group_row)
         parts = aggregate(pillars, row, params, group_row)
         checked += "inherited_from_group" in pillars["liquidity"].gates
-        assert all(a.pillar != "liquidity" for a in suggest_actions(row, pillars, parts, params, group_row))
+        assert all(
+            a.pillar != "liquidity"
+            for a in suggest_actions(row, pillars, parts, params, group_row)
+        )
     assert checked == 400
 
 
@@ -106,7 +142,11 @@ def test_actions_are_deterministic(panel_rows, params) -> None:
     for row, pillars, parts in _cases(panel_rows, params, 77):
         first = plan_actions(row, pillars, parts, params)
         shuffled = dict(reversed(list(pillars.items())))
-        assert first == plan_actions(row, pillars, parts, params) == plan_actions(row, shuffled, parts, params)
+        assert (
+            first
+            == plan_actions(row, pillars, parts, params)
+            == plan_actions(row, shuffled, parts, params)
+        )
 
 
 def test_invert_and_step_target(params) -> None:
