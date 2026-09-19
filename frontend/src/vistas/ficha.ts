@@ -530,18 +530,81 @@ export function seccionScoring(d: DatosFicha, estado: { escenario: OpcionesGrafi
 	raiz.append(h('div', { class: 'bloque-grafico' }, h('div', { class: 'controles-grafico' }, selM, esc), zona, pie));
 	repintar();
 
-	// Cinco cifras con contexto.
-	const v = m.verdict;
-	const deriva = d.evid?.months.find((x) => x.month === d.corte)?.rows.find((r) => r.pillar === null && /deriva acumulada/i.test(r.label));
-	const esc6 = d.hor?.scenarios?.base;
-	const cifras = h('div', { class: 'cifras-c' },
-		cifraC(f.score(m.shown), 'score', v.compared_to && v.delta3 !== null ? `${f.delta(v.delta3)} frente a ${f.mesCorto(v.compared_to)}` : null, v.delta3 === null ? '' : v.delta3 < -5 ? 'baja' : v.delta3 > 5 ? 'sube' : ''),
-		cifraC(f.porcentaje(m.conf.value, 0), `confianza ${({ high: 'alta', medium: 'media', low: 'baja' } as Record<string, string>)[m.conf.label]}`, `historia ${f.porcentaje(m.conf.history, 0)} · cobertura ${f.porcentaje(m.conf.coverage, 0)} · calidad ${f.porcentaje(m.conf.quality, 0)}`),
-		cifraC(v.persistence_months ? f.plural(v.persistence_months, 'mes', 'meses') : '—', 'persistencia', v.detected_since ? `${movimiento(m)}` : 'sin movimiento confirmado'),
-		cifraC(deriva && typeof deriva.value === 'number' ? f.signo(deriva.value, 1) : '—', 'deriva de 12 meses', deriva ? `${f.periodo(deriva.period)}, según el motor` : 'el motor no la calcula este mes', deriva && typeof deriva.value === 'number' ? (deriva.value < -3 ? 'baja' : deriva.value > 3 ? 'sube' : '') : ''),
-		cifraC(esc6 && d.hor!.cut === d.corte ? `${f.score(esc6.q.p10[5])}–${f.score(esc6.q.p90[5])}` : '—', 'previsto a seis meses', esc6 && d.hor!.cut === d.corte ? `lo más probable, ${f.score(esc6.q.p50[5])}${esc6.cross ? ` · ${f.porcentaje(esc6.cross.prob, 0)} de pasar a ${nombreBanda(d.man, esc6.cross.to).toLowerCase()}` : ''}` : d.hor?.reason ?? 'sin horizonte en este mes'),
-	);
-	raiz.append(cifras);
+   // Cinco cifras con contexto.
+  const v = m.verdict;
+  const deriva = d.evid?.months
+    .find((x) => x.month === d.corte)
+    ?.rows.find((r) => r.pillar === null && /deriva acumulada/i.test(r.label));
+  const esc6 = d.hor?.scenarios?.base;
+  const conSims = !!esc6 && d.hor!.cut === d.corte;
+  const ol = d.mes?.outlook ?? null;
+  const cifras = h(
+    "div",
+    { class: "cifras-c" },
+    cifraC(
+      f.score(m.shown),
+      "score",
+      v.compared_to && v.delta3 !== null
+        ? `${f.delta(v.delta3)} frente a ${f.mesCorto(v.compared_to)}`
+        : null,
+      v.delta3 === null
+        ? ""
+        : v.delta3 < -5
+          ? "baja"
+          : v.delta3 > 5
+            ? "sube"
+            : "",
+    ),
+    cifraC(
+      f.porcentaje(m.conf.value, 0),
+      `confianza ${({ high: "alta", medium: "media", low: "baja" } as Record<string, string>)[m.conf.label]}`,
+      `historia ${f.porcentaje(m.conf.history, 0)} · cobertura ${f.porcentaje(m.conf.coverage, 0)} · calidad ${f.porcentaje(m.conf.quality, 0)}`,
+    ),
+    cifraC(
+      v.persistence_months
+        ? f.plural(v.persistence_months, "mes", "meses")
+        : "—",
+      "persistencia",
+      v.detected_since ? `${movimiento(m)}` : "sin movimiento confirmado",
+      v.available
+        ? v.direction === "improving"
+          ? "sube"
+          : v.direction === "deteriorating"
+            ? "baja"
+            : ""
+        : "",
+    ),
+    cifraC(
+      deriva && typeof deriva.value === "number"
+        ? f.signo(deriva.value, 1)
+        : "—",
+      "deriva de 12 meses",
+      deriva
+        ? `${f.periodo(deriva.period)}, según el motor`
+        : "el motor no la calcula este mes",
+      deriva && typeof deriva.value === "number"
+        ? deriva.value < -3
+          ? "baja"
+          : deriva.value > 3
+            ? "sube"
+            : ""
+        : "",
+    ),
+    cifraC(
+      conSims
+        ? `${f.score(esc6!.q.p10[5])}–${f.score(esc6!.q.p90[5])}`
+        : ol
+          ? `${f.score(ol.worst)}–${f.score(ol.best)}`
+          : "—",
+      "previsto a seis meses",
+      conSims
+        ? `lo más probable, ${f.score(esc6!.q.p50[5])}${esc6!.cross ? ` · ${f.porcentaje(esc6!.cross.prob, 0)} de pasar a ${nombreBanda(d.man, esc6!.cross.to).toLowerCase()}` : ""}`
+        : ol
+          ? `escenario común, ${f.score(ol.common)}: lo calcula el motor, sin simulación`
+          : (d.hor?.reason ?? "sin horizonte en este mes"),
+    ),
+  );
+   raiz.append(cifras);
 
 	// La partitura de pilares.
 	raiz.append(partitura(d, acc));
