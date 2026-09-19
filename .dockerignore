@@ -11,6 +11,11 @@ frontend/.svelte-kit
 frontend/build
 frontend/test-results
 frontend/playwright-report
+interfaz/node_modules
+interfaz/dist
+interfaz/public/datos
+interfaz/public/rumbo
+interfaz/pruebas/capturas
 **/__pycache__
 **/.pytest_cache
 **/*.pyc

@@ -25,6 +25,12 @@
 - Never render a raw float in the UI (e.g. `-0.9976`, `60.68`). Format through the shared helpers in `frontend/src/lib/format.ts`; never call `toLocaleString()` without an explicit `'es-ES'` locale.
 - Do not duplicate `Intl` formatting per component. Extend `frontend/src/lib/format.ts` centrally when a new format is needed.
 
+## Rumbo (`interfaz/`)
+
+- `interfaz/` is Rumbo, the redesigned interface. By team decision it is plain TypeScript + Vite + Bun (WebGL2 sand rendering, hand-drawn icons), not SvelteKit or shadcn-svelte; the SvelteKit and shadcn-svelte rules above apply to `frontend/`. Read `interfaz/README.md` and `interfaz/DIARIO.md` before changing it.
+- Rumbo ships inside the `web` image and is served at `/rumbo/`. It reads the bundle from `/data/v1/` and its derived data (`params.json`, `indice-empresas.json`, `products/`, `horizons/`) from `/data/rumbo/`, mounted from `/opt/quantum-churros/rumbo`. Never put Rumbo files inside the engine bundle: that changes its `bundle_id` and breaks the bundle integrity check.
+- Rumbo never falls back to invented data: a missing file is shown as missing. The synthetic portfolio exists only in development (`?datos=sinteticos`); `bun run build:despliegue` fails if it, any data file, a hard-coded entity id or a third-party request reaches the build.
+
 ## Pre-redesign UI catalog
 
 - The frontend at commit `cad5b5a` is the **pre-redesign interface**. It is documented exhaustively in [`docs/ui-catalog-pre-redesign/`](docs/ui-catalog-pre-redesign/README.md): every screen, element, state, URL parameter, calculation and source file, with 113 real screenshots (desktop, tablet, mobile).
