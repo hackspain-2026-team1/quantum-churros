@@ -1,0 +1,185 @@
+# Demo — checklist maestro
+
+Inventario de **todo lo que la demo navegable de Rumbo debe poder enseñar**, con las URLs de
+la interfaz actual y una verificación por pantalla. Este fichero no repite lo que otros
+documentos ya cubren: el relato cronometrado está en
+[`engine/DEMO_SCRIPT.md`](engine/DEMO_SCRIPT.md) (guion de 3 minutos), el discurso comercial
+en [`pitcher.md`](pitcher.md) y la trazabilidad requisito → evidencia en
+[`engine/TRACK_COVERAGE.md`](engine/TRACK_COVERAGE.md). Aquí está lo que ninguno de ellos da:
+la lista de comprobación pantalla a pantalla para saber que nada se queda fuera de la demo.
+
+Regla de mantenimiento: cuando entre una función nueva en la interfaz, se añade aquí antes
+de la siguiente demo. Si algo de esta lista no funciona, la demo se rehace sin ese punto:
+nada se simula.
+
+## 1. Antes de abrir Rumbo
+
+- [ ] Datos regenerados y congelados: `make db-sync` (o `make export` si la base ya está al
+      día) y después `make validate`.
+- [ ] Recibo coherente: `bundle_id`, `params_hash` y `dataset_hash` del recibo coinciden con
+      el manifiesto. Se comprueba solo, en Metodología → «La huella».
+- [ ] Casos canónicos re-verificados contra el bundle regenerado (§3). Si la historia de un
+      identificador ya no cuadra, se sustituye por otro caso vivo; nunca se fuerza.
+- [ ] Cifras del scoreboard regeneradas: `make eval-injection` y `make eval-anticipation`
+      (los números y sus objetivos están en `engine/DEMO_SCRIPT.md` §Scoreboard).
+- [ ] Correo de demo capturado: `make mailpit-notify` y Mailpit servido en
+      `http://localhost:8025`. Ningún correo sale a Internet.
+- [ ] Recorrido automático en verde: `bun run prueba` (36 comprobaciones sobre datos reales).
+- [ ] Mes de la demo fijado en todas las URLs con `m=2026-08` (ajustar al corte vigente).
+
+## 2. Pantallas y demostrables
+
+### Convención de URLs
+
+| Vista | URL |
+| --- | --- |
+| Entrada | `/?v=entrada&m=2026-08` |
+| Cartera | `/?v=plano&m=2026-08` · `/?v=tapiz&m=2026-08` |
+| Lente de cartera | añadir `lente=productos` o `lente=horizonte` (sin `lente` = score) |
+| Organización | `/?v=organizacion&c=plano&g=GROUP_0153&m=2026-08` |
+| Empresa | `/?v=empresa&c=plano&g=GROUP_0153&emp=COMP_0089&m=2026-08` |
+| Sección de ficha | añadir `sec=productos`, `sec=acciones` o `sec=tecnico` (sin `sec` = scoring) |
+| Metodología | `/?v=metodologia&m=2026-08` |
+
+### Entrada — `/?v=entrada`
+
+- Buscador de organización por número, sector o país; resultados con el score del corte.
+- Lema con los recuentos reales del manifiesto (organizaciones, empresas, rango de meses).
+- «Las que piden atención hoy»: cambio de banda, deterioro confirmado y cruces de horizonte
+  con probabilidad de 50 % o más.
+- Acceso directo a los dos mapas y a la metodología.
+- Verificar: sin avisos muestra «Ninguna organización cambia este mes»; sin resultados de
+  búsqueda muestra la sugerencia. Nunca una lista rellenada.
+
+### Cartera — plano y tapiz
+
+- Dos mapas sobre la arena WebGL2: el plano (nivel y ritmo de cada organización) y el tapiz
+  (cada organización, mes a mes).
+- Tres lentes: score (por defecto), productos y horizonte.
+- Regla temporal: play/pausa, avance mes a mes, modos avanza/acumula y cambio de escala.
+- Filtros por zona, movimiento, sector, país, tamaño, grupo y producto, más frente y orden;
+  la frase narrativa los describe en cuanto se confirman.
+- Pasar el ratón y `Enter` para abrir una organización.
+
+### Organización — cuatro secciones (teclas 1–4)
+
+**I · Scoring**
+
+- Score, banda y dirección del grupo, con la nota de que el score del grupo suma los flujos
+  de sus empresas, no es una media.
+- Gráfico con métricas (score, colchón, caja, headroom, días AR/AP, cobertura de actividad,
+  carga de deuda, flujos operativos) y tres escenarios: «Si todo sigue igual», «Si sigue la
+  deriva» y «Si se repite su peor trimestre».
+- «De dónde sale»: el hilo de datos al número, con salto a la sección técnica.
+
+**II · Productos**
+
+- Matriz empresas × siete productos: tinta entera lo tiene, contorno le encaja, tachado hoy
+  no, casi invisible no consta.
+- Tenencias declaradas por el banco frente a deducidas de los movimientos.
+- Deuda fuera del catálogo que pesa en el pilar de deuda.
+- Cada producto encajado enlaza con su acción y su horizonte.
+
+**III · Acciones**
+
+- El horizonte en grande con las acciones marcadas y su efecto combinado.
+- Recomendaciones del motor: cada acción sube un pilar hasta el siguiente escalón de su curva
+  y vuelve a puntuar; nada de números escritos a mano.
+- «Lo que proponen sus empresas» y la sección de avisos con los previstos del horizonte y los
+  contadores de triaje.
+- Estados vacíos honrados: motor en abstención, feed sin datos al día o sin palancas de medio
+  punto o más — cada uno con su frase, no una lista vacía.
+
+**IV · Técnico** → siguiente punto.
+
+### Empresa
+
+- Las mismas cuatro secciones a nivel de empresa.
+- Herencia de liquidez del grupo señalada cuando una filial usa el colchón del grupo.
+- Naturaleza del cambio (bache frente a deterioro estructural) y evidencia por pilar y
+  fichero.
+- Banner del monitor encima del score con sus cuatro fases — alerta nueva, señal activa, en
+  observación, aviso en pausa — y el botón «Abrir en la bandeja». La política completa está
+  en [`MONITOR_NOTIFICATIONS.mdx`](MONITOR_NOTIFICATIONS.mdx).
+
+### Técnico (sección IV)
+
+- La cascada décima a décima con la fórmula visible:
+  `score = base + Σ aportaciones − penalización − tope`. La confianza no interviene.
+- «Dónde cae en cada curva», «El veredicto por dentro» y «Confianza».
+- «El hilo del score» completo, con la evidencia filtrable por pilar y por fichero.
+- Bandeja de avisos: los cinco tipos y tres estados del motor, más el triaje propio (sin
+  revisar, vistos, descartados) que se guarda en el navegador. Las suprimidas por cambio de
+  perímetro se enseñan, no se esconden.
+- «Acciones, tal y como las da el motor», «Cómo se calcula el futuro» con sus supuestos y la
+  huella de ficheros y hashes.
+
+### Metodología — `/?v=metodologia`
+
+- «La huella»: versión del motor, bundle, parámetros con copia verificada, dataset y recibo
+  que coincide.
+- Comprobaciones del motor con el recuento de superadas y sus métricas.
+- «Lo que entra en el número»: cada señal con su peso y su porqué.
+- «Dónde se abstiene»: cada razón con su pista de desbloqueo.
+- «El futuro»: calibración de los horizontes (cobertura del 80 %, error de la mediana frente
+  al naïve, corte reproducido y acciones consistentes).
+- «Los productos»: declaradas frente a deducidas, con la nota de cada regla.
+
+## 3. Casos canónicos — uno por afirmación
+
+Candidatos de la exploración previa (véase `engine/OPEN_QUESTIONS.md` §Q-16). Antes de cada
+demo se confirma en el bundle regenerado que la historia sigue viva; si no, se cambia el caso,
+no la pantalla.
+
+| Afirmación | Caso | URL |
+| --- | --- | --- |
+| La disciplina de pagos gira dentro de un grupo | GROUP_0153, filial COMP_0089 | `/?v=empresa&c=plano&g=GROUP_0153&emp=COMP_0089&m=2026-08` |
+| Un bache no es una caída | COMP_0180 (bache) frente a COMP_1015 (erosión, GROUP_0132) | dos pestañas de ficha de empresa |
+| Una falsa alarma queda suprimida | COMP_0265, cambio de perímetro | ficha → `sec=tecnico`, bandeja con estado suprimido |
+| El motor se abstiene y dice cómo desbloquear | COMP_0965; grupo GROUP_0083 | ficha y metodología → «Dónde se abstiene» |
+| Liquidez roja que es barrido del grupo, no estrés | filial con colchón heredado | ficha de la filial, nota de herencia |
+| Mejora estructural, no ruido | COMP_0219 o COMP_0293 | ficha con dirección de mejora |
+| Deuda pesada moderada por winsorización | COMP_0087 (GROUP_0065) | ficha → `sec=tecnico`, evidencia |
+
+## 4. Interacción que conviene enseñar
+
+| Tecla | Efecto |
+| --- | --- |
+| `1`–`4` | cambia de sección en ficha: Scoring, Productos, Acciones, Técnico |
+| `Espacio` | play/pausa del tiempo |
+| `←` / `→` | mes anterior/siguiente (`Mayús` salta más) |
+| `[` / `]` | cambia la escala temporal |
+| `↑` / `↓` | organización vecina |
+| `Enter` | abre lo señalado |
+| `?` | ayuda |
+| `Esc` | atrás, o quita el último filtro |
+| `⌘Z` / `⇧⌘Z` | deshacer/rehacer; nunca sale de la aplicación |
+
+La búsqueda, los escenarios y las tablas mantienen foco y roles ARIA; enseñarlo de paso
+refuerza que la interfaz es de producto, no de guion.
+
+## 5. Reglas transversales
+
+- Todo número, moneda y fecha sale de los formatos compartidos de
+  `frontend/src/datos/formato.ts` y sigue [`UI_FORMATTING.mdx`](UI_FORMATTING.mdx) (es-ES,
+  coma decimal, euro tras la cifra).
+- Ningún dato escrito a mano: si falta un fichero, la interfaz lo dice
+  (p. ej. «Falta products/ para esta empresa»).
+- Nada simulado en pantalla. `make no-mocks` falla si quedan literales de demo en el código
+  que se envía.
+- La cartera sintética (`?datos=sinteticos`) existe solo en desarrollo: la demo pública usa
+  el bundle real.
+- Abstenciones, supresiones y errores se muestran con su explicación; el guardrail es parte
+  del argumento de venta, no una avería.
+
+## 6. Documentos relacionados
+
+| Documento | Qué aporta que este fichero no repite |
+| --- | --- |
+| [`engine/DEMO_SCRIPT.md`](engine/DEMO_SCRIPT.md) | guion cronometrado de 3 minutos, frases de reserva y scoreboard |
+| [`pitcher.md`](pitcher.md) | pitch oral de 5 minutos y posicionamiento |
+| [`engine/OPEN_QUESTIONS.md`](engine/OPEN_QUESTIONS.md) §Q-16 | criterio de selección de casos y candidatos |
+| [`engine/TRACK_COVERAGE.md`](engine/TRACK_COVERAGE.md) | trazabilidad requisito del reto → evidencia |
+| [`MONITOR_NOTIFICATIONS.mdx`](MONITOR_NOTIFICATIONS.mdx) | política del banner, del triaje y del correo de demo |
+| [`COMPRADOR.md`](COMPRADOR.md) | a quién se le vende y con qué argumento |
+| [`UI_FORMATTING.mdx`](UI_FORMATTING.mdx) | reglas de formato de números y fechas |

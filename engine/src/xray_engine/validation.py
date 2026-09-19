@@ -59,14 +59,22 @@ NEUTRALITY_OK = 0.03
 NEUTRALITY_FAIL = 0.10
 CHECK_KEYS: tuple[str, ...] = (
     "isolation", "truncation", "additivity", "scale", "determinism", "ablation", "neutrality",
-    "penalty_by_branch", "rank_stability", "history_truncation", "persistence",
-    "netting_placebo", "injection",
+    "penalty_by_branch", "rank_stability", "history_truncation", "persistence", "verdict_persistence",
+    "netting_placebo", "injection", "natural_anticipation", "level_vs_slope", "rolling_origin", "outlook_fan",
 )
+ROLLING_ORIGIN_CUTS: tuple[date, ...] = (date(2025, 11, 1), date(2026, 2, 1), date(2026, 5, 1))
 # expensive checks left out by ``quick``
-QUICK_SKIPPED: tuple[str, ...] = ("history_truncation", "netting_placebo", "injection")
+QUICK_SKIPPED: tuple[str, ...] = (
+    "history_truncation", "netting_placebo", "injection", "natural_anticipation",
+)
 INJECTION_KINDS: tuple[str, ...] = ("spike", "step", "ramp")
 P_STRUCTURAL_SPIKE_MAX = 0.10
 P_STRUCTURAL_STEP_MIN = 0.70
+OUTLOOK_FAN_HIT_MIN = 0.70
+VERDICT_LAGS: tuple[int, ...] = (3, 6)  # months after the verdict
+P_PERSIST_STRUCTURAL_MIN = 0.75
+P_PERSIST_BUMP_MAX = 0.45
+PERSIST_GAP_MIN = 0.10  # structural over pending
 
 TITLES: dict[str, str] = {
     "isolation": "Aislamiento de cohorte",
@@ -80,8 +88,13 @@ TITLES: dict[str, str] = {
     "rank_stability": "Estabilidad del orden",
     "history_truncation": "Historia mínima",
     "persistence": "Persistencia",
+    "verdict_persistence": "Persistencia de veredictos",
     "netting_placebo": "Placebo de traspasos",
     "injection": "Deterioros inyectados",
+    "natural_anticipation": "Anticipación natural",
+    "level_vs_slope": "Nivel frente a pendiente",
+    "rolling_origin": "Origen rodante",
+    "outlook_fan": "Abanico de escenarios",
 }
 NOT_RUN = "Comprobación no ejecutada en esta validación."
 SNAPSHOT_EXCEPTIONS: tuple[str, ...] = (
@@ -1061,6 +1074,213 @@ def persistence(scored: Scored, *, lag: int = 6, low_score: float = 40.0, min_li
     }
 
 
+def _scored_live(item: EntityMonth | None) -> bool:
+    return item is not None and item.parts.feed_live and item.parts.carried_from is None and not item.parts.abstained
+
+
+def _persistence_cell(rows: Sequence[Mapping[str, Any]], lags: Sequence[int], move: float) -> dict[str, Any]:
+    """``rows`` = verdicts as {move, sign, gaps}: ``move`` = score(t) - pre-move
+    level, ``gaps[lag]`` = score(t + lag) - pre-move level (None when that month
+    is not live and scored). Per lag: share at least ``move`` points below
+    (``down``) and above (``up``) the pre-move level, and ``persist`` = the one
+    in the direction of the verdict (None without a direction)."""
+    cell: dict[str, Any] = {
+        "n": len(rows), "mean_move": float(np.mean([row["move"] for row in rows])) if rows else None,
+    }
+    for lag in lags:
+        known = [row for row in rows if row["gaps"].get(lag) is not None]
+        down = sum(row["gaps"][lag] <= -move for row in known)
+        up = sum(row["gaps"][lag] >= move for row in known)
+        held = sum(row["gaps"][lag] * row["sign"] >= move for row in known if row["sign"])
+        directed = sum(1 for row in known if row["sign"])
+        cell[f"lag{lag}"] = {
+            "n": len(known),
+            "down": down / len(known) if known else None,
+            "up": up / len(known) if known else None,
+            "persist": held / directed if directed and directed == len(known) else None,
+        }
+    return cell
+
+
+def verdict_persistence(
+    scored: Scored, *, lags: Sequence[int] = VERDICT_LAGS, min_cases: int = 20, grade_kind: str = "group",
+) -> dict[str, Any]:
+    """Do the trajectory labels mean what they say? Label-free, past verdicts only.
+
+    For every verdict class (``direction/nature``), groups and companies apart:
+    n, mean move against ``t - horizon_months`` and, ``lags`` months after the
+    verdict, the share of scores still ``min_delta_points`` beyond the pre-move
+    level (score of ``t - horizon_months``), next to the base rate over every
+    eligible entity-month. A month counts when t and ``t - horizon_months`` are
+    live, own-scored and not abstained; a lag counts when ``t + lag`` is too.
+    Splits: ``by_horizon`` (a call of the long horizon alone has ``|delta3|``
+    under the threshold by construction, so it also reports ``own_reference``:
+    against the first month of its drift window); ``by_age`` of a pending call
+    (its first month or a later one); ``by_shock_direction`` of a bump (in the
+    direction of the shock it undoes). Graded on the falls of
+    ``grade_kind`` the short horizon takes part in (``short_horizon_calls``:
+    short or both, the verdicts whose claim is the move against
+    ``t - horizon_months``): fail when structural ones do not persist more
+    than pending ones; pass when they reach ``P_PERSIST_STRUCTURAL_MIN``, beat
+    pending ones by ``PERSIST_GAP_MIN`` and bumps stay under
+    ``P_PERSIST_BUMP_MAX``; a warning in between. A pending call makes no
+    claim of its own: its first month is pending by construction, whatever
+    comes next.
+    """
+    cfg = scored.params.trajectory
+    horizon, move, lags = cfg.horizon_months, cfg.min_delta_points, tuple(lags)
+    calls = {"improving": 1.0, "deteriorating": -1.0}
+    found: dict[str, dict[str, Any]] = {}
+    for kind in ("group", "company"):
+        every: list[dict[str, Any]] = []
+        classes: dict[str, list] = defaultdict(list)
+        horizons: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+        own: dict[str, list] = defaultdict(list)
+        ages: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+        shocks: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+        for key, items in _entities(scored.months).items():
+            if key[0] != kind:
+                continue
+            by_month = {item.row.month: item for item in items}
+
+            def row(item: EntityMonth, reference: EntityMonth, sign: float) -> dict[str, Any]:
+                level = reference.parts.score
+                later = {lag: by_month.get(_shift_month(item.row.month, lag)) for lag in lags}
+                return {
+                    "move": item.parts.score - level, "sign": sign,
+                    "gaps": {lag: other.parts.score - level if _scored_live(other) else None
+                             for lag, other in later.items()},
+                }
+
+            for item in items:
+                before = by_month.get(_shift_month(item.row.month, -horizon))
+                if not _scored_live(item) or not _scored_live(before):
+                    continue
+                verdict = item.trajectory
+                sign = calls.get(getattr(verdict, "direction", None), 0.0)
+                every.append(row(item, before, 0.0))
+                if not getattr(verdict, "available", False):
+                    continue
+                label = f"{verdict.direction}/{verdict.nature or 'none'}"
+                entry = row(item, before, sign)
+                classes[label].append(entry)
+                if sign:
+                    horizons[label][str(verdict.horizon)].append(entry)
+                    if verdict.horizon == "long" and verdict.drift_months:
+                        start = by_month.get(_shift_month(item.row.month, 1 - verdict.drift_months))
+                        if _scored_live(start):
+                            own[label].append(row(item, start, sign))
+                    elif verdict.nature == "shock_pending":
+                        age = "first_month" if verdict.persistence_months <= 1 else "later_months"
+                        ages[label][age].append(entry)
+                elif verdict.nature == "bump" and verdict.shock_month in by_month:
+                    shock = by_month[verdict.shock_month].trajectory
+                    if shock.direction in calls and before.row.month < verdict.shock_month:
+                        shocks[label][shock.direction].append(row(item, before, calls[shock.direction]))
+        cells: dict[str, Any] = {}
+        for label in sorted(classes):
+            cell = _persistence_cell(classes[label], lags, move)
+            if label in horizons:
+                cell["by_horizon"] = {
+                    name: _persistence_cell(rows, lags, move) for name, rows in sorted(horizons[label].items())
+                }
+                if label in own:
+                    cell["by_horizon"]["long"]["own_reference"] = _persistence_cell(own[label], lags, move)
+            if label in ages:
+                cell["by_age"] = {name: _persistence_cell(rows, lags, move) for name, rows in sorted(ages[label].items())}
+            if label in shocks:
+                cell["by_shock_direction"] = {
+                    name: _persistence_cell(rows, lags, move) for name, rows in sorted(shocks[label].items())
+                }
+            cells[label] = cell
+        found[kind] = {"base_rate": _persistence_cell(every, lags, move), "classes": cells}
+
+    first = f"lag{lags[0]}"
+
+    def short_call(kind: str, label: str) -> dict[str, Any]:
+        """Verdicts of ``label`` the short horizon takes part in (short or both)."""
+        split = found[kind]["classes"].get(label, {}).get("by_horizon", {})
+        counted = {lag: [0, 0.0] for lag in lags}
+        for name in ("short", "both"):
+            for lag in lags:
+                cell = split.get(name, {}).get(f"lag{lag}", {})
+                if cell.get("n"):
+                    counted[lag][0] += cell["n"]
+                    counted[lag][1] += cell["persist"] * cell["n"]
+        return {
+            "n": sum(split.get(name, {}).get("n", 0) for name in ("short", "both")),
+            **{f"lag{lag}": {"n": n, "persist": held / n if n else None} for lag, (n, held) in counted.items()},
+        }
+
+    def bump(kind: str, direction: str) -> dict[str, Any]:
+        cell = found[kind]["classes"].get("stable/bump", {}).get("by_shock_direction", {}).get(direction)
+        return cell or _persistence_cell([], lags, move)
+
+    graded: dict[str, Any] = {}
+    for kind in ("group", "company"):
+        for direction, name in (("deteriorating", "falls"), ("improving", "rises")):
+            side = "down" if direction == "deteriorating" else "up"
+            graded[f"{kind}_{name}"] = {
+                "structural": short_call(kind, f"{direction}/structural"),
+                "pending": short_call(kind, f"{direction}/shock_pending"),
+                "bump": bump(kind, direction),
+                "base_rate": {f"lag{lag}": found[kind]["base_rate"][f"lag{lag}"][side] for lag in lags},
+            }
+    falls = graded[f"{grade_kind}_falls"]
+    structural, pending, reverted = (falls[name][first] for name in ("structural", "pending", "bump"))
+    ok, warning = None, False
+    if structural["n"] >= min_cases and pending["n"] >= min_cases:
+        gap = structural["persist"] - pending["persist"]
+        bumps_ok = reverted["n"] < min_cases or reverted["persist"] <= P_PERSIST_BUMP_MAX
+        if gap <= 0:
+            ok = False
+        elif structural["persist"] >= P_PERSIST_STRUCTURAL_MIN and gap >= PERSIST_GAP_MIN and bumps_ok:
+            ok = True
+        else:
+            warning = True
+    words = {"group": "grupo", "company": "empresa"}
+    summary = (
+        f"Caídas de {words.get(grade_kind, grade_kind)} llamadas con el horizonte corto: {lags[0]} meses después sigue "
+        f"{move:g} puntos o más por debajo del nivel previo el {_pct(structural['persist'])} de las estructurales "
+        f"({structural['n']} casos, objetivo ≥ {_pct(P_PERSIST_STRUCTURAL_MIN)}), el {_pct(pending['persist'])} de las "
+        f"pendientes de confirmar y el {_pct(reverted['persist'])} de los baches revertidos (objetivo ≤ "
+        f"{_pct(P_PERSIST_BUMP_MAX)}); tasa base {_pct(falls['base_rate'][first])}."
+    )
+    if ok is None and not warning:
+        summary += " Casos insuficientes para un veredicto."
+    elif ok is False:
+        summary += " Las etiquetas no discriminan: lo estructural no persiste más que lo pendiente."
+    elif warning:
+        summary += " Discrimina, sin alcanzar todos los objetivos."
+    labels = {"falls": "caídas", "rises": "mejoras"}
+    metrics = []
+    for kind in (grade_kind, *(name for name in ("group", "company") if name != grade_kind)):
+        for name in ("falls", "rises"):
+            item, where = graded[f"{kind}_{name}"], f"a +{lags[0]} meses · {labels[name]} de {words[kind]}"
+            metrics += [
+                _metric(f"Estructurales que persisten {where}", item["structural"][first]["persist"], "proporción"),
+                _metric(f"Pendientes que persisten {where}", item["pending"][first]["persist"], "proporción"),
+                _metric(f"Baches revertidos que persisten {where}", item["bump"][first]["persist"], "proporción"),
+                _metric(f"Tasa base {where}", item["base_rate"][first], "proporción"),
+            ]
+            if kind == grade_kind:
+                metrics.append(_metric(f"Estructurales con desenlace {where}", item["structural"][first]["n"], "casos"))
+                if len(lags) > 1:
+                    metrics.append(_metric(
+                        f"Estructurales que persisten a +{lags[-1]} meses · {labels[name]} de {words[kind]}",
+                        item["structural"][f"lag{lags[-1]}"]["persist"], "proporción",
+                    ))
+    return {
+        "pass": ok, "warning": warning, "move_points": move, "horizon_months": horizon, "lags": list(lags),
+        "grade_kind": grade_kind, "by_kind": found, "short_horizon_calls": graded,
+        "targets": {
+            "p_persist_structural_min": P_PERSIST_STRUCTURAL_MIN, "p_persist_bump_max": P_PERSIST_BUMP_MAX,
+            "persist_gap_min": PERSIST_GAP_MIN,
+        },
+        "summary": summary, "metrics": metrics,
+    }
+
+
 def _netted_shares(transactions: pl.DataFrame) -> dict[str, float | None]:
     outflow = transactions.filter((pl.col("amount_cents") < 0) & ~pl.col("fx_excluded").fill_null(True))
     value = pl.col("amount_cents").abs() / 100 * pl.col("fx_rate")
@@ -1441,6 +1661,335 @@ def _injection_summary(items: Sequence[Mapping[str, Any]], horizon: int) -> dict
     }
 
 
+def _liquidity(row: PanelRow) -> float | None:
+    if row.cash_month_end is None:
+        return None
+    return float(row.cash_month_end + (row.headroom or 0.0))
+
+
+def coverage_summary(scored: Scored) -> dict[str, Any]:
+    """Population coverage on the last month: scored, abstained, stale feed and pillars."""
+    last = scored.last_month
+
+    def entity_counts(kind: str) -> dict[str, Any]:
+        rows = scored.frame.filter((pl.col("month") == last) & (pl.col("entity_kind") == kind))
+        total = rows.height
+        if total == 0:
+            return {"total": 0}
+        scored_rows = rows.filter(~pl.col("abstained"))
+        stale = rows.filter(~pl.col("feed_live") | pl.col("carried_from").is_not_null())
+        abstentions = (
+            rows.filter(pl.col("abstained")).group_by("abstain_reason").len().sort("len", descending=True)
+        )
+        bands = rows.group_by("band").len().sort("band")
+        pillars = {
+            key: rows.filter(pl.col(f"p_{key}").is_not_null()).height / total for key in PILLAR_KEYS
+        }
+        perimeter = rows.filter(pl.col("flags").fill_null("").str.contains("perimeter_shift")).height
+        return {
+            "total": total,
+            "scored": scored_rows.height,
+            "scored_pct": scored_rows.height / total,
+            "abstained": total - scored_rows.height,
+            "stale_feed": stale.height,
+            "stale_feed_pct": stale.height / total,
+            "abstentions_by_reason": {
+                str(row["abstain_reason"] or "abstained"): int(row["len"]) for row in abstentions.iter_rows(named=True)
+            },
+            "bands": {str(row["band"]): int(row["len"]) for row in bands.iter_rows(named=True)},
+            "pillars": {key: round(pillars[key], 4) for key in PILLAR_KEYS},
+            "perimeter_shift_months": perimeter,
+        }
+
+    groups = entity_counts("group")
+    companies = entity_counts("company")
+    inherited = scored.frame.filter(
+        (pl.col("month") == last)
+        & (pl.col("entity_kind") == "company")
+        & pl.col("flags").fill_null("").str.contains("liquidity_inherited")
+    ).height
+    companies["liquidity_inherited_from_group"] = inherited
+    summary = (
+        f"Último mes {last:%Y-%m}: {groups.get('scored', 0)} de {groups.get('total', 0)} grupos puntuables "
+        f"({_pct(groups.get('scored_pct'))}); feed caído en {groups.get('stale_feed', 0)} "
+        f"({_pct(groups.get('stale_feed_pct'))}). Pagos observables en "
+        f"{_pct(groups.get('pillars', {}).get('payments'))} de los grupos."
+    )
+    return {
+        "pass": None,
+        "last_month": f"{last:%Y-%m}",
+        "groups": groups,
+        "companies": companies,
+        "summary": summary,
+        "metrics": [
+            _metric("Grupos puntuables", groups.get("scored_pct"), "proporción"),
+            _metric("Grupos con feed caído", groups.get("stale_feed_pct"), "proporción"),
+            _metric("Grupos con pilar pagos", groups.get("pillars", {}).get("payments"), "proporción"),
+            _metric("Grupos con pilar cobros", groups.get("pillars", {}).get("collections"), "proporción"),
+            _metric("Grupos con pilar deuda", groups.get("pillars", {}).get("debt"), "proporción"),
+            _metric("Sociedades puntuables", companies.get("scored_pct"), "proporción"),
+        ],
+    }
+
+
+def level_vs_slope(scored: Scored, *, lag: int = 3) -> dict[str, Any]:
+    """Spearman persistence of level vs slope and co-movement with liquidity."""
+    level_left: list[float] = []
+    level_right: list[float] = []
+    slope_left: list[float] = []
+    slope_right: list[float] = []
+    delta_scores: list[float] = []
+    delta_liquidity: list[float] = []
+    for items in _groups(scored).values():
+        live = [
+            item for item in items
+            if item.parts.feed_live and item.parts.carried_from is None and not item.parts.abstained
+        ]
+        if len(live) <= lag:
+            continue
+        scores = [item.parts.score for item in live]
+        for index in range(len(live) - lag):
+            level_left.append(scores[index])
+            level_right.append(scores[index + lag])
+        deltas = [scores[index + 1] - scores[index] for index in range(len(scores) - 1)]
+        for index in range(len(deltas) - lag):
+            slope_left.append(deltas[index])
+            slope_right.append(deltas[index + lag])
+        for index in range(len(live) - lag):
+            start, end = live[index], live[index + lag]
+            liq_start = _liquidity(start.row)
+            liq_end = _liquidity(end.row)
+            if liq_start is None or liq_end is None:
+                continue
+            delta_scores.append(end.parts.score - start.parts.score)
+            delta_liquidity.append(liq_end - liq_start)
+    level_pairs = len(level_left)
+    slope_pairs = len(slope_left)
+    level_mean = spearman(level_left, level_right) if level_pairs >= 3 else None
+    slope_mean = spearman(slope_left, slope_right) if slope_pairs >= 3 else None
+    rho = spearman(delta_scores, delta_liquidity) if len(delta_scores) >= 3 else None
+    summary = (
+        f"Persistencia de nivel (Spearman score t vs t+{lag}): {_num(level_mean)} sobre "
+        f"{level_pairs} pares; pendiente (Δscore): {_num(slope_mean)} sobre {slope_pairs} pares. "
+        f"Spearman(Δscore {lag}m, Δliquidez {lag}m) = {_num(rho)} sobre {len(delta_scores)} pares."
+    )
+    return {
+        "pass": None,
+        "lag_months": lag,
+        "level_autocorr_lag3": level_mean,
+        "slope_autocorr_lag3": slope_mean,
+        "spearman_delta3_vs_liquidity_t3": rho,
+        "n_level_pairs": level_pairs,
+        "n_slope_pairs": slope_pairs,
+        "n_delta_pairs": len(delta_scores),
+        "summary": summary,
+        "metrics": [
+            _metric(f"Spearman nivel lag-{lag}", level_mean),
+            _metric(f"Spearman pendiente lag-{lag}", slope_mean),
+            _metric(f"Spearman Δscore vs Δliquidez (+{lag}m)", rho),
+            _metric("Pares nivel", level_pairs, "grupo-mes"),
+            _metric("Pares Δscore/liquidez", len(delta_scores), "grupo-mes"),
+        ],
+    }
+
+
+def rolling_origin(scored: Scored, *, cuts: Sequence[date] | None = None, tol: float = 1e-9) -> dict[str, Any]:
+    """Re-score at historical cuts and measure rank/band stability at each cut month."""
+    window = scored.tables.window
+    chosen = [
+        month for month in (cuts or ROLLING_ORIGIN_CUTS)
+        if window.first_month <= month < window.last_month
+    ]
+    by_cut: dict[str, Any] = {}
+    for month in chosen:
+        truncated = score_core(truncate_tables(scored.tables, month, scored.params), scored.params)
+        full = scored.frame.filter((pl.col("entity_kind") == "group") & (pl.col("month") == month))
+        part = truncated.frame.filter((pl.col("entity_kind") == "group") & (pl.col("month") == month))
+        merged = full.join(
+            part.select("entity_id", pl.col("score").alias("trunc_score"), pl.col("band").alias("trunc_band")),
+            on="entity_id",
+            how="inner",
+        )
+        rho = spearman(merged["score"].to_list(), merged["trunc_score"].to_list()) if merged.height >= 3 else None
+        band_changes = (
+            float((merged["band"] != merged["trunc_band"]).sum()) / merged.height if merged.height else None
+        )
+        identity = compare_scores(part, full, tol)
+        by_cut[f"{month:%Y-%m}"] = {
+            "n_groups": merged.height,
+            "spearman_at_cut": rho,
+            "band_change_share": band_changes,
+            "max_abs_diff": identity["max_abs_diff"],
+            "pass": bool(identity["pass"]),
+        }
+    cuts_ok = bool(by_cut) and all(item["pass"] for item in by_cut.values())
+    rhos = [item["spearman_at_cut"] for item in by_cut.values() if item["spearman_at_cut"] is not None]
+    summary = (
+        f"Cortes {', '.join(by_cut) or 'ninguno'}: identidad al mes del corte "
+        f"{'confirmada' if cuts_ok else 'con diferencias'}; Spearman mínimo {_num(min(rhos) if rhos else None)}."
+    )
+    return {
+        "pass": cuts_ok if by_cut else None,
+        "cuts": by_cut,
+        "min_spearman": min(rhos) if rhos else None,
+        "summary": summary,
+        "metrics": [
+            _metric(f"Identidad al corte · {label}", item["pass"])
+            for label, item in by_cut.items()
+        ] + [
+            _metric(f"Spearman al corte · {label}", item["spearman_at_cut"])
+            for label, item in by_cut.items()
+        ],
+    }
+
+
+def outlook_fan_calibration(scored: Scored) -> dict[str, Any]:
+    """For every group-month with an available scenario fan, check whether the
+    actual score ``horizon_months`` later falls between the pessimistic and
+    optimistic bounds. This does not judge the central scenario — only whether
+    the own-volatility band was wide enough."""
+    from .outlook import outlooks
+
+    params = scored.params
+    horizon = params.outlook.horizon_months
+    hits = misses_low = misses_high = 0
+    total = 0
+    by_basis: dict[str, dict[str, int]] = {"drift": {"n": 0, "hits": 0}, "flat": {"n": 0, "hits": 0}}
+    for items in _groups(scored).values():
+        parts = [item.parts for item in items]
+        fans = outlooks(parts, params)
+        for index, (item, fan) in enumerate(zip(items, fans, strict=True)):
+            if not fan.available or fan.worst is None or fan.best is None:
+                continue
+            future = index + horizon
+            if future >= len(items):
+                continue
+            actual_parts = items[future].parts
+            if actual_parts.abstained or not actual_parts.feed_live:
+                continue
+            actual = actual_parts.score
+            total += 1
+            in_fan = fan.worst <= actual <= fan.best
+            hits += int(in_fan)
+            misses_low += int(actual < fan.worst)
+            misses_high += int(actual > fan.best)
+            bucket = by_basis.setdefault(fan.basis, {"n": 0, "hits": 0})
+            bucket["n"] += 1
+            bucket["hits"] += int(in_fan)
+    hit_rate = hits / total if total else None
+    basis_detail = {
+        name: {
+            **row,
+            "hit_rate": row["hits"] / row["n"] if row["n"] else None,
+        }
+        for name, row in by_basis.items()
+    }
+    ok = None  # informativo: el abanico no es una predicción puntual
+    summary = (
+        f"De {total} grupos-mes con abanico disponible, el score real a +{horizon} meses "
+        f"cayó dentro del rango pesimista–optimista en {_pct(hit_rate)} "
+        f"(objetivo informativo ≥ {_pct(OUTLOOK_FAN_HIT_MIN)})."
+        if total else "Sin meses con abanico y horizonte observable: comprobación no aplicable."
+    )
+    return {
+        "pass": ok,
+        "horizon_months": horizon,
+        "n_evaluated": total,
+        "hit_rate": hit_rate,
+        "misses_low_rate": misses_low / total if total else None,
+        "misses_high_rate": misses_high / total if total else None,
+        "by_basis": basis_detail,
+        "targets": {"hit_rate_min": OUTLOOK_FAN_HIT_MIN},
+        "summary": summary,
+        "metrics": [
+            _metric("Grupos-mes evaluados", total),
+            _metric("Acierto del abanico", hit_rate, "proporción"),
+            _metric("Por debajo del pesimista", misses_low / total if total else None, "proporción"),
+            _metric("Por encima del optimista", misses_high / total if total else None, "proporción"),
+            _metric("Acierto con deriva medida", basis_detail.get("drift", {}).get("hit_rate"), "proporción"),
+            _metric("Acierto con escenario plano", basis_detail.get("flat", {}).get("hit_rate"), "proporción"),
+        ],
+    }
+
+
+def build_kpis(
+    scored: Scored,
+    results: Mapping[str, Mapping[str, Any]],
+    *,
+    coverage: Mapping[str, Any],
+    level_slope: Mapping[str, Any],
+    rolling: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Normalised KPI block for ``validation.json`` and ``KPI_HISTORY``."""
+    injection = results.get("injection") or {}
+    untouched = injection.get("untouched") or {}
+    step = (injection.get("by_kind") or {}).get("step") or {}
+    spike = (injection.get("by_kind") or {}).get("spike") or {}
+    ramp = (injection.get("by_kind") or {}).get("ramp") or {}
+    outlook_fan = results.get("outlook_fan") or {}
+    neutrality = results.get("neutrality") or {}
+    anticipation = results.get("natural_anticipation") or {}
+    natural = anticipation.get("natural") or {}
+    cal_step = (anticipation.get("calibration_on_injection") or {}).get("step") or {}
+    groups_cov = coverage.get("groups") or {}
+    h3 = (natural.get("by_horizon") or {}).get("3") or {}
+    h6 = (natural.get("by_horizon") or {}).get("6") or {}
+    lead = natural.get("lead_time") or {}
+    return {
+        "by_stage": {
+            "reconcile": {
+                "dataset_hash": scored.tables.dataset_hash,
+                "netting_placebo_pass": (results.get("netting_placebo") or {}).get("pass"),
+                "stale_feed_pct": groups_cov.get("stale_feed_pct"),
+            },
+            "normalize": {
+                "truncation_pass": (results.get("truncation") or {}).get("pass"),
+                "scale_pass": (results.get("scale") or {}).get("pass"),
+                "coverage_scored_pct": groups_cov.get("scored_pct"),
+                "coverage_payments_pct": (groups_cov.get("pillars") or {}).get("payments"),
+                "coverage_collections_pct": (groups_cov.get("pillars") or {}).get("collections"),
+                "coverage_debt_pct": (groups_cov.get("pillars") or {}).get("debt"),
+                "neutrality_max_excess": neutrality.get("worst_excess"),
+            },
+            "score": {
+                "isolation_pass": (results.get("isolation") or {}).get("pass"),
+                "holdout_n_groups": (results.get("isolation") or {}).get("n_groups"),
+                "holdout_max_abs_diff": (results.get("isolation") or {}).get("max_abs_diff"),
+                "level_autocorr_lag3": level_slope.get("level_autocorr_lag3"),
+                "slope_autocorr_lag3": level_slope.get("slope_autocorr_lag3"),
+                "spearman_delta3_vs_liquidity_t3": level_slope.get("spearman_delta3_vs_liquidity_t3"),
+                "rolling_min_spearman": rolling.get("min_spearman"),
+                "additivity_pass": (results.get("additivity") or {}).get("pass"),
+                "determinism_pass": (results.get("determinism") or {}).get("pass"),
+                "rank_stability_pass": (results.get("rank_stability") or {}).get("pass"),
+                "injection_median_verdict_delay_step": step.get("median_verdict_delay"),
+                "injection_median_verdict_delay_ramp": ramp.get("median_verdict_delay"),
+                "p_structural_given_spike": spike.get("p_structural"),
+                "p_structural_given_step": step.get("p_structural"),
+                "p_structural_given_ramp": ramp.get("p_structural"),
+                "false_alarms_per_100_gy": untouched.get("rate_per_100_group_years"),
+                "outlook_fan_hit_rate": outlook_fan.get("hit_rate"),
+                "natural_auc_h3": h3.get("auc"),
+                "natural_auc_h6": h6.get("auc"),
+                "natural_median_lead_months": lead.get("median_months"),
+                "natural_events_per_100_gy": natural.get("events_per_100_group_years"),
+                "injection_cal_auc_h6_step": cal_step.get("auc_h6"),
+                "injection_step_detection_delay": (
+                    cal_step.get("detection_delay") or {}
+                ).get("median_months"),
+                "injection_step_structural_delay": (
+                    cal_step.get("structural_delay") or {}
+                ).get("median_months"),
+                "injection_step_structural_rate": cal_step.get("structural_rate"),
+            },
+        },
+        "window": {
+            "first_month": f"{scored.tables.window.first_month:%Y-%m}",
+            "last_month": f"{scored.last_month:%Y-%m}",
+        },
+    }
+
+
 # --------------------------------------------------------------------------
 # receipt and entry point
 # --------------------------------------------------------------------------
@@ -1546,8 +2095,15 @@ def run_checks(scored: Scored, *, quick: bool = False, log: Callable[[str], None
         "rank_stability": lambda: rank_stability(scored, draws=30 if quick else 200),
         "history_truncation": lambda: history_truncation(scored),
         "persistence": lambda: persistence(scored),
+        "verdict_persistence": lambda: verdict_persistence(scored),
         "netting_placebo": lambda: netting_placebo(scored),
         "injection": lambda: injection_study(scored),
+        "natural_anticipation": lambda: __import__(
+            "xray_engine.natural_anticipation", fromlist=["anticipation_study"]
+        ).anticipation_study(scored),
+        "level_vs_slope": lambda: level_vs_slope(scored),
+        "rolling_origin": lambda: rolling_origin(scored),
+        "outlook_fan": lambda: outlook_fan_calibration(scored),
     }
     results: dict[str, Any] = {}
     for key in CHECK_KEYS:
@@ -1592,13 +2148,19 @@ def run_validation(
     if log is not None:
         log(f"scored {scored.frame.height} entity-months in {time.perf_counter() - started:.1f}s")
     results = run_checks(scored, quick=quick, log=log)
+    coverage = coverage_summary(scored)
+    coverage["status"] = check_status(coverage)
+    level_slope = results["level_vs_slope"]
+    rolling = results["rolling_origin"]
+    kpis = build_kpis(scored, results, coverage=coverage, level_slope=level_slope, rolling=rolling)
     receipt = build_receipt(scored, results)
     counts = Counter(item["status"] for item in results.values())
     document = _jsonable({
         "dataset_hash": tables.dataset_hash, "params_hash": params.sha256, "engine_version": ENGINE_VERSION,
         "quick": quick, "runtime_seconds": round(time.perf_counter() - started, 1),
         "status_counts": {name: counts.get(name, 0) for name in ("ok", "warn", "fail", "info")},
-        **results, "checks": receipt["checks"], "receipt": receipt,
+        **results, "coverage": coverage, "kpis": kpis,
+        "checks": receipt["checks"], "receipt": receipt,
     })
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1612,7 +2174,10 @@ __all__ = [
     "INJECTION_KINDS",
     "NEUTRALITY_DIMENSIONS",
     "Scored",
+    "ROLLING_ORIGIN_CUTS",
+    "build_kpis",
     "build_receipt",
+    "coverage_summary",
     "check_additivity",
     "check_determinism",
     "check_isolation",
@@ -1627,6 +2192,8 @@ __all__ = [
     "history_truncation",
     "inject",
     "injection_study",
+    "level_vs_slope",
+    "rolling_origin",
     "netting_placebo",
     "neutrality",
     "paired_ablation",
@@ -1643,4 +2210,5 @@ __all__ = [
     "subset_tables",
     "tail_tables",
     "truncate_tables",
+    "verdict_persistence",
 ]

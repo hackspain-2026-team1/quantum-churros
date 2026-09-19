@@ -43,7 +43,7 @@ from typing import Any
 
 import polars as pl
 
-from . import cleaning, io, panel as panel_module, profile
+from . import cleaning, invoices as invoice_module, io, panel as panel_module, profile
 from .aggregate import aggregate, delta_parts, explain
 from .alerts import build_alerts
 from .contracts import (
@@ -97,6 +97,7 @@ class ScoreResult:
     params: Params
     dataset_hash: str
     window: io.Window
+    due_ar: pl.DataFrame  # open overdue AR invoices as of the window end
 
 
 def carry_forward(own: ScoreParts, last_live: ScoreParts) -> ScoreParts:
@@ -368,6 +369,7 @@ def score_tables(
         params=params,
         dataset_hash=tables.dataset_hash,
         window=tables.window,
+        due_ar=invoice_module.open_overdue_ar(clean.invoices, tables.window.last_month),
     )
 
 

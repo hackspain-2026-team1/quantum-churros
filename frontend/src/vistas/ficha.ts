@@ -1,8 +1,8 @@
 // La ficha de una entidad (empresa u organización) con sus cuatro secciones (propuesta 06, §3–4):
 //   I   Scoring y tendencia: lo observado y lo previsto en una sola línea de tiempo.
-//   II  Productos: lo que tiene contratado y lo que le encajaría.
-//   III Acciones: avisos, recomendaciones del motor y el horizonte de cada una.
-//   IV  Técnico: la trazabilidad completa (ver tecnico.ts).
+//   II  Acciones: avisos, recomendaciones del motor y el horizonte de cada una.
+//   III Productos: lo que tiene contratado y lo que le encajaría.
+//   IV  Detalles: la trazabilidad completa (ver tecnico.ts).
 // Todo sale de los ficheros: el bundle del motor, products/, horizons/ y params.json.
 
 import { TONO } from '../arena/arena';
@@ -20,7 +20,7 @@ import { ESFUERZO, ESTADO_AVISO, explicacionAccion, lineaAvisoM, movimiento, nom
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
 import { iconoProducto } from './iconos';
-import { asiento, cifraC, hilo, lineaEstado, llamadas, seccion, sello, type Nudo } from './primitivos';
+import { asiento, cifraC, hilo, lineaEstado, llamadas, marcaBanco, seccion, sello, type Nudo } from './primitivos';
 import { placa } from './registro';
 import { seccionTecnica } from './tecnico';
 import { triaje } from './triaje';
@@ -187,8 +187,10 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const pasado = meses.slice(-24);
 	const escenarios = d.hor?.scenarios;
 	const conFuturo = o.metrica === 'score' && !!escenarios && d.hor!.cut === d.corte;
+	// Los escenarios mejor/común/peor que calcula el motor (bundle del mes del corte): abanico a t+horizonte.
+	const abanico = o.metrica === 'score' && d.mes?.outlook ? d.mes.outlook : null;
 	const nF = conFuturo ? d.hor!.months.length : 0;
-	const columnas = pasado.length + nF;
+	const columnas = pasado.length + Math.max(nF, abanico ? abanico.horizon_months : 0);
 	const hoy = pasado.length - 1;
 	const col = (iso: string) => pasado.findIndex((m) => m.month === iso);
 
@@ -208,6 +210,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const marcas: [number, number][] = [];
 	let lo = Infinity, hi = -Infinity;
 	for (const v of valores) if (v[1] !== null) { lo = Math.min(lo, v[1]); hi = Math.max(hi, v[1]); }
+	if (abanico) for (const v of [abanico.best, abanico.common, abanico.worst]) { lo = Math.min(lo, v / 10); hi = Math.max(hi, v / 10); }
 	if (conFuturo) {
 		const esc: EscenarioM | undefined = escenarios![o.escenario] ?? escenarios!.base;
 		const accs = (d.hor!.actions ?? []).filter((a) => o.acciones.has(a.id));
@@ -238,7 +241,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		for (const hl of hilos) for (const [, v] of hl) if (v !== null) { lo = Math.min(lo, Math.max(0, v - 2)); hi = Math.max(hi, Math.min(100, v + 2)); }
 	}
 	const hueco = h('div', { class: 'grafico-arena' });
-	placa(hueco, (c): PlacaSerie => ({ tipo: 'serie', x: c.x, y: c.y, w: c.w, h: c.h, lo, hi, columnas: Math.max(columnas, 2), hoy, pasado: valores, hilos, futuros, bandas, marcas }));
+	placa(hueco, (c): PlacaSerie => ({ tipo: 'serie', x: c.x, y: c.y, w: c.w, h: c.h, lo, hi, columnas: Math.max(columnas, 2), hoy, pasado: valores, hilos, futuros, bandas, marcas, abanico: abanico ? { mejor: abanico.best, comun: abanico.common, peor: abanico.worst, mes: abanico.horizon_months } : undefined }));
 	caja.append(hueco);
 
 	// Etiquetas HTML con el mismo mapeo (porcentajes de la caja).
@@ -261,6 +264,13 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			if (b) boya.title = d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ');
 		}
 		eti('eje-m futuro', o.acciones.size ? 'previsto, con acciones' : 'previsto', X(hoy + Math.min(6, nF)), '0%');
+	}
+	if (abanico) {
+		const xa = X(hoy + abanico.horizon_months);
+		eti('g-etq abanico mejor', `Mejor ${f.score(abanico.best)}`, xa, Y(abanico.best / 10));
+		eti('g-etq abanico comun', `Común ${f.score(abanico.common)}`, xa, Y(abanico.common / 10));
+		eti('g-etq abanico peor', `Peor ${f.score(abanico.worst)}`, xa, Y(abanico.worst / 10));
+		if (!conFuturo) eti('g-etq abanico mes', `+${abanico.horizon_months} meses`, xa, '100%');
 	}
 	void empresasHilo;
 	void col;
@@ -301,28 +311,41 @@ export function seccionScoring(d: DatosFicha, estado: { escenario: OpcionesGrafi
 	const v = m.verdict;
 	const deriva = d.evid?.months.find((x) => x.month === d.corte)?.rows.find((r) => r.pillar === null && /deriva acumulada/i.test(r.label));
 	const esc6 = d.hor?.scenarios?.base;
+	const conSims = !!esc6 && d.hor!.cut === d.corte;
+	const ol = d.mes?.outlook ?? null;
 	const cifras = h('div', { class: 'cifras-c' },
 		cifraC(f.score(m.shown), 'score', v.compared_to && v.delta3 !== null ? `${f.delta(v.delta3)} frente a ${f.mesCorto(v.compared_to)}` : null, v.delta3 === null ? '' : v.delta3 < -5 ? 'baja' : v.delta3 > 5 ? 'sube' : ''),
 		cifraC(f.porcentaje(m.conf.value, 0), `confianza ${({ high: 'alta', medium: 'media', low: 'baja' } as Record<string, string>)[m.conf.label]}`, `historia ${f.porcentaje(m.conf.history, 0)} · cobertura ${f.porcentaje(m.conf.coverage, 0)} · calidad ${f.porcentaje(m.conf.quality, 0)}`),
 		cifraC(v.persistence_months ? f.plural(v.persistence_months, 'mes', 'meses') : '—', 'persistencia', v.detected_since ? `${movimiento(m)}` : 'sin movimiento confirmado'),
 		cifraC(deriva && typeof deriva.value === 'number' ? f.signo(deriva.value, 1) : '—', 'deriva de 12 meses', deriva ? `${f.periodo(deriva.period)}, según el motor` : 'el motor no la calcula este mes', deriva && typeof deriva.value === 'number' ? (deriva.value < -3 ? 'baja' : deriva.value > 3 ? 'sube' : '') : ''),
-		cifraC(esc6 && d.hor!.cut === d.corte ? `${f.score(esc6.q.p10[5])}–${f.score(esc6.q.p90[5])}` : '—', 'previsto a seis meses', esc6 && d.hor!.cut === d.corte ? `lo más probable, ${f.score(esc6.q.p50[5])}${esc6.cross ? ` · ${f.porcentaje(esc6.cross.prob, 0)} de pasar a ${nombreBanda(d.man, esc6.cross.to).toLowerCase()}` : ''}` : d.hor?.reason ?? 'sin horizonte en este mes'),
+		cifraC(conSims ? `${f.score(esc6!.q.p10[5])}–${f.score(esc6!.q.p90[5])}` : ol ? `${f.score(ol.worst)}–${f.score(ol.best)}` : '—', 'previsto a seis meses',
+			conSims ? `lo más probable, ${f.score(esc6!.q.p50[5])}${esc6!.cross ? ` · ${f.porcentaje(esc6!.cross.prob, 0)} de pasar a ${nombreBanda(d.man, esc6!.cross.to).toLowerCase()}` : ''}`
+				: ol ? `escenario común, ${f.score(ol.common)}: lo calcula el motor, sin simulación` : d.hor?.reason ?? 'sin horizonte en este mes'),
 	);
 	raiz.append(cifras);
 
 	// La partitura de pilares.
 	raiz.append(partitura(d, acc));
 	// El hilo, en corto.
-	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver el hilo entero en la sección técnica'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
+	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver el hilo entero en Detalles'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
 	return raiz;
 }
 
 function pieGrafico(d: DatosFicha, esc: OpcionesGrafico['escenario'], metrica: string): string {
 	if (metrica !== 'score') return 'Serie mensual del motor. La previsión se dibuja solo para el score.';
-	if (!d.hor?.scenarios) return d.hor?.reason ? `Sin horizonte: ${d.hor.reason}` : 'Sin horizonte para esta entidad.';
-	if (d.hor.cut !== d.corte) return `Los horizontes se calculan desde ${f.mes(d.hor.cut)}: mueve la regla a ese mes para verlos.`;
+	const ol = d.mes?.outlook ?? null;
+	const abanicoTxt = ol ? ` Los escenarios mejor, común y peor a ${ol.horizon_months} meses los calcula el motor con la deriva y la volatilidad medidas: no son simulaciones.` : '';
+	if (!d.hor?.scenarios) {
+		if (ol) return `Sin simulación de horizonte para esta entidad.${abanicoTxt}`;
+		return d.hor?.reason ? `Sin horizonte: ${d.hor.reason}` : 'Sin horizonte para esta entidad.';
+	}
+	if (d.hor.cut !== d.corte) return `Los horizontes se calculan desde ${f.mes(d.hor.cut)}: mueve la regla a ese mes para verlos.${abanicoTxt}`;
 	const base = 'Cada grano del futuro es una de 400 simulaciones puntuadas con el propio motor; donde se amontonan, es más probable.';
-	return esc === 'drift' ? `${base} Este escenario prolonga la deriva de 12 meses: es un «qué pasaría si», no una predicción (en la prueba hacia atrás acierta menos que el básico).` : esc === 'stress' ? `${base} Los tres primeros meses repiten su peor trimestre observado.` : base;
+	return (esc === 'drift'
+		? `${base} Este escenario prolonga la deriva de 12 meses: es un «qué pasaría si», no una predicción (en la prueba hacia atrás acierta menos que el básico).`
+		: esc === 'stress'
+			? `${base} Los tres primeros meses repiten su peor trimestre observado.`
+			: base) + abanicoTxt;
 }
 
 function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
@@ -337,7 +360,7 @@ function partitura(d: DatosFicha, acc: Acciones): HTMLElement {
 		const barra = h('div', { class: 'pt-barra', title: ref !== null ? `Referencia del motor: ${f.score(ref)}` : undefined },
 			h('span', { class: 'pt-lleno', style: { width: `${p.score === null ? 0 : p.score / 10}%` } }),
 			ref !== null ? h('span', { class: 'pt-ref', style: { left: `${ref / 10}%` } }) : null);
-		const fila = h('div', { class: `pt-fila tocable ${p.score === null ? 'nulo' : ''}`, tabindex: '0', title: 'Ver de dónde sale, en la sección técnica' },
+		const fila = h('div', { class: `pt-fila tocable ${p.score === null ? 'nulo' : ''}`, tabindex: '0', title: 'Ver de dónde sale, en Detalles' },
 			h('div', { class: 'pt-nombre' }, nombrePilar(d.man, p.key), ...marcas, h('span', { class: 'pt-peso' }, ` ${f.porcentaje(p.w_eff, 0)}`)),
 			h('div', { class: 'pt-score' }, p.score === null ? 'sin dato' : f.score(p.score)),
 			barra,
@@ -406,9 +429,19 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
 	}
 	if (!tenenciaDe(d).length) tiene.append(h('p', { class: 'nota' }, 'Ninguno de los siete productos consta en sus datos.'));
 	const otras = d.prodE?.other_debt.filter((x) => !x.closed) ?? [];
+	// La unidad que se repite entre las filas sube a la cabecera y las celdas quedan limpias;
+	// el cero no lastra la unidad (0 € = 0 k€). Si se mezclan, cada fila lleva la suya (docs/DESIGN_UX.mdx).
+	const unidadDe = (v: number | null) => (v === null || v === 0 ? null : Math.abs(v) >= 1e6 ? 'M€' : Math.abs(v) >= 1e3 ? 'k€' : '€');
+	const unidadComun = (vs: (number | null)[]) => {
+		const us = new Set(vs.filter((v) => v !== null && v !== 0).map(unidadDe));
+		return us.size === 1 ? [...us][0]! : null;
+	};
+	const uConcedido = unidadComun(otras.map((x) => x.granted));
+	const uPendiente = unidadComun(otras.map((x) => x.outstanding));
+	const importe = (v: number | null, u: '€' | 'k€' | 'M€' | null) => (v === null ? '—' : u ? f.eurosEn(v, u) : f.eurosCorto(v));
 	const otrasEl = otras.length ? seccion('Otras deudas', h('table', { class: 'tabla-sutil' },
-		h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, 'Entidad'), h('th', { class: 'num' }, 'Concedido'), h('th', { class: 'num' }, 'Pendiente'), h('th', { class: 'num' }, 'Interés'), h('th', {}, 'Próxima cuota'))),
-		h('tbody', {}, ...otras.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, x.bank ?? '—'), h('td', { class: 'num' }, f.eurosCorto(x.granted)), h('td', { class: 'num' }, f.eurosCorto(x.outstanding)), h('td', { class: 'num' }, x.rate === null ? '—' : `${f.numero(x.rate, 2)} %`), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—'))))),
+		h('thead', {}, h('tr', {}, h('th', {}, 'Tipo'), h('th', {}, 'Entidad'), h('th', { class: 'num' }, uConcedido ? `Concedido (${uConcedido})` : 'Concedido'), h('th', { class: 'num' }, uPendiente ? `Pendiente (${uPendiente})` : 'Pendiente'), h('th', { class: 'num' }, 'Interés (%)'), h('th', {}, 'Próxima cuota'))),
+		h('tbody', {}, ...otras.map((x) => h('tr', {}, h('td', {}, x.type_label), h('td', {}, x.bank ? h('span', { class: 'banco' }, marcaBanco(x.bank), x.bank) : '—'), h('td', { class: 'num' }, importe(x.granted, uConcedido)), h('td', { class: 'num' }, importe(x.outstanding, uPendiente)), h('td', { class: 'num' }, x.rate === null ? '—' : f.numero(x.rate, 2)), h('td', {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : '—'))))),
 		h('p', { class: 'nota' }, 'No son de los siete productos, pero pesan en el pilar de deuda.')) : null;
 
 	// Lo que le encajaría: ordenado por el efecto del motor.
@@ -601,7 +634,7 @@ function listaAvisos(d: DatosFicha): HTMLElement {
 	if (!lista.children.length) lista.append(h('li', { class: 'nota' }, 'Ningún aviso hasta este mes.'));
 	const descartados = deEntidad.length - vivos.length;
 	const sinRevisar = vivos.filter((a) => !triaje.de(a.id)).length;
-	lista.append(h('li', { class: 'nota' }, [`${f.plural(sinRevisar, 'aviso sin revisar', 'avisos sin revisar')}`, descartados ? `${f.plural(descartados, 'descartado', 'descartados')} (se ven en la sección técnica)` : '', vivos.length > 8 ? `${f.numero(vivos.length - 8)} más en la sección técnica` : ''].filter(Boolean).join(' · ') + '. La clasificación se guarda en este navegador.'));
+	lista.append(h('li', { class: 'nota' }, [`${f.plural(sinRevisar, 'aviso sin revisar', 'avisos sin revisar')}`, 	descartados ? `${f.plural(descartados, 'descartado', 'descartados')} (se ven en Detalles)` : '', vivos.length > 8 ? `${f.numero(vivos.length - 8)} más en Detalles` : ''].filter(Boolean).join(' · ') + '. La clasificación se guarda en este navegador.'));
 	return lista;
 }
 

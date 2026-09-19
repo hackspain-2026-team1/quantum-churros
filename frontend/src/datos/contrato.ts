@@ -65,9 +65,20 @@ export interface MesM {
 	months_observed: number;
 	perimeter_changed: boolean;
 	verdict: VeredictoM;
+	/** Opcional, bundles nuevos: los escenarios mejor/común/peor que calcula el motor (décimas). */
+	outlook?: OutlookM | null;
 	abstain: { reason: string; unlock: string } | null;
 	actions?: AccionM[];
 	actions_combined?: { new_score: number; uplift: number } | null;
+}
+
+export interface OutlookM {
+	basis: 'drift' | 'flat';
+	horizon_months: number;
+	best: number;
+	common: number;
+	worst: number;
+	gates: string[];
 }
 
 export interface AtributoM { key: string; label: string; value: string | null; evidence: string | null; coverage: number }

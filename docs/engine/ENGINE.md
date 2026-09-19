@@ -599,7 +599,7 @@ make test-engine-data XRAY_DATA=/path/to/output
 | **Quién empieza a torcerse** | `direction = deteriorating` while the band is still `stable` / `solid`; `pillars_moved` names the pillar | same threshold as above |
 | **Bache o caída** | `nature`: `shock_pending` → `bump` if it reverts within 2 months, `structural` if it holds 2 months | online, a spike is only *pending*; the bump is confirmed a posteriori, by design |
 | **Por qué ha cambiado** | exact `delta_parts` (base, per-pillar, penalty, cap) + `Evidence` rows behind each pillar | explains the measurement, not causes outside the data |
-| **Cuándo se vio venir** | `detected_since`, `persistence_months`; detection delay measured by injected deteriorations | the data shows no lead–lag between signals; anticipation is measured, not promised |
+| **Cuándo se vio venir** | `detected_since`, `persistence_months`; R8 injection delays; R9 AUC(h) and lead-time on the real portfolio | no bankruptcy labels; anticipation is measured and published, not tuned |
 
 ### The requirement table
 
@@ -612,7 +612,7 @@ make test-engine-data XRAY_DATA=/path/to/output
 | Producto encima del score | Obligatorio | static web app on the bundle: portfolio, group and company views, alert inbox, profile card, receipt |
 | Comprador identificado | Obligatorio | answered in [../COMPRADOR.md](../COMPRADOR.md); the engine's contribution is a verdict that can be handed to a third party with its receipt |
 | Demo navegable | Obligatorio | static bundle + static site: nothing to run server-side |
-| Anticipación medida *(bonus)* | Bonus | injection study: detection delay by shape (spike / step / ramp) and size band, false-alert rate |
+| Anticipación medida *(bonus)* | Bonus | R8 injection (capacity) + R9 `natural_anticipation`: AUC(h), lead-time, calibration, rolling-origin audit — [`NATURAL_ANTICIPATION.md`](./NATURAL_ANTICIPATION.md) |
 | Monitor que avisa *(bonus)* | Bonus | `alerts.json` aporta eventos y motivos; la web añade el banner proactivo y el backend entrega por SMTP los avisos internos y de empresa a Mailpit. Ningún correo sale de la demo. |
 
 ## Known limitations

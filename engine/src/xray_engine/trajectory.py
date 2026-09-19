@@ -14,6 +14,15 @@ short threshold, is still seen. Each horizon needs its own condition to hold
 ``structural_consecutive_months`` months in a row before the call is
 ``structural``; until then it is ``shock_pending``. When the two horizons
 disagree the recent move makes the call, unconfirmed.
+
+Holding two months is not enough for the short horizon: on the real run the
+length of a run says nothing about whether the move is still there a quarter
+later, while scores drift back towards the level the entity usually sits at
+(a gap to that own level keeps about two thirds of its size after three
+months and half after six). So a three-month move that held is structural
+only when what that drift is expected to leave still clears the minimum move,
+or when the move does not rest on a single month; and no call of either
+horizon is structural in a month in which the score is already moving back.
 """
 
 from __future__ import annotations
@@ -132,6 +141,68 @@ def _drift(
     return _theil_sen(points) * months, months, used[0]
 
 
+def _median(values: Sequence[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2.0
+
+
+def own_level(history: Sequence[ScoreParts], p: Params) -> float | None:
+    """Where the entity usually sits, before the move under test: median score
+    of the live months among the ``own_level_months`` months that end at
+    ``t - horizon_months``. None with fewer than ``own_level_min_months`` of
+    them. Every live month counts, whatever its coverage branch: a median of a
+    year is not moved by a few months measured another way."""
+    cfg = p.trajectory
+    if not history:
+        return None
+    newest = _shift(history[-1].month, -cfg.horizon_months)
+    oldest = _shift(newest, 1 - cfg.own_level_months)
+    scores = [item.score for item in history if item.feed_live and oldest <= item.month <= newest]
+    return _median(scores) if len(scores) >= cfg.own_level_min_months else None
+
+
+def _expected_to_hold(now: ScoreParts, then: ScoreParts, own: float | None, direction: str, p: Params) -> bool:
+    """With ``structural_retention`` of its gap to the own level kept, the
+    score is still ``min_delta_points`` beyond the pre-move level."""
+    if own is None:
+        return False
+    cfg = p.trajectory
+    expected = own + cfg.structural_retention * (now.score - own)
+    left = expected - then.score if direction == "improving" else then.score - expected
+    return left >= cfg.min_delta_points
+
+
+def _spread(
+    history: Sequence[ScoreParts], position: int, index: dict[date, int], direction: str, threshold: float, p: Params
+) -> bool:
+    """The move sits in more than one calendar month: months ``t - horizon`` ..
+    t are all live and measured like month t, and without its largest monthly
+    step the move still reaches ``threshold``."""
+    now = history[position]
+    found = [index.get(_shift(now.month, -back)) for back in range(p.trajectory.horizon_months, -1, -1)]
+    if any(item is None for item in found):
+        return False
+    months = [history[item] for item in found]
+    if any(not item.feed_live or _like_for_like(now, item, p) is not None for item in months[:-1]):
+        return False
+    sign = 1.0 if direction == "improving" else -1.0
+    steps = [(after.score - before.score) * sign for before, after in zip(months, months[1:])]
+    return sum(steps) - max(steps) >= threshold
+
+
+def _moving_back(history: Sequence[ScoreParts], position: int, direction: str, p: Params) -> bool:
+    """The score of month t undid ``min_delta_points`` or more of the call
+    against month t - 1 (live, measured the same way)."""
+    now, before = history[position], history[position - 1] if position else None
+    if before is None or before.month != _shift(now.month, -1) or not before.feed_live:
+        return False
+    if _like_for_like(now, before, p) is not None:
+        return False  # a change of composition, not a move of the entity
+    back = before.score - now.score if direction == "improving" else now.score - before.score
+    return back >= p.trajectory.min_delta_points
+
+
 def _verdict(
     history: Sequence[ScoreParts],
     position: int,
@@ -153,8 +224,9 @@ def _verdict(
     sigma = own_sigma(history[: position + 1], p)
     threshold = max(cfg.min_delta_points, cfg.min_sigma_multiple * sigma)
 
+    # a month of a shock that a later verdict declared a bump is not a base to compare against
     echo = any(
-        verdicts[item].nature == "bump" and verdicts[item].shock_month == compared
+        verdicts[item].nature == "bump" and verdicts[item].shock_month <= compared
         for item in range(base + 1, position)
     )
     shifted = "perimeter_shift" in now.flags
@@ -212,11 +284,19 @@ def _verdict(
                 break
             run, first = run + 1, history[item].month
         # each horizon is confirmed by its own condition, month after month
-        held = max(
-            _own_run(history, position, verdicts, _short_call, short) if short == direction else 0,
-            _own_run(history, position, verdicts, _long_call, long) if long == direction else 0,
-        )
-        if conflict or held < cfg.structural_consecutive_months:
+        held_short = _own_run(history, position, verdicts, _short_call, short) if short == direction else 0
+        held_long = _own_run(history, position, verdicts, _long_call, long) if long == direction else 0
+        confirmed = False
+        if not conflict and not _moving_back(history, position, direction, p):
+            needed = cfg.structural_consecutive_months
+            confirmed = held_long >= needed or (
+                held_short >= needed
+                and (
+                    _expected_to_hold(now, then, own_level(history[: position + 1], p), direction, p)
+                    or _spread(history, position, index, direction, threshold, p)
+                )
+            )
+        if not confirmed:
             return Trajectory(
                 **common, nature="shock_pending", shock_pending=True, shock_month=first,
                 persistence_months=run, detected_since=first,
@@ -236,7 +316,7 @@ def _verdict(
                 continue
             undone = (history[item].score - now.score) * (1.0 if spike > 0 else -1.0)
             if undone >= cfg.bump_revert_fraction * abs(spike):
-                return Trajectory(**common, nature="bump", shock_month=history[item].month)
+                return Trajectory(**common, nature="bump", shock_month=verdicts[item].shock_month)
     return Trajectory(**common)
 
 
@@ -307,9 +387,9 @@ def trajectory(history: Sequence[ScoreParts], p: Params) -> Trajectory:
     no improvement or deterioration call on either horizon, nature None.
     Short horizon: improving / deteriorating when ``|delta3| >=
     max(min_delta_points, min_sigma_multiple * sigma)``; never when
-    ``compared_to`` is the ``shock_month`` of an earlier ``bump`` verdict (a
-    spike that reverted is not a base to compare against, so it leaves no echo
-    three months later).
+    ``compared_to`` is a month of a shock that a later verdict declared a
+    ``bump`` (from its ``shock_month`` on: a shock that reverted is not a base
+    to compare against, so it leaves no echo three months later).
     Like-for-like guard on that call: when the two ends are not measured the
     same way (a pillar is available at one end only; the activity momentum
     came online in between, i.e. ``months_observed`` crossed
@@ -341,16 +421,32 @@ def trajectory(history: Sequence[ScoreParts], p: Params) -> Trajectory:
     those of the prefixes of ``history``. ``detected_since`` is the first month
     of that run.
     Nature on an improving / deteriorating month: ``structural`` when one of
-    the horizons behind the call has held its OWN condition, same sign, for
-    ``structural_consecutive_months`` consecutive months (the long horizon is
-    confirmed exactly like the short one: a drift that first appears in month t
-    is not structural until it is still there at t + 1); ``shock_pending``
-    until then and on every conflict month (``shock_pending=True``,
-    ``shock_month`` = first month of the run).
+    the horizons behind the call is confirmed, ``shock_pending`` until then
+    and on every conflict month (``shock_pending=True``, ``shock_month`` =
+    first month of the run). Either horizon needs its OWN condition, same
+    sign, for ``structural_consecutive_months`` consecutive months (a drift
+    that first appears in month t is not structural until it is still there
+    at t + 1), and neither is confirmed in a month whose score moved back
+    against the call by ``min_delta_points`` or more from month t - 1 (live
+    and measured the same way): a spike on its way back is not a second month
+    of the move. The short horizon also needs one of:
+      expected to hold: with ``own_level`` = median score of the live months
+        among the ``own_level_months`` months ending at ``t - horizon_months``
+        (at least ``own_level_min_months`` of them), the expected score
+        ``own_level + structural_retention * (score - own_level)`` is still
+        ``min_delta_points`` beyond the score of ``t - horizon_months``. A
+        move back to the own level from an unusual month passes; a dip away
+        from it passes only when half of it still makes a move;
+      spread: months ``t - horizon_months`` .. t are live and measured like
+        month t and, without its largest monthly step, the move still reaches
+        the threshold of the short horizon. A steady decline is never expected
+        to hold (its own level trails far above it) and is confirmed this way,
+        or by the long horizon when it is slower.
     On a stable month: ``bump`` when a month of the last
     ``bump_revert_months`` was a ``shock_pending`` call of the short horizon
     and the score has since undone at least ``bump_revert_fraction`` of the
-    ``delta3`` of that month (``shock_month`` = that month); else None.
+    ``delta3`` of that month (``shock_month`` = first month of the run of
+    that call); else None.
     """
     if not history:
         return Trajectory(available=False, reason="short_history")

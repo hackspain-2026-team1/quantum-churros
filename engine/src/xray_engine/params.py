@@ -267,8 +267,13 @@ def validate_params(params: Params) -> None:
         raise ParamsError("trajectory: long_min_months must lie in [3, long_horizon]")
     if trajectory.long_threshold <= 0 or trajectory.long_sigma_mult < 0:
         raise ParamsError("trajectory: long_threshold > 0 and long_sigma_mult >= 0")
+    if not 1 <= trajectory.own_level_min_months <= trajectory.own_level_months:
+        raise ParamsError("trajectory: own_level_min_months must lie in [1, own_level_months]")
     _check_share("trajectory.perimeter_shift_share", trajectory.perimeter_shift_share)
     _check_share("trajectory.bump_revert_fraction", trajectory.bump_revert_fraction)
+    _check_share("trajectory.structural_retention", trajectory.structural_retention)
+    if params.outlook.horizon_months < 1:
+        raise ParamsError("outlook: horizon_months must be positive")
     _check_share("profile.concentration_top1_share", params.profile.concentration_top1_share)
     if not 1 <= params.profile.concentration_min_months <= params.profile.concentration_window_months:
         raise ParamsError("profile: concentration_min_months must lie in [1, window]")

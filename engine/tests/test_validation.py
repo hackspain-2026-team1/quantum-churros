@@ -11,6 +11,7 @@ import polars as pl
 import pytest
 from bundle_contract import load_schema, validate
 from xray_engine import io, validation as v
+from xray_engine.contracts import EntityMonth, PanelRow, Trajectory
 from xray_engine.scoring import score_entity
 
 
@@ -240,6 +241,132 @@ def test_persistence(scored) -> None:
         assert all(rates[key] is None or 0 <= rates[key] <= 1 for key in ("p_given_flag", "p_given_clear", "base_rate"))
 
 
+def _verdict_months(score_parts, params, kind, entity_id, scores, verdicts, stale=()):
+    """Hand-made months of one entity: ``verdicts`` maps an index to Trajectory fields
+    (every other live month is stable); ``stale`` indexes are carried months."""
+    first, months = date(2025, 1, 1), []
+    for index, score in enumerate(scores):
+        month = score_parts.month_add(first, index)
+        if index in stale:
+            parts = score_parts.stale(month, float(score), params, score=float(score), carried_from=first)
+            verdict = Trajectory(available=False, reason="stale_feed")
+        else:
+            parts = score_parts.live(month, float(score), params)
+            fields = dict(verdicts.get(index, {}))
+            for name in ("shock_month", "compared_to"):
+                if name in fields:
+                    fields[name] = score_parts.month_add(first, fields[name])
+            verdict = Trajectory(available=True, reason=None, **fields)
+        row = PanelRow(entity_kind=kind, entity_id=entity_id, group_id="GROUP_A", month=month)
+        months.append(EntityMonth(row, {}, parts, verdict))
+    return months
+
+
+def _verdict_cases(score_parts, params, swap: bool = False) -> list[EntityMonth]:
+    pending, structural = ("structural", "shock_pending") if swap else ("shock_pending", "structural")
+    fall = dict(direction="deteriorating", horizon="short")
+    stays = _verdict_months(score_parts, params, "group", "GROUP_A", [70] * 4 + [50] * 8, {
+        4: dict(fall, nature=pending, persistence_months=1), 5: dict(fall, nature=structural, persistence_months=2),
+        6: dict(fall, nature=structural, persistence_months=3),
+    })
+    reverts = _verdict_months(score_parts, params, "group", "GROUP_B", [70] * 4 + [50] + [70] * 7, {
+        4: dict(fall, nature=pending, persistence_months=1), 5: dict(nature="bump", shock_month=4),
+    })
+    drifts = _verdict_months(score_parts, params, "group", "GROUP_C", [80 - 0.9 * index for index in range(12)], {
+        8: dict(direction="deteriorating", horizon="long", nature=structural, drift_months=9, persistence_months=2),
+    })
+    company = _verdict_months(score_parts, params, "company", "COMPANY_A", [70] * 4 + [50] * 8, {
+        4: dict(fall, nature=structural, persistence_months=2),
+    }, stale=(7,))
+    return [*stays, *reverts, *drifts, *company]
+
+
+def test_verdict_persistence_counts_by_hand(scored, score_parts, params) -> None:
+    found = v.verdict_persistence(replace(scored, months=tuple(_verdict_cases(score_parts, params))), min_cases=1)
+    assert (found["move_points"], found["horizon_months"], found["lags"]) == (6.0, 3, [3, 6])
+    groups = found["by_kind"]["group"]
+    base = groups["base_rate"]  # every month whose t - 3 is live and scored
+    assert base["n"] == 27 and base["lag3"]["n"] == 18 and base["lag6"]["n"] == 9
+    assert base["lag3"]["down"] == pytest.approx(4 / 18) and base["lag3"]["up"] == pytest.approx(1 / 18)
+    assert base["lag3"]["persist"] is None
+    structural = groups["classes"]["deteriorating/structural"]
+    assert structural["n"] == 3 and structural["mean_move"] == pytest.approx((-20 - 20 - 2.7) / 3)
+    assert structural["lag3"] == {"n": 3, "down": pytest.approx(2 / 3), "up": 0.0, "persist": pytest.approx(2 / 3)}
+    assert structural["lag6"]["n"] == 1 and structural["lag6"]["persist"] == 1.0  # month t + 6 must exist
+    split = structural["by_horizon"]
+    assert (split["short"]["n"], split["short"]["lag3"]["persist"]) == (2, 1.0)
+    # the drift alone: 5.4 points against t - 3, 9.9 against the first month of its nine-month window
+    assert (split["long"]["lag3"]["persist"], split["long"]["mean_move"]) == (0.0, pytest.approx(-2.7))
+    own = split["long"]["own_reference"]
+    assert (own["n"], own["mean_move"], own["lag3"]["persist"]) == (1, pytest.approx(-7.2), 1.0)
+    pending = groups["classes"]["deteriorating/shock_pending"]
+    assert pending["lag3"]["persist"] == 0.5 and pending["lag6"]["persist"] == 0.5
+    assert pending["by_age"]["first_month"]["n"] == 2 and "later_months" not in pending["by_age"]
+    bump = groups["classes"]["stable/bump"]
+    assert bump["lag3"]["persist"] is None and bump["lag3"]["down"] == 0.0  # no direction of its own
+    assert bump["by_shock_direction"]["deteriorating"]["lag3"] == {"n": 1, "down": 0.0, "up": 0.0, "persist": 0.0}
+    assert groups["classes"]["stable/none"]["n"] == 27 - 3 - 2 - 1
+    # a carried month is no outcome: the company verdict has none at +3 and one at +6
+    company = found["by_kind"]["company"]["classes"]["deteriorating/structural"]
+    assert (company["n"], company["lag3"]["n"], company["lag3"]["persist"], company["lag6"]["persist"]) == (1, 0, None, 1.0)
+    assert found["by_kind"]["company"]["base_rate"]["n"] == 7  # months 7 and 10 lack a live end
+
+    falls = found["short_horizon_calls"]["group_falls"]
+    assert falls["structural"]["lag3"] == {"n": 2, "persist": 1.0} and falls["pending"]["lag3"]["persist"] == 0.5
+    assert falls["bump"]["lag3"]["persist"] == 0.0 and falls["base_rate"]["lag3"] == pytest.approx(4 / 18)
+    assert (found["pass"], found["warning"]) == (True, False)
+    assert all(0 < len(item["label"]) <= 400 and len(item["unit"]) <= 24 for item in found["metrics"])
+    assert len(found["metrics"]) <= 24 and len(found["summary"]) <= 400
+
+
+def test_verdict_persistence_grades_the_separation(scored, score_parts, params) -> None:
+    cases = _verdict_cases(score_parts, params)
+    few = v.verdict_persistence(replace(scored, months=tuple(cases)))
+    assert (few["pass"], few["warning"]) == (None, False) and "insuficientes" in few["summary"]
+    # the labels the other way round: what is called structural persists less than what is pending
+    other_way = replace(scored, months=tuple(_verdict_cases(score_parts, params, swap=True)))
+    swapped = v.verdict_persistence(other_way, min_cases=1)
+    falls = swapped["short_horizon_calls"]["group_falls"]
+    assert falls["structural"]["lag3"]["persist"] == 0.5 and falls["pending"]["lag3"]["persist"] == 1.0
+    assert swapped["pass"] is False and "no discriminan" in swapped["summary"]
+    assert v.check_status(swapped) == "fail"
+    # it discriminates, short of a target: a warning, never a pass
+    reverted = [
+        replace(item, trajectory=replace(item.trajectory, nature="shock_pending", direction="deteriorating",
+                                         horizon="short", persistence_months=2, shock_month=None))
+        if item.trajectory.nature == "bump" else item
+        for item in cases
+    ]
+    lower = [
+        replace(item, parts=replace(item.parts, score=66.0))
+        if item.row.entity_id == "GROUP_A" and item.row.month == date(2025, 10, 1) else item
+        for item in reverted
+    ]  # GROUP_A comes back for one month: the verdict of 2025-07 no longer persists at +3
+    warned = v.verdict_persistence(replace(scored, months=tuple(lower)), min_cases=1)
+    falls = warned["short_horizon_calls"]["group_falls"]
+    assert falls["structural"]["lag3"]["persist"] == 0.5 and falls["pending"]["lag3"]["persist"] == pytest.approx(1 / 3)
+    assert (warned["pass"], warned["warning"], v.check_status(warned)) == (None, True, "warn")
+
+
+def test_verdict_persistence_on_the_scored_run(scored) -> None:
+    found = v.verdict_persistence(scored)
+    assert set(found["by_kind"]) == {"group", "company"}
+    for kind, item in found["by_kind"].items():
+        eligible = item["base_rate"]["n"]
+        assert 0 < eligible and sum(cell["n"] for cell in item["classes"].values()) <= eligible
+        for label, cell in item["classes"].items():
+            direction, nature = label.split("/")
+            assert direction in ("improving", "deteriorating", "stable", "perimeter_shift")
+            for lag in ("lag3", "lag6"):
+                assert cell[lag]["n"] <= cell["n"]
+                for name in ("down", "up", "persist"):
+                    assert cell[lag][name] is None or 0.0 <= cell[lag][name] <= 1.0
+                assert (cell[lag]["persist"] is None) == (direction in ("stable", "perimeter_shift") or not cell[lag]["n"])
+            if "by_horizon" in cell:
+                assert sum(part["n"] for part in cell["by_horizon"].values()) == cell["n"]
+    assert set(found["short_horizon_calls"]) == {"group_falls", "group_rises", "company_falls", "company_rises"}
+
+
 def test_netting_placebo_finds_the_real_pairs_only(scored, synthetic) -> None:
     found = v.netting_placebo(scored)
     assert found["real"]["pairs"] >= len([pair for pair in synthetic.mirror_pairs if not pair.ambiguous]) > 0
@@ -315,6 +442,14 @@ def test_a_step_lowers_the_score_and_the_study_counts_it(scored, params) -> None
     assert v.injection_study(scored, min_score=101.0)["pass"] is None
 
 
+def test_outlook_fan_calibration_reports_coverage(scored) -> None:
+    result = v.outlook_fan_calibration(scored)
+    assert result["pass"] is None
+    assert result["n_evaluated"] > 0
+    assert 0 <= result["hit_rate"] <= 1
+    assert set(result["by_basis"]) >= {"drift", "flat"}
+
+
 # ---- document ---------------------------------------------------------------------
 
 
@@ -367,3 +502,52 @@ def test_a_broken_check_is_reported_not_raised(scored, monkeypatch) -> None:
     results = v.run_checks(scored, quick=True)
     assert results["penalty_by_branch"]["pass"] is False and "boom" in results["penalty_by_branch"]["error"]
     assert results["additivity"]["pass"] is True
+
+
+def test_coverage_summary_counts_last_month(scored) -> None:
+    found = v.coverage_summary(scored)
+    groups = found["groups"]
+    assert groups["total"] > 0
+    assert 0 <= groups["scored_pct"] <= 1
+    assert groups["scored"] + groups["abstained"] == groups["total"]
+    assert "payments" in groups["pillars"]
+
+
+def test_level_vs_slope_reports_autocorrelations(scored) -> None:
+    found = v.level_vs_slope(scored, lag=3)
+    assert found["n_level_pairs"] >= 0
+    assert "Persistencia de nivel" in found["summary"]
+    if found["n_level_pairs"] >= 3:
+        assert found["level_autocorr_lag3"] is not None
+
+
+def test_rolling_origin_matches_full_run_at_cuts(scored) -> None:
+    found = v.rolling_origin(scored)
+    assert found["pass"] is True
+    assert found["min_spearman"] == pytest.approx(1.0, abs=1e-9)
+    assert found["cuts"]
+
+
+def test_build_kpis_groups_by_stage(scored) -> None:
+    results = v.run_checks(scored, quick=True)
+    coverage = v.coverage_summary(scored)
+    kpis = v.build_kpis(
+        scored,
+        results,
+        coverage=coverage,
+        level_slope=results["level_vs_slope"],
+        rolling=results["rolling_origin"],
+    )
+    assert set(kpis["by_stage"]) == {"reconcile", "normalize", "score"}
+    assert kpis["by_stage"]["score"]["holdout_n_groups"] == results["isolation"]["n_groups"]
+
+
+def test_run_validation_writes_kpis_and_coverage(scored, synthetic, tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(v.io, "load_source", lambda *_args, **_kwargs: scored.tables)
+    monkeypatch.setattr(v, "score_core", lambda *_args, **_kwargs: scored)
+    out = tmp_path / "validation.json"
+    document = v.run_validation(synthetic.path, scored.params, out, quick=True)
+    assert "kpis" in document and "coverage" in document
+    assert document["kpis"]["by_stage"]["score"]["holdout_n_groups"] == document["isolation"]["n_groups"]
+    saved = json.loads(out.read_text(encoding="utf-8"))
+    assert saved["level_vs_slope"]["summary"]

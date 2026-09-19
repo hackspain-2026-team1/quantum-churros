@@ -265,6 +265,9 @@
     "weekend_bridge_day_gap": 3,
     "weekend_bridge_weekdays": [4, 5]
   },
+  "outlook": {
+    "horizon_months": 6
+  },
   "penalty": {
     "lam": 0.5,
     "tau": 40.0
@@ -287,7 +290,7 @@
   "robust": {
     "monthly_winsor_multiple": 3.0
   },
-  "sha256": "c9918db28e91608fb5f83c70adea2aa3a95026ca4c1e321ec9771018103060a1",
+  "sha256": "b054cda1670dc3d9b4ad9e9c29a89c010b5ee8e771a4ecdf44abc66863f54ad3",
   "size_bands": {
     "hold_months": 3,
     "upper_bounds_eur": [2000000.0, 10000000.0, 50000000.0],
@@ -304,11 +307,14 @@
     "min_delta_points": 6.0,
     "min_scored_months": 6,
     "min_sigma_multiple": 1.5,
+    "own_level_min_months": 4,
+    "own_level_months": 12,
     "perimeter_shift_share": 0.2,
     "perimeter_shift_window_months": 3,
     "pillar_move_points": 5.0,
     "sigma_floor": 2.0,
-    "structural_consecutive_months": 2
+    "structural_consecutive_months": 2,
+    "structural_retention": 0.5
   },
   "version": "reference_v1",
   "weights": {
