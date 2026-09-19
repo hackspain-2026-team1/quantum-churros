@@ -4,6 +4,78 @@ Registro de lo que se hace en `frontend/`, en qué orden y por qué. Lo lleva el
 
 ---
 
+## 19 de septiembre de 2026, la marca, la cabecera, los escenarios y el informe
+
+### La marca (`src/vistas/marca.ts`)
+
+El monograma sale de los bocetos de José Luis y sigue su lectura (la reducción de *El toro* de Picasso). De «rumbo» quedan la r, la u y la m, porque son las letras de la familia del arco. La b y la o se quedan fuera: son formas cerradas.
+
+- **Un solo recorrido.** El hombro de la r se convierte en un arco grande, unas 2,4 veces la altura de los pequeños. Su cima es asimétrica, del lado de la subida.
+- **Trazos que hacen dos trabajos.** La bajada del arco es a la vez el primer lado de la u. La subida desde el valle es el segundo lado de la u y la primera asta de la m.
+- **Coda.** Los dos arcos de la m son pequeños y van sin espuela.
+- **Principio y final.** Arranca con un gancho corto bajo la base, que hace de ancla. Termina con una salida corta hacia la derecha, que marca el avance.
+- **Construcción.** Primero el esqueleto, engrosado después con `stroke`. El contraste es cero, los remates redondos y la inclinación de 6°. El grosor ronda 1/14 de la altura, con corrección óptica en pequeño.
+- **Tamaños diminutos.** Por debajo de 20 px pierde el segundo arco pequeño: es el favicon.
+
+El logotipo «rumbo» se construye con el mismo módulo de arco. La o es la única forma cerrada; la panza de la b queda abierta.
+
+Dónde vive la marca:
+- En la cabecera, el monograma es de arena: un lienzo 2D propio con granos que caen en el orden de la pluma y se apartan al pasar el puntero.
+- En la portada, el objeto sigue siendo la rosa de los vientos, hecha de arena. La frase empieza con el logotipo: «rumbo de ¿qué organización?».
+
+### La cabecera
+
+Antes había dos barras, marca y miga, y la portada repetía «Rumbo» tres veces. Ahora hay una sola línea:
+- la marca;
+- la miga (Grupo › Empresa · mes);
+- las acciones de la página (Informe en PDF, Mapa de la cartera);
+- Metodología y la ayuda.
+
+Debajo de la cabecera va una raya de granos, el horizonte de arena. En la portada la marca no aparece en la cabecera: allí ya están la rosa y el logotipo en la frase. En el mapa (plano y tapiz) se quedan las lentes y el selector de vista.
+
+### El reloj de arena
+
+Queda en dos líneas: el contorno de un solo trazo y el nivel de la arena. Al reproducir, un grano cae por el cuello y se posa. La primera prueba llevaba un montón curvo con un grano encima y parecía una cara triste, así que se descartó.
+
+### Los escenarios, a la vez
+
+En Scoring se ven los tres futuros juntos, cada uno con su color de arena:
+- «todo igual», en gris;
+- «deriva», en morado;
+- «peor trimestre», en ocre, un tono nuevo de la paleta.
+
+El elegido se ve definido, con sus granos apretados, más opacos y con su mediana. Los otros se ven sueltos y finos, rotulados al final de su mediana.
+
+Cada simulación tiene siempre cuatro granos y el orden no cambia. Por eso, al elegir otro escenario, la arena se reorganiza delante de los ojos: unos granos se aprietan y otros se sueltan. El escenario se elige con la leyenda, con el rótulo o tocando su arena en el gráfico. Con acciones marcadas (sección III) se sigue viendo solo el básico con las acciones.
+
+### El informe en PDF (`src/vistas/imprimir.ts`)
+
+El informe es el mismo HTML de las cuatro secciones, seguido y sin controles, y respeta el escenario elegido y las acciones marcadas. Se monta en una capa aparte con el ancho útil de un A4 (182 mm) y se imprime con el diálogo del navegador («Guardar como PDF»). Se abre con el botón «Informe en PDF» o con ⌘P.
+
+- **La arena.** Es WebGL, así que no se imprime. Cada placa se vuelve a componer con su escena y se pinta grano a grano en una imagen a 3×: el papel lleva la misma arena, quieta.
+- **Paginación.** Cada sección empieza en una hoja y no se parten ni filas ni gráficos.
+- **Anchos.** Las reglas de ancho del CSS son solo de pantalla (`screen and`), para que el papel no tome el diseño del móvil.
+- **Animaciones.** Dentro del informe están apagadas: si no, los bloques se quedan en su primer fotograma, invisibles.
+
+### Un fallo de tipografía
+
+El cuerpo llevaba `font-variant-numeric: tabular-nums`, y en Schibsted Grotesk «tnum» también ensancha la coma, el punto y el punto y coma. Por eso en la prosa parecía haber un espacio delante («motor ; donde», «+0 , 3»). Ahora las cifras tabulares van solo donde se alinean en columna.
+
+### Pruebas
+
+El recorrido pasa a 41 comprobaciones. Las nuevas son cinco:
+- la portada con la rosa y sin la marca repetida;
+- una sola cabecera;
+- los escenarios alternativos a la vez;
+- elegir uno mueve la arena (más de 30.000 granos);
+- el informe con sus cuatro secciones y la arena cocida.
+
+`pruebas/informe.mjs <url> <pdf>` genera el PDF de una ficha como lo haría el navegador. `pruebas/foto.mjs` hace capturas sueltas para diseñar piezas.
+
+Última ejecución: **41 de 41**.
+
+---
+
 ## 19 de septiembre de 2026, Rumbo
 
 Implementa las propuestas `hackspain/06-propuesta-rumbo.md` y `07-propuesta-rumbo-pr1.md`. La aplicación se llama **Rumbo** y sigue sin Svelte ni shadcn por decisión del equipo: TypeScript, Vite, Bun, DOM propio y WebGL2 son el estándar del único frontend.

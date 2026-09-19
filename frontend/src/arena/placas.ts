@@ -5,7 +5,7 @@
 //   · serie: una línea de tiempo que cruza el presente, con la estela asentada (lo observado) y el
 //     futuro como arena suelta (cada grano es una de las simulaciones de los horizontes);
 //   · flota: las empresas de un grupo en un plano pequeño (score y ritmo);
-//   · rosa: la rosa de los vientos de Rumbo, en la entrada.
+//   · rosa: la rosa de los vientos de Rumbo, el objeto de la portada.
 
 import { escenaVacia, TONO, type Escena } from './arena';
 import { ajustar, anillo, disco, linea, punteado, texto, type Puntos } from './formas';
@@ -19,6 +19,12 @@ export interface Futuro {
 	alfa: number;
 	/** Mediana mes a mes (décimas), dibujada como hilo. */
 	mediana?: number[];
+	/**
+	 * 0 = definido (el escenario elegido: granos apretados); 1 = suelto (las alternativas: más
+	 * dispersos y más finos). Cada simulación tiene siempre el mismo número de granos, así que al
+	 * elegir otro escenario la arena se reorganiza: unos se aprietan y otros se sueltan.
+	 */
+	suelto?: number;
 }
 export interface PlacaSerie {
 	tipo: 'serie';
@@ -79,11 +85,13 @@ function serie(l: Lote, s: PlacaSerie) {
 		l.add(linea([X(a[0]), Y(a[1]!), X(b[0]), Y(b[1]!)], n, 1.2), TONO.tinta, 0.9, 1.5);
 	}
 	obs.forEach((q, i) => l.add(disco(X(q[0]), Y(q[1]!), i === obs.length - 1 ? 4.4 : 2.4, i === obs.length - 1 ? 34 : 12), q[2] ?? TONO.tinta, 1, 1.6));
-	// Futuro: arena suelta. Cada grano de la simulación son tres granos de arena.
+	// Futuro: arena suelta. Cada grano de la simulación son cuatro granos de arena.
 	for (const fu of s.futuros ?? []) {
+		const su = fu.suelto ?? 0;
+		const jx = cw * (0.9 + su * 1.4), jy = 3 + su * 11, talla = 1.6 - su * 0.25;
 		for (const [m, d] of fu.granos) {
 			const x0 = X(s.hoy + m), y0 = Y(d / 10);
-			for (let k = 0; k < 4; k++) l.add([x0 + (Math.random() - 0.5) * cw * 1.05, y0 + (Math.random() - 0.5) * 4], fu.tono, fu.alfa, 1.55);
+			for (let k = 0; k < 4; k++) l.add([x0 + (Math.random() - 0.5) * jx, y0 + (Math.random() - 0.5) * jy], fu.tono, fu.alfa, talla);
 		}
 		if (fu.mediana) {
 			const pts = [X(s.hoy), Y(obs.length ? obs[obs.length - 1][1]! : fu.mediana[0] / 10), ...fu.mediana.flatMap((d, i) => [X(s.hoy + i + 1), Y(d / 10)])];
