@@ -121,7 +121,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		temporizadorH = window.setTimeout(() => {
 			const d = datos!;
 			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
-			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, desde: cb.desde(), alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
+			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, tendencia: false, alto, desde: cb.desde(), alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
 			pintarControles(d);
 			medirEscenario();
 			cb.alCambiarArena();
@@ -462,7 +462,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		hoja.append(h('header', { class: 'informe-cab' },
 			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
 			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
-		hoja.append(cabecera(d, false, acc), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, alto: 240 }, true)));
+		hoja.append(cabecera(d, false, acc), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, tendencia: false, alto: 240 }, true)));
 		for (const sec of SECCIONES) {
 			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, nombreSeccion(sec, e.vista)));
 			cuerpo.append(contenidoSeccion(d, sec, quieto, null, d.kind === 'group' && sec === 'scoring' ? flota(d) : null));

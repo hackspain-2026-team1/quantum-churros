@@ -1046,8 +1046,14 @@ function accionesEmpresas(d: DatosFicha, acc: Acciones): HTMLElement {
 	const filas = d.empresas.flatMap((em) => (em.ent?.months.find((m) => m.month === d.corte)?.actions ?? []).map((a) => ({ em, a })));
 	filas.sort((x, y) => y.a.uplift_tenths - x.a.uplift_tenths);
 	const lista = h('ul', { class: 'acciones-empresas' });
+	lista.append(h('li', { class: 'ae-cab', 'aria-hidden': 'true' },
+		h('span', {}, 'Empresa'), h('span', {}, 'Palanca'), h('span', { class: 'der' }, 'Efecto en la empresa'), h('span', { class: 'der' }, 'Esfuerzo')));
 	for (const { em, a } of filas.slice(0, 12)) {
-		const li = h('li', { class: 'tocable', tabindex: '0' }, h('b', {}, f.empresa(em.res.id)), h('span', { class: 'ae-titulo' }, tituloAccion(a)), h('span', { class: 'ae-efecto' }, `${f.delta(a.uplift_tenths)} en la empresa · ${ESFUERZO[a.effort]}`));
+		const li = h('li', { class: 'tocable', tabindex: '0' },
+			h('b', {}, f.empresa(em.res.id)),
+			h('span', { class: 'ae-titulo' }, tituloAccion(a)),
+			h('span', { class: 'ae-efecto' }, f.delta(a.uplift_tenths)),
+			h('span', { class: `ae-esfuerzo ${a.effort}` }, a.effort));
 		const ir = () => acc.abrirEmpresa(em.res.id);
 		li.addEventListener('click', ir);
 		li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
