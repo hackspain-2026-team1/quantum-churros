@@ -49,6 +49,7 @@ import {
   type EstadoAccion,
 } from "../datos/seguimiento";
 import { fuenteTexto } from "../datos/tasas";
+import { conCifras } from "./cifras";
 import { h, vaciar } from "./dom";
 import type { Acciones, DatosFicha } from "./ficha";
 import { marcaBanco } from "./primitivos";
@@ -577,7 +578,7 @@ async function construirInforme(
               "p",
               { class: "informe-item" },
               h("b", {}, a.title),
-              ` · ${f.delta(a.uplift_tenths)} según el motor (score ${f.score(a.new_score_tenths)})`,
+              ...conCifras(` · ${f.delta(a.uplift_tenths)} según el motor (score ${f.score(a.new_score_tenths)})`, { que: "Lo que sube el score con esta acción" }),
             ),
           )
         : [
@@ -591,9 +592,9 @@ async function construirInforme(
         h(
           "p",
           { class: "informe-item" },
-          h("b", {}, x.title),
+          h("b", {}, ...conCifras(x.title, { que: "Instrumento de financiación del motor" })),
           x.bank ? ` · con ${x.bank}` : " · banco a convenir",
-          x.amount !== null ? ` · ${f.eurosCorto(x.amount)}` : "",
+          ...(x.amount !== null ? conCifras(` · ${f.eurosCorto(x.amount)}`, { que: "Importe del instrumento" }) : []),
           x.rate !== null
             ? ` · ${f.puntosPorcentaje(x.rate, 2)} ${x.rate_type === "variable" ? "variable" : "fijo"}`
             : "",
