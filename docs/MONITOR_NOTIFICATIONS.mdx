@@ -85,6 +85,37 @@ make mailpit-notify
 La bandeja se abre en `http://localhost:8025`. El puerto se puede cambiar con
 `MAILPIT_HTTP_PORT`.
 
+## Producción (datons-dev)
+
+El stack de producción de [`deploy/compose.yaml`](../deploy/compose.yaml) también incluye
+Mailpit y un notificador de un solo uso:
+
+- **Mailpit** (`axllent/mailpit:v1.31.0`) guarda como máximo 500 mensajes con un límite de
+  256 MB de memoria y sin volumen persistente: la bandeja es efímera a propósito. Su interfaz
+  se liga a `127.0.0.1:${MAILPIT_HTTP_PORT:-8025}` y el SMTP `1025` queda dentro de la red
+  interna de Compose; ningún puerto de Mailpit se expone a Internet.
+- **Notificador** es un servicio con perfil `notify` que reutiliza la imagen inmutable
+  `${API_IMAGE}`, monta `./bundle` en solo lectura y ejecuta
+  `xray-db notify-demo /app/bundle --clear` con `FRONTEND_BASE_URL=${ORIGIN}`. No forma parte
+  del arranque normal: solo se ejecuta de forma explícita.
+
+Tras cada despliegue sano de `main`, [`deploy/quantum-churros-deploy`](../deploy/quantum-churros-deploy)
+descarga Mailpit, espera su salud junto a la API y la web, verifica el endpoint del frontend y
+ejecuta el notificador con `docker compose run --rm notifier`. Así la bandeja se regenera con
+el último cierre disparado después de cada despliegue. Un fallo del notificador marca el
+despliegue en rojo en CI, pero no revierte imágenes API/web sanas: solo falla la generación
+del correo.
+
+Para consultar la bandeja en producción, usa un túnel SSH contra el puerto ligado a
+localhost:
+
+```bash
+ssh -L 8025:127.0.0.1:8025 quantum-deploy@datons-dev
+```
+
+y abre `http://localhost:8025` en tu máquina. Las variables de producción están documentadas
+en [`deploy/.env.example`](../deploy/.env.example).
+
 ## Límite honesto
 
 Mailpit prueba el routing, las plantillas MIME, HTML/texto y los enlaces, pero no equivale a
