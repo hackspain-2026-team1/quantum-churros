@@ -2331,6 +2331,14 @@ button.miga-paso:hover {
   margin-top: 2px;
   line-height: 1.4;
 }
+.cifra-c.baja .cc-valor,
+.cifra-c.baja .cc-comp {
+  color: var(--peligro-t);
+}
+.cifra-c.sube .cc-valor,
+.cifra-c.sube .cc-comp {
+  color: var(--exito-t);
+}
 
 /* Partitura de pilares. */
 .partitura {
@@ -2661,6 +2669,55 @@ button.miga-paso:hover {
   font-size: 12px;
   color: var(--apagado);
 }
+.tabla-sutil th button {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.tabla-sutil th button:hover,
+.tabla-sutil th[aria-sort] button {
+  color: var(--tinta);
+}
+.tabla-sutil .orden-flecha {
+  min-width: 8px;
+  font-size: 10px;
+  line-height: 1;
+}
+.filtro-tipo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-bottom: 10px;
+}
+button.filtro-opcion {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--apagado);
+  background: none;
+  border: 1px solid var(--borde-2);
+  border-radius: 999px;
+  padding: 2px 11px;
+  cursor: pointer;
+  transition:
+    color 140ms,
+    border-color 140ms,
+    background 140ms;
+}
+button.filtro-opcion:hover {
+  color: var(--tinta);
+  border-color: var(--tinta);
+}
+button.filtro-opcion[aria-pressed="true"] {
+  color: var(--tinta);
+  border-color: var(--tinta);
+  background: rgba(5, 11, 44, 0.05);
+}
 .tabla-sutil .banco {
   display: inline-flex;
   align-items: center;
@@ -2684,6 +2741,11 @@ button.miga-paso:hover {
   font-weight: 600;
   fill: currentColor;
   opacity: 0.85;
+}
+.tabla-sutil .marca-logo {
+  border-radius: 3px;
+  object-fit: contain;
+  background: #fff;
 }
 .tabla-sutil tr.tocable {
   cursor: pointer;
@@ -3034,6 +3096,10 @@ button.miga-paso:hover {
   color: var(--tinta-2);
   padding: 1px 3px;
   border-radius: 5px;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .flota-etq:hover {
   background: var(--info-s);
@@ -3051,6 +3117,19 @@ button.miga-paso:hover {
 .flota-eje.y {
   left: 0;
   top: -2px;
+}
+.regla-ano {
+  position: absolute;
+  font: italic 400 12px/1 var(--serif);
+  color: var(--tenue);
+  pointer-events: none;
+}
+.regla-ano-raya {
+  position: absolute;
+  width: 1px;
+  height: 10px;
+  background: var(--borde-2);
+  pointer-events: none;
 }
 
 /* Entrada. */

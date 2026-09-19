@@ -748,6 +748,13 @@ export function seccionScoring(
         : "—",
       "persistencia",
       v.detected_since ? `${movimiento(m)}` : "sin movimiento confirmado",
+      v.available
+        ? v.direction === "improving"
+          ? "sube"
+          : v.direction === "deteriorating"
+            ? "baja"
+            : ""
+        : "",
     ),
     cifraC(
       deriva && typeof deriva.value === "number"
@@ -1039,57 +1046,112 @@ export function seccionProductos(d: DatosFicha, acc: Acciones): HTMLElement {
       ),
     );
   const otras = d.prodE?.other_debt.filter((x) => !x.closed) ?? [];
+  // La unidad que se repite entre las filas sube a la cabecera y las celdas quedan limpias;
+  // el cero no lastra la unidad (0 € = 0 k€). Si se mezclan, cada fila lleva la suya (docs/DESIGN_UX.mdx).
+  const unidadDe = (v: number | null) =>
+    v === null || v === 0 ? null : Math.abs(v) >= 1e6 ? "M€" : Math.abs(v) >= 1e3 ? "k€" : "€";
+  const unidadComun = (vs: (number | null)[]) => {
+    const us = new Set(vs.filter((v) => v !== null && v !== 0).map(unidadDe));
+    return us.size === 1 ? [...us][0]! : null;
+  };
+  const importe = (v: number | null, u: "€" | "k€" | "M€" | null) =>
+    v === null ? "—" : u ? f.eurosEn(v, u) : f.eurosCorto(v);
+  // La tabla se reconstruye por filtro y las unidades se vuelven a medir sobre las filas
+  // visibles: filtrar a un solo tipo puede cambiar la unidad común de una columna (docs/DESIGN_UX.mdx).
+  const tablaOtras = (visibles: typeof otras) => {
+    const uc = unidadComun(visibles.map((x) => x.granted));
+    const up = unidadComun(visibles.map((x) => x.outstanding));
+    return h(
+      "table",
+      { class: "tabla-sutil" },
+      h(
+        "thead",
+        {},
+        h(
+          "tr",
+          {},
+          h("th", {}, "Tipo"),
+          h("th", {}, "Entidad"),
+          h("th", { class: "num" }, uc ? `Concedido (${uc})` : "Concedido"),
+          h("th", { class: "num" }, up ? `Pendiente (${up})` : "Pendiente"),
+          h("th", { class: "num" }, "Interés (%)"),
+          h("th", {}, "Próxima cuota"),
+        ),
+      ),
+      h(
+        "tbody",
+        {},
+        ...visibles.map((x) =>
+          h(
+            "tr",
+            {},
+            h("td", {}, x.type_label),
+            h(
+              "td",
+              {},
+              x.bank
+                ? h("span", { class: "banco" }, marcaBanco(x.bank), x.bank)
+                : "—",
+            ),
+            h("td", { class: "num" }, importe(x.granted, uc)),
+            h("td", { class: "num" }, importe(x.outstanding, up)),
+            h("td", { class: "num" }, x.rate === null ? "—" : f.numero(x.rate, 2)),
+            h("td", {}, x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : "—"),
+          ),
+        ),
+      ),
+    );
+  };
+  const tipos = [...new Set(otras.map((x) => x.type_label))];
+  let filtro: string | null = null;
+  const tabla = h("div");
+  const pinta = () => {
+    vaciar(tabla);
+    tabla.append(tablaOtras(filtro === null ? otras : otras.filter((x) => x.type_label === filtro)));
+  };
+  const botonesFiltro =
+    tipos.length > 1
+      ? [null, ...tipos].map((t) =>
+          h(
+            "button",
+            {
+              type: "button",
+              class: "filtro-opcion",
+              "aria-pressed": String(filtro === t),
+              "data-tipo": String(t),
+            },
+            t === null ? "Todos" : t,
+          ),
+        )
+      : null;
+  if (botonesFiltro)
+    for (const b of botonesFiltro)
+      b.addEventListener("click", () => {
+        filtro =
+          b.dataset.tipo === "null" || b.dataset.tipo === undefined
+            ? null
+            : b.dataset.tipo;
+        for (const x of botonesFiltro)
+          x.setAttribute("aria-pressed", String(x === b));
+        pinta();
+      });
   const otrasEl = otras.length
     ? seccion(
         "Otras deudas",
-        h(
-          "table",
-          { class: "tabla-sutil" },
-          h(
-            "thead",
-            {},
-            h(
-              "tr",
-              {},
-              h("th", {}, "Tipo"),
-              h("th", {}, "Entidad"),
-              h("th", { class: "num" }, "Concedido"),
-              h("th", { class: "num" }, "Pendiente"),
-              h("th", { class: "num" }, "Interés"),
-              h("th", {}, "Próxima cuota"),
-            ),
-          ),
-          h(
-            "tbody",
-            {},
-            ...otras.map((x) =>
+        ...(botonesFiltro
+          ? [
               h(
-                "tr",
-                {},
-                h("td", {}, x.type_label),
-                h(
-                  "td",
-                  {},
-                  x.bank
-                    ? h("span", { class: "banco" }, marcaBanco(x.bank), x.bank)
-                    : "—",
-                ),
-                h("td", { class: "num" }, f.eurosCorto(x.granted)),
-                h("td", { class: "num" }, f.eurosCorto(x.outstanding)),
-                h(
-                  "td",
-                  { class: "num" },
-                  x.rate === null ? "—" : `${f.numero(x.rate, 2)} %`,
-                ),
-                h(
-                  "td",
-                  {},
-                  x.next_payment ? f.mes(x.next_payment.slice(0, 7)) : "—",
-                ),
+                "div",
+                {
+                  class: "filtro-tipo",
+                  role: "group",
+                  "aria-label": "Filtrar otras deudas por tipo",
+                },
+                ...botonesFiltro,
               ),
-            ),
-          ),
-        ),
+            ]
+          : []),
+        tabla,
         h(
           "p",
           { class: "nota" },

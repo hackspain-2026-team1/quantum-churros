@@ -178,13 +178,13 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			puntos: conScore.map((x) => ({ x: x.mes!.shown / 1000, y: 0.5 - ((x.mes!.verdict.delta3 ?? 0) / maxD) * 0.45, r: 5, tono: x.mes!.band === 'critical' ? TONO.peligro : TONO.tinta, alfa: 0.9 })),
 		}));
 		for (const x of conScore) {
-			const et = h('button', { type: 'button', class: 'flota-etq', title: `${f.empresa(x.em.res.id)} · ${x.em.res.role} · ${f.score(x.mes!.shown)}` }, f.empresa(x.em.res.id).replace('Empresa ', ''));
+			const et = h('button', { type: 'button', class: 'flota-etq', title: `${f.empresa(x.em.res.id)} · ${x.em.res.role} · ${f.score(x.mes!.shown)}` }, f.empresa(x.em.res.id));
 			et.style.left = `${(x.mes!.shown / 1000) * 100}%`;
 			et.style.top = `${(0.5 - ((x.mes!.verdict.delta3 ?? 0) / maxD) * 0.45) * 100}%`;
 			et.addEventListener('click', () => acc.abrirEmpresa(x.em.res.id));
 			plano.append(et);
 		}
-		plano.append(h('span', { class: 'flota-eje x' }, 'score →'), h('span', { class: 'flota-eje y' }, 'cambio en tres meses ↑'));
+		plano.append(h('span', { class: 'flota-eje x' }, 'score →'));
 		const ordenConfianza: Record<string, number> = { high: 3, medium: 2, low: 1 };
 		const cuerpotabla = h('tbody', {});
 		const pares = filas.map((dato) => {
@@ -214,7 +214,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		], pares, cuerpotabla, { col: 2, dir: 1 });
 		const tabla = h('table', { class: 'tabla-sutil empresas' }, thead, cuerpotabla);
 		const hereda = g.companies.filter((x) => x.inherits_liquidity).length;
-		return seccion(`Sus ${f.plural(g.companies.length, 'empresa', 'empresas')}`, plano, h('div', { class: 'tabla-caja' }, tabla), hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
+		return seccion(`Las ${f.plural(g.companies.length, 'empresa', 'empresas')}`, plano, h('div', { class: 'tabla-caja' }, tabla), hereda ? h('p', { class: 'nota' }, `${f.plural(hereda, 'empresa hereda', 'empresas heredan')} la liquidez del grupo: su colchón es el del grupo.`) : null);
 	}
 
 	// ─── Entrada ───────────────────────────────────────────

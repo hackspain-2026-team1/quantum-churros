@@ -11,6 +11,7 @@ import type { Manifiesto, MesM } from '../datos/contrato';
 import { f } from '../datos/formato';
 import { movimiento, nombreBanda } from '../datos/redaccion';
 import { h } from './dom';
+import { logoBanco } from './logos';
 
 const NS = 'http://www.w3.org/2000/svg';
 function svg(w: number, alto: number, clase = ''): SVGSVGElement {
@@ -58,11 +59,12 @@ export function granos3(label: string): SVGSVGElement {
 
 const PALABRAS_GENERICAS = new Set(['banco', 'bank', 'caja', 'caixa', 'de', 'del', 'la', 'el', 'las', 'los', 'sa', 's']);
 
-/** Monograma grabado de una entidad financiera: disco con las iniciales de sus palabras
- *  significativas (Banco Bilbao Vizcaya Argentaria → BV). No hay logotipos de terceros ni
- *  imágenes remotas: la marca es tipográfica y vive en la tinta de la interfaz. */
-export function marcaBanco(nombre: string | null | undefined, tam = 20): SVGSVGElement | null {
+/** Marca de una entidad financiera delante de su nombre: el logo real cuando lo tenemos
+ *  (vendido en logos.ts como data-URI local) y, si no, el monograma grabado. */
+export function marcaBanco(nombre: string | null | undefined, tam = 20): Element | null {
 	if (!nombre) return null;
+	const logo = logoBanco(nombre);
+	if (logo) return h('img', { class: 'marca-logo', src: logo, alt: '', width: tam, height: tam });
 	const palabras = nombre.toLowerCase().split(/[^a-zñáéíóúü]+/).filter((p) => p && !PALABRAS_GENERICAS.has(p));
 	const iniciales = (palabras.length >= 2 ? palabras[0][0] + palabras[1][0] : (palabras[0] ?? nombre.toLowerCase()).slice(0, 2)).toUpperCase();
 	const s = svg(tam, tam, 'marca-banco');

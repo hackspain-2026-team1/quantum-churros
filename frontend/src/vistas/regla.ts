@@ -37,9 +37,9 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 
 	// ─── Pintado ────────────────────────────────────────────
 	function pintar(e: Estado, ctx: Contexto, M: Marco, visita: number | null) {
-		// La regla manda sobre el intervalo que se lee; en la pestaña de productos el tiempo no
-		// cambia nada: se retira, con sus mandos de reproducción y modo.
-		const sinTiempo = (e.vista === 'organizacion' || e.vista === 'empresa') && e.sec === 'productos';
+		// La regla manda sobre el intervalo que se lee. En una organización o empresa solo la
+		// pestaña de scoring depende de la ventana: en las demás se retira, con sus mandos.
+		const sinTiempo = (e.vista === 'organizacion' || e.vista === 'empresa') && e.sec !== 'scoring';
 		raiz.hidden = sinTiempo;
 		reproducir.hidden = sinTiempo;
 		modoBtn.hidden = sinTiempo;
@@ -77,6 +77,23 @@ export function crearRegla(c: Cartera, S: Almacen, alternarPlay: () => void, cam
 			el.style.left = `${x(t.xc)}px`;
 			el.style.top = `${base + (M.movil ? 26 : 30)}px`;
 			etiquetas.append(el);
+		}
+
+		// Eje temporal: raya y año donde empieza cada año, la convención estándar de un eje x.
+		let ano = '';
+		for (const p of ctx.periodos) {
+			const mes0 = c.months[Math.min(...p.meses)] ?? '';
+			const este = mes0.slice(0, 4);
+			if (!este || este === ano) continue;
+			ano = este;
+			const t = tramo(M, p.meses);
+			const raya = h('span', { class: 'regla-ano-raya', 'aria-hidden': 'true' });
+			raya.style.left = `${x(t.x0)}px`;
+			raya.style.top = `${base + (M.movil ? 40 : 44)}px`;
+			const marca = h('span', { class: 'regla-ano', 'aria-hidden': 'true' }, este);
+			marca.style.left = `${x(t.x0) + 4}px`;
+			marca.style.top = `${base + (M.movil ? 38 : 42)}px`;
+			etiquetas.append(raya, marca);
 		}
 
 		// Zonas sensibles por periodo: arriba mejoras, abajo deterioros.
