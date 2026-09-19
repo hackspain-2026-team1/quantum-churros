@@ -4648,3 +4648,31 @@ body[data-modo='cfo'] .nota-datos { display: none; }
 	.pt-fila, .pt-eje { grid-template-columns: 1fr 44px 60px; }
 	.pt-eje { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+ * Las cifras de la prosa: mono, en el azul de lo que se toca, y con
+ * su procedencia a un paso. En tablas y ejes no: ahí ya están en su sitio.
+ * ═══════════════════════════════════════════════════════════════ */
+:root { --mono: ui-monospace, 'SF Mono', SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace; }
+.cifra {
+	font-family: var(--mono); font-size: 0.92em; font-variant-numeric: tabular-nums;
+	color: var(--info-t); white-space: nowrap; letter-spacing: -0.01em;
+}
+.cifra.tocable {
+	padding: 0 1px; border-radius: 4px; cursor: pointer;
+	border-bottom: 1px dotted var(--info); transition: background 120ms var(--salida);
+}
+.cifra.tocable:hover, .cifra.tocable:focus-visible { background: var(--info-s); }
+.nota-cifra {
+	position: fixed; z-index: 70; max-width: 300px; display: grid; gap: 2px; padding: 8px 11px;
+	background: var(--tinta); color: #fff; border-radius: 9px; box-shadow: var(--sombra-2);
+	font: 12.5px/1.35 var(--sans); pointer-events: none;
+}
+.nota-cifra b { font-weight: 600; }
+.nota-cifra-rastro { color: rgba(255, 255, 255, 0.72); font-variant-numeric: tabular-nums; }
+.nota-cifra-pie { color: rgba(255, 255, 255, 0.55); font-style: italic; }
+/* En papel, una cifra es solo un número: ni color de enlace ni subrayado. */
+.informe .cifra, .capa-informe .cifra { color: inherit; border-bottom: 0; background: none; }
+/* Rótulos del horizonte que no caben en una fila: el de seis meses baja, como en el móvil. */
+.grafico.boyas-escalonadas .g-etq.boya.h6 { transform: translate(-50%, 54px); }
+.horizonte .grafico.boyas-escalonadas { margin-bottom: 88px; }

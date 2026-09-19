@@ -8,6 +8,7 @@ import { carga } from '../datos/carga';
 import type { AlertaM, EmpresaM, FilaEvidenciaM, Tabla } from '../datos/contrato';
 import { f } from '../datos/formato';
 import { importes, nombrePilar } from '../datos/redaccion';
+import { conCifras, type Origen } from './cifras';
 import { h, vaciar } from './dom';
 import { desplegable } from './desplegable';
 import { primeraMayuscula } from '../datos/formato';
@@ -38,7 +39,7 @@ export function seccionTecnica(d: DatosFicha, acc: Acciones): HTMLElement {
 	pasos.forEach(([n, v, det], i) => {
 		acum += v;
 		const fila = h('div', { class: `ct-fila ${i === 0 ? 'base' : ''}` },
-			h('span', { class: 'ct-nombre' }, n, det ? h('span', { class: 'ct-det' }, det) : null),
+			h('span', { class: 'ct-nombre' }, n, det ? h('span', { class: 'ct-det' }, ...conCifras(det, { que: n, mes: d.corte })) : null),
 			h('span', { class: 'ct-barra' }, i === 0 ? null : h('span', { class: `ct-b ${v < 0 ? 'neg' : 'pos'}`, style: { width: `${(Math.abs(v) / escala) * 50}%`, [v < 0 ? 'right' : 'left']: '50%' } })),
 			h('span', { class: `ct-v ${v < 0 ? 'neg' : ''}` }, i === 0 ? f.scoreDec(v) : f.delta(v)),
 			h('span', { class: 'ct-acum' }, f.scoreDec(acum)));
@@ -94,8 +95,8 @@ export function seccionTecnica(d: DatosFicha, acc: Acciones): HTMLElement {
 		const imp = importes(a);
 		return h('li', {}, h('b', {}, a.id), ` · pilar ${nombrePilar(d.man, a.pillar).toLowerCase()} de ${f.numero(a.current, 2)} a ${f.numero(a.target, 2)} ${a.unit} · subida ${f.delta(a.uplift_tenths)} → ${f.scoreDec(a.new_score_tenths)} · esfuerzo ${a.effort}`,
 			h('p', { class: 'texto-motor' }, `«${a.detail}»`),
-			imp.length ? h('p', { class: 'nota' }, `Importe leído del texto del motor (todavía no es un campo): ${imp.map((x) => `${f.euros(x.valor)} ${x.cada === 'una vez' ? '' : `al ${x.cada}`} (${x.sentido})`).join(' o ')}.`) : null);
-	})), m.actions_combined ? h('p', { class: 'nota' }, `Todas juntas, según el motor: ${f.scoreDec(m.actions_combined.new_score)} (${f.delta(m.actions_combined.uplift)}).`) : null));
+			imp.length ? h('p', { class: 'nota' }, ...conCifras(`Importe leído del texto del motor (todavía no es un campo): ${imp.map((x) => `${f.euros(x.valor)} ${x.cada === 'una vez' ? '' : `al ${x.cada}`} (${x.sentido})`).join(' o ')}.`, { que: 'Importe que hace falta, según el texto del motor', pilar: nombrePilar(d.man, a.pillar), mes: d.corte })) : null);
+	})), m.actions_combined ? h('p', { class: 'nota' }, ...conCifras(`Todas juntas, según el motor: ${f.scoreDec(m.actions_combined.new_score)} (${f.delta(m.actions_combined.uplift)}).`, { que: 'El score con todas las acciones a la vez', mes: d.corte })) : null));
 
 	// 9. Supuestos y calibración de los horizontes.
 	raiz.append(seccion('Cómo se calcula el futuro', supuestos(d)));
@@ -154,8 +155,8 @@ function tocable(el: HTMLElement, pilar: string, acc: Acciones) {
 	el.addEventListener('blur', () => acc.horizonte.pilar(null));
 }
 
-function dl(filas: [string, string][]): HTMLElement {
-	return h('dl', { class: 'dl-tecnica' }, ...filas.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)]));
+function dl(filas: [string, string][], o: Origen = {}): HTMLElement {
+	return h('dl', { class: 'dl-tecnica' }, ...filas.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, ...conCifras(v, { ...o, que: o.que ?? k }))]));
 }
 
 // ─── Curvas ────────────────────────────────────────────────────
@@ -193,7 +194,7 @@ function curvas(d: DatosFicha, acc: Acciones): HTMLElement {
 		caja.append(fig);
 	}
 	const heredada = d.kind === 'company' && (d.ent as EmpresaM).inherits_liquidity;
-	caja.append(h('p', { class: 'nota' }, `Curvas de params/reference_v1.json (huella ${P.sha256.slice(0, 12)}, la misma del bundle). ${heredada ? 'Esta empresa hereda la liquidez del grupo: su pilar de liquidez es el del grupo.' : ''} Topes: liquidez negativa en ${f.numero(P.caps.negative_liquidity_min_months)} de ${f.numero(P.caps.negative_liquidity_window_months)} meses → como mucho ${f.numero(P.caps.negative_liquidity_ceiling)}; pagos por debajo de ${f.numero(P.caps.weak_payments_threshold)} → como mucho ${f.numero(P.caps.weak_payments_ceiling)}.`));
+	caja.append(h('p', { class: 'nota' }, ...conCifras(`Curvas de params/reference_v1.json (huella ${P.sha256.slice(0, 12)}, la misma del bundle). ${heredada ? 'Esta empresa hereda la liquidez del grupo: su pilar de liquidez es el del grupo.' : ''} Topes: liquidez negativa en ${f.numero(P.caps.negative_liquidity_min_months)} de ${f.numero(P.caps.negative_liquidity_window_months)} meses → como mucho ${f.numero(P.caps.negative_liquidity_ceiling)}; pagos por debajo de ${f.numero(P.caps.weak_payments_threshold)} → como mucho ${f.numero(P.caps.weak_payments_ceiling)}.`, { que: 'Topes del motor, de sus parámetros verificados' })));
 	return caja;
 }
 
