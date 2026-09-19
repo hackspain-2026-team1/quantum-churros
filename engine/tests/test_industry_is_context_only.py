@@ -21,7 +21,7 @@ from xray_engine.contracts import (
 from xray_engine.scoring import score_dataset
 
 PACKAGE_DIR = Path(xray_engine.__file__).parent
-PURE_MODULES = ("pillars", "aggregate", "trajectory", "alerts")
+PURE_MODULES = ("pillars", "aggregate", "trajectory", "alerts", "actions")
 ALLOWED_ENGINE_IMPORTS = {"contracts", "pillars", "aggregate", "trajectory"}
 FORBIDDEN_LIBRARIES = {
     "polars", "pandas", "pyarrow", "numpy", "os", "pathlib", "io", "csv", "json", "sqlite3",

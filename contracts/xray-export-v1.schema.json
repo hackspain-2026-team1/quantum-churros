@@ -397,6 +397,22 @@
         "months_observed": { "type": "integer", "minimum": 0 },
         "perimeter_changed": { "type": "boolean" },
         "verdict": { "$ref": "#/$defs/verdict" },
+        "actions": {
+          "description": "Optional. Suggested actions, best uplift first, at most 4; empty on abstained or stale months.",
+          "type": "array",
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/action" }
+        },
+        "actions_combined": {
+          "description": "Optional. Score with every suggested action applied at once; uplift == new_score - shown.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["new_score", "uplift"],
+          "properties": {
+            "new_score": { "$ref": "#/$defs/scoreTenths" },
+            "uplift": { "type": "integer", "minimum": 0 }
+          }
+        },
         "abstain": {
           "description": "Not null when the engine abstains: the number is still emitted, alerts are not fired.",
           "anyOf": [
@@ -425,6 +441,24 @@
         "contrib": { "description": "w_eff * (score - baseline), largest-remainder rounded.", "$ref": "#/$defs/tenths" },
         "gates": { "type": "array", "items": { "$ref": "#/$defs/code" } },
         "note": { "description": "Sentence built from the aggregate inputs of the pillar.", "$ref": "#/$defs/nullableText" }
+      }
+    },
+    "action": {
+      "description": "One deterministic action; the uplift is the engine aggregate recomputed with the pillar at its target.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "pillar", "title", "detail", "current", "target", "unit", "uplift_tenths", "new_score_tenths", "effort"],
+      "properties": {
+        "id": { "description": "'<pillar>-<kind>', stable across months.", "type": "string", "pattern": "^[a-z]+-[a-z_]+$" },
+        "pillar": { "$ref": "#/$defs/pillarKey" },
+        "title": { "$ref": "#/$defs/text" },
+        "detail": { "$ref": "#/$defs/text" },
+        "current": { "type": "number" },
+        "target": { "type": "number" },
+        "unit": { "enum": ["días", "ratio", "%"] },
+        "uplift_tenths": { "type": "integer", "minimum": 0 },
+        "new_score_tenths": { "$ref": "#/$defs/scoreTenths" },
+        "effort": { "enum": ["bajo", "medio", "alto"] }
       }
     },
     "verdict": {

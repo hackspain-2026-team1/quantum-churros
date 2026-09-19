@@ -194,6 +194,7 @@ def check_entity_month(
     expected_rule = cap["fired"][0] if cap["amount"] > 0 and cap["fired"] else None
     if cap["rule"] != expected_rule or (cap["amount"] > 0 and not cap["fired"]):
         errors.append(f"{where}: cap.rule must be the first fired cap when it binds, else null")
+    errors += _check_actions(entry, where)
     conf = entry["conf"]
     if abs(conf["value"] - conf["history"] * conf["coverage"] * conf["quality"]) > CONFIDENCE_TOL:
         errors.append(f"{where}: conf.value is not history * coverage * quality")
@@ -204,6 +205,35 @@ def check_entity_month(
         errors.append(f"{where}: verdict.reason is set exactly when the verdict is not available")
     if not verdict["available"] and (verdict["direction"] != "stable" or verdict["nature"]):
         errors.append(f"{where}: a verdict that is not available must be stable without nature")
+    return errors
+
+
+def _check_actions(entry: Mapping[str, Any], where: str) -> list[str]:
+    """Optional ``actions`` / ``actions_combined``: uplifts are tenths against ``shown``."""
+    errors = []
+    actions = entry.get("actions", [])
+    combined = entry.get("actions_combined")
+    shown = entry["shown"]
+    scores = {pillar["key"]: pillar for pillar in entry["pillars"]}
+    for action in actions:
+        if action["id"].split("-")[0] != action["pillar"]:
+            errors.append(f"{where}: action id {action['id']!r} does not start with its pillar")
+        if action["new_score_tenths"] - action["uplift_tenths"] != shown:
+            errors.append(f"{where}: action {action['id']} uplift is not new_score - shown")
+        if scores[action["pillar"]]["score"] is None:
+            errors.append(f"{where}: action {action['id']} on an unavailable pillar")
+        if action["pillar"] == "liquidity" and "inherited_from_group" in scores["liquidity"]["gates"]:
+            errors.append(f"{where}: no liquidity action on an inherited liquidity")
+    uplifts = [action["uplift_tenths"] for action in actions]
+    if uplifts != sorted(uplifts, reverse=True) or len({a["id"] for a in actions}) != len(actions):
+        errors.append(f"{where}: actions must be unique and sorted by uplift")
+    if actions and (entry["abstain"] is not None or not entry["feed_live"]):
+        errors.append(f"{where}: abstained or stale months carry no actions")
+    if combined is not None:
+        if combined["new_score"] - combined["uplift"] != shown:
+            errors.append(f"{where}: actions_combined.uplift is not new_score - shown")
+        if not actions and combined["uplift"] != 0:
+            errors.append(f"{where}: combined uplift without actions")
     return errors
 
 

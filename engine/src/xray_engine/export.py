@@ -30,6 +30,7 @@ from .contracts import (
     UNLOCK_HINTS,
     EntityMonth,
 )
+from .actions import plan_actions
 from .pillars import NOTE_TEMPLATES, pillar_note
 from .trajectory import trajectory_note
 
@@ -339,7 +340,31 @@ def _unlock(parts: Any, params: Any) -> str:
     return _text(template.format(months=minimum))
 
 
-def _entity_month(month: EntityMonth, params: Any, bands: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def _actions(month: EntityMonth, params: Any, group_row: Any, shown: int) -> dict[str, Any]:
+    """Suggested actions of the month; uplifts are tenths against ``shown``."""
+    plan = plan_actions(month.row, month.pillars, month.parts, params, group_row)
+    actions = [
+        {
+            "id": action.id,
+            "pillar": action.pillar,
+            "title": _text(action.title, 200),
+            "detail": _text(action.detail),
+            "current": _number(action.current, 2),
+            "target": _number(action.target, 2),
+            "unit": action.unit,
+            "uplift_tenths": max(0, action.new_score_tenths - shown),
+            "new_score_tenths": action.new_score_tenths,
+            "effort": action.effort,
+        }
+        for action in plan.actions
+    ]
+    combined = max(shown, plan.combined_score_tenths) if actions else shown
+    return {"actions": actions, "actions_combined": {"new_score": combined, "uplift": combined - shown}}
+
+
+def _entity_month(
+    month: EntityMonth, params: Any, bands: Sequence[Mapping[str, Any]], group_row: Any = None
+) -> dict[str, Any]:
     row, parts = month.row, month.parts
     shown, base, contributions, penalty, cap = _waterfall(parts)
     pillars = []
@@ -389,6 +414,7 @@ def _entity_month(month: EntityMonth, params: Any, bands: Sequence[Mapping[str, 
             if parts.abstained
             else None
         ),
+        **_actions(month, params, group_row, shown),
     }
 
 
@@ -839,8 +865,19 @@ def export_bundle(
             raise ValueError(f"entity id {key[1]!r} is not safe as a file name")
         months.sort(key=lambda item: item.row.month)
 
+    group_rows = {
+        (key[1], month.row.month): month.row
+        for key, months in by_entity.items() if key[0] == "group" for month in months
+    }
     entries: dict[tuple[str, str], list[dict[str, Any]]] = {
-        key: [_entity_month(month, params, bands) for month in months] for key, months in by_entity.items()
+        key: [
+            _entity_month(
+                month, params, bands,
+                group_rows.get((month.row.group_id, month.row.month)) if key[0] == "company" else None,
+            )
+            for month in months
+        ]
+        for key, months in by_entity.items()
     }
     shown_at = {
         (kind, entity_id, entry["month"]): entry["shown"]
