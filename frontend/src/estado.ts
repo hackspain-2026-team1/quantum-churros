@@ -16,8 +16,19 @@ export const SECCIONES: Seccion[] = ['scoring', 'acciones', 'productos', 'tecnic
 const PAGINAS: Vista[] = ['organizacion', 'empresa', 'metodologia', 'financiacion', 'entrada'];
 export const esPagina = (v: Vista) => PAGINAS.includes(v);
 
+/**
+ * Desde dónde se mira Rumbo: Embat, que ve la cartera entera, o el CFO de un grupo, que ve su
+ * grupo y sus empresas. El modo recorta lo que se enseña; no es un control de acceso (el bundle
+ * entero sigue estando en el navegador).
+ */
+export type Modo = 'superadmin' | 'cfo';
+
 export interface Estado {
 	vista: Vista;
+	/** Desde dónde se mira: Embat o el CFO de un grupo. */
+	modo: Modo;
+	/** El grupo del CFO cuando el modo es 'cfo'. */
+	cfo: string | null;
 	/** Vista de cartera a la que se vuelve desde una página. */
 	cartera: 'plano' | 'tapiz';
 	q: Consulta;
@@ -47,19 +58,43 @@ export class Almacen {
 	private oyentes = new Set<Oyente>();
 
 	constructor(private c: Cartera) {
-		this.base = { vista: 'entrada', cartera: 'plano', q: consultaInicial(c), sel: null, emp: null, sec: 'scoring', lente: 'score', finRol: 'consultant', finCaso: null, hover: null, zonaHover: null, reproduciendo: false, previa: false };
+		this.base = { vista: 'entrada', modo: 'superadmin', cfo: null, cartera: 'plano', q: consultaInicial(c), sel: null, emp: null, sec: 'scoring', lente: 'score', finRol: 'consultant', finCaso: null, hover: null, zonaHover: null, reproduciendo: false, previa: false };
 		this.base = { ...this.base, ...this.leerUrl() };
 		// Un grupo que no existe en la URL no rompe nada: se vuelve a la cartera.
 		if ((this.base.vista === 'organizacion' || this.base.vista === 'empresa') && !c.groups.some((g) => g.id === this.base.sel)) this.base = { ...this.base, vista: 'entrada', sel: null, emp: null };
 		if (this.base.vista === 'empresa' && !this.base.emp) this.base = { ...this.base, vista: 'organizacion' };
+		this.base = this.acotar(this.base);
 		this.e = this.base;
 		history.replaceState({ xray: 0 }, '', this.url(this.base));
 		addEventListener('popstate', () => {
 			const antes = this.e;
-			this.base = { ...this.base, ...this.leerUrl(), hover: null, previa: false };
+			this.base = this.acotar({ ...this.base, ...this.leerUrl(), hover: null, previa: false });
 			this.e = this.base;
 			this.avisar(antes);
 		});
+	}
+
+	/**
+	 * El modo CFO no se sale de su grupo: la organización es siempre la suya, la empresa tiene que
+	 * ser una de las suyas y los mapas de la cartera entera no existen.
+	 */
+	private acotar(e: Estado): Estado {
+		if (e.modo !== 'cfo') return e;
+		const grupo = this.c.groups.find((g) => g.id === e.cfo);
+		if (!grupo) return { ...e, modo: 'superadmin', cfo: null };
+		// En financiación, el CFO es siempre la empresa: ni consultor de Embat ni banco.
+		const s = { ...e, sel: grupo.id, finRol: 'company' as const };
+		if (s.emp && !grupo.companies.some((x) => x.id === s.emp)) { s.emp = null; if (s.vista === 'empresa') s.vista = 'organizacion'; }
+		if (s.vista === 'plano' || s.vista === 'tapiz') s.vista = 'entrada';
+		return s;
+	}
+
+	/** Cambia de mirada. El grupo es obligatorio para entrar en modo CFO. */
+	mirarComo(modo: Modo, cfo: string | null) {
+		if (modo === 'cfo' && !this.c.groups.some((g) => g.id === cfo)) return;
+		this.fijar(modo === 'cfo'
+			? { modo, cfo, vista: 'entrada', sel: cfo, emp: null, finRol: 'company', finCaso: null }
+			: { modo, cfo: null, vista: 'entrada', sel: null, emp: null, finRol: 'consultant', finCaso: null }, true);
 	}
 
 	oir(f: Oyente) { this.oyentes.add(f); return () => this.oyentes.delete(f); }
@@ -68,7 +103,7 @@ export class Almacen {
 	/** Cambio confirmado. `historial`: crea una entrada que se deshace con ⌘Z o «atrás». */
 	fijar(parcial: Partial<Estado>, historial = false) {
 		const antes = this.e;
-		this.base = { ...this.base, ...parcial, previa: false };
+		this.base = this.acotar({ ...this.base, ...parcial, previa: false });
 		if (this.base.vista === 'plano' || this.base.vista === 'tapiz') this.base.cartera = this.base.vista;
 		this.e = this.base;
 		const url = this.url(this.base);
@@ -108,7 +143,9 @@ export class Almacen {
 	// ─── URL ───────────────────────────────────────────────
 	private url(e: Estado) {
 		const q = new URLSearchParams(location.search);
-		for (const k of ['v', 'c', 'g', 'emp', 'sec', 'lente', 'rol', 'caso', 'e', 'a', 'd', 'h', 'm', 'f', 'o', 'z', 'mv', 's', 'p', 't', 'mano', 'gr', 'pr']) q.delete(k);
+		for (const k of ['v', 'c', 'g', 'emp', 'sec', 'lente', 'rol', 'caso', 'e', 'a', 'd', 'h', 'm', 'f', 'o', 'z', 'mv', 's', 'p', 't', 'mano', 'gr', 'pr', 'cfo']) q.delete(k);
+		// La mirada va en la URL: un enlace «?cfo=GROUP_0142» abre Rumbo como su CFO.
+		if (e.modo === 'cfo' && e.cfo) q.set('cfo', e.cfo);
 		q.set('v', e.vista);
 		if (e.vista === 'organizacion' || e.vista === 'empresa') {
 			q.set('c', e.cartera);
@@ -142,7 +179,12 @@ export class Almacen {
 
 	private leerUrl(): Partial<Estado> {
 		const q = new URLSearchParams(location.search);
-		if (!q.has('v')) return {};
+		// La mirada se lee antes que nada: «?cfo=GROUP_0142» a secas tiene que funcionar.
+		const cfo = q.get('cfo');
+		const mirada: Partial<Estado> = cfo && this.c.groups.some((g) => g.id === cfo)
+			? { modo: 'cfo', cfo, sel: cfo, finRol: 'company' }
+			: { modo: 'superadmin', cfo: null };
+		if (!q.has('v')) return mirada;
 		const ini = consultaInicial(this.c);
 		const filtros: Filtro[] = [];
 		q.getAll('z').forEach((v) => filtros.push({ tipo: 'zona', v: v as Zona }));
@@ -166,6 +208,7 @@ export class Almacen {
 		const hasta = indiceEnlace >= 0 ? indiceEnlace : ini.hasta;
 		const escala = (q.get('e') as Escala) ?? ini.escala;
 		return {
+			...mirada,
 			vista: (vista === 'organizacion' || vista === 'empresa') && !sel ? 'entrada' : vista === 'empresa' && !emp ? 'organizacion' : (['entrada', 'plano', 'tapiz', 'organizacion', 'empresa', 'metodologia', 'financiacion'].includes(vista) ? vista : 'entrada') as Vista,
 			cartera: q.get('c') === 'tapiz' || vista === 'tapiz' ? 'tapiz' : 'plano',
 			sel,
