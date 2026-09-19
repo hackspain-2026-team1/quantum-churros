@@ -19,6 +19,7 @@ import { crearFrase, guardarVisita, leerVisita } from './vistas/frase';
 import { lineaGranos, logotipo, monogramaArena } from './vistas/marca';
 import { miniatura } from './vistas/piezas';
 import { crearRegla } from './vistas/regla';
+import { triaje } from './vistas/triaje';
 import { fijarMeses, nombreGrupo, ritmoEnPalabras } from './vistas/voz';
 
 /**
@@ -117,6 +118,17 @@ async function iniciar() {
 		b.addEventListener('click', () => S.fijar({ lente: k }, true));
 		lentes.append(b);
 	}
+	// La campana: avisos de organización del mes sin revisar (la revisión es la de la bandeja).
+	const campana = h('button', { class: 'campana', type: 'button', title: 'Avisos del mes sin revisar' }, h('span', { class: 'campana-grano', 'aria-hidden': 'true' }), h('span', { class: 'campana-n' }));
+	const pintarCampana = () => {
+		const t = ctxDe(S.e.q).corte;
+		const n = c.groups.reduce((s, g) => s + g.alerts.filter((a) => a.month === t && a.state === 'fired' && !triaje.de(a.id)).length, 0);
+		campana.querySelector('.campana-n')!.textContent = `${n} ${n === 1 ? 'aviso' : 'avisos'}`;
+		campana.classList.toggle('vacia', n === 0);
+		campana.setAttribute('aria-label', `${n} avisos del mes sin revisar`);
+	};
+	campana.addEventListener('click', () => paginas?.irAvisos());
+	triaje.oir(pintarCampana);
 	const botonMetodo = h('button', { class: 'boton-metodo', type: 'button' }, 'Metodología');
 	botonMetodo.addEventListener('click', () => S.fijar({ vista: 'metodologia' }, true));
 	const selPlano = h('button', { class: 'vista-btn', type: 'button', 'aria-pressed': 'false' });
@@ -127,7 +139,7 @@ async function iniciar() {
 		: h('span', { class: 'nota-datos', title: 'Cartera sintética con la forma exacta del contrato del motor (xray-export-v1). Se usa cuando no hay bundle servido o con ?datos=sinteticos. Ver interfaz/DIARIO.md.' }, 'datos sintéticos');
 	const botonAyuda = h('button', { class: 'boton-ayuda', type: 'button', 'aria-label': 'Cómo se usa (?)', title: 'Cómo se usa (?)' }, '?');
 	const hueco = h('span', { class: 'hueco barra-hueco' });
-	barra.append(marca, hueco, lentes, selector, nota, botonMetodo, botonAyuda);
+	barra.append(marca, hueco, lentes, selector, nota, campana, botonMetodo, botonAyuda);
 	const anot = h('div', { class: 'anot' });
 	const capaExp = h('div', { class: 'anot capa-exp' });
 	const lazo = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -173,7 +185,7 @@ async function iniciar() {
 	void capaExp;
 
 	ayuda.append(h('h2', {}, 'Cómo se usa'), h('p', {}, 'La frase de arriba dice lo que ves. Toca cualquier trozo para cambiarlo, o escribe en cualquier parte.'));
-	for (const [k, d] of [['1 2 3 4', 'Scoring, productos, acciones y técnico (en una organización o una empresa)'], ['← → en una ficha', 'El mes que se mira'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
+	for (const [k, d] of [['1 2 3 4', 'Scoring, productos, acciones y desglose (en una organización o una empresa)'], ['← → en una ficha', 'El mes que se mira'], ['Escribe', '«se tuercen», «T2», «factoring», «42»…'], ['← →', 'Mover el intervalo un periodo'], ['⇧ ← →', 'Mover solo «desde»'], ['[ ]', 'Escala más fina o más gruesa'], ['Espacio', 'Reproducir o parar'], ['↵', 'Abrir el grupo señalado'], ['↑ ↓', 'Grupo anterior o siguiente'], ['Esc', 'Subir un nivel o quitar el último filtro'], ['⌘Z', 'Deshacer'], ['?', 'Esta ayuda']])
 		ayuda.append(h('div', { class: 'ayuda-fila' }, h('span', { class: 'ayuda-tecla' }, k), h('span', {}, d)));
 	botonAyuda.addEventListener('click', () => ayuda.classList.toggle('ver'));
 
@@ -307,6 +319,7 @@ async function iniciar() {
 		if (esPagina(e.vista) && paginas) paginas.pintar(e); else paginas?.ocultar();
 		for (const b of lentes.querySelectorAll<HTMLElement>('.lente')) b.setAttribute('aria-checked', String(b.dataset.lente === e.lente));
 		pintarSelector(e, ctx);
+		pintarCampana();
 		document.body.dataset.vista = e.vista;
 		colocarDeshacer();
 	}

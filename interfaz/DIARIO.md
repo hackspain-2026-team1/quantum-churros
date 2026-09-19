@@ -59,6 +59,58 @@ El motor suma `engine/tests/test_forecast.py`: sin fuga del futuro, cuantiles or
 
 Última ejecución: **46 de 46**.
 
+## 19 de septiembre de 2026, la portada como monitor (propuesta 08)
+
+La portada deja de ser una puerta y pasa a ser el monitor de la cartera. Sigue la propuesta `hackspain/08-propuesta-portada-monitor.md`, con las decisiones tomadas: organizaciones por defecto (con conmutador a empresas), la regla de gravedad propuesta, siete formas y Jev en un Worker propio.
+
+### Lo que se ve, de arriba abajo
+
+- **La rosa de los vientos, primero, grande y centrada.** Sus puntas diagonales son las cuatro zonas del plano; el largo es cuántas hay en cada una, y cada zona es un filtro. La aguja azul apunta hacia donde va la cartera: a la derecha si la media supera el corte de 60, arriba si el ritmo medio sube.
+- **El estado del mes**, con cada cifra como filtro: las bandas con quién entra y quién sale de crítico (7 entran y 8 salen en agosto: el total apenas cambia y esconde siete casos nuevos), los cambios de banda, lo que cae tres puntos o más, lo que va hacia crítico y los avisos.
+- **«Abrir el plano» y «Abrir el tapiz»**, a pantalla completa, como antes, con los filtros que el mapa también entiende.
+- **Dos campos.** «rumbo de ¿qué organización?» busca y abre una organización. Debajo, «o dile qué quieres ver…», con ejemplos que se pueden tocar.
+- **Piden atención y avisos del mes**, en dos columnas. El orden de gravedad: entran en crítico, deterioro confirmado, siguen en crítico y bajan, van hacia crítico (horizonte con un 50 % o más), golpe por confirmar. Debajo, las que suben. Los avisos llevan el triaje de siempre, y los que quedan sin revisar suben a una campana en la cabecera.
+- **La cartera**: siete formas (ranking, bandas, plano, tapiz, flujo, avisos y horizonte), cada una **en arena o en tabla**, por organizaciones o por empresas, con su orden y sus filtros en la URL. Las vistas se pueden guardar.
+
+### La arena como vista mutable (`src/arena/vistas.ts`)
+
+Cada entidad es dueña de sus granos (120 por organización, 20 por empresa), siempre en el mismo orden. La placa de la vista va la primera de la página, así que al cambiar de forma, de orden o de filtro los granos de cada una viajan de un sitio a otro: el recorrido mide que al pasar de bandas a plano se mueven casi 20.000. `disponer` es pura: calcula dónde va cada entidad (para rótulos, clics y la etiqueta al pasar) y devuelve la función que dibuja.
+
+Tres formas son nuevas:
+- **bandas**, cuatro montones con las recién llegadas arriba, en rojo si bajan y en verde si suben;
+- **flujo**, de la banda del mes pasado a la de este, con hilos rojos y verdes;
+- **horizonte**, de hoy a la mediana a seis meses, con las que van hacia crítico en rojo y rotuladas.
+
+### «Dile qué quieres ver» (`src/datos/interpretar.ts` y `worker/`)
+
+- **Dos capas.** Primero, palabras clave, al instante y sin red. Después, Jev a través del Worker `rumbo-vista` (`https://rumbo-vista.jlsf2005.workers.dev`, cuenta de José Luis). La clave de TypeSafe es un secreto del Worker y las preguntas viven en él, así que el Worker no sirve para otra cosa. Limita a 30 peticiones por minuto y dirección.
+- **Qué pregunta.** Trece preguntas en una sola petición: forma, arena o tabla, unidad, orden, banda, movimiento, zona, sector, país, tamaño, producto y si ya lo tienen, y si la frase tiene que ver con la cartera. A TypeSafe solo viaja la frase y el vocabulario (sectores y países presentes); ningún dato financiero.
+- **Cómo decide la interfaz.** Los filtros piden más probabilidad que la forma o el orden. Si duda entre dos opciones, pregunta en vez de aplicar. Además quita las piezas redundantes que solo estrechan la vista: una zona que repite la banda, o un «cae» que repite el orden. El «tiene» de las palabras manda sobre el «encaja» de Jev.
+- **Cuánto acierta.** `pruebas/jev/evaluar.mjs` escribe 40 frases en la portada y compara la vista que queda con la esperada. Última ejecución: 63 de 63 piezas; 40 de 40 vistas con todas sus piezas y sin filtros de más; 33 de 40 exactas (las otras 7 añaden una forma o un orden razonables, como abrir el flujo para «las que suben de banda»). 1,2 s de media. Resultados en `pruebas/jev/resultados.json`.
+- **Coste.** Unos 2.400 tokens de entrada por petición: una diezmilésima de dólar.
+
+### Los horizontes cambian de modelo
+
+A las 18:07 otra sesión regeneró `rumbo/horizons` con `forecast-v1`: regresión cuantílica con calibración conformal, validada en 12 cortes, y guardó la simulación anterior en `horizons-v1-simulacion`. Los escenarios «deriva» y «peor trimestre» ahora solo traen la mediana, sin granos ni probabilidades de banda. Rumbo lee los dos formatos:
+- la metodología y la sección técnica explican el modelo que venga;
+- los percentiles que faltan salen de los granos o de la mediana;
+- los escenarios sin granos se dibujan como su hilo.
+
+### Pruebas
+
+El recorrido pasa a 50 comprobaciones:
+- el estado del mes igual al de `portfolio.json`;
+- el ranking de gravedad;
+- la campana;
+- las siete formas en arena y en tabla;
+- que los granos viajan al cambiar de forma;
+- el cambio a empresas;
+- el campo de lenguaje natural a la vista y funcionando (con una respuesta de Jev grabada);
+- los botones del plano y del tapiz.
+
+Última ejecución: **50 de 50**.
+
+---
 
 ## 19 de septiembre de 2026, la marca, la cabecera, los escenarios y el informe
 

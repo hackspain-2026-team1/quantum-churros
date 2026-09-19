@@ -3,7 +3,7 @@
 //      horizonte (hacia dónde va). Es lo único de arena de la página.
 //   2. Las secciones, que explican y actúan sobre el protagonista: Scoring (qué lo compone), Productos
 //      (con qué cuenta y qué le falta), Acciones (qué puede cambiar su rumbo).
-//   3. Técnico: el reverso, la trazabilidad (ver tecnico.ts).
+//   3. Desglose: el reverso, la trazabilidad (ver tecnico.ts).
 // Todo sale de los ficheros: el bundle del motor, products/, horizons/ (la previsión del motor) y params.json.
 
 import { TONO, type Hilo } from '../arena/arena';
@@ -367,7 +367,7 @@ export function seccionScoring(d: DatosFicha, acc: Acciones, flota: HTMLElement 
 	if (!d.mes) { raiz.append(h('p', { class: 'vacio' }, `${nombreEntidad(d.kind, d.id)} no tiene datos en ${f.mes(d.corte)}. Su primer mes es ${f.mes(d.ent.first_month)}.`)); return raiz; }
 	raiz.append(partitura(d, acc));
 	if (flota) raiz.append(flota);
-	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver el hilo entero en Técnico'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
+	raiz.append(seccion('De dónde sale', hilo(nudosScore(d, acc).slice(0, 3), true), (() => { const b = h('button', { type: 'button', class: 'as-enlace' }, 'Ver el hilo entero en el desglose'); b.addEventListener('click', () => acc.irSeccion('tecnico')); return b; })()));
 	return raiz;
 }
 

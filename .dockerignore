@@ -19,3 +19,4 @@ interfaz/pruebas/capturas
 **/__pycache__
 **/.pytest_cache
 **/*.pyc
+interfaz/worker/.wrangler
