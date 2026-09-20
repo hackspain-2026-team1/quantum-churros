@@ -16,12 +16,11 @@ import type {
 import { estadosProductos, recomendaciones, type EstadoProducto } from '../datos/encaje';
 import { f, primeraMayuscula } from '../datos/formato';
 import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
-import { ESFUERZO, ESTADO_AVISO, accionCorta, claveDeMirada, explicacionAccion, lineaAvisoM, movimiento, nombreBanda, nombrePilar, palancaDeAccion, tituloAccion, voz } from '../datos/redaccion';
+import { ESFUERZO, ESTADO_AVISO, accionCorta, explicacionAccion, lineaAvisoM, movimiento, nombreBanda, nombrePilar, palancaDeAccion, tituloAccion, voz } from '../datos/redaccion';
 import type { Seccion } from '../estado';
 import { h, vaciar } from './dom';
-import { desplegable } from './desplegable';
 import { conCifras, type Origen } from './cifras';
-import { abrirPropuesta } from './propuesta';
+import { seguimientoAcciones } from './ejecuciones';
 import { iconoProducto } from './iconos';
 import { hilo, lineaEstado, llamadas, marcaBanco, seccion, sello, type Nudo } from './primitivos';
 import { placa } from './registro';
@@ -942,11 +941,6 @@ function productosGrupo(d: DatosFicha, acc: Acciones): HTMLElement {
 
 // ─── Sección · Acciones ───────────────────────────────────────
 
-const CLAVE_ESTADOS = () => claveDeMirada('rumbo.acciones.v1');
-type EstadoAccion = 'propuesta' | 'en curso' | 'hecha';
-function leerEstados(): Record<string, EstadoAccion> { try { return JSON.parse(localStorage.getItem(CLAVE_ESTADOS()) ?? '{}'); } catch { return {}; } }
-function guardarEstado(clave: string, e: EstadoAccion) { const t = leerEstados(); t[clave] = e; try { localStorage.setItem(CLAVE_ESTADOS(), JSON.stringify(t)); } catch { /* Sin almacenamiento, el estado dura solo esta sesión. */ } }
-
 /** Cuánto tarda en notarse una acción, en meses. La cifra y la curva están en el horizonte. */
 function mesesAccion(d: DatosFicha, a?: AccionM): number | null {
 	const ha = a && d.hor?.actions?.find((x) => x.id === a.id);
@@ -963,11 +957,10 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const lista = h('ol', { class: 'recomendaciones' });
 	// Una columna por pregunta: qué hacer, de cuánto a cuánto, cuánto cuesta, cómo queda y cuánto sube.
 	const cabezaLista = h('div', { class: 'rec-cab', 'aria-hidden': 'true' },
-		h('span', {}, 'Ver'), h('span', {}, 'Qué hacer'), h('span', { class: 'centro' }, 'Esfuerzo'), h('span', { class: 'centro' }, 'Se nota'), h('span', { class: 'der' }, 'Sube'), h('span', {}, 'Cómo va'));
-	const estadosG = leerEstados();
+		h('span', {}, 'Ver'), h('span', {}, 'Qué hacer'), h('span', { class: 'centro' }, 'Esfuerzo'), h('span', { class: 'centro' }, 'Se nota'), h('span', { class: 'der' }, 'Sube'), h('span', {}, 'Seguimiento'));
+	const seguimiento = seguimientoAcciones(d, () => acc.horizonte.elegidas());
 	recs.forEach((r, i) => {
 		const a = r.accion;
-		const clave = `${d.id}:${d.corte}:${a.id}`;
 		// La casilla es lo primero de la fila y es lo que la lleva al horizonte. Es una casilla de verdad
 		// (teclado, lectores de pantalla), pero dibujada por nosotros, no la del sistema operativo.
 		const marca = h('input', { type: 'checkbox', class: 'rec-tick', checked: sel.has(a.id), 'aria-label': `Ver en el horizonte: ${tituloAccion(a)}` }) as HTMLInputElement;
@@ -975,21 +968,16 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 			marca.checked = v;
 			acc.horizonte.alternar(a.id, v);
 			li.classList.toggle('elegida', v);
+			seguimiento.actualizarBoton();
 		};
 		marca.addEventListener('change', () => fijarMarca(marca.checked));
 		marca.addEventListener('click', (ev) => ev.stopPropagation());
-		// «Propuesta» es la palabra del comercial; para quien la va a hacer, está pendiente.
-		const estadoSel = desplegable<EstadoAccion>({
-			etiqueta: 'Estado de la acción', valor: estadosG[clave] ?? 'propuesta',
-			opciones: (['propuesta', 'en curso', 'hecha'] as EstadoAccion[]).map((x) => ({ valor: x, texto: x === 'propuesta' ? voz('propuesta', 'pendiente') : x })),
-			alElegir: (v) => { guardarEstado(clave, v); li.dataset.estado = v; },
-		});
-		estadoSel.raiz.addEventListener('click', (ev) => ev.stopPropagation());
-		estadoSel.raiz.addEventListener('keydown', (ev) => ev.stopPropagation());
+		const verSeguimiento = h('button', { type: 'button', class: 'miga-accion' }, 'Ver seguimiento');
+		verSeguimiento.addEventListener('click', (ev) => { ev.stopPropagation(); seguimiento.raiz.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 26, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
 		const pal = palancaDeAccion(a);
 		const meses = mesesAccion(d, a);
-		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id, 'data-estado': estadosG[clave] ?? 'propuesta' },
+		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id },
 			h('span', { class: 'rec-marca' }, marca, h('span', { class: 'rec-orden', 'aria-hidden': 'true' }, String(i + 1))),
 			h('div', { class: 'rec-cuerpo' },
 				h('div', { class: 'rec-titulo' }, accionCorta(a)),
@@ -1008,7 +996,7 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 			h('div', { class: 'rec-plazo' }, meses === null ? h('b', { class: 'vacia' }, '—') : h('b', {}, f.numero(meses)),
 				h('span', {}, meses === null ? 'sin previsión' : meses === 1 ? 'mes' : 'meses')),
 			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
-			h('div', { class: 'rec-estado' }, estadoSel.raiz));
+			h('div', { class: 'rec-estado' }, verSeguimiento));
 		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija — también al pulsar la fila.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
@@ -1033,11 +1021,11 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const cabeceraAcciones = h(
 		'div',
 		{ class: 'sec-acciones-cabecera' },
-		h('p', { class: 'nota' }, voz('Las acciones y su efecto las calcula el motor. Marca una o varias para verlas en el horizonte, o arma la propuesta al cliente.', 'Las acciones y su efecto los calcula el motor. Marca una o varias para verlas en tu horizonte, o arma tu plan para el banco.')),
-		h('button', { type: 'button', class: 'boton-propuesta' }, voz('Armar propuesta al cliente', 'Mi plan para el banco')),
+		h('div', {}, h('p', { class: 'nota' }, 'Elige qué acciones vas a llevar a cabo. Antes de ejecutarlas podrás revisar los bancos, las acciones y la financiación en una confirmación. Las marcas también permiten comparar su efecto estimado en el gráfico.'), h('p', { class: 'nota' }, 'La puesta en marcha registra la decisión del equipo; no ordena pagos ni solicita financiación.'), seguimiento.mensaje),
+		seguimiento.boton,
 	);
-	cabeceraAcciones.querySelector('button')!.addEventListener('click', () => abrirPropuesta(d, acc.horizonte.elegidas(), acc));
 	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), cabeceraAcciones, recs.length ? cabezaLista : null, lista));
+	raiz.append(seguimiento.raiz);
 	if (d.kind === 'group') raiz.append(seccion(voz('Lo que proponen sus empresas', 'Lo que puede hacer cada una de tus empresas'), accionesEmpresas(d, acc)));
 	return raiz;
 }

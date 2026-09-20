@@ -17,6 +17,9 @@ async def test_health() -> None:
 def test_api_surface_is_bundle_plus_context() -> None:
     assert set(app.openapi()["paths"]) == {
         "/health",
+        "/api/v1/action-executions",
+        "/api/v1/action-executions/refresh",
+        "/api/v1/action-executions/{execution_id}",
         "/api/v1/bundle/{path}",
         "/api/v1/benchmarks",
         "/api/v1/benchmarks/{study_id}",
