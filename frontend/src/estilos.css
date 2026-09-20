@@ -4843,7 +4843,6 @@ body[data-modo='cfo'] .nota-datos { display: none; }
 }
 .nota-cifra b { font-weight: 600; }
 .nota-cifra-rastro { color: rgba(255, 255, 255, 0.72); font-variant-numeric: tabular-nums; }
-.nota-cifra-pie { color: rgba(255, 255, 255, 0.55); font-style: italic; }
 /* En papel, una cifra es solo un número: ni color de enlace ni subrayado. */
 .informe .cifra, .capa-informe .cifra { color: inherit; border-bottom: 0; background: none; }
 /* Rótulos del horizonte que no caben en una fila: el de seis meses baja, como en el móvil. */
