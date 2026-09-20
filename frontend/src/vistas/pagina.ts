@@ -7,6 +7,7 @@ import type { Placa } from '../arena/placas';
 import { carga } from '../datos/carga';
 import type { GrupoM, Manifiesto } from '../datos/contrato';
 import type { Filtro } from '../datos/consulta';
+import { pendienteTheilSen } from '../datos/derivados';
 import { f } from '../datos/formato';
 import type { Cartera } from '../datos/modelo';
 import { nombreBanda, movimiento } from '../datos/redaccion';
@@ -124,7 +125,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		temporizadorH = window.setTimeout(() => {
 			const d = datos!;
 			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
-			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, tendencia: estadoUI.tendencia, alMetodologia: () => irAMetodologia('met-tendencia'), alto, desde: cb.desde(), alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
+			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, tendencia: estadoUI.tendencia, alto, desde: cb.desde(), alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
 			pintarControles(d);
 			medirEscenario();
 			cb.alCambiarArena();
@@ -144,21 +145,14 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			const grupo = h('span', { class: 'tendencia-ctrl' });
 			const ten = h('button', { type: 'button', class: `chip-tendencia ${estadoUI.tendencia ? 'activo' : ''}`, 'aria-pressed': String(estadoUI.tendencia), title: 'La línea de tendencia robusta (Theil–Sen) de los últimos doce meses de score' }, 'Tendencia');
 			ten.addEventListener('click', () => { estadoUI.tendencia = !estadoUI.tendencia; pintarHorizonte(); });
+			const idx = d.ent.months.findIndex((m) => m.month === d.corte);
+			const pendiente = idx >= 0 ? pendienteTheilSen(d.ent.months.map((m) => m.month <= d.corte ? m.shown : null), idx) : null;
+			const valor = pendiente === null ? 'sin historia suficiente' : `${pendiente >= 0 ? '+' : '−'}${f.numero(Math.abs(pendiente), 1)} puntos/mes · últimos 12 meses`;
+			const resumen = h('span', { class: 'tendencia-valor', title: 'La línea se dibuja sobre los últimos doce meses del pasado. Necesita al menos seis meses con score.' }, valor);
 			const queEs = h('button', { type: 'button', class: 'enlace-met', title: 'Qué mide esta línea y por qué es robusta' }, '¿Qué es?');
 			queEs.addEventListener('click', () => irAMetodologia('met-tendencia'));
-			grupo.append(ten, queEs);
+			grupo.append(ten, resumen, queEs);
 			controles.append(grupo);
-		}
-		if (estadoUI.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte) {
-			const sup = h('div', { class: 'escenarios', role: 'radiogroup', 'aria-label': 'Escenario' });
-			const nombres = { base: 'Si todo sigue igual', drift: 'Si sigue al mismo ritmo', stress: 'Si se repite su peor trimestre' } as const;
-			for (const k of ['base', 'drift', 'stress'] as const) {
-				if (k !== 'base' && !d.hor.scenarios[k]) continue;
-				const b = h('button', { type: 'button', class: `esc esc-${k} ${estadoUI.escenario === k ? 'activo' : ''}`, 'data-escenario': k, role: 'radio', 'aria-checked': String(estadoUI.escenario === k), title: k === 'drift' ? 'Qué pasaría si: prolonga la pendiente de los últimos doce meses. No es una predicción.' : k === 'stress' ? 'Los tres primeros meses repiten su peor trimestre observado. No es una predicción.' : undefined }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), nombres[k]);
-				b.addEventListener('click', () => { if (estadoUI.escenario !== k) { estadoUI.escenario = k; pintarHorizonte(); } });
-				sup.append(b);
-			}
-			controles.append(sup);
 		}
 		if (estadoUI.acciones.size) {
 			const quitar = h('button', { type: 'button', class: 'chip-acciones' }, `${f.plural(estadoUI.acciones.size, 'acción marcada', 'acciones marcadas')} · quitar`);

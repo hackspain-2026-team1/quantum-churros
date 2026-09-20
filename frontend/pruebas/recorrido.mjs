@@ -226,14 +226,34 @@ comprobar('la gráfica tiene sus ejes: score de 0 a 100 y los meses', await p.ev
 }
 // Los horizontes y los supuestos, siempre a la vista: nada se esconde tras un botón.
 comprobar('los tres horizontes se rotulan a la vez', (await p.$$('.escenario .g-etq.boya')).length === 3);
-// Cada caso del mando tiene su trazo en la gráfica: el que se mira, dibujado; los demás, rotulados
-// al borde con su score. Con una acción marcada tampoco desaparecen: entonces están los tres.
-if (await p.$('.esc-drift')) {
-	const casos = (await p.$$('.escenario .esc')).length;
-	const conAccion = !!(await p.$('.escenario .zona-t.con-acciones'));
-	const rotulos = (await p.$$('.escenario .g-etq.alternativa')).length;
-	comprobar('«qué pasaría si» se dibuja siempre como línea, aparte de la previsión', rotulos === (conAccion ? casos : casos - 1), `${rotulos} rótulos · ${casos} casos${conAccion ? ' · con una acción marcada' : ''}`);
-	if (conAccion) comprobar('con una acción marcada se sigue leyendo el score de cada caso', await p.$$eval('.escenario .g-etq.alternativa', (xs) => xs.every((x) => /\d/.test(x.textContent))));
+// Los tres supuestos ya no son tres botones fuera de la gráfica: cada uno lleva su trazo y su
+// rótulo dentro, el que se mira va en firme, y se eligen ahí mismo (pasar el ratón y tocar).
+if (await p.$('.escenario .g-etq.alternativa.esc-drift')) {
+	comprobar('no quedan botones de supuesto fuera de la gráfica', (await p.$$('.escenarios, .escenario .esc')).length === 0);
+	const rotulos = await p.$$eval('.escenario .g-etq.alternativa', (xs) => xs.map((x) => ({ t: x.textContent, boton: x.tagName === 'BUTTON', actual: x.classList.contains('actual') })));
+	comprobar('los tres casos se rotulan en la gráfica y son botones', rotulos.length === 3 && rotulos.every((r) => r.boton), rotulos.map((r) => r.t).join(' · '));
+	comprobar('se lee el score de cada caso y uno va en firme', rotulos.every((r) => /\d/.test(r.t)) && rotulos.filter((r) => r.actual).length === 1);
+	// Pasar el ratón por el futuro enciende el horizonte que pasa más cerca y lo nombra en el globo.
+	const bb = await (await p.$('.escenario .grafico-arena')).boundingBox();
+	await p.mouse.move(bb.x + bb.width * 0.93, bb.y + bb.height * 0.22);
+	await esperar(400);
+	const señalado = await p.evaluate(() => ({
+		trazo: document.querySelector('.escenario .hz.senalado')?.getAttribute('class') ?? '',
+		etq: document.querySelector('.escenario .g-etq.alternativa.senalada')?.textContent ?? '',
+		globo: document.querySelector('.escenario .g-lectura')?.textContent ?? '',
+	}));
+	comprobar('pasar por un horizonte lo enciende, rótulo incluido, y el globo lee su previsión',
+		/hz-\w+ senalado/.test(señalado.trazo) && !!señalado.etq && /previsto \d/.test(señalado.globo), `${señalado.etq} · ${señalado.globo}`);
+	// Y tocarlo lo deja definido: el caso en firme pasa a ser ese.
+	const enFirme = () => p.evaluate(() => document.querySelector('.escenario .g-etq.alternativa.actual')?.className.match(/esc-\w+/)?.[0] ?? '');
+	await p.mouse.click(bb.x + bb.width * 0.93, bb.y + bb.height * 0.22);
+	await hasta(p, () => document.querySelector('.escenario .g-etq.alternativa.actual')?.classList.contains('esc-drift'), 4000);
+	comprobar('tocar un horizonte en la gráfica lo deja en firme', (await enFirme()) === 'esc-drift', await enFirme());
+	// Se vuelve al de partida desde su propio rótulo, sin salir de la gráfica.
+	await p.click('.escenario .g-etq.alternativa.esc-base');
+	await hasta(p, () => document.querySelector('.escenario .g-etq.alternativa.actual')?.classList.contains('esc-base'), 4000);
+	comprobar('el rótulo de cada caso lo elige', (await enFirme()) === 'esc-base', await enFirme());
+	await p.mouse.move(5, 5);
 }
 // La acción marca su punto en la gráfica, a la distancia en que se nota y con su score.
 {
