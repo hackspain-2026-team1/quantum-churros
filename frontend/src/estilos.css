@@ -3422,6 +3422,45 @@ body[data-vista='entrada'] .regla, body[data-vista='entrada'] .reproducir, body[
 .cab-marca i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .cab-marca.pares i { border: 1.5px solid var(--apagado); }
 
+/* Los avisos del mes, debajo del número: lo único de la ficha que pide una decisión hoy. En una
+   organización cada línea dice de quién es, y el nombre de la empresa lleva a su ficha. */
+.cab-avisos { grid-column: 1 / -1; display: grid; gap: 3px; margin-top: 14px; padding-top: 9px; border-top: 1px solid var(--borde); }
+.cav-cab { display: flex; align-items: baseline; gap: 9px; }
+.cav-cab h2 { font: 600 17px/1.2 var(--serif); }
+.cav-cab .as-enlace { font-size: 12.5px; }
+.cav-lista { list-style: none; padding: 0; display: grid; gap: 1px; }
+.cav-aviso {
+	display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; gap: 9px; align-items: baseline;
+	padding: 3px 6px 4px 4px; margin-left: -4px; border-radius: 6px; font-size: 13.5px; color: var(--tinta-2);
+	cursor: pointer; transition: background 140ms;
+}
+.cav-aviso:hover { background: var(--fondo-3); }
+.cav-aviso .av-grano { background: var(--tenue); }
+.cav-aviso.tono-grave .av-grano { background: var(--peligro); }
+.cav-aviso.tono-grave .av-texto { color: var(--peligro-t); }
+.cav-aviso.tono-baja .av-grano { background: var(--aviso); }
+.cav-aviso.tono-sube .av-grano { background: var(--exito); }
+.cav-cuerpo { min-width: 0; }
+.cav-aviso .av-ent { font-weight: 600; color: var(--tinta); }
+.cav-aviso .av-ent.propio { font: italic 400 13.5px var(--serif); color: var(--apagado); }
+.cav-aviso .av-ent:not(.propio):hover { color: var(--info-t); }
+/* El triaje no ocupa sitio hasta que se busca: la fila se lee limpia. */
+.cav-aviso .av-triaje { grid-column: 3; gap: 10px; opacity: 0; transition: opacity 140ms; }
+.cav-aviso:hover .av-triaje, .cav-aviso:focus .av-triaje, .cav-aviso:focus-within .av-triaje { opacity: 1; }
+.cav-aviso.triaje-visto { color: var(--apagado); }
+.cav-aviso.triaje-visto .av-grano { opacity: 0.45; }
+.cav-aviso.triaje-visto .av-texto, .cav-aviso.triaje-visto .av-ent { color: var(--apagado); font-weight: 400; }
+.cav-nada { font: italic 13.5px/1.5 var(--serif); color: var(--tenue); }
+.cav-aviso.pasado { color: var(--apagado); }
+.cav-aviso.pasado .av-grano { opacity: 0.5; }
+.cav-aviso.pasado .av-mes { font-size: 12px; color: var(--tenue); }
+.cav-aviso.pasado .av-texto { color: var(--apagado); }
+.cav-mas.grupo { color: var(--tinta-2); }
+.cav-mas { justify-self: start; margin-left: -4px; padding: 2px 4px; font-size: 12px; color: var(--apagado); text-align: left; }
+.cav-mas:hover { color: var(--info-t); }
+/* En papel no se toca nada: las líneas se leen, no se pulsan. */
+.informe .cav-aviso, .informe .cav-mas { cursor: default; }
+
 /* El horizonte. */
 .horizonte { min-width: 0; }
 .horizonte .controles-grafico { margin: 0 70px 6px 44px; min-height: 30px; }
