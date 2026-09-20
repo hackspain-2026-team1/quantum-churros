@@ -338,8 +338,6 @@ export interface OpcionesGrafico {
 	pilar: string | null;
 	/** Dibujar la tendencia Theil–Sen del score sobre la zona pasada (solo metrica 'score'). */
 	tendencia: boolean;
-	/** El rótulo de la tendencia enlaza con su explicación en Metodología; ausente en el informe impreso. */
-	alMetodologia?: () => void;
 	alto: number;
 	/** Primer mes del intervalo de la regla; vacío si la regla está en un mes suelto. */
 	desde?: string;
@@ -431,7 +429,6 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	// La tendencia Theil–Sen: la misma pendiente robusta que nombra la deriva lenta en «Qué está
 	// pasando», anclada en el corte y dibujada hacia atrás sobre los meses que la sostienen.
 	// Descriptiva y pasada: nunca entra en el score ni en la previsión (ENGINE.md, «Slow drift»).
-	let rotuloTendencia: { col: number; value: number; pendiente: number } | null = null;
 	if (esScore && o.tendencia && !o.pilar) {
 		const idx = d.ent.months.findIndex((m) => m.month === d.corte);
 		const serie = d.ent.months.map((m) => (m.month <= d.corte ? m.shown : null));
@@ -440,10 +437,13 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			let primero = Math.max(0, idx - 11);
 			while (primero < idx && serie[primero] == null) primero++;
 			const cDesde = col(d.ent.months[primero].month);
-			if (cDesde >= 0 && cDesde < hoy) {
+			// La regla puede enseñar solo un intervalo corto. El cálculo sigue usando doce meses,
+			// pero la recta se recorta al primer mes visible en vez de desaparecer entera.
+			const cVisible = Math.max(cDesde, 0);
+			const idxVisible = d.ent.months.findIndex((m) => m.month === cal[cVisible]);
+			if (idxVisible >= 0 && cVisible < hoy) {
 				const valor = (k: number) => serie[idx]! / 10 + pend * (k - idx);
-				lineas.push({ puntos: [[cDesde, valor(primero)], [hoy, valor(idx)]], tono: TONO.tellme, alfa: 0.9, punteada: true, grosor: 1 });
-				rotuloTendencia = { col: cDesde, value: valor(primero), pendiente: pend };
+				lineas.push({ puntos: [[cVisible, valor(idxVisible)], [hoy, valor(idx)]], tono: TONO.tellme, alfa: 1, punteada: false, grosor: 1.5 });
 			}
 		}
 	}
@@ -575,20 +575,6 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	if (etFuturo.t) { const zf = eti(`zona-t futuro ${etFuturo.clase}`, etFuturo.t, `${((hoy + 1) / columnas) * 100}%`, '0'); void zf; }
 	if (despues.length && esScore) eti('zona-t despues', 'lo que pasó después', X(Math.min(columnas - 1, hoy + 1)), '14px');
 	if (esScore && hayFuturo(d) && validado < 12) { const ev = eti('sin-validar', 'sin validar', X(hoy + validado + 1), '0'); ev.title = `La previsión está validada fuera de muestra hasta ${validado} meses. Más allá, el modelo no se ha podido comprobar con lo que pasó.`; }
-	// El rótulo de la tendencia: su pendiente en puntos/mes, y el enlace a cómo se mide.
-	if (rotuloTendencia) {
-		const p = rotuloTendencia.pendiente;
-		const texto = `${p >= 0 ? '+' : '−'}${f.numero(Math.abs(p), 1)} puntos/mes`;
-		const titulo = 'Tendencia robusta (Theil–Sen) de los últimos doce meses de score: la mediana de las pendientes entre cada par de meses. Es descriptiva y no cambia el score.';
-		const et = o.alMetodologia
-			? h('button', { type: 'button', class: 'g-etq tendencia-etq', title: `${titulo} Pulsa para leer por qué.` }, texto)
-			: h('span', { class: 'g-etq tendencia-etq', title: titulo }, texto);
-		if (o.alMetodologia) et.addEventListener('click', o.alMetodologia);
-		et.style.left = X(rotuloTendencia.col);
-		et.style.top = Y(rotuloTendencia.value);
-		if (rotuloTendencia.col < 2) et.classList.add('borde');
-		caja.append(et);
-	}
 	// Los horizontes, todos a la vista y en una fila: cuándo y qué se espera (mediana · franja del 80 %).
 	for (const b of boyas) {
 		const el = eti(`boya h${b.h} ${b.h === 12 ? 'fin' : ''}`, '', X(hoy + b.h), '100%');
