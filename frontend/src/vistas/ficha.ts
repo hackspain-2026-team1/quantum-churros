@@ -14,6 +14,7 @@ import type {
 	ParametrosM, ProductosEmpresaM, ProductosGrupoM, TenenciaM,
 } from '../datos/contrato';
 import { estadosProductos, recomendaciones, type EstadoProducto } from '../datos/encaje';
+import { TIPOS_AVISO } from '../datos/monitorCartera';
 import { f, primeraMayuscula } from '../datos/formato';
 import { pendienteTheilSen } from '../datos/derivados';
 import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
@@ -60,6 +61,8 @@ export interface DatosFicha {
 	validado: number;
 	/** Score del grupo en el corte (para situar a la empresa). */
 	grupoMes: MesM | null;
+	/** Avisos de la organización, vistos desde una de sus empresas (vacío en la ficha del grupo). */
+	avisosGrupo: AlertaM[];
 	empresas: EmpresaDeGrupo[];
 	/** Entidades del mismo tamaño en el corte: mediana y cuántas. */
 	pares?: { mediana: number; n: number; tamano: string } | null;
@@ -82,6 +85,7 @@ export async function cargarFicha(kind: 'company' | 'group', id: string, grupoId
 		validado: ix?.validation?.validado_hasta ?? 0,
 		mes: ent.months.find((m) => m.month === corte) ?? null,
 		grupoMes: (grupo as GrupoM).months.find((m) => m.month === corte) ?? null,
+		avisosGrupo: kind === 'company' ? (grupo as GrupoM).alerts : [],
 	};
 }
 
@@ -193,7 +197,8 @@ export function cabecera(d: DatosFicha, movil: boolean, acc: Acciones): HTMLElem
 			h('h1', {}, nombre),
 			lineaSub,
 			m ? lineaEstado(d.man, m, null, true) : h('p', { class: 'cab-vacio' }, `Sin datos en ${f.mes(d.corte)}.`),
-			m ? explicacion(d, acc) : null));
+			m ? explicacion(d, acc) : null),
+		avisosDelMes(d, acc));
 	void movil;
 	return cab;
 }
@@ -207,6 +212,117 @@ function explicacion(d: DatosFicha, acc: Acciones): HTMLElement {
 	else if (peor && peor.contrib < 0) p.append(h('span', {}, ...conCifras(`Lo que más resta: ${nombrePilar(d.man, peor.key).toLowerCase()}, ${f.numero(Math.abs(peor.contrib) / 10, 1)} puntos.`, origenPilar(d, acc, peor.key, `Lo que resta el pilar de ${nombrePilar(d.man, peor.key).toLowerCase()} al score`))));
 	if (d.pares) p.append(h('span', { class: 'cab-marca pares' }, h('i', { 'aria-hidden': 'true' }), ...conCifras(`las ${f.numero(d.pares.n)} de su tamaño: mediana ${f.score(d.pares.mediana)}`, { que: `Mediana de las entidades del mismo tramo de tamaño (${d.pares.tamano})`, mes: d.corte })));
 	return p;
+}
+
+// ─── Los avisos, debajo del número ────────────────────────────
+// Lo que el motor ha levantado este mes sobre la entidad abierta y, en una organización, sobre cada
+// una de sus empresas. Van junto al número porque son lo único de la ficha que pide una decisión
+// hoy; el detalle, los descartados y la historia entera siguen en la bandeja del Desglose.
+
+interface AvisoFicha { a: AlertaM; empresa: string | null }
+
+/** El color de cada aviso: lo grave en rojo, lo que se tuerce en ámbar, lo que sube en verde. */
+const TONO_AVISO: Record<string, 'grave' | 'baja' | 'sube' | 'neutro'> = {
+	level_critical: 'grave', deterioration_structural: 'grave', deterioration_drift: 'baja', cap_fired: 'baja',
+	improvement_structural: 'sube', improvement_drift: 'sube', stale_feed: 'neutro',
+};
+/** El orden con el que se leen: primero lo que más pesa (el mismo del monitor de la cartera). */
+const gravedad = (a: AlertaM) => { const i = TIPOS_AVISO.findIndex((x) => x.id === a.kind); return i < 0 ? TIPOS_AVISO.length : i; };
+
+function avisosDeLaFicha(d: DatosFicha): AvisoFicha[] {
+	const propios: AvisoFicha[] = d.ent.alerts.map((a) => ({ a, empresa: null }));
+	if (d.kind !== 'group') return propios;
+	return [...propios, ...d.empresas.flatMap((em) => (em.ent?.alerts ?? []).map((a) => ({ a, empresa: em.res.id })))];
+}
+
+export function avisosDelMes(d: DatosFicha, acc: Acciones): HTMLElement {
+	const caja = h('section', { class: 'cab-avisos', 'aria-label': `Avisos de ${f.mes(d.corte)}` });
+	const umbral = d.params?.alerts.critical_score ?? null;
+	const hasta = avisosDeLaFicha(d).filter((x) => x.a.month <= d.corte);
+	const delMes = hasta.filter((x) => x.a.month === d.corte);
+	const disparados = delMes.filter((x) => x.a.state === 'fired')
+		.sort((x, y) => gravedad(x.a) - gravedad(y.a) || Number(!!x.empresa) - Number(!!y.empresa) || x.a.shown - y.a.shown);
+	const retenidos = delMes.filter((x) => x.a.state !== 'fired').length;
+	const antes = hasta.filter((x) => x.a.month < d.corte && x.a.state === 'fired');
+	const ultimoAntes = [...antes].sort((x, y) => y.a.month.localeCompare(x.a.month) || gravedad(x.a) - gravedad(y.a))[0] ?? null;
+	// Desde una empresa, lo que se ha levantado sobre su organización: no es suyo, pero le toca.
+	const enElGrupo = d.avisosGrupo.filter((a) => a.month === d.corte && a.state === 'fired').length;
+	const MAX = 4;
+
+	function fila(x: AvisoFicha, pasado = false): HTMLElement {
+		const t = triaje.de(x.a.id);
+		const cuerpo = h('span', { class: 'cav-cuerpo' });
+		if (pasado) cuerpo.append(h('span', { class: 'av-mes' }, f.mesCorto(x.a.month)), ' · ');
+		// En una organización cada aviso dice de quién es: de una empresa suya o del grupo entero.
+		if (d.kind === 'group') {
+			if (x.empresa) {
+				const b = h('button', { type: 'button', class: 'av-ent', title: `Abrir ${f.empresa(x.empresa)}` }, f.empresa(x.empresa));
+				b.addEventListener('click', (ev) => { ev.stopPropagation(); acc.abrirEmpresa(x.empresa!); });
+				cuerpo.append(b, ' · ');
+			} else cuerpo.append(h('span', { class: 'av-ent propio' }, 'el grupo'), ' · ');
+		}
+		cuerpo.append(h('span', { class: 'av-texto' }, lineaAvisoM(x.a, d.man, umbral)));
+		const li = h('li', {
+			class: `cav-aviso tono-${TONO_AVISO[x.a.kind] ?? 'neutro'}${pasado ? ' pasado' : ''}${t ? ` triaje-${t}` : ''}`, tabindex: '0',
+			title: `${x.a.detail || x.a.title} · ${ESTADO_AVISO[x.a.state]}. Clic para la bandeja de avisos.`,
+		}, h('span', { class: 'av-grano' }), cuerpo);
+		const marca = h('span', { class: 'av-triaje' });
+		const boton = (texto: string, valor: 'visto' | null) => {
+			const b = h('button', { type: 'button', class: 'av-boton' }, texto);
+			b.addEventListener('click', (ev) => { ev.stopPropagation(); triaje.fijar(x.a.id, valor); });
+			marca.append(b);
+		};
+		if (t === 'visto') boton('Restaurar', null); else boton('Visto', 'visto');
+		li.append(marca);
+		const ir = () => acc.irBandeja();
+		li.addEventListener('click', ir);
+		li.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ir(); });
+		return li;
+	}
+
+	function pintar() {
+		vaciar(caja);
+		// Lo descartado no vuelve a aparecer aquí: se queda en la bandeja, que es donde se restaura.
+		const ver = disparados.filter((x) => triaje.de(x.a.id) !== 'descartado');
+		const descartados = disparados.length - ver.length;
+		const verTodos = h('button', { type: 'button', class: 'as-enlace' }, 'Ver todos');
+		verTodos.addEventListener('click', () => acc.irBandeja());
+		// Ni el mes ni la cuenta: el mes ya lo dicen la regla y la ficha, y lo que está aquí es
+		// justo lo que queda por revisar.
+		caja.append(h('header', { class: 'cav-cab' }, h('h2', {}, 'Avisos'), h('span', { class: 'hueco' }), verTodos));
+		if (ver.length) {
+			const lista = h('ul', { class: 'cav-lista' });
+			for (const x of ver.slice(0, MAX)) lista.append(fila(x));
+			caja.append(lista);
+		} else {
+			caja.append(h('p', { class: 'cav-nada' }, 'Ningún aviso este mes.'));
+			// Sin avisos este mes se enseña el último que hubo: el bloque nunca se queda en blanco.
+			if (ultimoAntes) caja.append(h('ul', { class: 'cav-lista' }, fila(ultimoAntes, true)));
+		}
+		// La cola: lo que no cabe, lo que el motor retuvo y lo que ya pasó. Todo lleva a la bandeja.
+		const resto: string[] = [];
+		if (ver.length > MAX) resto.push(`${f.numero(ver.length - MAX)} más`);
+		if (retenidos) resto.push(`${f.numero(retenidos)} sin disparar`);
+		if (descartados) resto.push(`${f.numero(descartados)} ${descartados === 1 ? 'descartado' : 'descartados'}`);
+		if (antes.length) resto.push(ver.length
+			? `${f.numero(antes.length)} antes, el último en ${f.mes(ultimoAntes!.a.month)}`
+			: `${f.numero(antes.length)} en los meses anteriores`);
+		if (resto.length) {
+			const mas = h('button', { type: 'button', class: 'cav-mas' }, resto.join(' · '));
+			mas.addEventListener('click', () => acc.irBandeja());
+			caja.append(mas);
+		}
+		// El aviso de la organización no es de la empresa: se dice aparte y lleva a su ficha.
+		if (enElGrupo) {
+			const ir = h('button', { type: 'button', class: 'cav-mas grupo' }, `${f.grupo(d.grupoId)}, ${f.plural(enElGrupo, 'aviso', 'avisos')}`);
+			ir.addEventListener('click', () => acc.abrirGrupo(d.grupoId));
+			caja.append(ir);
+		}
+	}
+
+	triaje.oir(() => { if (caja.isConnected) pintar(); });
+	pintar();
+	return caja;
 }
 
 // ─── 2. El horizonte ──────────────────────────────────────────
@@ -578,7 +694,7 @@ export function seccionScoring(d: DatosFicha, acc: Acciones, flota: HTMLElement 
 	// score viene después. En una empresa, la explicación es la pestaña entera.
 	if (flota) raiz.append(flota);
 	raiz.append(queEsElNumero(d, acc), balancePilares(d, acc));
-	const pasa = queEstaPasando(d, acc);
+	const pasa = queEstaPasando(d);
 	if (pasa) raiz.append(pasa);
 	const limita = queLoLimita(d);
 	if (limita) raiz.append(limita);
@@ -688,7 +804,7 @@ function balancePilares(d: DatosFicha, acc: Acciones): HTMLElement {
 }
 
 /** Qué ha cambiado: el veredicto del motor dicho en palabras, con su tamaño y su persistencia. */
-function queEstaPasando(d: DatosFicha, acc: Acciones): HTMLElement | null {
+function queEstaPasando(d: DatosFicha): HTMLElement | null {
 	const m = d.mes!;
 	const v = m.verdict;
 	if (!v.available) {
@@ -718,15 +834,8 @@ function queEstaPasando(d: DatosFicha, acc: Acciones): HTMLElement | null {
 	}
 
 	const p = h('p', { class: 'sc-lead' }, ...conCifras(partes.join(' '), { que: 'Veredicto del mes', mes: d.corte }));
-	const avisos = d.ent.alerts.filter((a) => a.month === d.corte && a.state === 'fired');
-	const lista = avisos.length
-		? h('ul', { class: 'sc-avisos' }, ...avisos.slice(0, 4).map((a) => {
-			const li = h('li', {}, lineaAvisoM(a, d.man, null));
-			li.addEventListener('click', () => acc.irBandeja());
-			return li;
-		}))
-		: null;
-	return seccion('Qué está pasando', h('div', { class: 'sc-mov' }, h('span', { class: `sc-mov-sello ${v.direction}` }, movimiento(m)), p), lista);
+	// Los avisos del mes no se repiten aquí: viven junto al número, en la cabecera.
+	return seccion('Qué está pasando', h('div', { class: 'sc-mov' }, h('span', { class: `sc-mov-sello ${v.direction}` }, movimiento(m)), p));
 }
 
 /** Lo que recorta el número aunque los pilares digan otra cosa: topes, penalización, compuertas. */
