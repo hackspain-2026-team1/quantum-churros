@@ -69,8 +69,10 @@ export async function carteraMotor(progreso: (fraccion: number) => void): Promis
 	// Los nombres de pilares y bandas salen del manifiesto, nunca del código.
 	for (const p of manifest.pillars) NOMBRE_PILAR[p.key] = p.label;
 	for (const b of manifest.bands) NOMBRE_BANDA[b.key] = b.label;
-	const [portfolio, alertas, productos, horizontes, entidades] = await Promise.all([json<PortfolioMotor>('portfolio.json'), json<{ alerts: AlertaMotor[] }>('alerts.json'), carga.productosIndice(), carga.horizontesIndice(), carga.entidades()]);
+	const [portfolio, alertas, productosLeidos, horizontesLeidos, entidades] = await Promise.all([json<PortfolioMotor>('portfolio.json'), json<{ alerts: AlertaMotor[] }>('alerts.json'), carga.productosIndice(), carga.horizontesIndice(), carga.entidades()]);
 	fijarNombres(mismaHuella(manifest.bundle_id, entidades) ? entidades : null, manifest.bundle_id);
+	const productos = mismaHuella(manifest.bundle_id, productosLeidos) ? productosLeidos : null;
+	const horizontes = mismaHuella(manifest.bundle_id, horizontesLeidos) ? horizontesLeidos : null;
 	progreso(0.08);
 	const months = manifest.months;
 	const idx = new Map(months.map((m, i) => [m, i]));
