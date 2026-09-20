@@ -6,6 +6,32 @@
 
 El comprador es el CFO de un grupo empresarial. Rumbo le vende una lectura continua de su tesorería: score, trayectoria, previsión, explicación y siguientes pasos. Si hace falta financiación, el CFO decide qué comparte y compara ofertas sin exponer su identidad antes de tiempo.
 
+## Qué hay detrás del score
+
+Rumbo no es un clasificador entrenado para predecir quiebras: el dataset no tiene etiquetas de
+impago. Es un **motor de medición determinista y auditable**, definido punto a punto en el
+mes que se está mirando. Primero consolida los flujos del grupo —suma sus movimientos y
+facturas y después calcula los ratios; no hace la media de sus filiales— y puntúa cinco
+pilares observables, cada uno de 0 a 100 mediante tablas de referencia congeladas:
+
+| Pilar | Qué mide | Peso |
+| --- | --- | ---: |
+| Liquidez | Días de salidas cubiertos por caja y líneas no dispuestas | 30 % |
+| Pagos | Puntualidad con proveedores | 20 % |
+| Cobros | Retraso de los clientes en pagar | 15 % |
+| Actividad | Cobros operativos frente a pagos y su evolución | 20 % |
+| Deuda | Peso del servicio de deuda sobre los cobros | 15 % |
+
+El score combina esos pilares con pesos renormalizados cuando un dato no es observable —no
+lo convertimos en cero—, penaliza un pilar débil y aplica topes duros cuando hay una señal de
+riesgo clara. La cuenta siempre se puede reconstruir: **base + aportaciones de los pilares −
+penalización − tope = score**. La confianza, la trayectoria y el forecast se calculan aparte:
+explican cuánto sabemos y hacia dónde va la empresa, pero no maquillan ni cambian la nota.
+
+**Frase para decir si preguntan:** «No hemos definido salud financiera como una caja negra ni
+como una probabilidad inventada: la hemos definido como cinco hechos observables, medidos con
+la misma regla para cada empresa, agregados de forma no compensatoria y explicados al décimo.»
+
 ## Páginas preparadas
 
 Abrir estas pestañas antes de empezar. No buscar ni cambiar de mes durante la grabación.
