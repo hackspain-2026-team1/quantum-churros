@@ -264,8 +264,8 @@ function flota(l: Lote, f: PlacaFlota) {
 
 function rosa(l: Lote, r: PlacaRosa) {
 	const { cx, cy } = r;
-	l.add(anillo(cx, cy, r.r, Math.round(r.r * 5), 1), TONO.tinta, 0.5, 1.2);
-	l.add(anillo(cx, cy, r.r * 0.72, Math.round(r.r * 3), 0.8), TONO.filete, 0.8, 1.1);
+	l.add(anillo(cx, cy, r.r, Math.round(r.r * 6.5), 1), TONO.tinta, 0.5, 1.2);
+	l.add(anillo(cx, cy, r.r * 0.72, Math.round(r.r * 4), 0.8), TONO.filete, 0.8, 1.1);
 	const diagonal: ('solida' | 'tuerce' | 'hunde' | 'mejora')[] = ['solida', 'tuerce', 'hunde', 'mejora'];
 	const total = r.zonas ? Math.max(1, r.zonas.solida + r.zonas.mejora + r.zonas.tuerce + r.zonas.hunde) : 0;
 	for (let k = 0; k < 8; k++) {
@@ -274,7 +274,9 @@ function rosa(l: Lote, r: PlacaRosa) {
 		const cuota = zona && r.zonas ? r.zonas[zona] / total : null;
 		const largo = k % 2 === 0 ? r.r * 1.18 : cuota !== null ? r.r * (0.3 + 1.25 * Math.sqrt(cuota)) : r.r * 0.62;
 		const ancho = k % 2 === 0 ? r.r * 0.16 : r.r * (cuota !== null ? 0.08 + 0.1 * Math.sqrt(cuota) : 0.1);
-		const n = Math.round(largo * (k % 2 === 0 ? 9 : 6));
+		// El grano se reparte por la superficie de la punta, que crece con el cuadrado: por eso la
+		// cuenta sube con el largo y con el ancho, y la rosa se ve igual de maciza a cualquier tamaño.
+		const n = Math.round(largo * (0.6 + ancho * 0.09) * (k % 2 === 0 ? 9 : 6));
 		// Con el monitor, el norte deja de ser la aguja: la aguja va aparte y apunta a los datos.
 		const tono = k === 0 && r.aguja === undefined ? TONO.info : zona === 'hunde' ? TONO.peligro : TONO.tinta;
 		for (let i = 0; i < n; i++) {
@@ -287,7 +289,7 @@ function rosa(l: Lote, r: PlacaRosa) {
 	}
 	if (r.aguja !== undefined) {
 		const a = r.aguja - Math.PI / 2;
-		const largo = r.r * 1.05, n = Math.round(largo * 7);
+		const largo = r.r * 1.05, n = Math.round(largo * 9);
 		for (let i = 0; i < n; i++) {
 			const u = Math.random(), lado = Math.random() < 0.5 ? -1 : 1, w = (1 - u) * r.r * 0.07 * Math.random();
 			l.add([cx + Math.cos(a) * largo * u + Math.cos(a + Math.PI / 2) * w * lado, cy + Math.sin(a) * largo * u + Math.sin(a + Math.PI / 2) * w * lado], TONO.info, 1, 1.45);
