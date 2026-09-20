@@ -61,3 +61,50 @@
 }
 /* A single scroll area keeps all connected banks visible, including on mobile. */
 .confirmacion-acciones .propuesta-bancos { max-height: none; overflow: visible; padding-right: 0; }
+
+/* ── El estado de cada decisión ──
+ * Tres estados y una sola señal que se repite en la fila de la acción, en su tarjeta y en el
+ * diálogo: círculo lleno (en curso), dos barras (en pausa), tic (finalizada). */
+.ejecucion-estado { font: 600 11.5px/1 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--info-t); }
+.ejecucion-estado.estado-pausada { color: var(--aviso-t); }
+.ejecucion-estado.estado-completada { color: var(--exito-t); }
+.ejecucion-dialogo .ejecucion-estado { margin: 0 0 8px; }
+.ejecucion.estado-pausada h4, .ejecucion.estado-pausada .ejecucion-cifras b { color: var(--tinta-2); }
+.ejecucion.estado-pausada progress::-webkit-progress-value { background: var(--tenue); }
+.ejecucion.estado-pausada progress { accent-color: var(--tenue); }
+.ejecucion.estado-completada h4 { color: var(--tinta-2); }
+.ejecucion:focus { outline: none; }
+.ejecucion:focus-visible { outline: 2px solid var(--info); outline-offset: 4px; }
+/* La recién tocada se enciende una vez y se apaga sola: dice dónde ha ido a parar. */
+.ejecucion.reciente { animation: ejecucion-reciente 2.2s var(--salida, ease-out) 1; }
+@keyframes ejecucion-reciente { from { background: var(--info-s); } to { background: var(--fondo); } }
+@media (prefers-reduced-motion: reduce) { .ejecucion.reciente { animation: none; } }
+.ejecucion-controles { align-items: center; }
+.ejecucion-controles .boton-propuesta { height: 34px; }
+.confirmacion-ya { padding: 12px 0 0; }
+
+/* La fila de una acción ya decidida: sin casilla, más callada, con su estado en la última columna. */
+.rec-senal { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; position: relative; }
+.rec-senal[hidden], .rec-estado[hidden], .rec-tick[hidden] { display: none; }
+.rec[data-estado="en_curso"] .rec-senal { border: 1.5px solid var(--info); }
+.rec[data-estado="en_curso"] .rec-senal::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--info); }
+.rec[data-estado="pausada"] .rec-senal { border: 1.5px solid var(--aviso-t); }
+.rec[data-estado="pausada"] .rec-senal::after { content: ''; width: 8px; height: 9px; border: solid var(--aviso-t); border-width: 0 2.5px; box-sizing: border-box; }
+.rec[data-estado="completada"] .rec-senal { background: var(--exito-t); }
+.rec[data-estado="completada"] .rec-senal::after { content: ''; width: 5px; height: 10px; margin-top: -2px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.rec[data-accion]:not([data-estado="disponible"]) .rec-titulo,
+.rec[data-accion]:not([data-estado="disponible"]) .rec-palanca b,
+.rec[data-accion]:not([data-estado="disponible"]) .rec-esfuerzo b,
+.rec[data-accion]:not([data-estado="disponible"]) .rec-plazo b,
+.rec[data-accion]:not([data-estado="disponible"]) .rec-efecto b { color: var(--apagado); }
+.rec[data-accion]:not([data-estado="disponible"]) .rec-texto,
+.rec[data-accion]:not([data-estado="disponible"]) .rec-productos { display: none; }
+.rec[data-estado="completada"] .rec-titulo { text-decoration: line-through; text-decoration-color: var(--borde-2); }
+.rec-rotulo { font: 600 11.5px/1.2 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--info-t); }
+.rec[data-estado="pausada"] .rec-rotulo { color: var(--aviso-t); }
+.rec[data-estado="completada"] .rec-rotulo { color: var(--exito-t); }
+.rec-desde { font-size: 12px; color: var(--apagado); }
+.rec-estado .miga-accion { margin-top: 4px; }
+.rec-corte { padding: 22px 12px 6px; font: 600 11.5px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--tenue); border-bottom: 1px solid var(--borde-2); }
+.ejecucion-dialogo .ejecucion-edicion + .nota:empty { display: none; }
+.ejecucion-dialogo .ejecucion-edicion ~ .nota { margin-top: 12px; }

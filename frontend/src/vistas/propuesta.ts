@@ -240,7 +240,7 @@ export function abrirConfirmacionAcciones(
   let guardando = false;
   const salir = () => { if (guardando) return; fondo.remove(); origen?.focus(); };
   cerrar.addEventListener('click', salir);
-  const ids = () => [...sel].filter(id => !existentes.has(id));
+  const ids = () => [...sel].filter(id => !existentes.has(id) && (m.actions ?? []).some(a => a.id === id));
   const finElegida = (): import('../datos/ejecuciones').EleccionFinanciacion[] => {
     const resultado: import('../datos/ejecuciones').EleccionFinanciacion[] = [];
     for (const x of instrumentos.filter(x => activas.has(x.id))) {
@@ -260,14 +260,16 @@ export function abrirConfirmacionAcciones(
   const conectados = bancosConectados(fuentes);
   pasos.append(paso(1, 'Tus bancos conectados', 'Los bancos con los que ya trabajas y los productos que tienes contratados.', conectados.length ? h('div', { class: 'propuesta-bancos' }, ...conectados.map(tarjetaBanco)) : h('p', { class: 'propuesta-nota' }, 'No constan bancos conectados en los datos de esta entidad.')));
   const cajaAcciones = h('div', { class: 'propuesta-acciones' });
-  for (const a of m.actions ?? []) {
-    const existente = existentes.has(a.id);
-    const marca = h('input', { type: 'checkbox', checked: sel.has(a.id) || existente, disabled: existente, 'aria-label': tituloAccion(a) });
-    const fila = h('label', { class: `propuesta-accion ${marca.checked ? 'elegida' : ''}` }, h('span', { class: 'propuesta-accion-marca' }, marca), h('span', { class: 'propuesta-accion-cuerpo' }, h('span', { class: 'propuesta-titulo' }, tituloAccion(a)), h('span', { class: 'propuesta-nota' }, existente ? 'Ya registrada en el seguimiento de este mes' : `${explicacionAccion(a)} · ${ESFUERZO[a.effort]}`)), h('span', { class: 'propuesta-accion-efecto' }, f.delta(a.uplift_tenths)));
+  const yaEnMarcha = (m.actions ?? []).filter(a => existentes.has(a.id));
+  for (const a of (m.actions ?? []).filter(a => !existentes.has(a.id))) {
+    const marca = h('input', { type: 'checkbox', checked: sel.has(a.id), 'aria-label': tituloAccion(a) });
+    const fila = h('label', { class: `propuesta-accion ${marca.checked ? 'elegida' : ''}` }, h('span', { class: 'propuesta-accion-marca' }, marca), h('span', { class: 'propuesta-accion-cuerpo' }, h('span', { class: 'propuesta-titulo' }, tituloAccion(a)), h('span', { class: 'propuesta-nota' }, `${explicacionAccion(a)} · ${ESFUERZO[a.effort]}`)), h('span', { class: 'propuesta-accion-efecto' }, f.delta(a.uplift_tenths)));
     marca.addEventListener('change', () => { if (marca.checked) sel.add(a.id); else sel.delete(a.id); fila.classList.toggle('elegida', marca.checked); actualizar(); });
     cajaAcciones.append(fila);
   }
-  if (!cajaAcciones.childElementCount) cajaAcciones.append(h('p', { class: 'propuesta-nota' }, 'El motor no propone nuevas acciones este mes.'));
+  if (!cajaAcciones.childElementCount) cajaAcciones.append(h('p', { class: 'propuesta-nota' }, yaEnMarcha.length ? 'Todas las acciones que el motor propone este mes ya están en tu seguimiento.' : 'El motor no propone nuevas acciones este mes.'));
+  // Lo que ya se decidió no se vuelve a ofrecer como casilla: se nombra, y se sigue desde el seguimiento.
+  if (yaEnMarcha.length && cajaAcciones.querySelector('input')) cajaAcciones.append(h('p', { class: 'propuesta-nota confirmacion-ya' }, `Ya en tu seguimiento: ${yaEnMarcha.map(a => tituloAccion(a)).join(' · ')}.`));
   pasos.append(paso(2, 'Acciones que vas a poner en marcha', 'Revisa tu selección antes de confirmar. Cada acción conservará su objetivo y su punto de partida.', cajaAcciones));
   const cajaFin = h('div', { class: 'propuesta-financiacion' });
   for (const x of instrumentos) {
@@ -297,7 +299,8 @@ export function abrirConfirmacionAcciones(
     if (guardando) return;
     guardando = true; actualizar(); cerrar.disabled = true; error.textContent = ''; guardar.textContent = 'Guardando decisiones…';
     pasos.inert = true;
-    try { await confirmar(ids(), finElegida()); guardando = false; salir(); }
+    // Al confirmar, quien llama lleva el foco a la decisión recién guardada: no se devuelve al botón.
+    try { await confirmar(ids(), finElegida()); guardando = false; fondo.remove(); }
     catch (e) { error.textContent = (e as Error).message; }
     finally { guardando = false; pasos.inert = false; cerrar.disabled = false; guardar.textContent = 'Confirmar y ejecutar'; actualizar(); }
   });

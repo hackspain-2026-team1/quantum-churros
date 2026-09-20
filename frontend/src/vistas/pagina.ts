@@ -170,17 +170,6 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			quitar.addEventListener('click', () => { estadoUI.acciones.clear(); estadoUI.previa = null; pintarFicha(S.e); });
 			controles.append(quitar);
 		}
-		// Extender es un mando del horizonte, no una pestaña: vive aquí, junto a lo que dibuja, y
-		// la palabra no cambia nunca. Lo que cambia es si está pulsado.
-		if (cabeFijo()) {
-			const ext = h('button', { type: 'button', class: `ctrl-extender ${extendida ? 'activa' : ''}`, 'aria-pressed': String(extendida),
-				title: extendida
-					? 'El horizonte se desplaza con las secciones, que ocupan la pantalla entera. Púlsalo para dejarlo fijo arriba, siempre a la vista.'
-					: 'El horizonte se queda fijo arriba, siempre a la vista. Púlsalo para que se desplace con las secciones y estas ocupen la pantalla entera.' },
-				glifoExtender(extendida), 'Extender');
-			ext.addEventListener('click', alternarExtendida);
-			controles.append(ext);
-		}
 	}
 
 	function ocultar() { raiz.hidden = true; miga.hidden = true; clave = ''; cb.hilo([]); altoEscenario = 0; marcarHorizonte(); }
@@ -230,6 +219,18 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 				h('span', { class: 'versalita' }, nombreBanda(man, m.band)), h('b', {}, f.score(m.shown)), reglaBanda(man, m.shown, m.band));
 			volver.addEventListener('click', subirAlHorizonte);
 			nav.insertBefore(volver, nav.querySelector('.reverso'));
+		}
+		// Extender cierra la fila: una pestaña más, a la derecha de Conciliación, pero con el glifo
+		// en vez de una palabra sola. La palabra no cambia nunca; lo que cambia es si está pulsada,
+		// y las esquinas del glifo, que se abren o se cierran.
+		if (cabeFijo()) {
+			const ext = h('button', { type: 'button', class: `sec-marca sec-extender ${extendida ? 'activa' : ''}`, 'aria-pressed': String(extendida),
+				title: extendida
+					? 'El horizonte se desplaza con las secciones, que ocupan la pantalla entera. Púlsalo para dejarlo fijo arriba, siempre a la vista.'
+					: 'El horizonte se queda fijo arriba, siempre a la vista. Púlsalo para que se desplace con las secciones y estas ocupen la pantalla entera.' },
+				glifoExtender(extendida), 'Extender');
+			ext.addEventListener('click', alternarExtendida);
+			nav.append(ext);
 		}
 		return nav;
 	}

@@ -3339,7 +3339,7 @@ button.filtro-opcion[aria-pressed="true"] {
 .informe-pie { margin-top: 30px; padding-top: 10px; border-top: 1px solid var(--borde); font-size: 10.5px; color: var(--apagado); }
 .informe-vacio { font: 18px/1.5 var(--serif); padding: 40px 0; }
 /* En papel no se toca nada: fuera los controles. */
-.informe .av-triaje, .informe .rec-estado, .informe .rec-marca input, .informe .as-enlace, .informe .ctrl-extender,
+.informe .av-triaje, .informe .rec-estado, .informe .rec-marca input, .informe .as-enlace,
 .informe .buscar-sutil, .informe .bandeja-pestanas, .informe .sec-marcas, .informe input { display: none !important; }
 .informe .escenarios { pointer-events: none; }
 .informe .g-etq.boya.h3, .informe .solo-pantalla, .informe .mon-mapas { display: none; }
@@ -3408,6 +3408,45 @@ body[data-vista='entrada'] .regla, body[data-vista='entrada'] .reproducir, body[
 .cab-marca i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .cab-marca.pares i { border: 1.5px solid var(--apagado); }
 
+/* Los avisos del mes, debajo del número: lo único de la ficha que pide una decisión hoy. En una
+   organización cada línea dice de quién es, y el nombre de la empresa lleva a su ficha. */
+.cab-avisos { grid-column: 1 / -1; display: grid; gap: 3px; margin-top: 14px; padding-top: 9px; border-top: 1px solid var(--borde); }
+.cav-cab { display: flex; align-items: baseline; gap: 9px; }
+.cav-cab h2 { font: 600 17px/1.2 var(--serif); }
+.cav-cab .as-enlace { font-size: 12.5px; }
+.cav-lista { list-style: none; padding: 0; display: grid; gap: 1px; }
+.cav-aviso {
+	display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; gap: 9px; align-items: baseline;
+	padding: 3px 6px 4px 4px; margin-left: -4px; border-radius: 6px; font-size: 13.5px; color: var(--tinta-2);
+	cursor: pointer; transition: background 140ms;
+}
+.cav-aviso:hover { background: var(--fondo-3); }
+.cav-aviso .av-grano { background: var(--tenue); }
+.cav-aviso.tono-grave .av-grano { background: var(--peligro); }
+.cav-aviso.tono-grave .av-texto { color: var(--peligro-t); }
+.cav-aviso.tono-baja .av-grano { background: var(--aviso); }
+.cav-aviso.tono-sube .av-grano { background: var(--exito); }
+.cav-cuerpo { min-width: 0; }
+.cav-aviso .av-ent { font-weight: 600; color: var(--tinta); }
+.cav-aviso .av-ent.propio { font: italic 400 13.5px var(--serif); color: var(--apagado); }
+.cav-aviso .av-ent:not(.propio):hover { color: var(--info-t); }
+/* El triaje no ocupa sitio hasta que se busca: la fila se lee limpia. */
+.cav-aviso .av-triaje { grid-column: 3; gap: 10px; opacity: 0; transition: opacity 140ms; }
+.cav-aviso:hover .av-triaje, .cav-aviso:focus .av-triaje, .cav-aviso:focus-within .av-triaje { opacity: 1; }
+.cav-aviso.triaje-visto { color: var(--apagado); }
+.cav-aviso.triaje-visto .av-grano { opacity: 0.45; }
+.cav-aviso.triaje-visto .av-texto, .cav-aviso.triaje-visto .av-ent { color: var(--apagado); font-weight: 400; }
+.cav-nada { font: italic 13.5px/1.5 var(--serif); color: var(--tenue); }
+.cav-aviso.pasado { color: var(--apagado); }
+.cav-aviso.pasado .av-grano { opacity: 0.5; }
+.cav-aviso.pasado .av-mes { font-size: 12px; color: var(--tenue); }
+.cav-aviso.pasado .av-texto { color: var(--apagado); }
+.cav-mas.grupo { color: var(--tinta-2); }
+.cav-mas { justify-self: start; margin-left: -4px; padding: 2px 4px; font-size: 12px; color: var(--apagado); text-align: left; }
+.cav-mas:hover { color: var(--info-t); }
+/* En papel no se toca nada: las líneas se leen, no se pulsan. */
+.informe .cav-aviso, .informe .cav-mas { cursor: default; }
+
 /* El horizonte. */
 .horizonte { min-width: 0; }
 .horizonte .controles-grafico { margin: 0 70px 6px 44px; min-height: 30px; }
@@ -3474,11 +3513,12 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .sec-volver b { font: 600 15px var(--serif); }
 .sec-volver.banda-critical b { color: var(--peligro-t); }
 /* Extender: el horizonte se desplaza con las secciones y estas ocupan la pantalla entera.
-   Vive entre los mandos del horizonte y la palabra no cambia: lo que cambia es si está pulsado. */
-.ctrl-extender { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 5px; border: 1px solid var(--borde); border-radius: 999px; font: 500 12.5px var(--sans); color: var(--tenue); transition: color 160ms, border-color 160ms, background 160ms; }
-.ctrl-extender:hover { color: var(--tinta-2); border-color: var(--borde-2); }
-.ctrl-extender.activa { color: var(--info-t); border-color: var(--info-s); background: var(--info-s); }
-.ctrl-extender .glifo-extender .trazo { stroke: currentColor; }
+   Es la última pestaña, a la derecha de Conciliación, y se distingue por el glifo. Pulsada, se
+   tiñe de azul, pero con el filete suave: la pestaña en firme sigue siendo la sección abierta. */
+.sec-extender { align-items: center; gap: 7px; }
+.sec-extender.activa { color: var(--info-t); border-bottom-color: var(--info-s); }
+.sec-extender .glifo-extender { flex: none; }
+.sec-extender .glifo-extender .trazo { stroke: currentColor; }
 .seccion { grid-template-columns: 1fr; gap: 12px; padding: 20px 0 22px; }
 .sec-titulo { font: 600 20px/1.25 var(--serif); }
 .seccion .seccion { padding-top: 12px; }
@@ -4795,7 +4835,6 @@ body[data-modo='cfo'] .nota-datos { display: none; }
 }
 .nota-cifra b { font-weight: 600; }
 .nota-cifra-rastro { color: rgba(255, 255, 255, 0.72); font-variant-numeric: tabular-nums; }
-.nota-cifra-pie { color: rgba(255, 255, 255, 0.55); font-style: italic; }
 /* En papel, una cifra es solo un número: ni color de enlace ni subrayado. */
 .informe .cifra, .capa-informe .cifra { color: inherit; border-bottom: 0; background: none; }
 /* Rótulos del horizonte que no caben en una fila: el de seis meses baja, como en el móvil. */
