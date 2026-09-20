@@ -40,20 +40,54 @@ try {
  await page.waitForSelector('.ejecucion');
  assert((await page.$eval('.ejecucion', el => el.textContent)).includes('A la espera del próximo cierre'));
  assert.equal(await page.$$eval('.ejecucion progress', els => els.length), 0);
+ // Lo ejecutado deja de ser una casilla: la fila cuenta su estado, baja de la lista y sale del horizonte.
+ const fila = () => page.$eval('.rec[data-accion]:not([data-estado="disponible"])', el => ({ estado: el.dataset.estado, casilla: !el.querySelector('.rec-tick').hidden, elegida: el.classList.contains('elegida'), texto: el.querySelector('.rec-estado').innerText }));
+ await page.waitForSelector('.rec[data-estado="en_curso"]');
+ assert.deepEqual({ ...(await fila()), texto: undefined }, { estado: 'en_curso', casilla: false, elegida: false, texto: undefined });
+ assert.match((await fila()).texto, /EN CURSO|En curso/);
+ assert.equal(await page.$eval('.sec-acciones-cabecera .boton-propuesta', el => el.textContent), 'Ejecutar acciones');
+ assert(await page.evaluate(() => { const l = [...document.querySelectorAll('.recomendaciones > li')]; return l.indexOf(document.querySelector('.rec-corte')) < l.indexOf(document.querySelector('.rec[data-estado="en_curso"]')); }));
+ assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('ejecucion')), true);
+ // Pulsar la fila ya decidida lleva a su seguimiento; no la vuelve a marcar.
+ await page.click('.rec[data-estado="en_curso"] .rec-titulo');
+ assert.equal((await fila()).elegida, false);
+ // La confirmación no vuelve a ofrecerla.
+ await page.click('.sec-acciones-cabecera .boton-propuesta');
+ await page.waitForSelector('[role=dialog]');
+ const ofrecidas = await page.$$eval('.confirmacion-acciones .propuesta-accion', els => els.length);
+ assert.equal(ofrecidas, await page.$$eval('.rec[data-estado="disponible"]', els => els.length));
+ await page.keyboard.press('Escape');
  await page.reload();
  await page.waitForSelector('.ejecucion');
+ await page.waitForSelector('.rec[data-estado="en_curso"]');
+ // Una actualización vacía no se puede guardar; pausar y reanudar se reflejan en la fila.
+ await page.click('.ejecucion-abrir');
+ assert.equal(await page.$eval('.ejecucion-controles .boton-propuesta', el => el.disabled), true);
+ await page.click('.ejecucion-controles button:nth-child(2)');
+ await page.waitForSelector('.rec[data-estado="pausada"]');
+ assert.equal(await page.$$eval('.ejecuciones-activas .ejecucion.estado-pausada', els => els.length), 1);
+ await page.click('.ejecucion-abrir');
+ await page.click('.ejecucion-controles button:nth-child(2)');
+ await page.waitForSelector('.rec[data-estado="en_curso"]');
  await page.click('.ejecucion-abrir');
  await page.type('.ejecucion-dialogo textarea', 'Seguimiento verificado en una base de pruebas aislada.');
  await page.click('.ejecucion-controles button:last-child');
  await page.waitForFunction(() => document.querySelector('.ejecuciones-archivo .ejecucion') !== null);
+ await page.waitForSelector('.rec[data-estado="completada"]');
  await page.reload();
  await page.waitForSelector('.ejecucion');
  assert.equal(await page.$$eval('.ejecuciones-archivo .ejecucion', els => els.length), 1);
  assert.equal(await page.$$eval('.ejecuciones-activas .ejecucion', els => els.length), 0);
  await page.click('.ejecuciones-archivo > summary');
  await page.click('.ejecucion-abrir');
- assert.equal(await page.$$eval('.ejecucion-historial li', els => els.length), 2);
- await page.click('.ejecucion-dialogo header button');
+ assert.equal(await page.$$eval('.ejecucion-historial li', els => els.length), 4);
+ // Reabrir la devuelve al seguimiento activo y a la fila; se vuelve a finalizar para dejarla cerrada.
+ await page.click('.ejecucion-controles button:last-child');
+ await page.waitForSelector('.rec[data-estado="en_curso"]');
+ assert.equal(await page.$$eval('.ejecuciones-activas .ejecucion', els => els.length), 1);
+ await page.click('.ejecucion-abrir');
+ await page.click('.ejecucion-controles button:last-child');
+ await page.waitForSelector('.rec[data-estado="completada"]');
  assert.equal(await page.$$eval('.ejecucion progress', els => els.length), 0);
  if (process.env.XRAY_CAPTURAS) {
   mkdirSync(process.env.XRAY_CAPTURAS, {recursive: true});
@@ -84,5 +118,5 @@ try {
  await page.waitForSelector('.ejecucion');
  assert((await page.$eval('.ejecucion',el=>el.textContent)).includes('Bancos elegidos'));
  assert.deepEqual(errors, []);
- console.log('OK: error sin falsa confirmación, ejecución, persistencia tras recarga, finalización explícita, historial, ausencia de progreso inventado, móvil y empresa sin palancas.');
+ console.log('OK: error sin falsa confirmación, ejecución, estado en la fila, pausa, reanudación, reapertura, persistencia tras recarga, finalización explícita, historial, ausencia de progreso inventado, móvil y empresa sin palancas.');
 } finally { await browser.close(); }
