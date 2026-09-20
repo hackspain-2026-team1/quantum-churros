@@ -15,6 +15,7 @@ import type {
 } from '../datos/contrato';
 import { estadosProductos, recomendaciones, type EstadoProducto } from '../datos/encaje';
 import { f, primeraMayuscula } from '../datos/formato';
+import { pendienteTheilSen } from '../datos/derivados';
 import { FAMILIAS, PRODUCTOS, producto } from '../datos/productos';
 import { ESFUERZO, ESTADO_AVISO, accionCorta, explicacionAccion, lineaAvisoM, movimiento, nombreBanda, nombrePilar, palancaDeAccion, tituloAccion, voz } from '../datos/redaccion';
 import type { Seccion } from '../estado';
@@ -219,6 +220,10 @@ export interface OpcionesGrafico {
 	escenario: 'base' | 'drift' | 'stress';
 	/** Un pilar señalado desde la sección de scoring. */
 	pilar: string | null;
+	/** Dibujar la tendencia Theil–Sen del score sobre la zona pasada (solo metrica 'score'). */
+	tendencia: boolean;
+	/** El rótulo de la tendencia enlaza con su explicación en Metodología; ausente en el informe impreso. */
+	alMetodologia?: () => void;
 	alto: number;
 	/** Primer mes del intervalo de la regla; vacío si la regla está en un mes suelto. */
 	desde?: string;
@@ -306,6 +311,26 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const base = d.hor?.scenarios?.base;
 	const q6 = (e: { q: { p50: number[] } & Partial<Record<'p10' | 'p90', number[]>>; grains?: [number, number][] }, k: number) => `${f.score(cuantil(e, 'p10', k))}–${f.score(cuantil(e, 'p90', k))}`;
 	const elegido: Escenario = hayFuturo(d) && d.hor!.scenarios?.[o.escenario] ? o.escenario : 'base';
+
+	// La tendencia Theil–Sen: la misma pendiente robusta que nombra la deriva lenta en «Qué está
+	// pasando», anclada en el corte y dibujada hacia atrás sobre los meses que la sostienen.
+	// Descriptiva y pasada: nunca entra en el score ni en la previsión (ENGINE.md, «Slow drift»).
+	let rotuloTendencia: { col: number; value: number; pendiente: number } | null = null;
+	if (esScore && o.tendencia && !o.pilar) {
+		const idx = d.ent.months.findIndex((m) => m.month === d.corte);
+		const serie = d.ent.months.map((m) => (m.month <= d.corte ? m.shown : null));
+		const pend = idx >= 0 ? pendienteTheilSen(serie, idx) : null;
+		if (pend !== null && serie[idx] != null) {
+			let primero = Math.max(0, idx - 11);
+			while (primero < idx && serie[primero] == null) primero++;
+			const cDesde = col(d.ent.months[primero].month);
+			if (cDesde >= 0 && cDesde < hoy) {
+				const valor = (k: number) => serie[idx]! / 10 + pend * (k - idx);
+				lineas.push({ puntos: [[cDesde, valor(primero)], [hoy, valor(idx)]], tono: TONO.tellme, alfa: 0.9, punteada: true, grosor: 1 });
+				rotuloTendencia = { col: cDesde, value: valor(primero), pendiente: pend };
+			}
+		}
+	}
 	if (esScore && hayFuturo(d) && base) {
 		const vivas = new Set([...o.acciones, ...(o.previa ?? [])]);
 		const accs = (d.hor!.actions ?? []).filter((a) => vivas.has(a.id));
@@ -434,6 +459,20 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	if (etFuturo.t) { const zf = eti(`zona-t futuro ${etFuturo.clase}`, etFuturo.t, `${((hoy + 1) / columnas) * 100}%`, '0'); void zf; }
 	if (despues.length && esScore) eti('zona-t despues', 'lo que pasó después', X(Math.min(columnas - 1, hoy + 1)), '14px');
 	if (esScore && hayFuturo(d) && validado < 12) { const ev = eti('sin-validar', 'sin validar', X(hoy + validado + 1), '0'); ev.title = `La previsión está validada fuera de muestra hasta ${validado} meses. Más allá, el modelo no se ha podido comprobar con lo que pasó.`; }
+	// El rótulo de la tendencia: su pendiente en puntos/mes, y el enlace a cómo se mide.
+	if (rotuloTendencia) {
+		const p = rotuloTendencia.pendiente;
+		const texto = `${p >= 0 ? '+' : '−'}${f.numero(Math.abs(p), 1)} puntos/mes`;
+		const titulo = 'Tendencia robusta (Theil–Sen) de los últimos doce meses de score: la mediana de las pendientes entre cada par de meses. Es descriptiva y no cambia el score.';
+		const et = o.alMetodologia
+			? h('button', { type: 'button', class: 'g-etq tendencia-etq', title: `${titulo} Pulsa para leer por qué.` }, texto)
+			: h('span', { class: 'g-etq tendencia-etq', title: titulo }, texto);
+		if (o.alMetodologia) et.addEventListener('click', o.alMetodologia);
+		et.style.left = X(rotuloTendencia.col);
+		et.style.top = Y(rotuloTendencia.value);
+		if (rotuloTendencia.col < 2) et.classList.add('borde');
+		caja.append(et);
+	}
 	// Los horizontes, todos a la vista y en una fila: cuándo y qué se espera (mediana · franja del 80 %).
 	for (const b of boyas) {
 		const el = eti(`boya h${b.h} ${b.h === 12 ? 'fin' : ''}`, '', X(hoy + b.h), '100%');
@@ -670,6 +709,9 @@ function queEstaPasando(d: DatosFicha, acc: Acciones): HTMLElement | null {
 	else if (v.nature === 'bump') partes.push('Es un bache, no un cambio de fondo.');
 	else if (v.nature === 'shock_pending') partes.push(`Es un golpe todavía por confirmar${v.shock_month ? `, de ${f.mes(v.shock_month)}` : ''}: hacen falta más meses para saber si se queda.`);
 	if (v.persistence_months > 1) partes.push(`Lleva ${f.plural(v.persistence_months, 'mes', 'meses')} en la misma dirección.`);
+	const indiceCorte = d.ent.months.findIndex((x) => x.month === d.corte);
+	const pendiente = indiceCorte >= 0 ? pendienteTheilSen(d.ent.months.map((x) => x.shown), indiceCorte) : null;
+	if (pendiente !== null) partes.push(`La deriva lenta de los últimos doce meses es ${pendiente >= 0 ? '+' : '−'}${f.numero(Math.abs(pendiente), 1)} puntos por mes; es descriptiva y no cambia el score.`);
 	if (v.pillars_moved.length) {
 		const ps = v.pillars_moved.map((k) => nombrePilar(d.man, k).toLowerCase());
 		partes.push(`Lo ${ps.length > 1 ? 'mueven' : 'mueve'} ${ps.length > 1 ? `${ps.slice(0, -1).join(', ')} y ${ps[ps.length - 1]}` : ps[0]}.`);
@@ -1017,7 +1059,14 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		nada.addEventListener('pointerleave', () => acc.horizonte.previa(null));
 		lista.append(nada);
 	}
-	if (!recs.length) lista.prepend(h('li', { class: 'rec vacia' }, h('p', {}, m.abstain ? `El motor se abstiene este mes y no propone acciones: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}` : !m.feed_live ? 'Sin datos del banco al día, el motor no propone acciones.' : 'El motor no encuentra este mes ninguna palanca que suba el score al menos medio punto.')));
+	if (!recs.length) {
+		const razon = m.abstain
+			? `El motor se abstiene este mes y no propone acciones: ${d.man.glossary.reasons[m.abstain.reason] ?? m.abstain.reason}. Qué la levantaría: ${m.abstain.unlock}`
+			: !m.feed_live
+				? 'Sin datos del banco al día, el motor no propone acciones. Las palancas salen de los movimientos recientes de cobros y pagos; cuando el feed vuelva a estar al día, la lista se recupera sola.'
+				: 'El motor no encuentra este mes ninguna palanca que suba el score al menos medio punto. Evalúa los movimientos del mes y los productos en cartera, y con lo que hay hoy ninguno mueve el número lo suficiente. No es un error ni una falta de datos: el score ya recoge el estado del mes y el horizonte sigue leyéndose en «si todo sigue igual».';
+		lista.prepend(h('li', { class: 'rec vacia' }, h('p', {}, razon)));
+	}
 	const cabeceraAcciones = h(
 		'div',
 		{ class: 'sec-acciones-cabecera' },

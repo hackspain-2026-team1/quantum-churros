@@ -19,6 +19,22 @@ export function tendencia(g: Grupo, t: number, ventana = 12): number | null {
 	return c[t]!;
 }
 
+/** Pendiente robusta del score en puntos por mes, usando solo valores hasta el corte. */
+export function pendienteTheilSen(valores: readonly (number | null | undefined)[], corte: number, ventana = 12): number | null {
+	const xs: number[] = [];
+	const ys: number[] = [];
+	for (let k = Math.max(0, corte - ventana + 1); k <= corte; k++) {
+		const s = valores[k];
+		if (s !== null && s !== undefined) { xs.push(k); ys.push(s / 10); }
+	}
+	if (xs.length < 6) return null;
+	const pendientes: number[] = [];
+	for (let i = 0; i < xs.length; i++) for (let j = i + 1; j < xs.length; j++) pendientes.push((ys[j] - ys[i]) / (xs[j] - xs[i]));
+	pendientes.sort((a, b) => a - b);
+	const medio = pendientes.length >> 1;
+	return pendientes.length % 2 ? pendientes[medio] : (pendientes[medio - 1] + pendientes[medio]) / 2;
+}
+
 function calcularTendencia(g: Grupo, t: number, ventana: number): number | null {
 	const xs: number[] = [];
 	const ys: number[] = [];

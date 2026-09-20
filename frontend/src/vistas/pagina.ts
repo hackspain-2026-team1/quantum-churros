@@ -85,8 +85,11 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 	let pintada = '';
 	let datos: DatosFicha | null = null;
 	const financiacion = crearFinanciacion(S, () => cb.alCambiarArena());
-	const estadoUI = { metrica: 'score', escenario: 'base' as 'base' | 'drift' | 'stress', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, filtro: null as FiltroEvidencia | null, ancla: null as string | null };
+	const estadoUI = { metrica: 'score', escenario: 'base' as 'base' | 'drift' | 'stress', acciones: new Set<string>(), previa: null as string[] | null, pilar: null as string | null, filtro: null as FiltroEvidencia | null, ancla: null as string | null, tendencia: true };
 	let accionPendiente: string | null = null;
+	/** Ancla pendiente en Metodología (una sola vez): la consume pintarMetodologia al terminar. */
+	let anclaMetodo: string | null = null;
+	const irAMetodologia = (ancla: string) => { anclaMetodo = ancla; S.fijar({ vista: 'metodologia' }, true); };
 
 	const acc: Acciones = {
 		abrirEmpresa: (id) => { cuerpoP.scrollTop = 0; S.fijar({ vista: 'empresa', emp: id, sec: S.e.sec }, true); },
@@ -121,7 +124,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		temporizadorH = window.setTimeout(() => {
 			const d = datos!;
 			const alto = Math.round(Math.max(170, Math.min(300, innerHeight * (cb.esMovil() ? 0.3 : 0.27))));
-			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, alto, desde: cb.desde(), alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
+			zonaHorizonte.replaceChildren(graficoHorizonte(d, { metrica: estadoUI.metrica, escenario: estadoUI.escenario, acciones: estadoUI.acciones, previa: estadoUI.previa, pilar: estadoUI.pilar, tendencia: estadoUI.tendencia, alMetodologia: () => irAMetodologia('met-tendencia'), alto, desde: cb.desde(), alHilo: (hs) => cb.hilo(hs), alElegir: (k) => { estadoUI.escenario = k; pintarHorizonte(); } }, true));
 			pintarControles(d);
 			medirEscenario();
 			cb.alCambiarArena();
@@ -136,6 +139,16 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			alElegir: (v) => { estadoUI.metrica = v; pintarHorizonte(); },
 		});
 		controles.append(selM.raiz);
+		if (estadoUI.metrica === 'score') {
+			// La línea de tendencia Theil–Sen: se puede quitar; «¿Qué es?» lleva a cómo se mide.
+			const grupo = h('span', { class: 'tendencia-ctrl' });
+			const ten = h('button', { type: 'button', class: `chip-tendencia ${estadoUI.tendencia ? 'activo' : ''}`, 'aria-pressed': String(estadoUI.tendencia), title: 'La línea de tendencia robusta (Theil–Sen) de los últimos doce meses de score' }, 'Tendencia');
+			ten.addEventListener('click', () => { estadoUI.tendencia = !estadoUI.tendencia; pintarHorizonte(); });
+			const queEs = h('button', { type: 'button', class: 'enlace-met', title: 'Qué mide esta línea y por qué es robusta' }, '¿Qué es?');
+			queEs.addEventListener('click', () => irAMetodologia('met-tendencia'));
+			grupo.append(ten, queEs);
+			controles.append(grupo);
+		}
 		if (estadoUI.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte) {
 			const sup = h('div', { class: 'escenarios', role: 'radiogroup', 'aria-label': 'Escenario' });
 			const nombres = { base: 'Si todo sigue igual', drift: 'Si sigue al mismo ritmo', stress: 'Si se repite su peor trimestre' } as const;
@@ -434,9 +447,21 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			hoja.append(seccion('Dónde se abstiene', h('ul', { class: 'senales' }, ...[...porRazon].map(([r, n]) => h('li', {}, h('b', {}, man.glossary.reasons[r] ?? r), ` · ${f.plural(n, 'mes de entidad', 'meses de entidad')}`, h('p', {}, recibo.abstentions.find((a) => a.reason === r)?.unlock ?? ''))))));
 		}
 		if (hor) hoja.append(seccion('El futuro: la previsión del motor', validacion(hor)));
+		// La wiki de la tendencia: lo que mide la línea Theil–Sen del horizonte, dicho en llano.
+		const secTend = seccion('La tendencia: Theil–Sen',
+			h('p', {}, 'La línea de tendencia del horizonte resume hacia dónde va el score: una pendiente robusta, la de Theil–Sen, la mediana de las pendientes entre cada par de meses con dato de los últimos doce.'),
+			h('p', {}, 'La mediana aguanta hasta la mitad de los meses raros: un bache puntual no arrastra la línea ni la esconde. Por eso no usamos la recta de mínimos cuadrados ni su R²: la media se deja llevar por un solo mes malo, y el R² mide cuánto de recta es la serie, no hacia dónde va — con un bache, engaña.'),
+			h('p', {}, 'Solo mira el pasado: se ancla en el mes que miras, necesita historia suficiente y nunca entra en el score ni en la previsión. El motor la usa para nombrar la deriva lenta cuando el movimiento acumulado pesa frente al vaivén propio de la entidad, y el escenario «Si sigue al mismo ritmo» prolonga exactamente esta pendiente.'));
+		secTend.id = 'met-tendencia';
+		hoja.append(secTend);
 		if (prod) {
 			const p = prod.portfolio;
 			hoja.append(seccion('Los productos', h('ul', { class: 'senales' }, ...Object.entries(p).map(([id, x]) => h('li', { class: 'prod-met' }, iconoProducto(id as never, { tam: 32 }), h('div', {}, h('b', {}, ...conCifras(`${f.plural(x.companies, 'empresa', 'empresas')}`, { que: 'Empresas con el producto' })), ...conCifras(` en ${f.plural(x.groups, 'grupo', 'grupos')}: ${f.numero(x.declared)} declaradas por el banco, ${f.numero(x.inferred)} deducidas de sus movimientos`, { que: 'De dónde sale que lo tienen' }), h('p', { class: 'nota' }, (prod.rules[id] as { note?: string })?.note ?? '')))))));
+		}
+		if (anclaMetodo) {
+			const destino = anclaMetodo;
+			anclaMetodo = null;
+			requestAnimationFrame(() => hoja.querySelector(`#${destino}`)?.scrollIntoView({ block: 'center' }));
 		}
 		cb.alCambiarArena();
 	}
@@ -458,7 +483,7 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 		hoja.append(h('header', { class: 'informe-cab' },
 			h('span', { class: 'informe-marca' }, monograma(26), logotipo(18)),
 			h('span', { class: 'informe-que' }, `Informe de ${nombreEntidad(d.kind, d.id)}${d.kind === 'company' ? ` (${f.grupo(d.grupoId)})` : ''} · ${f.mes(d.corte)}`)));
-		hoja.append(cabecera(d, false, acc), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, alto: 240 }, true)));
+		hoja.append(cabecera(d, false, acc), h('div', { class: 'horizonte' }, graficoHorizonte(d, { metrica: 'score', escenario: estadoUI.escenario, acciones: new Set(estadoUI.acciones), previa: null, pilar: null, tendencia: estadoUI.tendencia, alto: 240 }, true)));
 		for (const sec of SECCIONES) {
 			const cuerpo = h('section', { class: 'informe-seccion' }, h('h2', { class: 'informe-titulo' }, nombreSeccion(sec, e.vista)));
 			cuerpo.append(contenidoSeccion(d, sec, quieto, null, d.kind === 'group' && sec === 'scoring' ? flota(d) : null));

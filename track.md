@@ -99,12 +99,12 @@ Qué	Qué significa	Estado
 Predicción sobre el test oculto	Vuestro sistema puntúa las empresas que no ha visto nunca. Es lo que entra en el leaderboard.	Obligatorio
 Señal en las dos direcciones	Reconoce la mejora igual que el deterioro. Un detector de quiebras a secas se queda corto.	Obligatorio
 Trayectoria, no foto	La salida refleja hacia dónde va la empresa, no solo dónde está el último mes.	Obligatorio
-Explicación	Para una empresa cualquiera, podéis decir por qué saca ese número y qué lo movió.	Obligatorio
+Explicación	Para una empresa cualquiera, podéis decir por qué saca ese número y qué lo movió: cuenta exacta, pilar más débil, compuertas y evidencia.	Obligatorio
 Producto encima del score	Algo construido sobre el número: un marketplace, una póliza, una línea de circulante, un agente. El score solo no es la entrega.	Obligatorio
 Comprador identificado	Sabéis decir quién lo paga y por qué le sale a cuenta. No hace falta un plan de negocio, hace falta una respuesta.	Obligatorio
 Demo navegable	Algo que se abra y se pruebe delante del jurado. Un notebook que solo corre en vuestro portátil no cuenta.	Obligatorio
 Anticipación medida	Enseñáis cuántos meses antes detecta el cambio, no solo que lo detecta.	Bonus
-Monitor que avisa	El sistema no espera a que le preguntéis: levanta la mano cuando una empresa se mueve de verdad.	Bonus
+Monitor que avisa	El sistema no espera a que le preguntéis: levanta la mano cuando una empresa se mueve de verdad, distingue feed parado de deterioro y enseña los avisos suprimidos.	Bonus
 Evaluación
 
 Qué se mira
