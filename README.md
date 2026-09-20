@@ -3,37 +3,32 @@
 </p>
 
 <p align="center">
-  <strong>Con los datos que ya tiene una empresa, el CFO ve el grupo y decide más pronto.</strong>
+  <strong>Rumbo te dice cómo andar</strong><br>
+  Cada día lee las operaciones y las facturas de tu grupo y les da un valor
 </p>
 
 <p align="center">
   <a href="https://rumbo.datons.com/"><strong>Explorar Rumbo en producción →</strong></a>
-  ·
-  <a href="https://rumbo.datons.com/?v=organizacion&c=plano&g=GROUP_0142&e=mes&d=20&h=23">Ver Grupo Neresa</a>
   ·
   <a href="#ejecución-local">Ver la ejecución local</a>
 </p>
 
 ---
 
-## Rumbo, en 30 segundos
+## Rumbo en 30 segundos
 
-Rumbo te dice cómo andar. Cada día lee las operaciones y las facturas de tu grupo y les da un valor:
+1. **Score explicable** de salud financiera
+2. **Trayectoria** que distingue una foto puntual de un cambio sostenido
+3. **Horizonte** que se recalcula según los pasos que des
+4. **Avisos y acciones** priorizados, con su efecto recalculado
+5. **Productos** que encajan con la salud real de las empresas
+6. **Ronda de financiación** controlada por el CFO cuando todavía está a tiempo de elegir
 
-1. un **score explicable** de salud financiera
-2. una **trayectoria** que distingue una foto puntual de un cambio sostenido
-3. un **horizonte** que se recalcula según los pasos que des
-4. **avisos y acciones** priorizados, con su efecto recalculado
-5. **productos** que encajan con la salud real de las compañías
-6. una **ronda de financiación** controlada por el CFO cuando todavía está a tiempo de elegir
-
-No inventa datos. Mide cinco pilares observables (liquidez, pagos, cobros, actividad y deuda), los convierte en un valor único, explica cada décima y se abstiene cuando faltan datos.
-
-> Tu dinero ya dejó un rastro. Rumbo lo convierte en rumbo.
+No inventa datos. Mide cinco pilares observables (liquidez, pagos, cobros, actividad y deuda), los convierte en un valor único, explica de dónde sale cada punto y se abstiene cuando faltan datos. Separa un mal mes de un cambio que se sostiene.
 
 ## El problema que resolvemos
 
-Un grupo empresarial puede tener caja en una filial, deuda en otra y cobros retrasados en una tercera. Cada banco ve una pieza; el CFO recompone el conjunto a mano y suele negociar con una foto atrasada.
+Un grupo puede tener caja en una filial, deuda en otra y cobros retrasados en una tercera. Cada banco ve una pieza; el CFO recompone el conjunto a mano y suele negociar con una foto atrasada.
 
 Rumbo cambia esa secuencia:
 
@@ -46,16 +41,17 @@ Rumbo cambia esa secuencia:
 | Ofrecer un producto sin mirar la cartera | Usar, ampliar o sustituir lo que ya existe |
 | Enviar el mismo dossier a varios bancos | Comparar ofertas con consentimiento e identidad protegida |
 
-Lo paga el director financiero (CFO). Tesorería lo usa cada día. Rumbo se alinea con esos equipos, que ya están en Embat, para el miedo a la bancarrota. Cuando se cierra financiación, el proveedor ganador paga la colocación.
+Lo paga el director financiero (CFO). Tesorería lo usa cada día. Cuando se cierra financiación, el proveedor ganador paga la colocación.
 
 ## La cartera
 
-La portada resume 250 organizaciones y permite encontrar dónde hace falta atención. Cada dirección de la rosa de los vientos es una situación de cartera y se puede usar como filtro.
+La portada resume 250 grupos y permite encontrar dónde hace falta atención. Cada dirección de la rosa de los vientos es una situación de cartera y se puede usar como filtro.
 
 <p align="center">
   <a href="https://rumbo.datons.com/">
-    <img src="docs/readme/monitor-cartera.png" alt="Monitor de cartera de Rumbo" width="640">
-  </a>
+    <img src="docs/readme/monitor-cartera.png" alt="Rosa de los vientos y grupos que piden atención" width="640">
+  </a><br>
+  <em>La cartera en agosto de 2026: 250 grupos, de sólidas a críticas, con avisos del mes</em>
 </p>
 
 Desde la misma pantalla se puede:
@@ -68,35 +64,33 @@ Desde la misma pantalla se puede:
 
 ## El grupo
 
-Al abrir una organización, Rumbo mantiene juntas la lectura actual, la trayectoria de cada empresa, los escenarios futuros y los avisos. [Grupo Neresa](https://rumbo.datons.com/?v=organizacion&c=plano&g=GROUP_0142&e=mes&d=20&h=23) reúne 22 sociedades.
+Al abrir una organización, Rumbo mantiene juntas la lectura actual, la trayectoria de cada empresa, los escenarios futuros y los avisos.
 
 <p align="center">
   <a href="https://rumbo.datons.com/?v=organizacion&c=plano&g=GROUP_0142&e=mes&d=20&h=23">
-    <img src="docs/readme/ficha-organizacion.png" alt="Ficha consolidada de una organización en Rumbo" width="640">
-  </a>
+    <img src="docs/readme/ficha-organizacion.png" alt="Ficha de Grupo Neresa con score, horizonte y empresas" width="640">
+  </a><br>
+  <em>Grupo Neresa en agosto de 2026: sólido, más de veinte empresas · Neresa Atlántico en crítico</em>
 </p>
 
-Cada cifra conduce a su explicación. El score se compara con grupos del mismo tamaño. Los avisos señalan qué sociedad lo mueve. El horizonte separa lo observado de lo previsto.
-
-## Neresa Atlántico
-
-Dentro del grupo, [Neresa Atlántico](https://rumbo.datons.com/?v=empresa&c=plano&g=GROUP_0142&emp=COMP_1073&e=mes&d=20&h=23) está en crítico: el score es 33. El rumbo actual empeora el horizonte si no se actúa.
+Cada cifra conduce a su explicación. El score se compara con grupos del mismo tamaño. El grupo puede ir bien y una empresa suya, no. Los avisos señalan qué empresa lo mueve y distinguen un banco que deja de enviar datos de un deterioro. El horizonte separa lo observado de lo previsto.
 
 ## Acciones y horizonte
 
 La sección **Acciones** responde tres preguntas: qué hacer, cuánto esfuerzo exige y cuándo debería notarse. Al seleccionar una acción, el horizonte muestra el contrafactual junto al escenario de no hacer nada.
 
 <p align="center">
-  <a href="https://rumbo.datons.com/?v=empresa&c=plano&g=GROUP_0142&emp=COMP_1073&e=mes&d=20&h=23&sec=acciones">
-    <img src="docs/readme/acciones-horizonte.png" alt="Acciones y horizonte financiero de Rumbo" width="640">
-  </a>
+  <a href="https://rumbo.datons.com/?v=organizacion&c=plano&g=GROUP_0142&e=mes&d=20&h=23&sec=acciones">
+    <img src="docs/readme/acciones-horizonte.png" alt="Acciones de Grupo Neresa y horizonte de score" width="640">
+  </a><br>
+  <em>En Neresa, que los cobros cubran los pagos mueve el horizonte a medio año · no hacer nada lo deja más bajo</em>
 </p>
 
 Al aplicar una palanca, el motor vuelve a ejecutar la misma fórmula. Rumbo muestra esa diferencia y conserva la incertidumbre del forecast. Si inicias esas acciones, el seguimiento te actualiza con las consecuencias medidas.
 
 ## Productos y financiación
 
-**Productos** recomienda lo que encaja con la salud real de las compañías: líneas, saldo utilizado, margen disponible, coste y vencimientos. Si hace falta financiación, esa señal se convierte en una necesidad con importe, plazo y alcance autorizado.
+**Productos** recomienda lo que encaja con la salud real de las empresas: líneas, saldo utilizado, margen disponible, coste y vencimientos. Si hace falta financiación, esa señal se convierte en una necesidad con importe, plazo y alcance autorizado.
 
 El CFO controla el proceso:
 
@@ -142,20 +136,20 @@ La cuenta es explícita:
 score = base + aportaciones de los pilares − penalización − tope
 ```
 
-Si un pilar no es observable, su peso se renormaliza: **un dato ausente nunca se convierte en cero**. La confianza se calcula aparte y no maquilla el score. Las señales duras pueden aplicar topes. Una historia insuficiente o un feed caído provoca abstención, con una indicación de cómo desbloquearla.
+Si un pilar no es observable, su peso se reparte entre los que sí se ven: **un dato ausente nunca se convierte en cero**. La confianza se calcula aparte y no maquilla el score. Las señales duras pueden aplicar topes. Una historia insuficiente o un feed caído provoca abstención, con una indicación de cómo desbloquearla.
 
 El forecast usa regresión cuantílica por horizonte y calibración conformal con validación temporal de origen móvil. Las acciones son contrafactuales: el motor recalcula primero el score con la palanca y proyecta desde ese nuevo punto.
 
 ## Evidencia
 
-El receipt visible hoy en [Metodología](https://rumbo.datons.com/?v=metodologia) publica tanto los aciertos como lo que todavía falla:
+La [Metodología](https://rumbo.datons.com/?v=metodologia) publica tanto los aciertos como lo que todavía falla:
 
 | Prueba desplegada | Resultado |
 | --- | ---: |
 | Dataset de demostración | 250 grupos · 1.286 empresas · 24 meses |
-| Grupos con más de una sociedad | 72 % |
+| Grupos con más de una empresa | 72 % |
 | Grupos puntuables en el último mes | 88 % |
-| Ensayo de aislamiento | 60 grupos · diferencia máxima 0 |
+| Ensayo de aislamiento (proxy del test oculto) | 60 grupos · diferencia máxima 0 |
 | Prueba "sin mirar al futuro" | 48.971 filas · diferencia máxima 0 |
 | Identidad aditiva del score | 26.542 filas · residuo máximo 0 |
 | Determinismo con filas barajadas | 26.542 filas · diferencia máxima 0 |
@@ -163,9 +157,11 @@ El receipt visible hoy en [Metodología](https://rumbo.datons.com/?v=metodologia
 | Franja predictiva del 80 % | 82 % de cobertura · 967 casos |
 | Picos confundidos con caída estructural | 17,9 % · objetivo ≤ 10 % no superado |
 
-El receipt actual supera 9 de 13 comprobaciones. El 17,9 % no llega al objetivo (≤ 10 %). El siguiente trabajo es bajar esas falsas señales ante picos sin perder sensibilidad a cambios estructurales.
+Hoy se superan 9 de 13 comprobaciones. El 17,9 % no llega al objetivo (≤ 10 %). El siguiente trabajo es bajar esas falsas señales ante picos sin perder sensibilidad a cambios estructurales.
 
-Estas métricas no son una "probabilidad de impago". Miden reproducibilidad, aislamiento, estabilidad y utilidad predictiva. El diseño de las pruebas está documentado en la [model card](docs/engine/MODEL_CARD.md) y el [estudio de anticipación](docs/engine/NATURAL_ANTICIPATION.md).
+El ensayo de aislamiento es el proxy de generalización: puntuar un grupo solo da el mismo score que en la cartera. El test oculto lo puntúa el organizador, con los mismos parámetros congelados.
+
+Estas métricas miden reproducibilidad, aislamiento, estabilidad y utilidad predictiva. No hay etiqueta de impago. El adelanto con el que aparece un cambio está en el [estudio de anticipación](docs/engine/NATURAL_ANTICIPATION.md). El diseño de las pruebas está en la [model card](docs/engine/MODEL_CARD.md).
 
 ## Arquitectura
 
