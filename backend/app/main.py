@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session, select
 from xray_engine.artifacts import read_entity_scores
 
+from .api.action_executions import router as action_executions_router
 from .api.financing import router as financing_router
 from .benchmarks import seed_benchmark_studies
 from .config import settings
@@ -51,6 +52,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(financing_router)
+app.include_router(action_executions_router)
 
 
 @app.get("/health")
