@@ -17,6 +17,10 @@
 .seg-medida progress::-webkit-progress-value { background: var(--info); border-radius: 2px; }
 .seg-bancos { grid-template-columns: 1fr; row-gap: 3px; }
 .seg-bancos b { font-size: 17px; white-space: normal; }
+/* El nombre de un banco es un rótulo, no cifra ni prosa: va en la sans, como en la confirmación y
+ * en la tabla de productos. Además su centro óptico coincide ahí con el de la marca; el serif, con
+ * su descendente largo, dejaría el logotipo bajo. */
+.seg-banco-lista b { font: 600 14px var(--sans); }
 
 /* Los mandos: el estado con su color y, debajo, lo que se puede hacer desde él. */
 .seg-mandos { display: grid; gap: 8px; justify-items: start; }
