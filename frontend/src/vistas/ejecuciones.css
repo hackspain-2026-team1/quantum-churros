@@ -105,3 +105,7 @@
 .confirmacion-acciones .propuesta-bancos { max-height: none; overflow: visible; padding-right: 0; }
 .confirmacion-ya { padding: 12px 0 0; }
 .sec-acciones-cabecera { align-items: center; }
+/* Cada banco elegido, con su marca delante del nombre. */
+.seg-banco-lista { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.seg-banco-lista li { display: flex; align-items: center; gap: 8px; }
+.seg-banco-lista .marca-logo, .seg-banco-lista .marca-banco { flex: none; }

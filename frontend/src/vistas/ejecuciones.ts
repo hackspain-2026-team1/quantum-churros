@@ -3,7 +3,7 @@ import { f } from '../datos/formato';
 import { voz } from '../datos/redaccion';
 import type { DatosFicha } from './ficha';
 import { h } from './dom';
-import { seccion } from './primitivos';
+import { marcaBanco, seccion } from './primitivos';
 import './ejecuciones.css';
 import { abrirConfirmacionAcciones } from './propuesta';
 
@@ -71,7 +71,7 @@ export function seguimientoAcciones(d: DatosFicha, seleccion: () => Set<string>,
 	/** De dónde salió, dónde está en el último cierre medido y adónde va. */
 	function medida(e: Ejecucion): HTMLElement {
 		const s = e.snapshot, avance = avanceEjecucion(e, d.corte);
-		if (s.financing) return h('div', { class: 'seg-medida seg-bancos' }, h('span', {}, 'Bancos'), h('b', {}, s.banks?.length ? s.banks.join(' · ') : 'Buscar ofertas con Embat'));
+		if (s.financing) return h('div', { class: 'seg-medida seg-bancos' }, h('span', {}, 'Bancos'), s.banks?.length ? h('ul', { class: 'seg-banco-lista' }, ...s.banks.map(b => h('li', {}, marcaBanco(b, 20), h('b', {}, b)))) : h('b', {}, 'Buscar ofertas con Embat'));
 		return h('div', { class: 'seg-medida' },
 			h('p', {}, h('span', {}, 'Inicio'), h('b', {}, valorEjecucion(s.baseline, s.unit))),
 			h('p', { class: avance.mes ? '' : 'pendiente' }, h('span', {}, avance.mes ? f.mesCorto(avance.mes) : 'Próximo cierre'), h('b', {}, avance.mes ? valorEjecucion(avance.actual, s.unit) : '—')),
