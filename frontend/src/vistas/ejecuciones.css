@@ -1,46 +1,88 @@
-/* Rumbo: Newsreader headings, quiet rules and the shared ink/paper palette. */
-.ejecuciones { scroll-margin-top: 2rem; position: relative; background: var(--fondo); }
-.ejecuciones-cabecera { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.ejecuciones-lista { margin-top: 18px; }
-.ejecuciones-activas { border-top: 1px solid var(--borde-2); }
-.ejecucion { display: grid; grid-template-columns: minmax(220px, 1.4fr) minmax(230px, 1fr) minmax(180px, .85fr) auto; grid-template-areas: "titulo cifras avance boton" "fecha cifras avance boton" "demo cifras avance boton"; column-gap: 32px; row-gap: 6px; align-items: center; padding: 24px 0; border-bottom: 1px solid var(--borde); background: var(--fondo); }
-.ejecucion header { grid-area: titulo; min-width: 0; }
-.ejecucion h4 { font: 550 23px/1.15 var(--serif); color: var(--tinta); }
-.ejecucion-fecha { grid-area: fecha; }
-.ejecucion-demo { grid-area: demo; }
-.ejecucion-fecha, .ejecucion-demo { font-size: 12px; color: var(--apagado); }
-.ejecucion-demo:empty { display: none; }
-.ejecucion-cifras { grid-area: cifras; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.ejecucion-cifras p { display: grid; gap: 7px; margin: 0; }
-.ejecucion-cifras span { font-size: 12px; color: var(--apagado); }
-.ejecucion-cifras b { font: 500 22px var(--serif); white-space: nowrap; }
-.ejecucion-bancos { display: block; }
-.ejecucion-bancos b { display: block; font-size: 17px; white-space: normal; }
-.ejecucion-progreso { grid-area: avance; }
-.ejecucion-avance { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--tinta-2); }
-.ejecucion-avance b { font-weight: 500; white-space: nowrap; }
-.ejecucion progress, .ejecucion-sin-medida { display: block; width: 100%; height: 4px; margin: 10px 0 0; border: 0; border-radius: 0; background: var(--fondo-2); accent-color: var(--info); }
-.ejecucion progress::-webkit-progress-bar { background: var(--fondo-2); }
-.ejecucion progress::-webkit-progress-value { background: var(--info); }
-.ejecucion-sin-medida { background: none; border-top: 1px dashed var(--borde-2); }
-.ejecucion-abrir { grid-area: boton; text-align: left; color: var(--info-t); font-size: 13px; white-space: nowrap; }
-.ejecuciones-archivo { margin-top: 24px; }
-.ejecuciones-archivo > summary { cursor: pointer; color: var(--apagado); font-size: 13px; width: fit-content; }
-.ejecuciones-archivo[open] > summary { margin-bottom: 16px; }
-.ejecucion-controles { display: flex; gap: 18px; flex-wrap: wrap; }
-@media(max-width: 1100px) { .ejecucion { grid-template-columns: minmax(200px, 1.3fr) 1fr; grid-template-areas: "titulo cifras" "fecha cifras" "demo cifras" "avance boton"; gap: 12px 24px; } .ejecucion-abrir { justify-self: end; } }
-@media(max-width: 650px) { .ejecucion { grid-template-columns: 1fr; grid-template-areas: "titulo" "fecha" "demo" "cifras" "avance" "boton"; gap: 12px; } .ejecucion-cifras { padding: 8px 0; } .ejecucion-abrir { justify-self: start; } }
-.ejecucion-dialogo { width: min(680px, calc(100% - 32px)); max-height: calc(100dvh - 48px); margin: auto; padding: 28px; border: 1px solid var(--borde); border-radius: 12px; color: var(--tinta); background: var(--fondo); overflow-y: auto; }
-.ejecucion-dialogo::backdrop { background: rgba(10, 14, 26, .6); }
-.ejecucion-dialogo > header { display: flex; justify-content: space-between; gap: 24px; align-items: start; margin-bottom: 12px; }
-.ejecucion-dialogo h2 { font: 550 28px var(--serif); }
-.ejecucion-dialogo h3 { font: 550 22px var(--serif); margin: 24px 0 12px; }
-.ejecucion-edicion { display: grid; gap: 14px; margin-top: 20px; justify-items: start; }
-.ejecucion-edicion textarea { width: 100%; padding: 12px; border: 1px solid var(--borde-2); border-radius: 6px; font: inherit; background: var(--fondo); color: inherit; }
-.ejecucion-historial, .ejecucion-medidas { padding-left: 18px; color: var(--apagado); font-size: 13px; }
-.ejecucion-historial p { margin: 4px 0 14px; color: var(--tinta-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Rumbo: el seguimiento de una decisión vive en la fila de su acción. Tres piezas —medida, mandos y
+ * panel— que también montan las tarjetas de lo que no tiene fila (financiación, otros cierres). */
+.ejecuciones { scroll-margin-top: 2rem; }
 .ejecuciones-error { color: var(--peligro-t); }
+.ejecuciones-mensaje:empty { display: none; }
 .boton-propuesta:disabled { opacity: .45; cursor: default; }
+
+/* La medida: inicio, último cierre y objetivo sobre una misma línea, y debajo cuánto se ha recorrido. */
+.seg-medida { display: grid; grid-template-columns: repeat(3, max-content); column-gap: 36px; row-gap: 10px; margin-top: 8px; }
+.seg-medida p { display: grid; gap: 3px; margin: 0; }
+.seg-medida span { font-size: 11.5px; color: var(--apagado); }
+.seg-medida b { font: 500 20px/1.1 var(--serif); font-variant-numeric: tabular-nums; color: var(--tinta); white-space: nowrap; }
+.seg-medida b.meta { color: var(--info-t); }
+.seg-medida .pendiente b { color: var(--tenue); }
+.seg-medida progress { grid-column: 1 / -1; display: block; width: 100%; max-width: 420px; height: 4px; border: 0; border-radius: 2px; background: var(--fondo-2); accent-color: var(--info); }
+.seg-medida progress::-webkit-progress-bar { background: var(--fondo-2); border-radius: 2px; }
+.seg-medida progress::-webkit-progress-value { background: var(--info); border-radius: 2px; }
+.seg-bancos { grid-template-columns: 1fr; row-gap: 3px; }
+.seg-bancos b { font-size: 17px; white-space: normal; }
+
+/* Los mandos: el estado con su color y, debajo, lo que se puede hacer desde él. */
+.seg-mandos { display: grid; gap: 8px; justify-items: start; }
+.seg-estado { margin: 0; font: 600 11.5px/1.2 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--info-t); }
+.seg-estado.estado-pausada { color: var(--aviso-t); }
+.seg-estado.estado-completada { color: var(--exito-t); }
+.seg-estado span { color: var(--apagado); font-weight: 500; }
+.seg-pasos { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.seg-paso { padding: 2px 0; font: 500 13px var(--sans); color: var(--tinta-2); border-bottom: 1px solid var(--borde-2); transition: color 120ms, border-color 120ms; }
+.seg-paso:hover:not(:disabled) { color: var(--info-t); border-color: var(--info); }
+.seg-paso:focus-visible { outline: 2px solid var(--info); outline-offset: 3px; border-radius: 2px; }
+.seg-paso:disabled { color: var(--tenue); border-color: transparent; cursor: default; }
+.seg-nota[aria-expanded="true"] { color: var(--info-t); border-color: var(--info); }
+
+/* El panel: escribir una nota y leer lo ocurrido. Se abre bajo la decisión. */
+.seg-panel { display: grid; gap: 16px; padding-top: 14px; margin-top: 4px; border-top: 1px dashed var(--borde-2); cursor: default; }
+.seg-escribir { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; max-width: 760px; }
+.seg-escribir textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--borde-2); border-radius: 8px; font: inherit; font-size: 13.5px; background: #fff; color: inherit; resize: vertical; }
+.seg-escribir textarea:focus-visible { outline: 2px solid var(--info); outline-offset: 1px; }
+.seg-historial { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 13px; }
+.seg-historial li { display: grid; grid-template-columns: 170px max-content minmax(0, 1fr); gap: 4px 16px; align-items: baseline; }
+.seg-historial span { color: var(--apagado); font-variant-numeric: tabular-nums; }
+.seg-historial b { font-weight: 600; color: var(--tinta-2); }
+.seg-historial .cierre b { color: var(--info-t); }
+.seg-historial p { margin: 0; color: var(--tinta-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* La fila de una acción ya decidida: la casilla deja paso a la señal del estado y la palanca, a la medida. */
+.rec-senal { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; }
+.rec[data-estado="en_curso"] .rec-senal { border: 1.5px solid var(--info); }
+.rec[data-estado="en_curso"] .rec-senal::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--info); }
+.rec[data-estado="pausada"] .rec-senal { border: 1.5px solid var(--aviso-t); }
+.rec[data-estado="pausada"] .rec-senal::after { content: ''; width: 8px; height: 9px; border: solid var(--aviso-t); border-width: 0 2.5px; box-sizing: border-box; }
+.rec[data-estado="completada"] .rec-senal { background: var(--exito-t); }
+.rec[data-estado="completada"] .rec-senal::after { content: ''; width: 5px; height: 10px; margin-top: -2px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.rec[data-ejecucion] .rec-palanca, .rec[data-ejecucion] .rec-texto, .rec[data-ejecucion] .rec-productos { display: none; }
+.rec-medida:empty, .rec-estado:empty { display: none; }
+.rec-panel { grid-column: 2 / -1; }
+/* Lo decidido va tras lo que queda por decidir, separado por un filete más firme. */
+.rec.primera-decidida { border-top: 1px solid var(--borde-2); border-top-left-radius: 0; border-top-right-radius: 0; margin-top: 14px; }
+/* En pausa y finalizada se callan; en curso conserva toda la tinta, que es lo que está vivo. */
+.rec[data-estado="pausada"] .rec-titulo, .rec[data-estado="pausada"] .seg-medida b,
+.rec[data-estado="completada"] .rec-titulo, .rec[data-estado="completada"] .seg-medida b,
+.rec[data-estado="completada"] .rec-esfuerzo b, .rec[data-estado="completada"] .rec-plazo b, .rec[data-estado="completada"] .rec-efecto b { color: var(--apagado); }
+.rec[data-estado="completada"] .seg-medida { display: none; }
+.rec:focus { outline: none; }
+/* La recién tocada se enciende una vez y se apaga sola: dice dónde ha ido a parar. */
+.rec.reciente, .ejecucion.reciente { animation: seg-reciente 2.2s var(--salida, ease-out) 1; }
+@keyframes seg-reciente { from { background: var(--info-s); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .rec.reciente, .ejecucion.reciente { animation: none; } }
+
+/* Lo que no tiene fila arriba, con las mismas piezas y las mismas columnas. */
+.ejecuciones-lista { border-top: 1px solid var(--borde-2); }
+.ejecucion { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 160px; gap: 12px 32px; align-items: start; padding: 18px 12px; border-bottom: 1px solid var(--borde); }
+.ejecucion h4 { font: 600 18px/1.25 var(--serif); color: var(--tinta); }
+.ejecucion .seg-medida { margin-top: 0; }
+.ejecucion .seg-panel { grid-column: 1 / -1; }
+.ejecucion.estado-pausada h4, .ejecucion.estado-completada h4, .ejecucion.estado-completada .seg-medida b { color: var(--apagado); }
+.ejecucion-demo { display: block; margin-top: 4px; font: 400 12px var(--sans); color: var(--apagado); }
+.ejecucion:focus { outline: none; }
+.ejecuciones-archivo > summary { cursor: pointer; color: var(--apagado); font-size: 13px; width: fit-content; padding: 16px 12px; }
+@media (max-width: 900px) {
+	.ejecucion { grid-template-columns: 1fr; }
+	.seg-medida { column-gap: 24px; }
+	.seg-historial li { grid-template-columns: 1fr; gap: 2px; }
+	.seg-escribir { grid-template-columns: 1fr; justify-items: start; }
+}
 
 .confirmacion-acciones .propuesta-hoja { width: min(1200px, 100%); }
 .confirmacion-acciones .propuesta-cabecera { padding: 22px 32px; }
@@ -61,50 +103,5 @@
 }
 /* A single scroll area keeps all connected banks visible, including on mobile. */
 .confirmacion-acciones .propuesta-bancos { max-height: none; overflow: visible; padding-right: 0; }
-
-/* ── El estado de cada decisión ──
- * Tres estados y una sola señal que se repite en la fila de la acción, en su tarjeta y en el
- * diálogo: círculo lleno (en curso), dos barras (en pausa), tic (finalizada). */
-.ejecucion-estado { font: 600 11.5px/1 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--info-t); }
-.ejecucion-estado.estado-pausada { color: var(--aviso-t); }
-.ejecucion-estado.estado-completada { color: var(--exito-t); }
-.ejecucion-dialogo .ejecucion-estado { margin: 0 0 8px; }
-.ejecucion.estado-pausada h4, .ejecucion.estado-pausada .ejecucion-cifras b { color: var(--tinta-2); }
-.ejecucion.estado-pausada progress::-webkit-progress-value { background: var(--tenue); }
-.ejecucion.estado-pausada progress { accent-color: var(--tenue); }
-.ejecucion.estado-completada h4 { color: var(--tinta-2); }
-.ejecucion:focus { outline: none; }
-.ejecucion:focus-visible { outline: 2px solid var(--info); outline-offset: 4px; }
-/* La recién tocada se enciende una vez y se apaga sola: dice dónde ha ido a parar. */
-.ejecucion.reciente { animation: ejecucion-reciente 2.2s var(--salida, ease-out) 1; }
-@keyframes ejecucion-reciente { from { background: var(--info-s); } to { background: var(--fondo); } }
-@media (prefers-reduced-motion: reduce) { .ejecucion.reciente { animation: none; } }
-.ejecucion-controles { align-items: center; }
-.ejecucion-controles .boton-propuesta { height: 34px; }
 .confirmacion-ya { padding: 12px 0 0; }
-
-/* La fila de una acción ya decidida: sin casilla, más callada, con su estado en la última columna. */
-.rec-senal { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; position: relative; }
-.rec-senal[hidden], .rec-estado[hidden], .rec-tick[hidden] { display: none; }
-.rec[data-estado="en_curso"] .rec-senal { border: 1.5px solid var(--info); }
-.rec[data-estado="en_curso"] .rec-senal::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--info); }
-.rec[data-estado="pausada"] .rec-senal { border: 1.5px solid var(--aviso-t); }
-.rec[data-estado="pausada"] .rec-senal::after { content: ''; width: 8px; height: 9px; border: solid var(--aviso-t); border-width: 0 2.5px; box-sizing: border-box; }
-.rec[data-estado="completada"] .rec-senal { background: var(--exito-t); }
-.rec[data-estado="completada"] .rec-senal::after { content: ''; width: 5px; height: 10px; margin-top: -2px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
-.rec[data-accion]:not([data-estado="disponible"]) .rec-titulo,
-.rec[data-accion]:not([data-estado="disponible"]) .rec-palanca b,
-.rec[data-accion]:not([data-estado="disponible"]) .rec-esfuerzo b,
-.rec[data-accion]:not([data-estado="disponible"]) .rec-plazo b,
-.rec[data-accion]:not([data-estado="disponible"]) .rec-efecto b { color: var(--apagado); }
-.rec[data-accion]:not([data-estado="disponible"]) .rec-texto,
-.rec[data-accion]:not([data-estado="disponible"]) .rec-productos { display: none; }
-.rec[data-estado="completada"] .rec-titulo { text-decoration: line-through; text-decoration-color: var(--borde-2); }
-.rec-rotulo { font: 600 11.5px/1.2 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--info-t); }
-.rec[data-estado="pausada"] .rec-rotulo { color: var(--aviso-t); }
-.rec[data-estado="completada"] .rec-rotulo { color: var(--exito-t); }
-.rec-desde { font-size: 12px; color: var(--apagado); }
-.rec-estado .miga-accion { margin-top: 4px; }
-.rec-corte { padding: 22px 12px 6px; font: 600 11.5px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--tenue); border-bottom: 1px solid var(--borde-2); }
-.ejecucion-dialogo .ejecucion-edicion + .nota:empty { display: none; }
-.ejecucion-dialogo .ejecucion-edicion ~ .nota { margin-top: 12px; }
+.sec-acciones-cabecera { align-items: center; }
