@@ -10,6 +10,7 @@ from .industry import run_classification
 from .ingest import dataset_fingerprint, ingest_dataset, source_paths
 from .pipeline import sync_dataset
 from .publish import publish_outputs
+from .static_data import StaticDataError, verify_static_data
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -105,6 +106,24 @@ def sync(
     )
     if result.horizons:
         typer.echo(f"Forecast: {result.horizons}")
+
+
+@app.command("verify-static-data")
+def verify_static_data_command(
+    bundle_dir: Annotated[Path, typer.Argument()] = Path("bundle"),
+    rumbo_dir: Annotated[Path, typer.Argument()] = Path("rumbo"),
+) -> None:
+    """Fail unless the bundle and every Rumbo data family are present and compatible."""
+    try:
+        result = verify_static_data(bundle_dir, rumbo_dir)
+    except StaticDataError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    for warning in result.warnings:
+        typer.echo(f"WARNING: {warning}", err=True)
+    typer.echo(
+        f"Verified {len(result.checked_files)} static data files for bundle {result.bundle_id}"
+    )
 
 
 @app.command("notify-demo")

@@ -320,6 +320,7 @@ export interface OtraDeudaM {
 }
 export interface ProductosEmpresaM {
   schema: "rumbo-products-v1";
+  bundle_id?: string;
   company_id: string;
   group_id: string;
   cut: string;
@@ -332,6 +333,7 @@ export interface ProductosEmpresaM {
 }
 export interface ProductosGrupoM {
   schema: "rumbo-products-group-v1";
+  bundle_id?: string;
   group_id: string;
   cut: string;
   companies: {
@@ -346,6 +348,7 @@ export interface ProductosGrupoM {
 }
 export interface ProductosIndiceM {
   schema: "rumbo-products-index-v1";
+  bundle_id?: string;
   cut: string;
   generated_at: string;
   source_files: Record<string, string>;

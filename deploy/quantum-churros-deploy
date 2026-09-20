@@ -86,8 +86,11 @@ write_release "$api_image" "$web_image"
 release_changed=1
 
 compose pull api web mailpit
+compose run --rm --no-deps api xray-db verify-static-data /app/bundle /app/rumbo
 compose up -d --remove-orphans --wait --wait-timeout 180
-curl --fail --silent --show-error --max-time 15 http://127.0.0.1:3101/ >/dev/null
+for path in / /data/v1/manifest.json /data/rumbo/params.json /data/rumbo/entities.json /data/rumbo/products/index.json /data/rumbo/horizons/index.json; do
+  curl --fail --silent --show-error --max-time 15 "http://127.0.0.1:3101$path" >/dev/null
+done
 
 deployment_succeeded=1
 
