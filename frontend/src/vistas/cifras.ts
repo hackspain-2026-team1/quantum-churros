@@ -48,7 +48,6 @@ function mostrar(el: HTMLElement, o: Origen) {
 	if (o.mes) rastro.push(f.mes(o.mes));
 	if (o.fichero) rastro.push(o.filas ? `${o.fichero} · ${f.plural(o.filas, 'fila', 'filas')}` : o.fichero);
 	if (rastro.length) lineas.push(h('span', { class: 'nota-cifra-rastro' }, rastro.join(' · ')));
-	if (o.ir) lineas.push(h('span', { class: 'nota-cifra-pie' }, 'Pulsa para ver la evidencia'));
 	if (!lineas.length) return;
 	n.append(...lineas);
 	n.hidden = false;
