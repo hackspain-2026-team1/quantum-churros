@@ -423,7 +423,12 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const alternativas: { texto: string; clase: string; v: number; k: Escenario }[] = [];
 	const validado = d.validado || 12;
 	const base = d.hor?.scenarios?.base;
-	const q6 = (e: { q: { p50: number[] } & Partial<Record<'p10' | 'p90', number[]>>; grains?: [number, number][] }, k: number) => `${f.score(cuantil(e, 'p10', k))}–${f.score(cuantil(e, 'p90', k))}`;
+	// La franja del 80 %. Los supuestos que solo traen la mediana no la tienen: entonces se calla,
+	// porque «76–76» se lee como una franja que no existe.
+	const q6 = (e: { q: { p50: number[] } & Partial<Record<'p10' | 'p90', number[]>>; grains?: [number, number][] }, k: number) => {
+		const p10 = cuantil(e, 'p10', k), p90 = cuantil(e, 'p90', k);
+		return p10 === p90 ? '' : `${f.score(p10)}–${f.score(p90)}`;
+	};
 	const elegido: Escenario = hayFuturo(d) && d.hor!.scenarios?.[o.escenario] ? o.escenario : 'base';
 
 	// La tendencia Theil–Sen: la misma pendiente robusta que nombra la deriva lenta en «Qué está
@@ -509,14 +514,15 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 				} else {
 					lineas.push({ puntos: [[hoy, d.mes!.shown / 10], ...raw.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])], tono: TONO_ESCENARIO[k], alfa: es ? 0.95 : 0.72, punteada: !es, grosor: es ? 1.1 : 0.8 });
 				}
-				if (!es && raw.q.p50[11] != null) alternativas.push({ texto: `${CORTO_ESCENARIO[k]} · ${f.score(raw.q.p50[11])}`, clase: `esc-${k}`, v: raw.q.p50[11] / 10, k });
+				if (raw.q.p50[11] != null) alternativas.push({ texto: `${CORTO_ESCENARIO[k]} · ${f.score(raw.q.p50[11])}`, clase: `esc-${k} ${es ? 'actual' : ''}`, v: raw.q.p50[11] / 10, k });
 			}
 			const esc = d.hor!.scenarios![elegido] ?? base;
 			for (const hz of [3, 6, 12]) {
 				const k = hz - 1;
 				if (k >= esc.q.p50.length) continue;
 				const b = 'bands' in esc ? esc.bands[`h${hz}` as 'h3' | 'h6' | 'h12'] : undefined;
-				boyas.push({ h: hz, texto: `${f.score(esc.q.p50[k])} · ${q6(esc, k)}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
+				const franja = q6(esc, k);
+				boyas.push({ h: hz, texto: `${f.score(esc.q.p50[k])}${franja ? ` · ${franja}` : ''}`, titulo: b ? d.man.bands.map((x) => `${x.label} ${f.porcentaje(b[x.key] ?? 0, 0)}`).join(' · ') : undefined });
 			}
 			etFuturo.t = `previsto · ${NOMBRE_ESCENARIO[elegido].toLowerCase()}`;
 		}
@@ -525,7 +531,7 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		const pc = d.pasados.cuts[d.corte];
 		futuros.push({ granos: [], tono: TONO.tinta, alfa: 0.5, mediana: pc.q.p50, franja: pc.q, hitos: HITOS });
 		etFuturo.t = `lo que se preveía en ${f.mesCorto(d.corte)}`;
-		for (const hz of HITOS) if (hz <= pc.months.length) boyas.push({ h: hz, texto: `${f.score(pc.q.p50[hz - 1])} · ${q6(pc, hz - 1)}` });
+		for (const hz of HITOS) if (hz <= pc.months.length) { const fr = q6(pc, hz - 1); boyas.push({ h: hz, texto: `${f.score(pc.q.p50[hz - 1])}${fr ? ` · ${fr}` : ''}` }); }
 	}
 
 	// Dominio: el score siempre de 0 a 100 (las formas se comparan entre páginas).
@@ -561,6 +567,32 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	const Y = (v: number) => `${(1 - (v - lo) / (hi - lo)) * 100}%`;
 	const eti = (clase: string, texto: string, x: string, y: string) => { const e = h('span', { class: `g-etq ${clase}` }, texto); e.style.left = x; e.style.top = y; caja.append(e); return e; };
 	const fmtV = (v: number) => (esScore ? f.numero(v) : unidad === 'EUR' ? f.eurosCorto(v) : unidad === 'ratio' ? f.ratio(v) : `${f.numero(v, Math.abs(v) < 10 ? 1 : 0)}`);
+	// Los tres horizontes se eligen en la gráfica misma. La arena va en lienzo y no se deja señalar
+	// grano a grano, así que encima va esta capa de trazos: no recibe el ratón —lo recibe la
+	// gráfica entera, que ya lee el hilo de arena— y solo enciende el horizonte señalado.
+	const NS = 'http://www.w3.org/2000/svg';
+	const capaHz = document.createElementNS(NS, 'svg');
+	capaHz.setAttribute('class', 'g-horizontes');
+	capaHz.setAttribute('viewBox', `0 0 ${columnas} 1000`);
+	capaHz.setAttribute('preserveAspectRatio', 'none');
+	capaHz.setAttribute('aria-hidden', 'true');
+	caja.append(capaHz);
+	const trazos = {} as Partial<Record<Escenario, SVGPathElement>>;
+	if (esScore && hayFuturo(d) && d.mes) {
+		const uX = (c: number) => c + 0.5;
+		const uY = (v: number) => (1 - (v - lo) / (hi - lo)) * 1000;
+		for (const k of ESCENARIOS) {
+			const raw = d.hor!.scenarios![k];
+			if (!raw) continue;
+			const puntos = [[hoy, d.mes.shown / 10] as [number, number], ...raw.q.p50.map((v, i) => [hoy + i + 1, v / 10] as [number, number])];
+			const t = document.createElementNS(NS, 'path');
+			t.setAttribute('class', `hz hz-${k}`);
+			t.setAttribute('d', puntos.map(([c, v], i) => `${i ? 'L' : 'M'}${uX(c).toFixed(3)} ${uY(v).toFixed(2)}`).join(' '));
+			t.setAttribute('vector-effect', 'non-scaling-stroke');
+			capaHz.append(t);
+			trazos[k] = t;
+		}
+	}
 	for (const v of rejilla) eti('eje-v', fmtV(v), '0', Y(v));
 	for (const b of d.man.bands) if (esScore && b.min > 0) eti(`eje-banda banda-${b.key}`, b.label.toLowerCase(), '100%', Y((b.min + (d.man.bands[d.man.bands.indexOf(b) + 1]?.min ?? 1000)) / 20));
 	if (esScore) eti(`eje-banda banda-${d.man.bands[0].key}`, d.man.bands[0].label.toLowerCase(), '100%', Y(d.man.bands[1].min / 20));
@@ -572,7 +604,11 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 	// Las dos zonas, rotuladas: lo que ha pasado y lo que puede pasar.
 	const zp = eti('zona-t pasado', 'lo que ha pasado', '0', '0'); void zp;
 	const zfFondo = h('div', { class: 'zona-futuro' }); zfFondo.style.left = `${((hoy + 1) / columnas) * 100}%`; caja.prepend(zfFondo);
-	if (etFuturo.t) { const zf = eti(`zona-t futuro ${etFuturo.clase}`, etFuturo.t, `${((hoy + 1) / columnas) * 100}%`, '0'); void zf; }
+	if (etFuturo.t) {
+		const zf = eti(`zona-t futuro ${etFuturo.clase}`, etFuturo.t, `${((hoy + 1) / columnas) * 100}%`, '0');
+		// Ya no hay botones de supuesto: se dice aquí que los tres casos están dibujados y se tocan.
+		if (o.alElegir) zf.title = 'Los tres casos están dibujados. Pasa el ratón por el futuro y se enciende el que tienes más cerca; tócalo, o toca su rótulo, para mirarlo definido.';
+	}
 	if (despues.length && esScore) eti('zona-t despues', 'lo que pasó después', X(Math.min(columnas - 1, hoy + 1)), '14px');
 	if (esScore && hayFuturo(d) && validado < 12) { const ev = eti('sin-validar', 'sin validar', X(hoy + validado + 1), '0'); ev.title = `La previsión está validada fuera de muestra hasta ${validado} meses. Más allá, el modelo no se ha podido comprobar con lo que pasó.`; }
 	// Los horizontes, todos a la vista y en una fila: cuándo y qué se espera (mediana · franja del 80 %).
@@ -581,6 +617,13 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		el.append(h('b', {}, b.h === 12 ? 'un año' : `${b.h} meses`), h('span', {}, b.texto));
 		el.title = [cal[hoy + b.h] ? f.mes(cal[hoy + b.h]) : '', b.titulo].filter(Boolean).join(' · ');
 	}
+	// El nombre del caso elegido y «sin validar» comparten renglón: con los nombres largos se
+	// pisan, y entonces «sin validar» baja una fila.
+	if (caja.querySelector('.sin-validar')) requestAnimationFrame(() => {
+		const a = caja.querySelector('.zona-t.futuro')?.getBoundingClientRect();
+		const b = caja.querySelector('.sin-validar')?.getBoundingClientRect();
+		caja.classList.toggle('sin-validar-baja', !!a && !!b && b.left < a.right + 8);
+	});
 	// Con una acción marcada los rótulos crecen («75 → 67 (−8)») y se pisan: entonces, y solo
 	// entonces, el de seis meses baja una fila.
 	if (boyas.length > 1) requestAnimationFrame(() => {
@@ -602,31 +645,62 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		et.style.marginTop = `${-n * 18}px`;
 		et.title = q.titulo;
 	}
+	// El rótulo de cada horizonte, al borde derecho: dice cuál es y en cuánto acaba el año. Con el
+	// ratón encendido son los tres botones del supuesto, que antes vivían fuera de la gráfica.
+	const etqs = {} as Partial<Record<Escenario, HTMLElement>>;
+	const rotulos = h('div', { class: 'g-horizontes-etq', role: o.alElegir ? 'group' : undefined, 'aria-label': o.alElegir ? 'Qué pasaría si: el horizonte que se mira' : undefined });
+	caja.append(rotulos);
 	let ultimoY = -Infinity;
 	for (const a of alternativas.sort((x, y) => y.v - x.v)) {
 		const yPx = Math.max((1 - (a.v - lo) / (hi - lo)) * o.alto, ultimoY + 14);
 		ultimoY = yPx;
-		const et = eti(`alternativa ${a.clase}`, a.texto, X(hoy + 12), `${yPx}px`);
 		const actual = a.clase.includes('actual');
+		const et = o.alElegir
+			? h('button', { type: 'button', class: `g-etq alternativa ${a.clase}`, 'aria-pressed': String(actual) }, a.texto)
+			: h('span', { class: `g-etq alternativa ${a.clase}` }, a.texto);
+		et.style.left = X(hoy + 12); et.style.top = `${yPx}px`;
 		et.title = `${NOMBRE_ESCENARIO[a.k]}${actual ? ', el caso que estás mirando' : ''}: a un año, sin hacer nada, entre ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p10', 11))} y ${f.score(cuantil(d.hor!.scenarios![a.k]!, 'p90', 11))}.${actual ? '' : ' Toca para verlo definido.'}`;
-		if (o.alElegir && !actual) et.addEventListener('click', (ev) => { ev.stopPropagation(); o.alElegir!(a.k); });
+		rotulos.append(et);
+		etqs[a.k] = et;
 	}
+	/** Cuál de los tres pasa más cerca del punto señalado: el que se enciende y el que se elige. */
+	const cercano = (c: number, v: number): Escenario | null => {
+		const m = c - hoy - 1;
+		if (m < 0 || !d.hor?.scenarios) return null;
+		let mejor: Escenario | null = null, dm = Infinity;
+		for (const k of ESCENARIOS) {
+			const e = d.hor.scenarios[k];
+			if (!e || e.q.p50[m] == null) continue;
+			const dd = Math.abs(e.q.p50[m] / 10 - v);
+			if (dd < dm) { dm = dd; mejor = k; }
+		}
+		return mejor;
+	};
+	let senalado: Escenario | null = null;
+	const senalar = (k: Escenario | null) => {
+		if (k === senalado) return;
+		senalado = k;
+		for (const j of ESCENARIOS) {
+			trazos[j]?.classList.toggle('senalado', j === k);
+			etqs[j]?.classList.toggle('senalada', j === k);
+		}
+	};
 	if (o.alElegir && alternativas.length) {
 		caja.classList.add('elegible');
+		for (const k of ESCENARIOS) {
+			const et = etqs[k];
+			if (!et) continue;
+			et.addEventListener('pointerenter', () => senalar(k));
+			et.addEventListener('focus', () => senalar(k));
+			et.addEventListener('blur', () => senalar(null));
+			et.addEventListener('click', (ev) => { ev.stopPropagation(); if (k !== elegido) o.alElegir!(k); });
+		}
 		caja.addEventListener('click', (ev) => {
 			const r = caja.getBoundingClientRect();
-			const cI = Math.floor(((ev.clientX - r.left) / r.width) * columnas);
-			const m = cI - hoy - 1;
-			if (m < 0 || !d.hor?.scenarios) return;
+			const c = Math.floor(((ev.clientX - r.left) / r.width) * columnas);
 			const v = hi - ((ev.clientY - r.top) / r.height) * (hi - lo);
-			let mejor: Escenario = elegido, dm = Infinity;
-			for (const k of ESCENARIOS) {
-				const e = d.hor.scenarios[k];
-				if (!e || e.q.p50[m] == null) continue;
-				const dd = Math.abs(e.q.p50[m] / 10 - v);
-				if (dd < dm) { dm = dd; mejor = k; }
-			}
-			if (mejor !== elegido) o.alElegir!(mejor);
+			const mejor = cercano(c, v);
+			if (mejor && mejor !== elegido) o.alElegir!(mejor);
 		});
 	}
 
@@ -638,6 +712,11 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		const r = hueco.getBoundingClientRect();
 		const c = Math.max(0, Math.min(columnas - 1, Math.floor(((ev.clientX - r.left) / r.width) * columnas)));
 		const x = r.left + ((c + 0.5) / columnas) * r.width;
+		// En el futuro, el horizonte que pasa más cerca del ratón se enciende: es el que se elige.
+		// Sobre un rótulo manda el rótulo, que ya ha encendido el suyo.
+		const vRaton = hi - ((ev.clientY - r.top) / r.height) * (hi - lo);
+		if (!(ev.target as Element | null)?.closest?.('.g-etq.alternativa')) senalar(c > hoy ? cercano(c, vRaton) : null);
+		caja.classList.toggle('en-futuro', !!senalado);
 		const vPas = pasado.find((q) => q[0] === c)?.[1] ?? despues.find((q) => q[0] === c)?.[1] ?? null;
 		let texto = f.mesCorto(cal[c]);
 		let v: number | null = vPas;
@@ -645,10 +724,16 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 			const k = c - hoy - 1;
 			const vivas = new Set([...o.acciones, ...(o.previa ?? [])]);
 			const acc = (d.hor?.actions ?? []).find((a) => vivas.has(a.id));
-			const e = hayFuturo(d) ? (acc ?? base) : d.pasados?.cuts[d.corte] ?? null;
+			// Sin acción marcada, el globo lee el horizonte señalado y lo nombra: leer «previsto 76»
+			// sin decir de cuál de los tres era la cifra no significaba nada.
+			const sup = senalado ?? elegido;
+			const e = hayFuturo(d) ? (acc ?? d.hor!.scenarios![sup] ?? base) : d.pasados?.cuts[d.corte] ?? null;
 			if (e && k < e.q.p50.length) {
 				v = e.q.p50[k] / 10;
-				texto += ` · previsto ${f.score(e.q.p50[k])} (entre ${f.score(e.q.p10[k])} y ${f.score(e.q.p90[k])})`;
+				if (!acc && hayFuturo(d)) texto += ` · ${NOMBRE_ESCENARIO[sup].toLowerCase()}`;
+				// Los supuestos solo traen la mediana: cuando no hay franja, «entre 68 y 68» no dice nada.
+				const p10 = cuantil(e, 'p10', k), p90 = cuantil(e, 'p90', k);
+				texto += ` · previsto ${f.score(e.q.p50[k])}${p10 === p90 ? '' : ` (entre ${f.score(p10)} y ${f.score(p90)})`}`;
 				if (vPas !== null) texto += ` · pasó ${fmtV(vPas)}`;
 			} else if (vPas !== null) texto += ` · ${fmtV(vPas)}`;
 			else texto += ' · sin previsión';
@@ -666,8 +751,10 @@ export function graficoHorizonte(d: DatosFicha, o: OpcionesGrafico, empresasHilo
 		if (v !== null) { punto.style.left = `${((c + 0.5) / columnas) * 100}%`; punto.style.top = `${(1 - (v - lo) / (hi - lo)) * 100}%`; punto.hidden = false; } else punto.hidden = true;
 		o.alHilo?.([{ x0: x, y0: r.top - 2, x1: x, y1: r.bottom, tono: TONO.info }]);
 	};
-	hueco.addEventListener('pointermove', leer);
-	hueco.addEventListener('pointerleave', () => { caja.classList.remove('leyendo'); o.alHilo?.([]); });
+	// Se escucha en la caja entera, no solo en la arena: los rótulos de los horizontes están dentro
+	// de la gráfica y, si se escuchara en el hueco, pasar por uno cortaría el hilo y el globo.
+	caja.addEventListener('pointermove', leer);
+	caja.addEventListener('pointerleave', () => { caja.classList.remove('leyendo', 'en-futuro'); senalar(null); o.alHilo?.([]); });
 	return caja;
 }
 
