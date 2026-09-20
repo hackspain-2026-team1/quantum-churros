@@ -3353,7 +3353,7 @@ button.filtro-opcion[aria-pressed="true"] {
 .informe-pie { margin-top: 30px; padding-top: 10px; border-top: 1px solid var(--borde); font-size: 10.5px; color: var(--apagado); }
 .informe-vacio { font: 18px/1.5 var(--serif); padding: 40px 0; }
 /* En papel no se toca nada: fuera los controles. */
-.informe .av-triaje, .informe .rec-estado, .informe .rec-marca input, .informe .as-enlace, .informe .ctrl-extender,
+.informe .av-triaje, .informe .rec-estado, .informe .rec-marca input, .informe .as-enlace,
 .informe .buscar-sutil, .informe .bandeja-pestanas, .informe .sec-marcas, .informe input { display: none !important; }
 .informe .escenarios { pointer-events: none; }
 .informe .g-etq.boya.h3, .informe .solo-pantalla, .informe .mon-mapas { display: none; }
@@ -3488,11 +3488,12 @@ body[data-viaje='1'] .zona-futuro { background: rgba(176, 112, 22, 0.05); }
 .sec-volver b { font: 600 15px var(--serif); }
 .sec-volver.banda-critical b { color: var(--peligro-t); }
 /* Extender: el horizonte se desplaza con las secciones y estas ocupan la pantalla entera.
-   Vive entre los mandos del horizonte y la palabra no cambia: lo que cambia es si está pulsado. */
-.ctrl-extender { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 5px; border: 1px solid var(--borde); border-radius: 999px; font: 500 12.5px var(--sans); color: var(--tenue); transition: color 160ms, border-color 160ms, background 160ms; }
-.ctrl-extender:hover { color: var(--tinta-2); border-color: var(--borde-2); }
-.ctrl-extender.activa { color: var(--info-t); border-color: var(--info-s); background: var(--info-s); }
-.ctrl-extender .glifo-extender .trazo { stroke: currentColor; }
+   Es la última pestaña, a la derecha de Conciliación, y se distingue por el glifo. Pulsada, se
+   tiñe de azul, pero con el filete suave: la pestaña en firme sigue siendo la sección abierta. */
+.sec-extender { align-items: center; gap: 7px; }
+.sec-extender.activa { color: var(--info-t); border-bottom-color: var(--info-s); }
+.sec-extender .glifo-extender { flex: none; }
+.sec-extender .glifo-extender .trazo { stroke: currentColor; }
 .seccion { grid-template-columns: 1fr; gap: 12px; padding: 20px 0 22px; }
 .sec-titulo { font: 600 20px/1.25 var(--serif); }
 .seccion .seccion { padding-top: 12px; }
