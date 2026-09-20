@@ -154,17 +154,6 @@ export function crearPaginas(app: HTMLElement, S: Almacen, c: Cartera, man: Mani
 			grupo.append(ten, resumen, queEs);
 			controles.append(grupo);
 		}
-		if (estadoUI.metrica === 'score' && d.hor?.scenarios && d.hor.cut === d.corte) {
-			const sup = h('div', { class: 'escenarios', role: 'radiogroup', 'aria-label': 'Escenario' });
-			const nombres = { base: 'Si todo sigue igual', drift: 'Si sigue al mismo ritmo', stress: 'Si se repite su peor trimestre' } as const;
-			for (const k of ['base', 'drift', 'stress'] as const) {
-				if (k !== 'base' && !d.hor.scenarios[k]) continue;
-				const b = h('button', { type: 'button', class: `esc esc-${k} ${estadoUI.escenario === k ? 'activo' : ''}`, 'data-escenario': k, role: 'radio', 'aria-checked': String(estadoUI.escenario === k), title: k === 'drift' ? 'Qué pasaría si: prolonga la pendiente de los últimos doce meses. No es una predicción.' : k === 'stress' ? 'Los tres primeros meses repiten su peor trimestre observado. No es una predicción.' : undefined }, h('span', { class: 'esc-granos', 'aria-hidden': 'true' }), nombres[k]);
-				b.addEventListener('click', () => { if (estadoUI.escenario !== k) { estadoUI.escenario = k; pintarHorizonte(); } });
-				sup.append(b);
-			}
-			controles.append(sup);
-		}
 		if (estadoUI.acciones.size) {
 			const quitar = h('button', { type: 'button', class: 'chip-acciones' }, `${f.plural(estadoUI.acciones.size, 'acción marcada', 'acciones marcadas')} · quitar`);
 			quitar.addEventListener('click', () => { estadoUI.acciones.clear(); estadoUI.previa = null; pintarFicha(S.e); });
