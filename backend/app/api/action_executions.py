@@ -97,6 +97,8 @@ def start(body: Start, session: Session = Depends(get_session)):
     if not body.action_ids and not body.financing:
         raise HTTPException(422, "Elige al menos una acción o una gestión de financiación.")
     selected = list(dict.fromkeys(body.action_ids))
+    # The engine proposes a lever again while it is unmet; an open decision must not be started twice.
+    open_ids = {r.snapshot.get("id") for r in rows(session, body.entity_id, body.group_id) if r.status != "completada" and not r.snapshot.get("demo")}
     for choice in body.financing:
         related, _ = source(Scope(entity_id=choice.entity_id, group_id=body.group_id, kind="group" if choice.entity_id.startswith("GROUP_") else "company"))
         if body.kind == "company" and choice.entity_id != body.entity_id:
@@ -113,7 +115,7 @@ def start(body: Start, session: Session = Depends(get_session)):
         for key in selected:
             # A refreshed bundle must not duplicate a decision for the same monthly action.
             identity = str(uuid5(NAMESPACE_URL, f"rumbo:{body.entity_id}:{body.corte}:{key}"))
-            if session.get(ActionExecution, identity):
+            if key in open_ids or session.get(ActionExecution, identity):
                 continue
             action = actions[key]
             metric = METRICS.get(action["pillar"])
@@ -157,6 +159,8 @@ def change(execution_id: str, body: Change, session: Session = Depends(get_sessi
     if not row or row.group_id != body.group_id:
         raise HTTPException(404, "Acción no encontrada.")
     previous_status = row.status
+    if body.status == previous_status and not body.note.strip():
+        raise HTTPException(422, "Escribe una nota o cambia el estado antes de guardar.")
     result = session.execute(update(ActionExecution).where(ActionExecution.id == execution_id, ActionExecution.version == body.version).values(status=body.status, version=body.version + 1))
     if result.rowcount != 1:
         session.rollback()

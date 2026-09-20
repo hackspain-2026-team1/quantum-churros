@@ -1000,8 +1000,13 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	// Una columna por pregunta: qué hacer, de cuánto a cuánto, cuánto cuesta, cómo queda y cuánto sube.
 	const cabezaLista = h('div', { class: 'rec-cab', 'aria-hidden': 'true' },
 		h('span', {}, 'Ver'), h('span', {}, 'Qué hacer'), h('span', { class: 'centro' }, 'Esfuerzo'), h('span', { class: 'centro' }, 'Se nota'), h('span', { class: 'der' }, 'Sube'), h('span', {}, 'Seguimiento'));
-	const seguimiento = seguimientoAcciones(d, () => acc.horizonte.elegidas());
-	recs.forEach((r, i) => {
+	const filas = new Map<string, () => void>();
+	const seguimiento = seguimientoAcciones(d, () => acc.horizonte.elegidas(), {
+		alCambiar: () => ordenarFilas(),
+		soltar: (ids) => { for (const id of ids) if (sel.has(id)) acc.horizonte.alternar(id, false); },
+	});
+	const ROTULO = { en_curso: 'En curso', pausada: 'En pausa', completada: 'Finalizada' } as const;
+	recs.forEach((r) => {
 		const a = r.accion;
 		// La casilla es lo primero de la fila y es lo que la lleva al horizonte. Es una casilla de verdad
 		// (teclado, lectores de pantalla), pero dibujada por nosotros, no la del sistema operativo.
@@ -1014,13 +1019,19 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		};
 		marca.addEventListener('change', () => fijarMarca(marca.checked));
 		marca.addEventListener('click', (ev) => ev.stopPropagation());
+		// Decidida ya, la casilla deja su sitio a una señal del estado: no se puede volver a ejecutar.
+		const senal = h('span', { class: 'rec-senal', 'aria-hidden': 'true' });
+		const orden = h('span', { class: 'rec-orden', 'aria-hidden': 'true' });
+		const rotulo = h('b', { class: 'rec-rotulo' });
+		const desde = h('span', { class: 'rec-desde' });
 		const verSeguimiento = h('button', { type: 'button', class: 'miga-accion' }, 'Ver seguimiento');
-		verSeguimiento.addEventListener('click', (ev) => { ev.stopPropagation(); seguimiento.raiz.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+		verSeguimiento.addEventListener('click', (ev) => { ev.stopPropagation(); seguimiento.irA(a.id); });
+		const estado = h('div', { class: 'rec-estado' }, rotulo, desde, verSeguimiento);
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 26, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
 		const pal = palancaDeAccion(a);
 		const meses = mesesAccion(d, a);
-		const li = h('li', { class: `rec ${sel.has(a.id) ? 'elegida' : ''}`, 'data-accion': a.id },
-			h('span', { class: 'rec-marca' }, marca, h('span', { class: 'rec-orden', 'aria-hidden': 'true' }, String(i + 1))),
+		const li = h('li', { class: 'rec', 'data-accion': a.id },
+			h('span', { class: 'rec-marca' }, marca, senal, orden),
 			h('div', { class: 'rec-cuerpo' },
 				h('div', { class: 'rec-titulo' }, accionCorta(a)),
 				// La palanca, en cifras y grande: de dónde sale y adónde tiene que llegar.
@@ -1038,13 +1049,49 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 			h('div', { class: 'rec-plazo' }, meses === null ? h('b', { class: 'vacia' }, '—') : h('b', {}, f.numero(meses)),
 				h('span', {}, meses === null ? 'sin previsión' : meses === 1 ? 'mes' : 'meses')),
 			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
-			h('div', { class: 'rec-estado' }, verSeguimiento));
+			estado);
 		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija — también al pulsar la fila.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
-		li.addEventListener('click', (e) => { if ((e.target as Element).closest('.rec-estado')) return; fijarMarca(!marca.checked); });
+		li.addEventListener('click', (e) => {
+			if ((e.target as Element).closest('.rec-estado')) return;
+			if (li.dataset.estado !== 'disponible') { seguimiento.irA(a.id); return; }
+			fijarMarca(!marca.checked);
+		});
+		filas.set(a.id, () => {
+			const s = seguimiento.situacion(a.id);
+			const libre = s.estado === 'disponible';
+			li.dataset.estado = s.estado;
+			marca.hidden = !libre; marca.disabled = !libre; senal.hidden = libre;
+			if (!libre) marca.checked = false;
+			li.classList.toggle('elegida', libre && marca.checked);
+			estado.hidden = libre;
+			if (s.registro) {
+				rotulo.textContent = ROTULO[s.registro.status];
+				desde.textContent = `desde ${f.mesCorto(s.registro.snapshot.corte)}`;
+				li.title = 'Ya decidida: se sigue en «Acciones en marcha»';
+			} else li.removeAttribute('title');
+		});
 		lista.append(li);
 	});
+	const cierre = h('li', { class: 'rec-corte', 'aria-hidden': 'true' }, 'Ya decididas');
+	const todasDecididas = h('li', { class: 'rec vacia' }, h('p', {}, 'Todo lo que el motor propone este mes ya está decidido. Se sigue abajo, en «Acciones en marcha».'));
+	/** Lo que queda por decidir va primero y numerado; lo ya decidido baja, con su estado a la vista. */
+	function ordenarFilas() {
+		for (const pintarFila of filas.values()) pintarFila();
+		const todas = recs.map((r) => lista.querySelector<HTMLElement>(`[data-accion="${CSS.escape(r.accion.id)}"]`)!);
+		const libres = todas.filter((li) => li.dataset.estado === 'disponible');
+		const decididas = todas.filter((li) => li.dataset.estado !== 'disponible');
+		libres.forEach((li, i) => { li.querySelector('.rec-orden')!.textContent = String(i + 1); });
+		for (const li of decididas) li.querySelector('.rec-orden')!.textContent = '';
+		cierre.remove(); todasDecididas.remove();
+		if (decididas.length && !libres.length) lista.prepend(todasDecididas);
+		const ancla = lista.querySelector('.rec.nada');
+		for (const li of libres) lista.insertBefore(li, ancla);
+		// «No hacer nada» es una opción más entre las que quedan: lo decidido va después.
+		if (decididas.length) lista.append(cierre, ...decididas);
+		seguimiento.actualizarBoton();
+	}
 	const base = d.hor?.scenarios?.base;
 	if (base && hayFuturo(d)) {
 		const peor = base.cross && base.cross.dir === 'down';
@@ -1067,6 +1114,7 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 				: 'El motor no encuentra este mes ninguna palanca que suba el score al menos medio punto. Evalúa los movimientos del mes y los productos en cartera, y con lo que hay hoy ninguno mueve el número lo suficiente. No es un error ni una falta de datos: el score ya recoge el estado del mes y el horizonte sigue leyéndose en «si todo sigue igual».';
 		lista.prepend(h('li', { class: 'rec vacia' }, h('p', {}, razon)));
 	}
+	ordenarFilas();
 	const cabeceraAcciones = h(
 		'div',
 		{ class: 'sec-acciones-cabecera' },
