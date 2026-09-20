@@ -1004,8 +1004,8 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const seguimiento = seguimientoAcciones(d, () => acc.horizonte.elegidas(), {
 		alCambiar: () => ordenarFilas(),
 		soltar: (ids) => { for (const id of ids) if (sel.has(id)) acc.horizonte.alternar(id, false); },
+		enLista: (id) => filas.has(id),
 	});
-	const ROTULO = { en_curso: 'En curso', pausada: 'En pausa', completada: 'Finalizada' } as const;
 	recs.forEach((r) => {
 		const a = r.accion;
 		// La casilla es lo primero de la fila y es lo que la lleva al horizonte. Es una casilla de verdad
@@ -1022,11 +1022,10 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		// Decidida ya, la casilla deja su sitio a una señal del estado: no se puede volver a ejecutar.
 		const senal = h('span', { class: 'rec-senal', 'aria-hidden': 'true' });
 		const orden = h('span', { class: 'rec-orden', 'aria-hidden': 'true' });
-		const rotulo = h('b', { class: 'rec-rotulo' });
-		const desde = h('span', { class: 'rec-desde' });
-		const verSeguimiento = h('button', { type: 'button', class: 'miga-accion' }, 'Ver seguimiento');
-		verSeguimiento.addEventListener('click', (ev) => { ev.stopPropagation(); seguimiento.irA(a.id); });
-		const estado = h('div', { class: 'rec-estado' }, rotulo, desde, verSeguimiento);
+		// Decidida, la fila es su seguimiento: la medida ocupa el sitio de la palanca y los mandos, la última columna.
+		const medida = h('div', { class: 'rec-medida' });
+		const estado = h('div', { class: 'rec-estado' });
+		const panel = h('div', { class: 'rec-panel' });
 		const prods = r.productos.map((p) => iconoProducto(p, { tam: 26, titulo: true, sinFilete: true, estado: tenenciaDe(d).some((t) => t.product === p) ? 'tiene' : 'encaja' }));
 		const pal = palancaDeAccion(a);
 		const meses = mesesAccion(d, a);
@@ -1039,6 +1038,7 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 					h('b', {}, ...conCifras(pal.de, origenPilar(d, acc, a.pillar, 'Dónde está hoy la palanca'))),
 					h('i', { 'aria-hidden': 'true' }, '→'),
 					h('b', { class: 'meta' }, ...conCifras(pal.hasta, origenPilar(d, acc, a.pillar, 'Adónde tiene que llegar')))),
+				medida,
 				h('p', { class: 'rec-texto' }, ...conCifras(r.delGrupo ? `${explicacionAccion(a)} En una filial que financia el grupo, esto se decide en el grupo.` : explicacionAccion(a), origenPilar(d, acc, a.pillar, 'Lo que hace falta para llegar al objetivo'))),
 				h('p', { class: 'rec-productos' },
 					...prods,
@@ -1049,33 +1049,33 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 			h('div', { class: 'rec-plazo' }, meses === null ? h('b', { class: 'vacia' }, '—') : h('b', {}, f.numero(meses)),
 				h('span', {}, meses === null ? 'sin previsión' : meses === 1 ? 'mes' : 'meses')),
 			h('div', { class: 'rec-efecto' }, h('b', {}, f.delta(a.uplift_tenths)), h('span', {}, 'puntos')),
-			estado);
+			estado, panel);
 		// Tantear: pasar por encima ya lo enseña en el horizonte; marcar lo fija — también al pulsar la fila.
 		li.addEventListener('pointerenter', () => acc.horizonte.previa([a.id]));
 		li.addEventListener('pointerleave', () => acc.horizonte.previa(null));
 		li.addEventListener('click', (e) => {
-			if ((e.target as Element).closest('.rec-estado')) return;
-			if (li.dataset.estado !== 'disponible') { seguimiento.irA(a.id); return; }
+			if ((e.target as Element).closest('.rec-estado, .rec-panel')) return;
+			const r = seguimiento.situacion(a.id).registro;
+			if (r) { seguimiento.alternarPanel(r.id); return; }
 			fijarMarca(!marca.checked);
 		});
 		filas.set(a.id, () => {
-			const s = seguimiento.situacion(a.id);
-			const libre = s.estado === 'disponible';
-			li.dataset.estado = s.estado;
+			const piezas = seguimiento.enFila(a.id);
+			const libre = !piezas;
+			li.dataset.estado = piezas?.registro.status ?? 'disponible';
+			if (piezas) li.dataset.ejecucion = piezas.registro.id; else delete li.dataset.ejecucion;
+			li.tabIndex = -1;
 			marca.hidden = !libre; marca.disabled = !libre; senal.hidden = libre;
 			if (!libre) marca.checked = false;
 			li.classList.toggle('elegida', libre && marca.checked);
-			estado.hidden = libre;
-			if (s.registro) {
-				rotulo.textContent = ROTULO[s.registro.status];
-				desde.textContent = `desde ${f.mesCorto(s.registro.snapshot.corte)}`;
-				li.title = 'Ya decidida: se sigue en «Acciones en marcha»';
-			} else li.removeAttribute('title');
+			li.classList.toggle('reciente', !!piezas?.reciente);
+			medida.replaceChildren(...(piezas ? [piezas.medida] : []));
+			estado.replaceChildren(...(piezas ? [piezas.mandos] : []));
+			panel.replaceChildren(...(piezas ? [piezas.panel] : []));
+			panel.hidden = !piezas || piezas.panel.hidden;
 		});
 		lista.append(li);
 	});
-	const cierre = h('li', { class: 'rec-corte', 'aria-hidden': 'true' }, 'Ya decididas');
-	const todasDecididas = h('li', { class: 'rec vacia' }, h('p', {}, 'Todo lo que el motor propone este mes ya está decidido. Se sigue abajo, en «Acciones en marcha».'));
 	/** Lo que queda por decidir va primero y numerado; lo ya decidido baja, con su estado a la vista. */
 	function ordenarFilas() {
 		for (const pintarFila of filas.values()) pintarFila();
@@ -1084,12 +1084,16 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 		const decididas = todas.filter((li) => li.dataset.estado !== 'disponible');
 		libres.forEach((li, i) => { li.querySelector('.rec-orden')!.textContent = String(i + 1); });
 		for (const li of decididas) li.querySelector('.rec-orden')!.textContent = '';
-		cierre.remove(); todasDecididas.remove();
-		if (decididas.length && !libres.length) lista.prepend(todasDecididas);
 		const ancla = lista.querySelector('.rec.nada');
 		for (const li of libres) lista.insertBefore(li, ancla);
 		// «No hacer nada» es una opción más entre las que quedan: lo decidido va después.
-		if (decididas.length) lista.append(cierre, ...decididas);
+		// En marcha antes que finalizada: lo que pide atención, arriba.
+		const peso = (li: HTMLElement) => ['en_curso', 'pausada', 'completada'].indexOf(li.dataset.estado!);
+		decididas.sort((x, y) => peso(x) - peso(y));
+		decididas.forEach((li, i) => li.classList.toggle('primera-decidida', i === 0));
+		for (const li of libres) li.classList.remove('primera-decidida');
+		lista.append(...decididas);
+		seguimiento.tras();
 		seguimiento.actualizarBoton();
 	}
 	const base = d.hor?.scenarios?.base;
@@ -1118,8 +1122,8 @@ export function seccionAcciones(d: DatosFicha, acc: Acciones): HTMLElement {
 	const cabeceraAcciones = h(
 		'div',
 		{ class: 'sec-acciones-cabecera' },
-		h('div', {}, h('p', { class: 'nota' }, 'Elige qué acciones vas a llevar a cabo. Antes de ejecutarlas podrás revisar los bancos, las acciones y la financiación en una confirmación. Las marcas también permiten comparar su efecto estimado en el gráfico.'), h('p', { class: 'nota' }, 'La puesta en marcha registra la decisión del equipo; no ordena pagos ni solicita financiación.'), seguimiento.mensaje),
 		seguimiento.boton,
+		seguimiento.mensaje,
 	);
 	raiz.append(seccion(d.kind === 'group' ? voz('Qué puede hacer el grupo', 'Qué puedes hacer en el grupo') : voz('Qué puede cambiar su rumbo', 'Qué puede cambiar tu rumbo'), cabeceraAcciones, recs.length ? cabezaLista : null, lista));
 	raiz.append(seguimiento.raiz);

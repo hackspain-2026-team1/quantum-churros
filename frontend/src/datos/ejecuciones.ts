@@ -39,7 +39,8 @@ export function avanceEjecucion(e: Ejecucion, corte: string) {
  return { actual, mes: ultima?.month, fraccion, barra: fraccion === null ? null : Math.max(0, Math.min(1, fraccion)),
   texto: !ultima ? 'A la espera del próximo cierre' : fraccion === null ? 'Sin datos comparables en este cierre' : fraccion >= 1 ? 'Objetivo alcanzado' : fraccion < 0 ? 'Se aleja del objetivo' : 'Avance hacia el objetivo' };
 }
-export const valorEjecucion = (v: number | null, unit: string) => v === null ? 'Sin dato' : unit === '%' ? f.puntosPorcentaje(v) : f.valorUnidad(v, unit);
+/** Igual que la palanca de la acción (`palancaDeAccion`): la medida tiene que leerse con sus mismas unidades. */
+export const valorEjecucion = (v: number | null, unit: string) => v === null ? 'Sin dato' : unit === '%' ? f.puntosPorcentaje(v) : unit === 'ratio' ? `${f.ratio(v)} ×` : f.valorUnidad(v, unit);
 
 /** Dónde está una acción del motor respecto a las decisiones guardadas. */
 export type SituacionAccion = { estado: 'disponible'; registro: null } | { estado: EstadoEjecucion; registro: Ejecucion };
@@ -56,7 +57,7 @@ export function situacionAccion(registros: readonly Ejecucion[], id: string, cor
 }
 /** Los cambios de estado que se ofrecen desde cada uno, con el verbo que lleva el botón. */
 export const pasosEjecucion: Record<EstadoEjecucion, { a: EstadoEjecucion; verbo: string }[]> = {
- en_curso: [{ a: 'pausada', verbo: 'Pausar' }, { a: 'completada', verbo: 'Dar por finalizada' }],
- pausada: [{ a: 'en_curso', verbo: 'Reanudar' }, { a: 'completada', verbo: 'Dar por finalizada' }],
+ en_curso: [{ a: 'pausada', verbo: 'Pausar' }, { a: 'completada', verbo: 'Finalizar' }],
+ pausada: [{ a: 'en_curso', verbo: 'Reanudar' }, { a: 'completada', verbo: 'Finalizar' }],
  completada: [{ a: 'en_curso', verbo: 'Reabrir' }],
 };
