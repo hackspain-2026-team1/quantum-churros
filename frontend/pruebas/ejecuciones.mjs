@@ -24,7 +24,9 @@ const base = process.env.XRAY_URL ?? 'http://127.0.0.1:5317/';
 try {
  await page.goto(base + '?v=empresa&cfo=GROUP_0142&g=GROUP_0142&emp=COMP_0289&sec=acciones');
  await page.waitForSelector('.rec-marca input');
- await page.waitForFunction(() => document.querySelector('.ejecuciones')?.textContent.includes('No hay acciones en curso'));
+ await page.waitForFunction(() => { const b = document.querySelector('.sec-acciones-cabecera .boton-propuesta'); return b && !b.disabled; });
+ // Sin decisiones no hay sección de seguimiento ni notas explicativas: solo la lista.
+ assert.equal(await page.$eval('.ejecuciones', el => el.hidden), true);
  assert(!await page.evaluate(() => /Mi plan para el banco|Informe en PDF|Descargar PDF/.test(document.body.innerText)));
  await page.click('.rec-marca input');
  fail = true;
@@ -34,73 +36,63 @@ try {
  assert(!await page.$('.propuesta-col-doc'));
  await page.click('.confirmacion-acciones .boton-propuesta');
  await page.waitForFunction(() => document.querySelector('.confirmacion-acciones')?.textContent.includes('No se pudo guardar'));
- assert.equal(await page.$$eval('.ejecucion', els => els.length), 0);
+ assert.equal(await page.$$eval('.rec[data-ejecucion]', els => els.length), 0);
  fail = false;
  await page.click('.confirmacion-acciones .boton-propuesta');
- await page.waitForSelector('.ejecucion');
- assert((await page.$eval('.ejecucion', el => el.textContent)).includes('A la espera del próximo cierre'));
- assert.equal(await page.$$eval('.ejecucion progress', els => els.length), 0);
- // Lo ejecutado deja de ser una casilla: la fila cuenta su estado, baja de la lista y sale del horizonte.
- const fila = () => page.$eval('.rec[data-accion]:not([data-estado="disponible"])', el => ({ estado: el.dataset.estado, casilla: !el.querySelector('.rec-tick').hidden, elegida: el.classList.contains('elegida'), texto: el.querySelector('.rec-estado').innerText }));
+ // Lo ejecutado se sigue en su propia fila: sin casilla, fuera del horizonte, con su medida y sus mandos.
  await page.waitForSelector('.rec[data-estado="en_curso"]');
- assert.deepEqual({ ...(await fila()), texto: undefined }, { estado: 'en_curso', casilla: false, elegida: false, texto: undefined });
- assert.match((await fila()).texto, /EN CURSO|En curso/);
+ const fila = () => page.$eval('.rec[data-ejecucion]', el => ({ estado: el.dataset.estado, casilla: !el.querySelector('.rec-tick').hidden, elegida: el.classList.contains('elegida'), medida: el.querySelector('.seg-medida')?.innerText ?? '', barras: el.querySelectorAll('progress').length, pasos: [...el.querySelectorAll('.seg-pasos .seg-paso')].map(b => b.textContent) }));
+ let f1 = await fila();
+ assert.deepEqual([f1.estado, f1.casilla, f1.elegida, f1.barras], ['en_curso', false, false, 0]);
+ assert.match(f1.medida, /Inicio[\s\S]*Próximo cierre[\s\S]*Objetivo/);
+ assert.deepEqual(f1.pasos, ['Pausar', 'Finalizar', 'Notas']);
  assert.equal(await page.$eval('.sec-acciones-cabecera .boton-propuesta', el => el.textContent), 'Ejecutar acciones');
- assert(await page.evaluate(() => { const l = [...document.querySelectorAll('.recomendaciones > li')]; return l.indexOf(document.querySelector('.rec-corte')) < l.indexOf(document.querySelector('.rec[data-estado="en_curso"]')); }));
- assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('ejecucion')), true);
- // Pulsar la fila ya decidida lleva a su seguimiento; no la vuelve a marcar.
- await page.click('.rec[data-estado="en_curso"] .rec-titulo');
- assert.equal((await fila()).elegida, false);
+ // No se repite debajo: la sección solo existe para lo que no tiene fila.
+ assert.equal(await page.$eval('.ejecuciones', el => el.hidden), true);
+ await page.waitForFunction(() => !document.querySelector('.confirmacion-acciones'));
+ assert.equal(await page.$$eval('dialog', els => els.length), 0);
  // La confirmación no vuelve a ofrecerla.
  await page.click('.sec-acciones-cabecera .boton-propuesta');
  await page.waitForSelector('[role=dialog]');
- const ofrecidas = await page.$$eval('.confirmacion-acciones .propuesta-accion', els => els.length);
- assert.equal(ofrecidas, await page.$$eval('.rec[data-estado="disponible"]', els => els.length));
+ assert.equal(await page.$$eval('.confirmacion-acciones .propuesta-accion', els => els.length), await page.$$eval('.rec[data-estado="disponible"]', els => els.length));
  await page.keyboard.press('Escape');
  await page.reload();
- await page.waitForSelector('.ejecucion');
  await page.waitForSelector('.rec[data-estado="en_curso"]');
- // Una actualización vacía no se puede guardar; pausar y reanudar se reflejan en la fila.
- await page.click('.ejecucion-abrir');
- assert.equal(await page.$eval('.ejecucion-controles .boton-propuesta', el => el.disabled), true);
- await page.click('.ejecucion-controles button:nth-child(2)');
+ // Pausar y reanudar, a un clic y sin diálogo.
+ await page.click('.rec[data-ejecucion] .seg-pasos .seg-paso:nth-child(1)');
  await page.waitForSelector('.rec[data-estado="pausada"]');
- assert.equal(await page.$$eval('.ejecuciones-activas .ejecucion.estado-pausada', els => els.length), 1);
- await page.click('.ejecucion-abrir');
- await page.click('.ejecucion-controles button:nth-child(2)');
+ assert.deepEqual((await fila()).pasos, ['Reanudar', 'Finalizar', 'Notas']);
+ await page.click('.rec[data-ejecucion] .seg-pasos .seg-paso:nth-child(1)');
  await page.waitForSelector('.rec[data-estado="en_curso"]');
- await page.click('.ejecucion-abrir');
- await page.type('.ejecucion-dialogo textarea', 'Seguimiento verificado en una base de pruebas aislada.');
- await page.click('.ejecucion-controles button:last-child');
- await page.waitForFunction(() => document.querySelector('.ejecuciones-archivo .ejecucion') !== null);
+ // Las notas se despliegan en la fila; una vacía no se puede guardar.
+ await page.click('.rec[data-ejecucion] .rec-titulo');
+ await page.waitForSelector('.rec-panel textarea');
+ assert.equal(await page.$eval('.seg-escribir .seg-paso', el => el.disabled), true);
+ await page.type('.rec-panel textarea', 'Seguimiento verificado en una base de pruebas aislada.');
+ await page.click('.seg-escribir .seg-paso');
+ await page.waitForFunction(() => document.querySelectorAll('.seg-historial li').length === 4);
+ assert((await page.$eval('.seg-historial', el => el.innerText)).includes('Seguimiento verificado'));
+ await page.click('.rec[data-ejecucion] .seg-pasos .seg-paso:nth-child(2)');
  await page.waitForSelector('.rec[data-estado="completada"]');
  await page.reload();
- await page.waitForSelector('.ejecucion');
- assert.equal(await page.$$eval('.ejecuciones-archivo .ejecucion', els => els.length), 1);
- assert.equal(await page.$$eval('.ejecuciones-activas .ejecucion', els => els.length), 0);
- await page.click('.ejecuciones-archivo > summary');
- await page.click('.ejecucion-abrir');
- assert.equal(await page.$$eval('.ejecucion-historial li', els => els.length), 4);
- // Reabrir la devuelve al seguimiento activo y a la fila; se vuelve a finalizar para dejarla cerrada.
- await page.click('.ejecucion-controles button:last-child');
- await page.waitForSelector('.rec[data-estado="en_curso"]');
- assert.equal(await page.$$eval('.ejecuciones-activas .ejecucion', els => els.length), 1);
- await page.click('.ejecucion-abrir');
- await page.click('.ejecucion-controles button:last-child');
  await page.waitForSelector('.rec[data-estado="completada"]');
- assert.equal(await page.$$eval('.ejecucion progress', els => els.length), 0);
+ assert.deepEqual((await fila()).pasos, ['Reabrir', 'Notas']);
+ await page.click('.rec[data-ejecucion] .seg-pasos .seg-paso:nth-child(1)');
+ await page.waitForSelector('.rec[data-estado="en_curso"]');
+ await page.click('.rec[data-ejecucion] .seg-pasos .seg-paso:nth-child(2)');
+ await page.waitForSelector('.rec[data-estado="completada"]');
  if (process.env.XRAY_CAPTURAS) {
   mkdirSync(process.env.XRAY_CAPTURAS, {recursive: true});
-  await page.$eval('.ejecuciones', el => el.scrollIntoView());
+  await page.$eval('.sec-acciones', el => el.scrollIntoView());
   await page.screenshot({path: process.env.XRAY_CAPTURAS + '/seguimiento-acciones.png'});
  }
  await page.setViewport({width: 390, height: 844});
- await page.$eval('.ejecuciones', el => el.scrollIntoView());
+ await page.$eval('.sec-acciones', el => el.scrollIntoView());
  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
  if (process.env.XRAY_CAPTURAS) await page.screenshot({path: process.env.XRAY_CAPTURAS + '/seguimiento-movil.png'});
  await page.goto(base + '?v=empresa&cfo=GROUP_0250&g=GROUP_0250&emp=COMP_0263&sec=acciones');
  await page.waitForSelector('.rec.vacia');
- await page.waitForFunction(() => document.querySelector('.ejecuciones')?.textContent.includes('No hay acciones en curso'));
+ await page.waitForFunction(() => { const b = document.querySelector('.sec-acciones-cabecera .boton-propuesta'); return b && !b.disabled; });
  await page.click('.sec-acciones-cabecera .boton-propuesta');
  await page.waitForSelector('[role=dialog]');
  assert.equal(await page.$eval('.confirmacion-acciones .boton-propuesta', el => el.disabled), true);
@@ -113,10 +105,10 @@ try {
  await page.click('.propuesta-ofertas .propuesta-oferta:nth-child(2) input');
  await page.click('.confirmacion-acciones .boton-propuesta');
  await page.waitForSelector('.ejecucion');
- assert((await page.$eval('.ejecucion',el=>el.textContent)).includes('Bancos elegidos'));
+ assert((await page.$eval('.ejecucion',el=>el.textContent)).includes('Bancos'));
  await page.reload();
  await page.waitForSelector('.ejecucion');
- assert((await page.$eval('.ejecucion',el=>el.textContent)).includes('Bancos elegidos'));
+ assert((await page.$eval('.ejecucion',el=>el.textContent)).includes('Bancos'));
  assert.deepEqual(errors, []);
- console.log('OK: error sin falsa confirmación, ejecución, estado en la fila, pausa, reanudación, reapertura, persistencia tras recarga, finalización explícita, historial, ausencia de progreso inventado, móvil y empresa sin palancas.');
+ console.log('OK: error sin falsa confirmación, ejecución, seguimiento en la fila sin repetirlo debajo, pausa, reanudación, nota, reapertura, persistencia tras recarga, finalización explícita, historial, ausencia de progreso inventado, móvil y empresa sin palancas.');
 } finally { await browser.close(); }
