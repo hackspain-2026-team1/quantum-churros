@@ -2025,30 +2025,16 @@ body[data-vista="metodologia"] .regla {
   font-family: var(--serif);
   font-size: 12.5px;
 }
-/* La tendencia Theil–Sen: su rótulo en la zona pasada, clicable hacia Metodología. */
-.g-etq.tendencia-etq {
-  --c: #9d4bdd;
-  transform: translate(-50%, -22px);
-  font: italic 11.5px var(--serif);
-  color: var(--c);
-  pointer-events: auto;
-}
-button.g-etq.tendencia-etq {
-  border: 0;
-  background: none;
-  padding: 2px 4px;
-  cursor: pointer;
-}
-button.g-etq.tendencia-etq:hover {
-  text-decoration: underline;
-}
-.g-etq.tendencia-etq.borde {
-  transform: translate(6px, -50%);
-}
+/* La tendencia Theil–Sen: control y resumen de la pendiente observada. */
 .tendencia-ctrl {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
+}
+.tendencia-valor {
+  color: #9d4bdd;
+  font: italic 12px var(--serif);
+  white-space: nowrap;
 }
 .chip-tendencia {
   font: 500 12.5px var(--sans);

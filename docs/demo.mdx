@@ -1,111 +1,198 @@
-# Demo de Rumbo — para un CFO
+# Demo de Rumbo — guion para el CFO
 
-Guion de entrega ante el **cliente final**: el director financiero de un grupo
-empresarial pyme. El posicionamiento comercial está en [COMPRADOR.md](./COMPRADOR.md);
-el límite sigue siendo **3:00 en total** y la navegación real ocupa **2:00**.
+**Duración:** 3 minutos. La demo no enseña todas las funciones: demuestra una transformación concreta.
 
-**¿Qué es Rumbo? La respuesta de apertura, en una frase:**
+> **De los datos que ya tiene una empresa sale una decisión financiera mejor, más pronto y con menos fricción.**
 
-> «Rumbo es la lectura continua del rastro de su empresa: leemos cada día la banca y las
-> facturas de su grupo, lo convertimos en un score con forecast y avisos explicados, y
-> cuando el momento es financiable, abrimos su ronda con proveedores compitiendo — sin
-> revelar su nombre hasta que usted decide.»
+El comprador es el CFO de un grupo empresarial. Rumbo le vende una lectura continua de su tesorería: score, trayectoria, previsión, explicación y siguientes pasos. Si hace falta financiación, el CFO decide qué comparte y compara ofertas sin exponer su identidad antes de tiempo.
 
-La demo ya no enseña un módulo para que un intermediario coloque financiación: enseña al
-CFO **su propia lectura**. Cada bloque responde una pregunta que el CFO se hace de verdad:
+## Páginas preparadas
 
-| Pregunta del CFO | Lo que demostramos | Una prueba, no una lista de funciones |
-| --- | --- | --- |
-| ¿Qué me está pasando de verdad? | Trayectoria y forecast, no la foto del último cierre | Dos organizaciones con casi el mismo score y rumbos opuestos |
-| ¿Qué hago y cuándo? | Aviso con fecha y causa, palancas con efecto exacto | Deterioro detectado en junio, causa y fecha, uplift recomputado |
-| ¿Cómo lo resuelvo sin exponerme? | Ronda de financiación con consentimiento | Necesidad explicable, teaser seudonimizado, ofertas, decisión |
+Abrir estas pestañas antes de empezar. No buscar ni cambiar de mes durante la grabación.
 
-Por tanto, la demo **no** recorre todas las pantallas. Cuenta una sola transformación:
+1. **Organización · cartera consolidada** — apertura:
+   `https://rumbo.datons.com/?v=organizacion&c=plano&g=GROUP_0142&e=mes&d=20&h=23`
+2. **Organización · Acciones** — palancas y efecto en el horizonte:
+   `https://rumbo.datons.com/?v=organizacion&c=plano&g=GROUP_0142&e=mes&d=20&h=23&sec=acciones`
+3. **Organización · Productos** — deuda, líneas y margen disponible:
+   `https://rumbo.datons.com/?v=organizacion&c=plano&g=GROUP_0142&e=mes&d=20&h=23&sec=productos`
+4. **Financiación · Empresa** — necesidad, consentimiento y ofertas:
+   `https://rumbo.datons.com/?v=financiacion&rol=company`
+5. **Metodología** — explicación y validación del motor:
+   `https://rumbo.datons.com/?v=metodologia`
 
-> **Tu foto dice «igual que siempre» → tu rastro dice cuándo y por qué se tuerce → el
-> efecto de cada palanca está recomputado → la financiación llega con proveedores
-> compitiendo y tu nombre protegido → tú decides.**
+La primera pantalla es el punto de entrada real. Las siguientes se pueden abrir desde la propia interfaz; las URL sirven para repetir la demo sin depender de una búsqueda.
 
-La tesis que debe recordar el CFO:
+## Guion
 
-> «Rumbo lee tu rastro cada día, te avisa solo cuando algo cambia de verdad, te dice qué
-> palanca mueve el número y abre tu ventana de financiación en el momento en que aún
-> negocias en buena posición.»
+### 0:00–0:25 · Qué es Rumbo
 
-## 1. Qué ha cambiado y sí merece entrar
+**Pantalla:** Organización `GROUP_0142`, vista Plano.
 
-Desde el guion anterior se ha cambiado el destinatario y eso reordena la historia:
+**Hacer:** dejar visible el mapa y el resumen del grupo. Señalar que reúne 22 empresas, no una sola cuenta.
 
-1. **El comprador ya no es Embat**: es el CFO. La ronda de financiación deja de ser la
-   demostración de un canal de colocación y pasa a ser **el producto que el CFO usa**:
-   autoriza, compara, decide y puede revocar.
-2. **Las palancas ganan peso:** «Acciones» con el score recomputado y la cartera contratada
-   (`Productos`: headroom, coste, calendario) son las pantallas que un CFO reconoce como
-   suyas: qué tengo, qué puedo mover y qué efecto exacto tiene.
-3. **El monitor y el forecast se enseñan desde el punto de vista del avisado:** no es una
-   cartera de 250 grupos, es «el sistema te habría avisado en junio, sin que preguntaras».
-4. **El cierre comercial cambia:** el CFO paga la suscripción por la lectura; el proveedor
-   que gana la operación paga la colocación, y por eso la ronda es gratuita para la empresa.
+**Decir:**
 
-El recibo técnico sigue siendo respaldo; el cierre principal ahora es **una decisión que
-el CFO firma en la sala**.
+> «¿Qué es Rumbo?
+>
+> *m. Camino y senda que alguien se propone seguir en lo que intenta o procura.*
+>
+> Rumbo te dice cómo andar: lee continuamente cada dato de tu empresa y le da un valor.
+> Aquí vemos una organización completa, con 22 empresas. No miramos una filial aislada ni
+> una foto de cierre: consolidamos el rastro financiero del grupo.»
 
-## 2. Los dos casos que cuentan la tesis
+> «Leemos cada día las operaciones y las facturas de tu grupo empresarial. De ese rastro sale
+> un score, pero sobre todo sale una dirección: si estás mejorando, si te estás torciendo y
+> desde cuándo.»
 
-### La pareja de apertura
+**Valor que debe quedar:** Rumbo entiende el grupo entero y convierte datos dispersos en una lectura de negocio.
 
-| Organización | Foto de agosto | Trayectoria | Lectura |
-| --- | ---: | --- | --- |
-| **Grupo Oraria (`GROUP_0076`)** | **44,8** · Vigilancia | **+40,4 puntos/3 meses**, mejora estructural | Score modesto, rumbo favorable |
-| **Grupo Maravia (`GROUP_0045`)** | **45,5** · Vigilancia | **−18,2 puntos/3 meses**, deterioro estructural | Casi el mismo score, decisión opuesta |
+---
 
-Solo hay **0,7 puntos** entre ambas. Es la demostración de que la foto fija — la que el
-CFO ve en su banco y en su cierre mensual — no distingue su futuro. Maravia es «su» empresa
-durante toda la demo.
+### 0:25–0:55 · La foto frente al rumbo
 
-### El caso que continúa hasta la decisión
+**Pantalla:** misma organización, sección **Detalle/Scoring**.
 
-**Grupo Maravia (`GROUP_0045`)**:
+**Hacer:** señalar el score actual, la trayectoria del horizonte y la banda de confianza. Si aparece un aviso, señalarlo; no abrir todavía el detalle técnico.
 
-- confianza **alta**: 90,25 %;
-- deterioro detectado desde **junio de 2026** y confirmado como estructural;
-- caída acumulada del aviso: **25,4 puntos en 11 meses**;
-- principal causa: colchón de solo **7 días**;
-- segunda causa: cobros operativos cubren **0,59 veces** los pagos;
-- `FIN-024`: necesidad prevista de **240.000–330.000 €**, propuesta central de **285.000 €**,
-  entre diciembre de 2026 y febrero de 2027;
-- producto del caso: línea de crédito, con alternativas comparables de proveedores.
+**Decir:**
 
-Las cifras se verifican de nuevo después de cada `make db-sync`. Si cambia el bundle, se
-actualiza el guion; nunca se fija el motor para conservar esta historia.
+> «El número de hoy es solo el punto de partida. La línea cuenta qué está pasando y el
+> horizonte cuenta qué puede pasar si nada cambia. Por eso Rumbo no responde solo “cómo estás”,
+> sino “hacia dónde vas”.»
 
-## 3. Preparación de la sala
+> «Y no te entrega una caja negra. Aquí se ve qué pilares empujan el score, cuál lo limita y
+> qué señal ha cambiado. Un mes malo es un bache; varios meses con la misma dirección son una
+> decisión que conviene tomar ahora.»
 
-### Pestañas preparadas
+**Valor que debe quedar:** trayectoria, estabilidad y explicación; no un detector de problemas aislado.
 
-1. **Oraria · Scoring** (contraste de apertura):
-   `/?v=organizacion&c=plano&g=GROUP_0076&m=2026-08`
-2. **Maravia · Scoring** (el «su empresa» de la demo):
-   `/?v=organizacion&c=plano&g=GROUP_0045&m=2026-08`
-3. **Maravia · Acciones** (palancas con efecto recomputado):
-   `/?v=organizacion&c=plano&g=GROUP_0045&m=2026-08&sec=acciones`
-4. **Maravia · Productos** (su cartera contratada: headroom, coste, calendario):
-   `/?v=organizacion&c=plano&g=GROUP_0045&m=2026-08&sec=productos`
-5. **Financiación · Empresa** (el rol del CFO):
-   `/?v=financiacion&rol=company`
-6. **Respaldo · Metodología:**
-   `/?v=metodologia&m=2026-08`
+---
 
-No buscar, escribir ni cambiar de mes durante los tres minutos. Cambiar de pestaña es más
-rápido y reproducible que navegar en vivo.
+### 0:55–1:20 · Qué hacer y cuánto mueve
 
-### Preparar la sala y `FIN-024`
+**Pantalla:** **Acciones** de `GROUP_0142`.
 
-La fuente de verdad para esta demo es este documento. `docs/engine/DEMO_SCRIPT.md` describe un recorrido anterior, con otras rutas, entidades y comprador; no se debe usar para grabar ni mezclar con este guion.
+**Hacer:** marcar una acción disponible y señalar el cambio de la línea del horizonte. Después marcar una segunda solo si la vista está limpia y el efecto se entiende.
 
-#### Preflight antes de grabar
+**Decir:**
 
-Ejecutar en una terminal separada, nunca durante el vídeo:
+> «Aquí está la diferencia entre un score y un producto. Rumbo no dice “mejora la liquidez”
+> y te deja solo. Te enseña qué acción puedes tomar, cuánto esfuerzo requiere y cuándo se nota.»
+
+> «Al marcarla, el horizonte se recalcula. Vemos el escenario sin hacer nada y el escenario con
+> la acción. El efecto no es una promesa comercial: es la salida del motor aplicada a tu caso.»
+
+> «Así el CFO puede priorizar: qué hacer esta semana, qué puede esperar y qué impacto tiene
+> cada decisión.»
+
+**Valor que debe quedar:** recomendación accionable, contrafactual visible y efecto exacto.
+
+---
+
+### 1:20–1:40 · Empezar por lo que ya existe
+
+**Pantalla:** **Productos** de `GROUP_0142`.
+
+**Hacer:** señalar una línea o producto existente, el saldo utilizado, el margen disponible, el coste y el próximo vencimiento.
+
+**Decir:**
+
+> «Antes de ofrecerte algo nuevo, Rumbo mira lo que ya tienes. Esta línea todavía tiene margen;
+> aquí están su coste y sus próximos vencimientos. Quizá la decisión no sea contratar otro
+> producto, sino usar mejor el que ya existe.»
+
+> «El producto financiero nace de la necesidad observada: circulante, factoring, confirming,
+> refinanciación o una ampliación. No es un catálogo separado del score.»
+
+**Valor que debe quedar:** la recomendación usa la cartera real y evita vender una solución que la empresa ya tiene.
+
+---
+
+### 1:40–2:25 · Cuando toca financiarse
+
+**Pantalla:** **Financiación · Empresa**, caso preparado.
+
+**Hacer, en este orden:** mostrar la necesidad y la ventana temporal; mostrar el alcance autorizado; comparar dos ofertas; señalar que la identidad sigue protegida; terminar en la decisión del CFO.
+
+**Decir:**
+
+> «Cuando el forecast detecta que se cierra la ventana, Rumbo convierte la señal en una
+> necesidad financiable. No espera a que la caja obligue a negociar peor.»
+
+> «Tú decides qué compartes: importe, plazo y alcance. Los proveedores reciben un teaser
+> seudonimizado; tu nombre no aparece hasta que tú preseleccionas.»
+
+> «Aquí ya no hay que enviar el mismo dossier a ocho bancos. Hay ofertas comparables: importe,
+> tipo, plazo, comisión y garantías. Las comparas en un sitio y decides tú.»
+
+> «La autorización, cada oferta y cada cambio quedan registrados. Puedes revocar el acceso.
+> Rumbo no decide por ti: te coloca delante de una decisión mejor informada.»
+
+**Valor que debe quedar:** el score se convierte en financiación concreta, con control y competencia.
+
+---
+
+### 2:25–2:50 · Por qué creer en el número
+
+**Pantalla:** **Metodología**.
+
+**Hacer:** señalar las señales que entran en el score, la explicación de la cuenta y la validación del forecast. No entrar en hashes salvo pregunta.
+
+**Decir:**
+
+> «El motor lee movimientos bancarios, facturas, pagos, deuda y saldos. Explica el número con
+> sus pilares y sus aportaciones; si falta un dato, no lo inventa: se abstiene y dice qué feed
+> hay que reconectar.»
+
+> «La previsión se valida con cortes temporales: el futuro no entra en el pasado. Y medimos
+> cuántos meses antes aparece una señal, no solo si acertamos después.»
+
+> «La entrega también funciona en empresas que el modelo no ha visto: ese es el test oculto del
+> reto. El resultado se genera con los parámetros congelados y se entrega separado de esta demo.»
+
+**Valor que debe quedar:** explicación, honestidad ante datos incompletos, anticipación y generalización.
+
+---
+
+### 2:50–3:00 · Cierre
+
+**Pantalla:** volver a **Acciones** o dejar **Financiación · Empresa**.
+
+**Decir:**
+
+> «Rumbo te conoce por lo que haces, no por una foto que llega tarde. Lee tu rastro, te avisa
+> cuando cambia algo de verdad, te dice qué puedes mover y abre la financiación cuando todavía
+> estás a tiempo de elegir.»
+
+> **«Tu dinero ya dejó un rastro. Rumbo lo convierte en rumbo.»**
+
+## Cobertura de `track.md`
+
+| Requisito | Momento de la demo |
+| --- | --- |
+| Predicción sobre el test oculto | Se explica en Metodología; se entrega con parámetros y datos de ejecución congelados, sin ajustar después de mirar el resultado. |
+| Señal en las dos direcciones | El score muestra mejora y deterioro en la cartera; abrir un caso de cada dirección si el jurado lo pide. |
+| Trayectoria, no foto | Scoring: horizonte, tendencia y comparación con el score actual. |
+| Explicación | Scoring y Metodología: pilares, aportaciones, limitaciones y evidencia. |
+| Producto encima del score | Acciones, Productos y Financiación: efecto, cartera existente y ronda. |
+| Comprador identificado | El CFO paga la lectura continua; el proveedor ganador paga la colocación. |
+| Demo navegable | Cinco páginas abiertas y recorrido con clics delante del jurado. |
+| Anticipación medida · bonus | Metodología: validación temporal y meses de anticipación; no decir “predice quiebras”. |
+| Monitor que avisa · bonus | En Scoring, señalar el aviso generado sin consulta manual y distinguir feed parado de deterioro. |
+
+## Respuestas rápidas
+
+- **¿Qué compra el CFO?** «Una lectura continua para dejar de decidir con una foto atrasada: score, forecast, avisos, acciones y financiación.»
+- **¿Por qué no basta el banco?** «Cada banco ve una pieza. Rumbo consolida el grupo y compara alternativas.»
+- **¿Es un rating?** «No. Es una medición transaccional explicada, con confianza y receipt.»
+- **¿Qué pasa si faltan datos?** «Rumbo se abstiene, no rellena huecos, y dice qué conexión falta.»
+- **¿Quién paga?** «El CFO paga la suscripción por la lectura. El proveedor que gana paga la colocación.»
+- **¿Qué ven los proveedores?** «Un teaser sin identidad hasta que el CFO preselecciona. El permiso se puede revocar.»
+
+## Preflight
+
+Antes de grabar, con el stack levantado y el mismo bundle en todas las carpetas:
 
 ```bash
 make validate
@@ -113,294 +200,11 @@ make forecast
 cd frontend && bun run check && bun test && bun run prueba
 ```
 
-Después arrancar la aplicación con `make up`, comprobar que API/PostgreSQL/web están saludables y abrir las seis pestañas de esta sección. Si se usa el servidor Vite local, `frontend/public/rumbo` debe apuntar al `rumbo/` generado junto al bundle actual; un `rumbo/` antiguo hace que nombres y previsiones parezcan obsoletos aunque el código esté correcto.
-
-#### Dejar `FIN-024` preparado
-
-1. Confirmar `FINANCING_DEMO_ENABLED=true` y API/PostgreSQL saludables.
-2. Abrir **Financiación** y ejecutar **Iniciar escenario FIN-024** una sola vez.
-3. Cambiar a **Empresa** y pulsar **Autorizar la ronda** con estas opciones:
-   - banco habitual y mercado alternativo activados;
-   - garantías personales excluidas;
-   - identidad oculta hasta la preselección.
-4. Volver a **Consultor** y pulsar **Abrir ronda de ofertas**.
-5. Entrar como **Norte Capital** y presentar una oferta indicativa.
-6. Cambiar a **Banco Atlas** y presentar una segunda oferta indicativa.
-7. Volver a **Empresa** y verificar que se ven la necesidad de **240.000–330.000 €**, el centro de **285.000 €**, diciembre–febrero, las dos ofertas y la actividad en vivo.
-8. **No preseleccionar ni aceptar ninguna oferta.** La decisión debe quedar abierta para que el CFO la pruebe delante del jurado.
-
-La demo no debe comenzar en «Iniciar escenario»: ese botón prueba infraestructura, no valor.
-El CFO debe ver directamente el resultado de la cadena y puede rehacerla si lo pide.
-
-#### Qué hacer durante el vídeo
-
-No lanzar `make`, `bun`, migraciones, regeneraciones ni scripts de preparación durante la grabación. El único script que puede ejecutarse antes es el preflight anterior; durante el vídeo se navega por las pestañas ya cargadas. Si financiación falla, no se intenta reparar PostgreSQL o SSE: se usa el fallback del §8 y se continúa con **Acciones**.
-
-## 4. Guion exacto
-
-### 0:00–0:30 · Apertura — qué es Rumbo y por qué la foto miente
-
-**Pantalla:** Oraria · Scoring, después Maravia · Scoring.
-
-**Decir, primero la definición (una frase):**
-
-> «Rumbo es la lectura continua del rastro de su empresa: leemos cada día su banca y sus
-> facturas, lo convertimos en un score con forecast y avisos, y cuando toca, abrimos su
-> financiación con proveedores compitiendo — sin revelar su nombre hasta que usted decide.»
-
-**Y después la pregunta que abre la historia:**
-
-> «Oraria saca 44,8. Maravia, 45,5. Siete décimas: la foto de ambas dice lo mismo. Pero
-> Oraria mejora 40,4 puntos en tres meses y Maravia cae 18,2. Si usted dirigiera Maravia,
-> su cierre mensual y su banco le dirían "igual que siempre". Su rastro diario dice otra
-> cosa — y lo dice desde junio.»
-
----
-
-### 0:30–1:00 · Qué le está pasando de verdad
-
-**Pantalla:** Maravia · Scoring; para los pilares responsables, un clic a Desglose.
-
-**Hacer:** señalar la alerta en junio y el horizonte en Scoring; los dos pilares
-responsables, con su aportación coloreada, están en Desglose.
-
-**Decir:**
-
-> «El cambio empieza en junio y persiste: no es un mes malo, el sistema lo confirma como
-> deterioro estructural. Y usted no tuvo que preguntarlo: el monitor levanta la mano solo.
-> La causa principal es exacta: solo siete días de colchón; además, sus cobros cubren 0,59
-> veces sus pagos. El modelo sitúa la ventana de financiación antes de que esa liquidez le
-> obligue a negociar desde una posición peor.»
-
-**Demuestra:** trayectoria, fecha, explicación, anticipación operativa y monitor que avisa
-sin consulta manual.
-
----
-
-### 1:00–1:35 · Qué puede hacer hoy
-
-**Pantalla:** Maravia · Acciones y, si da tiempo, Productos.
-
-**Hacer:** marcar una o dos palancas y señalar el horizonte recomputado; en Productos,
-señalar la línea con headroom sin dibujar.
-
-**Decir:**
-
-> «Cada palanca no es un consejo: es la fórmula recomputada. Marco estas dos y el horizonte
-> muestra el score exacto con ellas aplicadas — no una estimación. Y antes de proponer
-> nada, leemos lo que usted ya tiene contratada: esta línea tiene margen sin dibujar; aquí,
-> cuota, tipo y próximos vencimientos. Empezamos por su cartera real, no por un catálogo.»
-
-**Demuestra:** acción concreta con uplift auditable y cartera declarada como punto de partida.
-
----
-
-### 1:35–2:20 · Cómo se resuelve — la ronda del CFO
-
-**Pantalla:** Financiación · Empresa, caso ya preparado.
-
-**Hacer, en este orden:**
-
-1. señalar **240.000–330.000 €**, diciembre–febrero y confianza;
-2. señalar que la empresa autorizó alcance y ocultación de identidad;
-3. comparar las dos ofertas;
-4. señalar la actividad en vivo y la revocación.
-
-**Decir:**
-
-> «La señal no termina en un informe. Rumbo abre una necesidad de 240.000 a 330.000 euros
-> para diciembre–febrero. Usted decide qué comparte; hasta preseleccionar, el mercado ve
-> solo un teaser seudonimizado. Dos proveedores compiten con importe, tipo, plazo, comisión
-> y garantías. Cada autorización, oferta y cambio queda versionada, y usted puede revocar el
-> acceso cuando quiera. Aquí la decisión es suya, no de su banco.»
-
-**Demuestra:** producto utilizable por el CFO, control, trazabilidad y ronda navegable.
-
----
-
-### 2:20–3:00 · Por qué creerle al número — y cierre
-
-**Pantalla:** Metodología. No entrar en Desglose ni en hashes salvo pregunta.
-
-**Decir:**
-
-> «No predecimos quiebras. Medimos cinco hechos financieros con parámetros congelados y
-> prevemos cómo cambia el score: en validación temporal, a seis meses el error baja de 17,7
-> a 16,1 puntos y la franja del 80 % contiene el resultado entre el 80 y el 86 % de las
-> veces. Cada score conserva su receipt: misma nota sola o entre los 250 grupos.»
-
-**Si pregunta qué hay detrás del número, enseñar en Técnico —no inventarlo en la pantalla principal:**
-
-> «El grupo es la unidad que puntúa: sumamos primero sus flujos y después calculamos ratios; no
-> hacemos la media de sus filiales. Si una señal no se puede observar, queda sin dato y sus pesos
-> se redistribuyen. Y una media buena no tapa un pilar roto: la penalización y los topes aparecen
-> separados en la cuenta exacta.»
-
-> «La confianza tampoco cambia la nota. Se calcula aparte con historia, cobertura y calidad del
-> dato. Si el banco deja de llegar, el motor lo marca como feed parado y arrastra la última
-> explicación viva; no confunde un conector caído con una empresa peor.»
-
-> «Usted paga la suscripción por la lectura — score, forecast, avisos y palancas —; el
-> proveedor paga la colocación si gana la ronda, por eso participar no le cuesta nada.
-> Rumbo convierte el dinero que ya pasó por sus cuentas en la decisión que aún está a
-> tiempo de tomar.»
-
-**Última frase, literal:**
-
-> **«Mismo score. Distinto rumbo. Una decisión que ahora es suya.»**
-
-## 5. Qué no se enseña en los tres minutos
-
-Estas funciones son valiosas, pero cada una abre una historia nueva y diluye las tres
-preguntas del CFO:
-
-- las siete formas completas del monitor y la cartera de 250 grupos;
-- lenguaje natural / Jev;
-- los roles Consultor y Proveedor (la vista Proveedor se guarda para la pregunta
-  «¿qué ven de mí?»: ahí se demuestra el teaser seudonimizado desde el otro lado);
-- escenarios de deriva y peor trimestre;
-- cascada, curvas, evidencia fila a fila y hashes;
-- generación de PDF;
-- abstención, feed caído y cambio de perímetro.
-
-Se mantienen preparadas para preguntas. La demo enseña **resultado**, no inventario.
-
-### Cobertura explícita de la entrega
-
-| Requisito de `track.md` | Prueba en la demo o respaldo inmediato |
-| --- | --- |
-| Predicción sobre test oculto | Aislamiento de cohorte; el test real lo decide el organizador |
-| Señal en las dos direcciones | Oraria mejora y Maravia deteriora con solo 0,7 puntos de diferencia |
-| Trayectoria, no foto | +40,4 frente a −18,2 puntos en tres meses |
-| Explicación | Maravia: liquidez y actividad, con aportaciones y evidencia exactas |
-| Producto encima del score | Lectura + palancas + ronda `FIN-024` con consentimiento y ofertas |
-| Comprador identificado | El CFO paga la suscripción; el proveedor ganador paga la colocación |
-| Demo navegable | Ficha propia, palancas y espacio transaccional abiertos delante del CFO |
-| Anticipación medida · bonus | Forecast temporal y caso canónico 45→65; cifras solo tras regenerar evaluación |
-| Monitor que avisa · bonus | Alerta estructural de Maravia sin consulta manual |
-
-### Lo que aún hay que cerrar para la entrega del reto
-
-La demo cubre la historia y el producto, pero hay un punto obligatorio que no se puede
-simular: **la predicción sobre el test oculto**. El motor ya puntúa cualquier carpeta de
-entrada y el ensayo aislado de 60 grupos comprueba que el resultado no depende de tener la
-cartera completa, pero eso todavía es un *proxy*, no el envío al leaderboard. En cuanto el
-organizador entregue el test y su contrato, hay que hacer este recorrido, sin cambiar los
-parámetros del motor después de mirar resultados:
-
-1. Confirmar con el equipo de Embat la unidad (`group` o `company`), el mes evaluado, la
-   columna de identificador, el formato de entrega y la métrica del leaderboard. Es una
-   ambigüedad real del brief: hay 250 grupos y 1.286 empresas.
-2. Ejecutar `xray-score predict <test> --out <run>` con los parámetros congelados y conservar
-   `scores_groups.csv`, `scores_companies.csv`, `dataset_hash`, `params_hash` y la versión del
-   motor en el mismo expediente.
-3. Entregar únicamente el CSV que corresponda al contrato del organizador; no ajustar el
-   score, los umbrales ni el orden usando el resultado del test. Guardar el resultado del
-   leaderboard junto con la huella del run.
-4. Añadir al cierre de la demo la métrica real del test. Hasta entonces, decir «proxy de
-   generalización», nunca «resultado del test oculto».
-
-Hay tres extras que sí están implementados pero deben enseñarse o dejarse preparados si el
-jurado pregunta:
-
-- **Anticipación medida:** abrir `make eval-anticipation` y enseñar AUC, número de onsets,
-  distribución y mediana de meses. La cartera real mide onsets internos; la inyección mide
-  retardo desde un cambio conocido. Ninguna de las dos es precisión sobre quiebras.
-- **Monitor proactivo:** ejecutar `make mailpit-notify` y dejar disponible
-  `http://localhost:8025` como prueba de que una alerta `fired` genera un aviso accionable;
-  el dashboard sigue siendo la prueba principal y Mailpit es solo infraestructura de demo.
-- **Caso sin datos:** tener preparado `GROUP_0083` para demostrar abstención, feed caído y
-  ausencia de financiación. Es una señal de confianza del producto: el sistema sabe decir
-  «todavía no» y no rellena huecos con datos inventados.
-
-## 6. Orden de verificación
-
-### P0 · Bloqueantes de la historia
-
-| Orden | Prueba | Resultado exigido |
-| ---: | --- | --- |
-| 1 | Bundle + derivados | `bundle_id`, `params_hash` y `dataset_hash` coinciden en bundle, entidades y horizontes |
-| 2 | Forecast nuevo | `horizons/index.json` usa `rumbo-horizons-index-v2` y modelo `forecast-v1`; no presentar con los horizontes v1 antiguos |
-| 3 | Pareja | Oraria 44,8 / mejora estructural; Maravia 45,5 / deterioro estructural |
-| 4 | Maravia | −18,2 puntos/3 meses; detectada desde junio; colchón 7 días; cobertura 0,59 |
-| 5 | `FIN-024` | Selecciona `GROUP_0045`; 240.000–330.000 €; central 285.000 €; diciembre–febrero; confianza 90 % |
-| 6 | Ofertas | Caso publicado, dos ofertas visibles desde Empresa, identidad todavía protegida |
-| 7 | Recorrido frontend | `bun run prueba` pasa completo sobre datos reales |
-| 8 | Backend de financiación | Tests de autorización, publicación, ofertas, preselección, aceptación y revocación en verde |
-
-Si falla cualquiera, no se improvisa: se corrige o se usa el fallback del §8.
-
-### P1 · Preguntas típicas de un CFO
-
-| Pregunta | Caso | Qué debe verse |
-| --- | --- | --- |
-| ¿Por qué dice que estoy peor que mi cierre? | Maravia → Scoring | Trayectoria −18,2 frente a la foto 45,5; bandas y confianza |
-| ¿Desde cuándo y por qué? | Maravia → Scoring / Desglose | Alerta de junio, colchón de 7 días, cobertura 0,59, aportaciones exactas |
-| ¿Bache o caída? | `COMP_0265`, mayo de 2025, frente a Maravia | Pradiana revierte a `bump`; Maravia persiste y pasa a `structural` |
-| ¿Qué gano si hago lo que decís? | Maravia → Acciones | Score recomputado con la palanca, no estimación |
-| ¿No me basta con la línea que ya tengo? | Maravia → Productos | Headroom real, coste y calendario de su cartera contratada |
-| ¿Qué ven de mí hasta que decido? | Vista Proveedor (solo si pregunta) | Teaser seudonimizado; identidad oculta hasta preselección |
-| ¿Puede comprobarse una previsión? | Regla a un mes pasado | Previsión emitida entonces junto a lo que ocurrió realmente |
-| ¿Qué pasa si faltan mis datos? | `GROUP_0083` | Abstención, cero producto y pista para reconectar el feed |
-| ¿Quién está sano, para comparar? | `COMP_0978`, Neresa Tesorería | 99,7 · Sólido · confianza alta · sin recomendación forzada |
-
-## 7. Claims técnicos permitidos
-
-Solo después de regenerar los artefactos correspondientes:
-
-- **Generalización:** aislamiento de cohorte con tolerancia `1e-9`; el nivel no depende de
-  la cohorte: una entidad sola o dentro de las 250 obtiene exactamente la misma nota.
-- **Explicación:** `score = base + Σ aportaciones − penalización − tope`, al décimo.
-- **Forecast:** validación con origen móvil y sin información futura; mejora al naïve en
-  todos los horizontes validados de 1 a 10 meses.
-- **Última validación documentada:** MAE 14,2 vs 15,5 a tres meses; 16,1 vs 17,7 a seis;
-  cobertura de la franja del 80 % entre 80 % y 86 %.
-- **Anticipación:** el patrón canónico de mejora 45→65 dispara alerta al menos seis meses
-  antes del mes 24. No afirmar anticipación universal: el 82→68 es el límite honesto del
-  motor.
-- **Producto:** el expediente procede del bundle; no es una empresa, necesidad o score
-  escrito a mano.
-
-## 8. Fallback si falla el backend de financiación
-
-No intentar arreglar PostgreSQL o SSE delante del CFO.
-
-1. Permanecer en Maravia → **Acciones**.
-2. Marcar cobertura de actividad y colchón de liquidez.
-3. Enseñar el score recomputado y el horizonte contrafactual.
-4. Abrir el informe PDF ya generado con la cartera, la acción, el bundle y los parámetros.
-5. Cerrar con el mismo beneficio: la lectura y las palancas son la suscripción; la ronda
-   operativa llega cuando el servicio transaccional vuelva — el dossier que la origina
-   sigue siendo determinista y está aquí, generado desde el mismo score.
-
-## 9. Checklist de sala
-
-- [ ] `make db-sync`, `make validate` y `make forecast` ejecutados sobre la misma versión del dataset.
-- [ ] Derivados de frontend regenerados y hashes coincidentes.
-- [ ] `forecast-v1` visible; previsiones antiguas v1 retiradas.
-- [ ] Stack API/PostgreSQL saludable y `FINANCING_DEMO_ENABLED=true`.
-- [ ] `FIN-024` preparado con dos ofertas y sin aceptar.
-- [ ] Las pestañas de la ficha de Maravia cargadas con caché fría y después dejadas listas.
-- [ ] Prueba completa de frontend en verde; referencia actual: `bun run prueba` → 59/59.
-- [ ] Tests de financiación en verde.
-- [ ] Sin errores de consola ni peticiones financieras a terceros.
-- [ ] Ensayo cronometrado: 30 s apertura + 115 s demo + 35 s cierre.
-- [ ] PDF y vídeo local del recorrido disponibles como respaldo.
-
-## 10. Respuestas de diez segundos
-
-- **¿Por qué pago una suscripción si ya tengo ERP y banca conectados?** «Porque esos datos
-  son un rastro que nadie lee de forma continua. Lo convertimos en score, forecast y avisos
-  con explicación exacta — y en la ventana de financiación marcada en el calendario.»
-- **¿Es un rating de agencia?** «No. Es medición transaccional con receipt: mide cinco hechos
-  observables del grupo, con gates y confianza; una agencia te manda una carta cada tanto.»
-- **¿Predice quiebras?** «No. Mide comportamiento financiero y prevé cómo cambia el score,
-  validado fuera de muestra. No hay etiqueta de default y no la inventamos.»
-- **¿Qué ven los proveedores de mi empresa?** «Nada hasta que usted preselecciona: un teaser
-  seudonimizado con el alcance que usted autorizó. Puede revocarlo en cualquier momento.»
-- **¿No me basta con mi banco?** «Su banco le enseña una foto de su propia pieza. Aquí el
-  rastro consolidado del grupo genera una ronda donde compiten varios proveedores.»
-- **¿Y si faltan datos?** «El motor se abstiene: cero producto, cero ronda, y le decimos
-  exactamente qué feed reconectar. Preferimos callarnos a inventar.»
-- **¿Quién paga qué?** «Usted paga la lectura por suscripción; el proveedor que gana la
-  operación paga la colocación. Por eso entrar en la ronda no le cuesta nada.»
+Comprobar además:
+
+- `GROUP_0142` carga sus 22 empresas y muestra nombres, score y horizonte reales;
+- las secciones **Acciones** y **Productos** tienen datos, y una acción cambia el horizonte;
+- el caso de financiación está preparado con dos ofertas, sin aceptar ninguna;
+- el test oculto y cualquier métrica de anticipación se presentan como evaluación, no como una cifra inventada para la demo;
+- no hay errores de consola ni peticiones financieras a terceros;
+- si falla Financiación, continuar en **Acciones**: la historia de valor sigue completa.
