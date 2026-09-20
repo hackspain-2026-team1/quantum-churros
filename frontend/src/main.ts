@@ -55,7 +55,7 @@ async function iniciar() {
 		app.append(h('div', { class: 'sin-datos' }, h('h1', {}, falta ? 'Rumbo no encuentra los datos' : 'Rumbo no puede leer los datos'),
 			falta ? null : h('p', {}, `Error: ${err instanceof Error ? err.message : String(err)}`),
 			h('p', {}, 'Falta el bundle del motor en public/datos (y los ficheros de Rumbo en public/rumbo). Rumbo no enseña nada que no salga de los datos, así que no arranca con otros.'),
-			h('p', {}, 'Para prepararlos: exportar con el motor (make export), ejecutar scripts/datos/parametros.py y productos.py y generar la previsión con el motor (make forecast). Ver interfaz/DIARIO.md.')));
+			h('p', {}, 'Para prepararlos desde la raíz del repositorio: make db-sync. Ver frontend/DIARIO.md.')));
 		return;
 	}
 	// En producción, un bundle sintético no se enseña nunca.

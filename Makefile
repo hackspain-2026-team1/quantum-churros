@@ -5,6 +5,7 @@ XRAY_DATA ?= data/raw
 XRAY_BUNDLE ?= bundle
 XRAY_OUT ?= artifacts
 XRAY_HORIZONS ?= rumbo/horizons
+XRAY_PRODUCTS ?= rumbo/products
 EVIDENCE_MONTHS ?= 24
 
 .PHONY: dev
@@ -149,7 +150,12 @@ db-classify: ## Classify companies into industry archetypes for the mounted data
 db-sync: ## Start PostgreSQL and synchronize source data, scores, database projections, and the frontend bundle
 	$(COMPOSE) up --build -d --wait postgres api
 	$(COMPOSE) exec api uv run --locked --package quantum-churros-api xray-db sync /data/raw --out-dir /app/artifacts --bundle-dir /app/bundle --evidence-months $(EVIDENCE_MONTHS)
+	uv run python frontend/scripts/datos/parametros.py --params params/reference_v1.json --bundle $(XRAY_BUNDLE) --out rumbo/params.json
 	uv run python frontend/scripts/datos/entidades.py --bundle $(XRAY_BUNDLE) --out rumbo/entities.json
+	uv run --package xray-engine xray-score forecast --artifacts $(XRAY_OUT) --bundle $(XRAY_BUNDLE) --out $(XRAY_HORIZONS)
+	@dataset_hash=$$(python3 -c 'import json; print(json.load(open("$(XRAY_BUNDLE)/manifest.json"))["dataset_hash"])'); \
+	uv run --no-project --with polars --with pyarrow python frontend/scripts/datos/productos.py --parquet "$(XRAY_OUT)/cache/$$dataset_hash" --raw $(XRAY_DATA) --params params/reference_v1.json --bundle $(XRAY_BUNDLE) --out $(XRAY_PRODUCTS)
+	uv run --package quantum-churros-api xray-db verify-static-data $(XRAY_BUNDLE) rumbo
 
 .PHONY: data-extract
 data-extract: ## Extract the local challenge archive into the ignored data directory

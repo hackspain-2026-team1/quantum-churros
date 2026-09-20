@@ -19,7 +19,7 @@ echo "2/5 · parámetros verificados"
 python3 "$AQUI/scripts/datos/parametros.py" --params "$MOTOR/params/reference_v1.json" --bundle "$BUNDLE" --out "$RUMBO/params.json"
 python3 "$AQUI/scripts/datos/entidades.py" --bundle "$BUNDLE" --out "$RUMBO/entities.json"
 echo "3/5 · productos contratados"
-uv run --no-project --with polars --with pyarrow python "$AQUI/scripts/datos/productos.py" --parquet "$DATOS/parquet" --raw "$DATOS/raw" --params "$MOTOR/params/reference_v1.json" --out "$RUMBO/products" --cut 2026-08
+uv run --no-project --with polars --with pyarrow python "$AQUI/scripts/datos/productos.py" --parquet "$DATOS/parquet" --raw "$DATOS/raw" --params "$MOTOR/params/reference_v1.json" --bundle "$BUNDLE" --out "$RUMBO/products"
 echo "4/5 · previsión del score (el motor la entrena y la valida)"
 ( cd "$MOTOR" && uv run --package xray-engine xray-score forecast --artifacts "$ART" --bundle "$BUNDLE" --params "$MOTOR/params/reference_v1.json" --out "$RUMBO/horizons" --past 2025-03: )
 echo "5/5 · enlaces"

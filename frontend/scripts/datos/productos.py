@@ -30,7 +30,8 @@ Uso:
   uv run --no-project --with polars --with pyarrow python scripts/datos/productos.py \
       --parquet ~/Developer/hackspain-data/parquet --raw ~/Developer/hackspain-data/raw \
       --params ~/Developer/hackspain-motor/params/reference_v1.json \
-      --out ~/Developer/hackspain-data/rumbo/products --cut 2026-08
+      --bundle ~/Developer/hackspain-data/bundle-main \
+      --out ~/Developer/hackspain-data/rumbo/products
 """
 
 from __future__ import annotations
@@ -106,18 +107,32 @@ def sha(p: Path) -> str:
     return h.hexdigest()
 
 
+def importes_en_unidades(frame: pl.DataFrame, *columnas: str) -> pl.DataFrame:
+    expresiones = []
+    for columna in columnas:
+        if columna in frame.columns:
+            continue
+        centimos = f"{columna}_cents"
+        if centimos not in frame.columns:
+            raise ValueError(f"Falta {columna} o {centimos} en el Parquet")
+        expresiones.append((pl.col(centimos).cast(pl.Float64) / 100).alias(columna))
+    return frame.with_columns(expresiones)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--parquet", required=True)
     ap.add_argument("--raw", required=True)
     ap.add_argument("--params", required=True)
+    ap.add_argument("--bundle", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--cut", default="2026-08")
+    ap.add_argument("--cut", help="Último mes incluido; por defecto, el último mes del bundle")
     a = ap.parse_args()
     P = Path(a.parquet).expanduser()
     out = Path(a.out).expanduser()
     out.mkdir(parents=True, exist_ok=True)
-    cut = a.cut
+    manifest = json.loads((Path(a.bundle).expanduser() / "manifest.json").read_text())
+    cut = a.cut or manifest["months"][-1]
     anio, mes = map(int, cut.split("-"))
     fin = datetime(anio + (mes == 12), mes % 12 + 1, 1)
     # Ventana de 12 meses que acaba en el mes de corte: de (corte − 11) a corte, ambos incluidos.
@@ -125,6 +140,7 @@ def main() -> None:
     inicio = datetime(a0, m0, 1)
 
     params = json.loads(Path(a.params).expanduser().read_text())
+    bundle_id = manifest["bundle_id"]
     fx = params["fx"]["rates"]
 
     def eur(v, moneda):
@@ -135,17 +151,25 @@ def main() -> None:
 
     companies = pl.read_parquet(P / "companies.parquet").select(["company_id", "group_id"])
     grupo_de = dict(companies.iter_rows())
-    deuda = pl.read_parquet(P / "debt_products.parquet").filter(pl.col("created_at") < fin)
+    deuda = importes_en_unidades(
+        pl.read_parquet(P / "debt_products.parquet"),
+        "granted",
+        "outstanding",
+        "liquidity",
+    ).filter(pl.col("created_at") < fin)
     calendario = pl.read_parquet(P / "debt_schedule_config.parquet")
     banca = pl.read_parquet(P / "banking_products.parquet").filter(pl.col("created_at") < fin)
-    saldos = pl.read_parquet(P / "balances.parquet")
+    saldos = importes_en_unidades(pl.read_parquet(P / "balances.parquet"), "balance")
     cal = {r["product_id"]: r for r in calendario.iter_rows(named=True)}
     saldo = {}
     for r in saldos.sort("date").iter_rows(named=True):
         saldo[r["product_id"]] = r
 
     # Movimientos de los 12 meses que acaban en el corte.
-    t = (pl.read_parquet(P / "transactions.parquet", columns=["company_id", "date", "amount", "description"])
+    transacciones_path = P / "transactions.parquet"
+    transacciones_schema = pl.read_parquet_schema(transacciones_path)
+    importe_transaccion = "amount" if "amount" in transacciones_schema else "amount_cents"
+    t = (importes_en_unidades(pl.read_parquet(transacciones_path, columns=["company_id", "date", importe_transaccion, "description"]), "amount")
          .filter((pl.col("date") >= inicio) & (pl.col("date") < fin))
          .with_columns(pl.col("description").fill_null("").str.to_uppercase().alias("d"), pl.col("date").dt.strftime("%Y-%m").alias("mes")))
 
@@ -183,7 +207,7 @@ def main() -> None:
 
     empresas = {}
     for cid, gid in grupo_de.items():
-        empresas[cid] = {"schema": "rumbo-products-v1", "company_id": cid, "group_id": gid, "cut": cut,
+        empresas[cid] = {"schema": "rumbo-products-v1", "bundle_id": bundle_id, "company_id": cid, "group_id": gid, "cut": cut,
                          "held": {}, "other_debt": [], "accounts": {}, "banks": {}, "signals": senales.get(cid, {}),
                          "totals": {"debt_granted": 0.0, "debt_outstanding": 0.0, "lines_granted": 0.0, "lines_available": 0.0}}
 
@@ -270,7 +294,7 @@ def main() -> None:
     # Grupos e índice.
     grupos: dict[str, dict] = {}
     for e in empresas.values():
-        g = grupos.setdefault(e["group_id"], {"schema": "rumbo-products-group-v1", "group_id": e["group_id"], "cut": cut, "companies": [], "counts": {}, "banks": {}, "totals": {}})
+        g = grupos.setdefault(e["group_id"], {"schema": "rumbo-products-group-v1", "bundle_id": bundle_id, "group_id": e["group_id"], "cut": cut, "companies": [], "counts": {}, "banks": {}, "totals": {}})
         g["companies"].append({"id": e["company_id"], "held": [h["product"] for h in e["held"]], "sources": {h["product"]: h["source"] for h in e["held"]}})
         for h in e["held"]:
             g["counts"][h["product"]] = g["counts"].get(h["product"], 0) + 1
@@ -294,7 +318,7 @@ def main() -> None:
     raw = Path(a.raw).expanduser()
     fuentes = {n: sha(raw / n) for n in ["debt_products.csv", "debt_schedule_config.csv", "banking_products.csv", "balances.csv", "transactions.csv", "companies.csv"] if (raw / n).exists()}
     indice = {
-        "schema": "rumbo-products-index-v1", "cut": cut, "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "schema": "rumbo-products-index-v1", "bundle_id": bundle_id, "cut": cut, "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "window": [inicio.strftime("%Y-%m"), cut], "source_files": fuentes,
         "rules": {p: {"declared": {"linea_credito": "debt_products · lineofcredit", "factoring": "debt_products · factoring", "confirming": "debt_products · confirming",
                                    "cuenta_remunerada": "banking_products · saving", "depositos": "banking_products · investment"}.get(p),
